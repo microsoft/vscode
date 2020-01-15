@@ -8,11 +8,11 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-export class BlockCommentCommand implements editorCommon.ICommand {
+export class BlockCommentCommand implements ICommand {
 
 	private readonly _selection: Selection;
 	private _usedEndToken: string | null;
@@ -53,7 +53,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection: Range, startToken: string, endToken: string, model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: Range, startToken: string, endToken: string, model: ITextModel, builder: IEditOperationBuilder): void {
 		const startLineNumber = selection.startLineNumber;
 		const startColumn = selection.startColumn;
 		const endLineNumber = selection.endLineNumber;
@@ -164,7 +164,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startLineNumber = this._selection.startLineNumber;
 		const startColumn = this._selection.startColumn;
 
@@ -179,7 +179,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, model, builder);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			const startTokenEditOperation = inverseEditOperations[0];

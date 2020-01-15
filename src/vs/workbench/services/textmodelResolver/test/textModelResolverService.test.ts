@@ -48,7 +48,6 @@ suite('Workbench - TextModelResolverService', () => {
 			model.dispose();
 			model = (undefined)!;
 		}
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledTextEditorService.revertAll();
 	});

@@ -44,7 +44,7 @@ import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapIn
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
+import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 
@@ -142,6 +142,24 @@ const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<Contribute
 		]
 	}
 });
+
+const NUMPAD_PRINTABLE_SCANCODES = [
+	ScanCode.NumpadDivide,
+	ScanCode.NumpadMultiply,
+	ScanCode.NumpadSubtract,
+	ScanCode.NumpadAdd,
+	ScanCode.Numpad1,
+	ScanCode.Numpad2,
+	ScanCode.Numpad3,
+	ScanCode.Numpad4,
+	ScanCode.Numpad5,
+	ScanCode.Numpad6,
+	ScanCode.Numpad7,
+	ScanCode.Numpad8,
+	ScanCode.Numpad9,
+	ScanCode.Numpad0,
+	ScanCode.NumpadDecimal
+];
 
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
@@ -559,6 +577,21 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 		const code = ScanCodeUtils.toEnum(event.code);
+
+		if (NUMPAD_PRINTABLE_SCANCODES.indexOf(code) !== -1) {
+			// This is a numpad key that might produce a printable character based on NumLock.
+			// Let's check if NumLock is on or off based on the event's keyCode.
+			// e.g.
+			// - when NumLock is off, ScanCode.Numpad4 produces KeyCode.LeftArrow
+			// - when NumLock is on, ScanCode.Numpad4 produces KeyCode.NUMPAD_4
+			// However, ScanCode.NumpadAdd always produces KeyCode.NUMPAD_ADD
+			if (event.keyCode === IMMUTABLE_CODE_TO_KEY_CODE[code]) {
+				// NumLock is on or this is /, *, -, + on the numpad
+				return true;
+			}
+			return false;
+		}
+
 		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
 		if (keycode !== -1) {
 			// https://github.com/microsoft/vscode/issues/74934

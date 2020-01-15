@@ -190,13 +190,10 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	cleanupBackupsBeforeShutdownCalled!: boolean;
-
 	private promptPath!: URI;
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -204,19 +201,16 @@ export class TestTextFileService extends NativeTextFileService {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@INotificationService notificationService: INotificationService,
-		@IBackupFileService backupFileService: IBackupFileService,
 		@IHistoryService historyService: IHistoryService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IElectronService electronService: IElectronService,
 		@IProductService productService: IProductService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService textModelService: ITextModelService
 	) {
 		super(
-			contextService,
 			fileService,
 			untitledTextEditorService,
 			lifecycleService,
@@ -224,16 +218,14 @@ export class TestTextFileService extends NativeTextFileService {
 			modeService,
 			modelService,
 			environmentService,
-			notificationService,
-			backupFileService,
 			historyService,
 			dialogService,
 			fileDialogService,
 			editorService,
 			textResourceConfigurationService,
-			electronService,
 			productService,
-			filesConfigurationService
+			filesConfigurationService,
+			textModelService
 		);
 	}
 
@@ -268,11 +260,6 @@ export class TestTextFileService extends NativeTextFileService {
 
 	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
 		return Promise.resolve(this.promptPath);
-	}
-
-	protected cleanupBackupsBeforeShutdown(): Promise<void> {
-		this.cleanupBackupsBeforeShutdownCalled = true;
-		return Promise.resolve();
 	}
 }
 
@@ -1223,7 +1210,11 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
+	didDiscardAllWorkspaceBackups = false;
+
 	discardAllWorkspaceBackups(): Promise<void> {
+		this.didDiscardAllWorkspaceBackups = true;
+
 		return Promise.resolve();
 	}
 }

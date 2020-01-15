@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { timeout } from 'vs/base/common/async';
-import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
+import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class UserDataAutoSync extends Disposable {
 
@@ -18,16 +17,17 @@ export class UserDataAutoSync extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
+		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 	) {
 		super();
 		this.updateEnablement(false);
-		this._register(Event.any<any>(authTokenService.onDidChangeStatus, userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true)));
+		this._register(Event.any<any>(userDataAuthTokenService.onDidChangeToken)(() => this.updateEnablement(true)));
+		this._register(Event.any<any>(userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true)));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.enable'))(() => this.updateEnablement(true)));
 	}
 
-	private updateEnablement(stopIfDisabled: boolean): void {
-		const enabled = this.isSyncEnabled();
+	private async updateEnablement(stopIfDisabled: boolean): Promise<void> {
+		const enabled = await this.isSyncEnabled();
 		if (this.enabled === enabled) {
 			return;
 		}
@@ -60,10 +60,10 @@ export class UserDataAutoSync extends Disposable {
 		}
 	}
 
-	private isSyncEnabled(): boolean {
+	private async isSyncEnabled(): Promise<boolean> {
 		return this.configurationService.getValue<boolean>('sync.enable')
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
-			&& this.authTokenService.status === AuthTokenStatus.SignedIn;
+			&& !!(await this.userDataAuthTokenService.getToken());
 	}
 
 }

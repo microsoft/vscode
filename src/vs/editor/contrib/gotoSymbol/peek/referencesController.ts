@@ -11,7 +11,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
@@ -25,10 +25,11 @@ import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/bro
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
-export abstract class ReferencesController implements editorCommon.IEditorContribution {
+export abstract class ReferencesController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.referencesController';
 
@@ -163,7 +164,11 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 					let pos = new Position(range.startLineNumber, range.startColumn);
 					let selection = this._model.nearestReference(uri, pos);
 					if (selection) {
-						return this._widget.setSelection(selection);
+						return this._widget.setSelection(selection).then(() => {
+							if (this._widget && this._editor.getOption(EditorOption.peekWidgetFocusInlineEditor)) {
+								this._widget.focusOnPreviewEditor();
+							}
+						});
 					}
 				}
 				return undefined;
@@ -201,10 +206,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}
 		const target = this._model.nextOrPreviousReference(source, fwd);
 		const editorFocus = this._editor.hasTextFocus();
+		const previewEditorFocus = this._widget.isPreviewEditorFocused();
 		await this._widget.setSelection(target);
 		await this._gotoReference(target);
 		if (editorFocus) {
 			this._editor.focus();
+		} else if (this._widget && previewEditorFocus) {
+			this._widget.focusOnPreviewEditor();
 		}
 	}
 

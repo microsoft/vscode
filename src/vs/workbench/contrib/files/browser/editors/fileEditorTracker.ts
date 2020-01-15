@@ -7,7 +7,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
-import { ITextFileService, TextFileModelChangeEvent, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -21,16 +21,16 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { timeout } from 'vs/base/common/async';
+import { timeout, RunOnceWorker } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
 	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
-
-	private closeOnFileDelete: boolean = false;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -43,6 +43,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super();
 
@@ -59,9 +60,10 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Update editors from disk changes
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
-		// Ensure dirty text file models are always opened as editors
-		this._register(this.textFileService.models.onModelsDirty(e => this.ensureDirtyTextFilesAreOpened(e)));
-		this._register(this.textFileService.models.onModelsSaveError(e => this.ensureDirtyTextFilesAreOpened(e)));
+		// Ensure dirty text file and untitled models are always opened as editors
+		this._register(this.textFileService.models.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.textFileService.models.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.untitledTextEditorService.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
 
 		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -175,7 +177,17 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#endregion
 
-	//#region File Changes: Close editors of deleted files
+	//#region File Changes: Close editors of deleted files unless configured otherwise
+
+	private closeOnFileDelete: boolean = false;
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
+			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
+		} else {
+			this.closeOnFileDelete = false; // default
+		}
+	}
 
 	private onFileChanges(e: FileChangesEvent): void {
 		if (e.gotDeleted()) {
@@ -264,16 +276,41 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#endregion
 
-	//#region Text File: Ensure every dirty text file is opened in an editor
+	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
 
-	private ensureDirtyTextFilesAreOpened(events: ReadonlyArray<TextFileModelChangeEvent>): void {
-		this.editorService.openEditors(distinct(events.filter(({ resource }) => {
-			const model = this.textFileService.models.get(resource);
+	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyFilesAreOpened(units), 250));
 
-			return model?.hasState(ModelState.DIRTY) &&		// model must be dirty
-				!model.hasState(ModelState.PENDING_SAVE) &&	// model should not be saving currently
-				!this.editorService.isOpen({ resource });	// model is not currently opened as editor
-		}).map(event => event.resource), resource => resource.toString()).map(resource => ({
+	private ensureDirtyFilesAreOpened(resources: URI[]): void {
+		this.doEnsureDirtyFilesAreOpened(distinct(resources.filter(resource => {
+			if (resource.scheme === Schemas.untitled) {
+				if (!this.untitledTextEditorService.isDirty(resource)) {
+					return false; // untitled must be dirty
+				}
+			} else {
+				const model = this.textFileService.models.get(resource);
+				if (!model) {
+					return false; // only for text file models
+				}
+
+				if (!model?.hasState(ModelState.DIRTY) || model.hasState(ModelState.PENDING_SAVE)) {
+					return false; // model must be dirty and not being saved
+				}
+			}
+
+			if (this.editorService.isOpen({ resource })) {
+				return false; // model must not be opened already
+			}
+
+			return true;
+		}), resource => resource.toString()));
+	}
+
+	private doEnsureDirtyFilesAreOpened(resources: URI[]): void {
+		if (!resources.length) {
+			return;
+		}
+
+		this.editorService.openEditors(resources.map(resource => ({
 			resource,
 			options: { inactive: true, pinned: true, preserveFocus: true }
 		})));
@@ -347,18 +384,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 					})),
 				model => model.resource.toString()
 			).forEach(model => model.load());
-		}
-	}
-
-	//#endregion
-
-	//#region Configuration Change
-
-	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
-			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
-		} else {
-			this.closeOnFileDelete = false; // default
 		}
 	}
 

@@ -64,7 +64,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Color, RGBA } from 'vs/base/common/color';
 
@@ -156,7 +156,7 @@ export class SearchView extends ViewPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
@@ -174,7 +174,7 @@ export class SearchView extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -1559,7 +1559,7 @@ export class SearchView extends ViewPane {
 
 				this.messageDisposables.push(dom.addDisposableListener(openInEditorLink, dom.EventType.CLICK, (e: MouseEvent) => {
 					dom.EventHelper.stop(e, false);
-					createEditorFromSearchResult(this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.labelService, this.editorService);
+					createEditorFromSearchResult(this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
 				}));
 
 			} else {

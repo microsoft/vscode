@@ -306,7 +306,7 @@ suite('Themes - TokenStyleResolving', () => {
 			'*.static': { fontStyle: 'bold' },
 			'*.declaration': { fontStyle: 'italic' },
 			'*.async.static': { fontStyle: 'italic underline' },
-			'*.async': { foreground: '#000fff', fontStyle: '-italic underline' }
+			'*.async': { foreground: '#000fff', fontStyle: 'underline' }
 		});
 
 		assertTokenStyles(themeData, {
@@ -316,7 +316,7 @@ suite('Themes - TokenStyleResolving', () => {
 			'class': ts('#0000ff', { italic: true }),
 			'class.static.declaration': ts('#0000ff', { bold: true, italic: true }),
 			'class.declaration': ts('#0000ff', { italic: true }),
-			'class.declaration.async': ts('#000fff', { underline: true, italic: false }),
+			'class.declaration.async': ts('#000fff', { underline: true, italic: true }),
 			'class.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
 		});
 

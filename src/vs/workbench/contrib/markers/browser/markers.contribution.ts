@@ -32,6 +32,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -110,7 +111,7 @@ class ToggleMarkersPanelAction extends TogglePanelAction {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_PANEL_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	ctorDescriptor: { ctor: ViewPaneContainer, arguments: [Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }] },
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	focusCommand: {
 		id: ToggleMarkersPanelAction.ID, keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
@@ -122,7 +123,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Constants.MARKERS_VIEW_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
-	ctorDescriptor: { ctor: MarkersView },
+	ctorDescriptor: new SyncDescriptor(MarkersView),
 }], VIEW_CONTAINER);
 
 // workbench

@@ -12,7 +12,7 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto } from './extHost.protocol';
 import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';

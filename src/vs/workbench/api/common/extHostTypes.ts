@@ -11,7 +11,7 @@ import { values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { escapeCodicons } from 'vs/base/common/codicons';
@@ -1395,7 +1395,7 @@ export class CompletionItem implements vscode.CompletionItem {
 export class CompletionList {
 
 	isIncomplete?: boolean;
-
+	isDetailsResolved?: boolean;
 	items: vscode.CompletionItem[];
 
 	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {

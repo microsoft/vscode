@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';

@@ -14,9 +14,9 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { CodeAction } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { codeActionCommandId, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -68,7 +68,7 @@ export class CodeActionMenu extends Disposable {
 		return this._visible;
 	}
 
-	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
 			this._visible = false;
@@ -84,7 +84,7 @@ export class CodeActionMenu extends Disposable {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const menuActions = this.getMenuActions(actionsToShow);
+		const menuActions = this.getMenuActions(trigger, actionsToShow);
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 		const resolver = this._keybindingResolver.getResolver();
@@ -101,19 +101,26 @@ export class CodeActionMenu extends Disposable {
 		});
 	}
 
-	private getMenuActions(actionsToShow: readonly CodeAction[]): IAction[] {
-		const allActions = actionsToShow
-			.map(action => new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
+	private getMenuActions(trigger: CodeActionTrigger, actionsToShow: readonly CodeAction[]): IAction[] {
+		const toCodeActionAction = (action: CodeAction): CodeActionAction => new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action));
 
-		// Treat documentation actions as special
-		const result: IAction[] = allActions
-			.filter(action => !action.action.kind || !CodeActionKind.RefactorDocumentation.contains(new CodeActionKind(action.action.kind)));
+		const result: IAction[] = actionsToShow
+			.map(toCodeActionAction);
 
-		const documentationActions = allActions
-			.filter(action => action.action.kind && CodeActionKind.RefactorDocumentation.contains(new CodeActionKind(action.action.kind)));
 
-		if (documentationActions.length) {
-			result.push(new Separator(), ...documentationActions);
+		const model = this._editor.getModel();
+		if (model && result.length) {
+			for (const provider of CodeActionProviderRegistry.all(model)) {
+				if (provider._getAdditionalMenuItems) {
+					const items = provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow);
+					if (items.length) {
+						result.push(new Separator(), ...items.map(command => toCodeActionAction({
+							title: command.title,
+							command: command,
+						})));
+					}
+				}
+			}
 		}
 
 		return result;

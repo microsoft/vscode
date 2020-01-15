@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mergeSort } from 'vs/base/common/arrays';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
@@ -25,25 +25,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { Recording } from 'vs/workbench/services/bulkEdit/browser/conflicts';
 
-abstract class Recording {
-
-	static start(fileService: IFileService): Recording {
-
-		let _changes = new Set<string>();
-		let subscription = fileService.onAfterOperation(e => {
-			_changes.add(e.resource.toString());
-		});
-
-		return {
-			stop() { return subscription.dispose(); },
-			hasChanged(resource) { return _changes.has(resource.toString()); }
-		};
-	}
-
-	abstract stop(): void;
-	abstract hasChanged(resource: URI): boolean;
-}
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
@@ -198,7 +181,7 @@ class BulkEditModel implements IDisposable {
 				for (const edit of value) {
 					if (makeMinimal) {
 						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, edit.edits);
-						task.addEdit({ ...edit, edits: newEdits! });
+						task.addEdit({ ...edit, edits: newEdits ?? edit.edits });
 
 					} else {
 						task.addEdit(edit);
@@ -381,6 +364,8 @@ export class BulkEditService implements IBulkEditService {
 
 	_serviceBrand: undefined;
 
+	private _previewHandler?: IBulkEditPreviewHandler;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
@@ -393,10 +378,23 @@ export class BulkEditService implements IBulkEditService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
-	apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
+	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
+		this._previewHandler = handler;
+		return toDisposable(() => {
+			if (this._previewHandler === handler) {
+				this._previewHandler = undefined;
+			}
+		});
+	}
 
-		let { edits } = edit;
-		let codeEditor = options.editor;
+	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+
+		if (this._previewHandler && options?.showPreview) {
+			edit = await this._previewHandler(edit, options);
+		}
+
+		const { edits } = edit;
+		let codeEditor = options?.editor;
 
 		// First check if loaded models were not changed in the meantime
 		for (const edit of edits) {
@@ -423,7 +421,7 @@ export class BulkEditService implements IBulkEditService {
 			codeEditor = undefined;
 		}
 		const bulkEdit = new BulkEdit(
-			codeEditor, options.progress, edits,
+			codeEditor, options?.progress, edits,
 			this._logService, this._textModelService, this._fileService, this._workerService, this._textFileService, this._labelService, this._configurationService
 		);
 		return bulkEdit.perform().then(() => {

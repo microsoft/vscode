@@ -28,6 +28,19 @@ export const DEFAULT_IGNORED_SETTINGS = [
 	'sync.enableExtensions',
 ];
 
+export interface ISyncConfiguration {
+	sync: {
+		enable: boolean,
+		enableSettings: boolean,
+		enableKeybindings: boolean,
+		enableUIState: boolean,
+		enableExtensions: boolean,
+		keybindingsPerPlatform: boolean,
+		ignoredExtensions: string[],
+		ignoredSettings: string[]
+	}
+}
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -57,7 +70,7 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.enableUIState': {
 				type: 'boolean',
-				description: localize('sync.enableUIState', "Enable synchronizing UI state."),
+				description: localize('sync.enableUIState', "Enable synchronizing UI state (Only Display Language)."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -154,9 +167,10 @@ export interface IGlobalState {
 }
 
 export const enum SyncSource {
-	Settings = 1,
-	Keybindings,
-	Extensions
+	Settings = 'Settings',
+	Keybindings = 'Keybindings',
+	Extensions = 'Extensions',
+	UIState = 'UI State'
 }
 
 export const enum SyncStatus {
@@ -170,8 +184,12 @@ export interface ISynchroniser {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
+	pull(): Promise<void>;
+	push(): Promise<void>;
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
+	hasPreviouslySynced(): Promise<boolean>
+	hasRemote(): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -188,6 +206,17 @@ export interface IUserDataSyncUtilService {
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 }
 
+export const IUserDataAuthTokenService = createDecorator<IUserDataAuthTokenService>('IUserDataAuthTokenService');
+
+export interface IUserDataAuthTokenService {
+	_serviceBrand: undefined;
+
+	readonly onDidChangeToken: Event<string | undefined>;
+
+	getToken(): Promise<string | undefined>;
+	setToken(accessToken: string | undefined): Promise<void>;
+}
+
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
 export interface IUserDataSyncLogService extends ILogService { }
 
@@ -200,7 +229,8 @@ export interface IConflictSetting {
 export const ISettingsSyncService = createDecorator<ISettingsSyncService>('ISettingsSyncService');
 export interface ISettingsSyncService extends ISynchroniser {
 	_serviceBrand: any;
-	getConflicts(): Promise<IConflictSetting[]>;
+	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
+	readonly conflicts: IConflictSetting[];
 	resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
 }
 

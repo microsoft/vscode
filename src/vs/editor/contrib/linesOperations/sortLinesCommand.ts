@@ -6,10 +6,10 @@
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 
-export class SortLinesCommand implements editorCommon.ICommand {
+export class SortLinesCommand implements ICommand {
 
 	private static _COLLATOR: Intl.Collator | null = null;
 	public static getCollator(): Intl.Collator {
@@ -29,7 +29,7 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		this.selectionId = null;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		let op = sortLines(model, this.selection, this.descending);
 		if (op) {
 			builder.addEditOperation(op.range, op.text);
@@ -38,7 +38,7 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		this.selectionId = builder.trackSelection(this.selection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId!);
 	}
 

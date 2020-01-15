@@ -91,13 +91,13 @@ export class CallStackView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -308,7 +308,13 @@ export class CallStackView extends ViewPane {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
-				this.tree.reveal(element);
+				// If the element is outside of the screen bounds,
+				// position it in the middle
+				if (this.tree.getRelativeTop(element) === null) {
+					this.tree.reveal(element, 0.5);
+				} else {
+					this.tree.reveal(element);
+				}
 			} catch (e) { }
 			finally {
 				this.ignoreSelectionChangedEvent = false;

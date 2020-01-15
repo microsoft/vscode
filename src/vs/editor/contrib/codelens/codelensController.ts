@@ -7,9 +7,9 @@ import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposabl
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, MouseTargetType, IViewZoneChangeAccessor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
 import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
@@ -21,7 +21,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
 
-export class CodeLensContribution implements editorCommon.IEditorContribution {
+export class CodeLensContribution implements IEditorContribution {
 
 	public static readonly ID: string = 'css.editor.codeLens';
 
@@ -40,7 +40,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _detectVisibleLenses: RunOnceScheduler | undefined;
 
 	constructor(
-		private readonly _editor: editorBrowser.ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
@@ -223,7 +223,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._localToDispose.add(this._editor.onMouseUp(e => {
-			if (e.target.type !== editorBrowser.MouseTargetType.CONTENT_WIDGET) {
+			if (e.target.type !== MouseTargetType.CONTENT_WIDGET) {
 				return;
 			}
 			let target = e.target.element;
@@ -243,7 +243,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		scheduler.schedule();
 	}
 
-	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor | undefined, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor | undefined): void {
+	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor | undefined, viewZoneChangeAccessor: IViewZoneChangeAccessor | undefined): void {
 		const helper = new CodeLensHelper();
 		for (const lens of this._lenses) {
 			lens.dispose(helper, viewZoneChangeAccessor);
@@ -300,7 +300,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], <editorBrowser.IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], <IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -314,7 +314,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLensWidget(groups[groupsIndex], <editorBrowser.IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLensWidget(groups[groupsIndex], <IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 

@@ -60,12 +60,11 @@ import { BackupFileService } from 'vs/workbench/services/backup/common/backupFil
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
+import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
-import { IAuthTokenService } from 'vs/platform/auth/common/auth';
-import { AuthTokenService } from 'vs/workbench/services/authToken/browser/authTokenService';
 import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -75,9 +74,9 @@ registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
-registerSingleton(ITunnelService, NoOpTunnelService, true);
+registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ILoggerService, FileLoggerService);
-registerSingleton(IAuthTokenService, AuthTokenService);
+registerSingleton(IAuthenticationService, AuthenticationService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(ISettingsSyncService, SettingsSynchroniser);
@@ -90,6 +89,9 @@ registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
+
+// Backup
+import 'vs/workbench/contrib/backup/browser/backup.web.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';

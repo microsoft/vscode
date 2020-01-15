@@ -1193,7 +1193,6 @@ declare module 'vscode' {
 	 * A complex edit that will be applied in one transaction on a TextEditor.
 	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
 	 * they can be applied on a [document](#TextDocument) associated with a [text editor](#TextEditor).
-	 *
 	 */
 	export interface TextEditorEdit {
 		/**
@@ -1584,12 +1583,12 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in the same line.
 		 */
 		description?: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in a separate line.
 		 */
 		detail?: string;
 

@@ -141,7 +141,7 @@ export class TextModelResolverService implements ITextModelService {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
-			const model = await this.untitledTextEditorService.loadOrCreate({ resource });
+			const model = await this.untitledTextEditorService.createOrGet({ resource }).resolve();
 
 			return new ImmortalReference(model as IResolvedTextEditorModel);
 		}
@@ -175,6 +175,10 @@ export class TextModelResolverService implements ITextModelService {
 	}
 
 	hasTextModelContentProvider(scheme: string): boolean {
+		if (scheme === network.Schemas.untitled || scheme === network.Schemas.inMemory) {
+			return true; // we handle untitled:// and inMemory:// within
+		}
+
 		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }
