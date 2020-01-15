@@ -25,7 +25,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { FileMatch, Match, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
-import { IEditorInputFactory, GroupIdentifier, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, GroupIdentifier, EditorInput, SaveContext } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
@@ -34,6 +34,11 @@ import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/te
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { dirname, joinPath, isEqual } from 'vs/base/common/resources';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { basename } from 'vs/base/common/path';
 
 
 
@@ -54,10 +59,14 @@ export class SearchEditorContribution implements IWorkbenchContribution {
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IModelService protected readonly modelService: IModelService,
 	) {
+
 		this.editorService.overrideOpenEditor((editor, options, group) => {
 			const resource = editor.getResource();
-			if (!resource || !endsWith(resource.path, '.code-search') || !(editor instanceof FileEditorInput)) {
+			if (!resource ||
+				!(endsWith(resource.path, '.code-search') || resource.scheme === 'search-editor') ||
+				!(editor instanceof FileEditorInput || (resource.scheme === 'search-editor'))) {
 				return undefined;
 			}
 
@@ -67,7 +76,7 @@ export class SearchEditorContribution implements IWorkbenchContribution {
 
 			return {
 				override: (async () => {
-					const contents = (await this.textFileService.read(resource)).value;
+					const contents = resource.scheme === 'search-editor' ? this.modelService.getModel(resource)?.getValue() ?? '' : (await this.textFileService.read(resource)).value;
 					const header = searchHeaderToContentPattern(contents.split('\n').slice(0, 5));
 
 					const input = instantiationService.createInstance(
@@ -84,7 +93,7 @@ export class SearchEditorContribution implements IWorkbenchContribution {
 							showIncludesExcludes: !!(header.includes || header.excludes || header.flags.ignoreExcludes)
 						}, contents, resource);
 
-					return editorService.openEditor(input, { ...options, pinned: true, ignoreOverrides: true }, group);
+					return editorService.openEditor(input, { ...options, pinned: resource.scheme === 'search-editor', ignoreOverrides: true }, group);
 				})()
 			};
 		});
@@ -132,6 +141,10 @@ export class SearchEditorInput extends EditorInput {
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
 		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.resource = resource ?? URI.from({ scheme: 'search-editor', fragment: `${searchEditorInputInstances++}` });
@@ -149,14 +162,31 @@ export class SearchEditorInput extends EditorInput {
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
 		if (this.resource.scheme === 'search-editor') {
-			const path = (this.config.query.replace(/\W/g, '') || 'Untitled Search') + '.code-search';
-			const untitledResource = URI.from({ scheme: 'untitled', path, fragment: this.resource.fragment });
-			const a = this.untitledTextEditorService.createOrGet(untitledResource, 'search-result', this.model.getValue());
-			return a.save(group, options).finally(() => a.dispose());
+			const path = await this.promptForPath(this.resource, this.suggestFileName());
+			if (path) {
+				if (await this.textFileService.saveAs(this.resource, path, options)) {
+					if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(path, this.resource)) {
+						const replacement = this.instantiationService.createInstance(SearchEditorInput, this.config, undefined, path);
+						await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
+						return true;
+					}
+				}
+			}
+			return false;
 		} else {
-			const a = this.untitledTextEditorService.createOrGet(this.resource, 'search-result', this.model.getValue(), undefined, true);
-			return a.save(group, options).finally(() => a.dispose());
+			return !!this.textFileService.write(this.resource, this.model.getValue(), options);
 		}
+	}
+
+	// Brining this over from textFileService because it only suggests for untitled scheme.
+	// In the future I may just use the untitled scheme. I dont get particular benefit from using search-editor...
+	private async promptForPath(resource: URI, defaultUri: URI): Promise<URI | undefined> {
+		// Help user to find a name for the file by opening it first
+		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
+		return this.fileDialogService.pickFileToSave({
+			defaultUri,
+			title: localize('saveAsTitle', "Save As"),
+		});
 	}
 
 	getTypeId(): string {
@@ -164,7 +194,10 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return this.config.query ? localize('searchTitle.withQuery', "Search: {0}", this.config.query) : localize('searchTitle', "Search");
+		if (this.resource.scheme === 'search-editor') {
+			return this.config.query ? localize('searchTitle.withQuery', "Search: {0}", this.config.query) : localize('searchTitle', "Search");
+		}
+		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
 	}
 
 	setConfig(config: SearchConfiguration) {
@@ -183,13 +216,38 @@ export class SearchEditorInput extends EditorInput {
 
 	matches(other: unknown) {
 		if (this === other) { return true; }
-		if (other instanceof UntitledTextEditorInput) {
-			if (other.getResource().fragment === this.resource.fragment) { return true; }
-		}
+
 		if (other instanceof SearchEditorInput) {
-			if (other.resource.path && other.resource.path === this.resource.path) { return true; }
+			if (
+				(other.resource.path && other.resource.path === this.resource.path) ||
+				(other.resource.fragment && other.resource.fragment === this.resource.fragment)
+			) {
+				return true;
+			}
 		}
 		return false;
+	}
+
+	// Bringing this over from textFileService because it only suggests for untitled scheme.
+	// In the future I may just use the untitled scheme. I dont get particular benefit from using search-editor...
+	private suggestFileName(): URI {
+		const searchFileName = (this.config.query.replace(/[^\w \-_]+/g, '_') || 'Search') + '.code-search';
+
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
+
+		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
+		if (lastActiveFile) {
+			const lastDir = dirname(lastActiveFile);
+			return joinPath(lastDir, searchFileName);
+		}
+
+		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		if (lastActiveFolder) {
+			return joinPath(lastActiveFolder, searchFileName);
+		}
+
+		return URI.from({ scheme: schemeFilter, path: searchFileName });
 	}
 }
 
