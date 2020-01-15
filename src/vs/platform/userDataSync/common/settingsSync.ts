@@ -234,9 +234,13 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
-			await this.apply();
-			this.logService.trace('Settings: Finished synchronizing settings.');
-			return true;
+			try {
+				await this.apply();
+				this.logService.trace('Settings: Finished synchronizing settings.');
+				return true;
+			} finally {
+				this.setStatus(SyncStatus.Idle);
+			}
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
@@ -251,8 +255,6 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 				return this.sync();
 			}
 			throw e;
-		} finally {
-			this.setStatus(SyncStatus.Idle);
 		}
 	}
 

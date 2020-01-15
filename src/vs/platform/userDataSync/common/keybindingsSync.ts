@@ -177,9 +177,13 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
-			await this.apply();
-			this.logService.trace('Keybindings: Finished synchronizing keybindings...');
-			return true;
+			try {
+				await this.apply();
+				this.logService.trace('Keybindings: Finished synchronizing keybindings...');
+				return true;
+			} finally {
+				this.setStatus(SyncStatus.Idle);
+			}
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
@@ -194,8 +198,6 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				return this.sync();
 			}
 			throw e;
-		} finally {
-			this.setStatus(SyncStatus.Idle);
 		}
 	}
 
