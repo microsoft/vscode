@@ -167,6 +167,7 @@ export class SearchEditorInput extends EditorInput {
 			const path = await this.promptForPath(this.resource, this.suggestFileName());
 			if (path) {
 				if (await this.textFileService.saveAs(this.resource, path, options)) {
+					this.setDirty(false);
 					if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(path, this.resource)) {
 						const replacement = this.instantiationService.createInstance(SearchEditorInput, this.config, undefined, path);
 						await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
