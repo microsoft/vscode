@@ -364,8 +364,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.authenticationState.get() === MSAAuthStatus.SignedOut) {
 			await this.signIn();
 		}
-
-		await this.handleFirstTimeSync();
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 		this.notificationService.info(localize('Sync Started', "Sync Started."));
 	}
@@ -413,34 +411,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}));
 			quickPick.show();
 		});
-	}
-
-	private async handleFirstTimeSync(): Promise<void> {
-
-		const hasRemote = await this.userDataSyncService.hasRemote();
-		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
-
-		if (hasRemote && !hasPreviouslySynced) {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize('firs time sync', "First time synchronization"),
-				[
-					localize('continue', "Continue"),
-					localize('cancel', "Cancel"),
-					localize('download', "Download"),
-					localize('upload', "Upload"),
-				],
-				{
-					cancelId: 1,
-					detail: localize('first time sync detail', "Synchronising from this device for the first time. Would you like to \nDownload and replace with the remote data or \nUpload from this device and replace the remote data?")
-				}
-			);
-
-			switch (result.choice) {
-				case 2: return this.userDataSyncService.pull();
-				case 3: return this.userDataSyncService.push();
-			}
-		}
 	}
 
 	private async turnOff(): Promise<void> {
