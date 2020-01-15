@@ -5,11 +5,11 @@
 
 import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, createDecorator, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -402,3 +402,46 @@ export function registerAction(desc: IActionDescriptor) {
 		});
 	}
 }
+
+
+//#region --- IAction2
+
+export interface IAction2Description extends ICommandAction {
+	f1?: boolean;
+	menu?: { id: MenuId } & Omit<IMenuItem, 'command'>;
+	keybinding?: Omit<IKeybindingRule, 'id'>;
+}
+
+export interface IAction2 {
+	readonly desc: IAction2Description;
+	run(accessor: ServicesAccessor, args: any[]): any;
+}
+
+export function registerAction2(action: IAction2): IDisposable {
+	const disposables = new DisposableStore();
+
+	disposables.add(CommandsRegistry.registerCommand({
+		id: action.desc.id,
+		handler: (accessor, ...args) => action.run(accessor, args),
+		description: undefined,
+	}));
+
+	if (action.desc.menu) {
+		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
+	}
+
+	if (action.desc.f1) {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
+	}
+
+	if (action.desc.keybinding) {
+		KeybindingsRegistry.registerKeybindingRule({
+			...action.desc.keybinding,
+			id: action.desc.id,
+			when: ContextKeyExpr.and(action.desc.precondition, action.desc.keybinding.when)
+		});
+	}
+
+	return disposables;
+}
+//#endregion

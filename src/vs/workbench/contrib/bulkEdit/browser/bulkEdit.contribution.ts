@@ -18,14 +18,14 @@ import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from '
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { URI } from 'vs/base/common/uri';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, IAction2 } from 'vs/platform/actions/common/actions';
 import { IEditorInput } from 'vs/workbench/common/editor';
+import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -110,57 +110,79 @@ class BulkEditPreviewContribution {
 	}
 }
 
+
 // CMD: accept
-CommandsRegistry.registerCommand('refactorPreview.apply', accessor => {
-	const panelService = accessor.get(IPanelService);
-	const view = getBulkEditPane(panelService);
-	if (view) {
-		view.accept();
-	}
-});
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'refactorPreview.apply',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: BulkEditPreviewContribution.ctxEnabled,
-	primary: KeyMod.Shift + KeyCode.Enter,
-});
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
+registerAction2(new class ApplyAction implements IAction2 {
+
+	readonly desc = {
 		id: 'refactorPreview.apply',
 		title: { value: localize('apply', "Apply Changes"), original: 'Apply Changes' },
+		category: localize('cat', "Refactor Preview"),
 		icon: { id: 'codicon/check' },
-		precondition: BulkEditPreviewContribution.ctxEnabled
-	},
-	when: ContextKeyExpr.equals('view', BulkEditPane.ID),
-	group: 'navigation'
+		precondition: BulkEditPreviewContribution.ctxEnabled,
+		menu: {
+			id: MenuId.ViewTitle,
+			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+			group: 'navigation'
+		},
+		keybinding: {
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: BulkEditPreviewContribution.ctxEnabled,
+			primary: KeyMod.Shift + KeyCode.Enter,
+		}
+	};
+
+	run(accessor: ServicesAccessor): any {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.accept();
+		}
+	}
 });
 
 // CMD: discard
-CommandsRegistry.registerCommand('refactorPreview.discard', accessor => {
-	const panelService = accessor.get(IPanelService);
-	const view = getBulkEditPane(panelService);
-	if (view) {
-		view.discard();
-	}
-});
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
+registerAction2(new class DiscardAction implements IAction2 {
+
+	readonly desc = {
 		id: 'refactorPreview.discard',
 		title: { value: localize('Discard', "Discard Changes"), original: 'Discard Changes' },
+		category: localize('cat', "Refactor Preview"),
 		icon: { id: 'codicon/clear-all' },
-		precondition: BulkEditPreviewContribution.ctxEnabled
-	},
-	when: ContextKeyExpr.equals('view', BulkEditPane.ID),
-	group: 'navigation'
+		precondition: BulkEditPreviewContribution.ctxEnabled,
+		menu: {
+			id: MenuId.ViewTitle,
+			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+			group: 'navigation'
+		}
+	};
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.discard();
+		}
+	}
 });
 
+
 // CMD: toggle
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'refactorPreview.toggleCheckedState',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, WorkbenchListFocusContextKey),
-	primary: KeyCode.Space,
-	handler(accessor) {
+registerAction2(new class ToggleAction implements IAction2 {
+
+	readonly desc = {
+		id: 'refactorPreview.toggleCheckedState',
+		title: { value: localize('toogleSelection', "Check/Uncheck change"), original: 'Check/Uncheck change' },
+		category: localize('cat', "Refactor Preview"),
+		precondition: BulkEditPreviewContribution.ctxEnabled,
+		keybinding: {
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: WorkbenchListFocusContextKey,
+			primary: KeyCode.Space,
+		}
+	};
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
 		const panelService = accessor.get(IPanelService);
 		const view = getBulkEditPane(panelService);
 		if (view) {
