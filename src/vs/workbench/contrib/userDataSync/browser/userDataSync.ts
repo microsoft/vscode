@@ -35,6 +35,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService, ChangeAccountEventData } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { Account } from 'vs/editor/common/modes';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 
 const enum MSAAuthStatus {
 	Initializing = 'Initializing',
@@ -364,6 +365,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.authenticationState.get() === MSAAuthStatus.SignedOut) {
 			await this.signIn();
 		}
+
+		await this.handleFirstTimeSync();
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 		this.notificationService.info(localize('Sync Started', "Sync Started."));
 	}
@@ -411,6 +414,36 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}));
 			quickPick.show();
 		});
+	}
+
+	private async handleFirstTimeSync(): Promise<void> {
+
+		const hasRemote = await this.userDataSyncService.hasRemote();
+		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
+
+		if (hasRemote && !hasPreviouslySynced) {
+			const result = await this.dialogService.show(
+				Severity.Info,
+				localize('firs time sync', "First time synchronization"),
+				[
+					localize('continue', "Continue"),
+					localize('cancel', "Cancel"),
+					localize('download', "Download"),
+					localize('upload', "Upload"),
+				],
+				{
+					cancelId: 1,
+					detail: localize('first time sync detail', "Synchronising from this device for the first time. Would you like to \nDownload and replace with the remote data or \nUpload from this device and replace the remote data?")
+				}
+			);
+
+			switch (result.choice) {
+				case 1: return Promise.reject(canceled());
+				case 2: return this.userDataSyncService.pull();
+				// case 3: return this.userDataSyncService.push();
+				case 3: return this.notificationService.info('not yet supported');
+			}
+		}
 	}
 
 	private async turnOff(): Promise<void> {
@@ -509,7 +542,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		const turnOnSyncCommandId = 'workbench.userData.actions.syncStart';
 		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.notEqualsTo(MSAAuthStatus.Initializing));
-		CommandsRegistry.registerCommand(turnOnSyncCommandId, () => this.turnOn());
+		CommandsRegistry.registerCommand(turnOnSyncCommandId, async () => {
+			try {
+				await this.turnOn();
+			} catch (e) {
+				if (!isPromiseCanceledError(e)) {
+					this.notificationService.error(e);
+				}
+			}
+		});
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
