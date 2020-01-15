@@ -22,7 +22,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -41,15 +41,11 @@ const enum State {
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
-	static readonly ctxChangeChecked = new RawContextKey('refactorPreview.changeChecked', true);
 
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
 	private readonly _disposables = new DisposableStore();
-
-	private readonly _ctxElementChecked: IContextKey<boolean>;
-
 	private readonly _sessionDisposables = new DisposableStore();
 	private _currentResolve?: (edit?: WorkspaceEdit) => void;
 	private _currentInput?: BulkFileOperations;
@@ -74,7 +70,6 @@ export class BulkEditPane extends ViewPane {
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
-		this._ctxElementChecked = BulkEditPane.ctxChangeChecked.bindTo(_contextKeyService);
 	}
 
 	dispose(): void {
@@ -118,11 +113,6 @@ export class BulkEditPane extends ViewPane {
 			} else if (first instanceof FileElement) {
 				this._openElementAsEditor(first);
 			}
-		}));
-
-		this._disposables.add(this._tree.onDidChangeFocus(e => {
-			const [first] = e.elements;
-			this._ctxElementChecked.set(first && first.edit.isChecked());
 		}));
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
@@ -276,7 +266,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._contextMenuService.showContextMenu({
 			getActions: () => actions,
-			getAnchor: () => e.anchor!,
+			getAnchor: () => e.anchor,
 			onHide: () => {
 				disposable.dispose();
 				menu.dispose();

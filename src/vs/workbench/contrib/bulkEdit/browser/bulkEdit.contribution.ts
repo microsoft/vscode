@@ -183,10 +183,9 @@ registerAction2(class ToggleAction extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.toggleCheckedState',
-			title: { value: localize('toogleSelection', "Accept Change"), original: 'Accept Change' },
+			title: { value: localize('toogleSelection', "Toggle Change"), original: 'Toggle Change' },
 			category: localize('cat', "Refactor Preview"),
 			precondition: BulkEditPreviewContribution.ctxEnabled,
-			toggled: BulkEditPane.ctxChangeChecked,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: WorkbenchListFocusContextKey,
