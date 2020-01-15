@@ -14,7 +14,7 @@ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewCon
 import { localize } from 'vs/nls';
 import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel } from 'vs/workbench/browser/panel';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
@@ -122,11 +122,10 @@ registerAction2(class ApplyAction extends Action2 {
 			icon: { id: 'codicon/check' },
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+				id: MenuId.BulkEditTitle,
 				group: 'navigation'
 			}, {
-				id: MenuId.BulkEditPaneContext,
+				id: MenuId.BulkEditContext,
 				order: 1
 			}],
 			keybinding: {
@@ -157,11 +156,10 @@ registerAction2(class DiscardAction extends Action2 {
 			icon: { id: 'codicon/clear-all' },
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+				id: MenuId.BulkEditTitle,
 				group: 'navigation'
 			}, {
-				id: MenuId.BulkEditPaneContext,
+				id: MenuId.BulkEditContext,
 				order: 2
 			}]
 		});
@@ -192,7 +190,7 @@ registerAction2(class ToggleAction extends Action2 {
 				primary: KeyCode.Space,
 			},
 			menu: {
-				id: MenuId.BulkEditPaneContext,
+				id: MenuId.BulkEditContext,
 				group: 'navigation'
 			}
 		});

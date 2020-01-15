@@ -65,7 +65,7 @@ export class BulkEditPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
-			options,
+			{ ...options, titleMenuId: MenuId.BulkEditTitle },
 			keybindingService, contextMenuService, configurationService, _contextKeyService, _instaService
 		);
 
@@ -260,7 +260,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
-		const menu = this._menuService.createMenu(MenuId.BulkEditPaneContext, this._contextKeyService);
+		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
 		const actions: IAction[] = [];
 		const disposable = createAndFillInContextMenuActions(menu, undefined, actions, this._contextMenuService);
 
