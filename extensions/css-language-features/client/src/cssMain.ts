@@ -63,12 +63,12 @@ export function activate(context: ExtensionContext) {
 							r.items.forEach(i => {
 								if (i.kind === CompletionItemKind.Color) {
 									i.label = {
-										label: i.label as string,
+										name: i.label as string,
 										details: i.documentation?.toString()
 									};
 								} else {
 									i.label = {
-										label: i.label as string,
+										name: i.label as string,
 										details: i.label as string
 									};
 								}
