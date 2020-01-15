@@ -177,7 +177,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
 
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
-		await this.revertAll(dirtyFiles, { soft: true });
+		await this.doRevertAll(dirtyFiles, { soft: true });
 
 		await this.fileService.del(resource, options);
 
@@ -243,7 +243,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// in order to move and copy, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.revertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		await this.doRevertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -290,85 +290,44 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region save
 
 	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
-		return !(await this.saveAll([resource], options)).results.some(result => result.error);
-	}
 
-	saveAll(includeUntitled?: boolean, options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(arg1?: boolean | URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
-
-		// Extract the resources to save
-		let resourcesToSave: URI[] = [];
-		if (Array.isArray(arg1)) {
-			// if specific resources are given, we consider even
-			// non-dirty ones if options.force is provided
-			if (options?.force) {
-				resourcesToSave = arg1;
-			} else {
-				resourcesToSave = this.getDirty(arg1);
-			}
-		} else {
-			// if no resources are given, we only consider dirty
-			// resources even if options.force is provided
-			resourcesToSave = this.getDirty();
-		}
-
-		// split up between files and untitled
-		const filesToSave: URI[] = [];
-		const untitledToSave: URI[] = [];
-		resourcesToSave.forEach(resourceToSave => {
-			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && resourceToSave.scheme === Schemas.untitled) {
-				untitledToSave.push(resourceToSave);
-			} else if (this.fileService.canHandleResource(resourceToSave)) {
-				filesToSave.push(resourceToSave);
-			}
-		});
-
-		return this.doSaveAll(filesToSave, untitledToSave, options);
-	}
-
-	private async doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
-
-		// Handle files first that can just be saved
-		const result = await this.doSaveAllFiles(fileResources, options);
-
-		// Preflight for untitled to handle cancellation from the dialog
-		const targetsForUntitled: URI[] = [];
-		for (const untitled of untitledResources) {
-			if (this.untitledTextEditorService.exists(untitled)) {
-				let targetUri: URI;
+		// Untitled
+		if (resource.scheme === Schemas.untitled) {
+			if (this.untitledTextEditorService.exists(resource)) {
+				let targetUri: URI | undefined;
 
 				// Untitled with associated file path don't need to prompt
-				if (this.untitledTextEditorService.hasAssociatedFilePath(untitled)) {
-					targetUri = toLocalResource(untitled, this.environmentService.configuration.remoteAuthority);
+				if (this.untitledTextEditorService.hasAssociatedFilePath(resource)) {
+					targetUri = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 				}
 
 				// Otherwise ask user
 				else {
-					const targetPath = await this.promptForPath(untitled, this.suggestFileName(untitled));
-					if (!targetPath) {
-						return { results: [...fileResources, ...untitledResources].map(r => ({ source: r })) };
-					}
-
-					targetUri = targetPath;
+					targetUri = await this.promptForPath(resource, this.suggestFileName(resource));
 				}
 
-				targetsForUntitled.push(targetUri);
+				// Save as if target provided
+				if (targetUri) {
+					await this.saveAs(resource, targetUri, options);
+
+					return true;
+				}
 			}
 		}
 
-		// Handle untitled
-		await Promise.all(targetsForUntitled.map(async (target, index) => {
-			const uri = await this.saveAs(untitledResources[index], target);
+		// File
+		else {
+			const model = this.models.get(resource);
+			if (model) {
 
-			result.results.push({
-				source: untitledResources[index],
-				target: uri,
-				error: !uri // the operation was canceled or failed, so mark as error
-			});
-		}));
+				// Save with options
+				await model.save(options);
 
-		return result;
+				return !model.isDirty();
+			}
+		}
+
+		return false;
 	}
 
 	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
@@ -430,32 +389,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		options.filters = filters;
 
 		return options;
-	}
-
-	private async doSaveAllFiles(resources?: URI[], options: ITextFileSaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
-		const fileModelsToSave = this.getFileModels(resources);
-
-		const mapResourceToResult = new ResourceMap<IResult>();
-		for (const fileModelToSave of fileModelsToSave) {
-			mapResourceToResult.set(fileModelToSave.resource, { source: fileModelToSave.resource });
-		}
-
-		// Save all in parallel
-		await Promise.all(fileModelsToSave.map(async model => {
-
-			// Save with options
-			await model.save(options);
-
-			// If model is still dirty, mark the resulting operation as error
-			if (model.isDirty()) {
-				const result = mapResourceToResult.get(model.resource);
-				if (result) {
-					result.error = true;
-				}
-			}
-		}));
-
-		return { results: mapResourceToResult.values() };
 	}
 
 	private getFileModels(arg1?: URI | URI[]): ITextFileEditorModel[] {
@@ -682,10 +615,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region revert
 
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
-		return !(await this.revertAll([resource], options)).results.some(result => result.error);
+		return !(await this.doRevertAll([resource], options)).results.some(result => result.error);
 	}
 
-	async revertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 
 		// Revert files first
 		const revertOperationResult = await this.doRevertAllFiles(resources, options);
@@ -739,18 +672,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region dirty
 
-	getDirty(resources?: URI[]): URI[] {
-
-		// Collect files
-		const dirty = this.getDirtyFileModels(resources).map(dirtyFileModel => dirtyFileModel.resource);
-
-		// Add untitled ones
-		dirty.push(...this.untitledTextEditorService.getDirty(resources));
-
-		return dirty;
-	}
-
-	isDirty(resource?: URI): boolean {
+	isDirty(resource: URI): boolean {
 
 		// Check for dirty file
 		if (this.models.getAll(resource).some(model => model.isDirty())) {
@@ -759,6 +681,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Check for dirty untitled
 		return this.untitledTextEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
+	}
+
+	protected getDirty(resources?: URI[]): URI[] {
+
+		// Collect files
+		const dirty = this.getDirtyFileModels(resources).map(dirtyFileModel => dirtyFileModel.resource);
+
+		// Add untitled ones
+		dirty.push(...this.untitledTextEditorService.getDirty(resources));
+
+		return dirty;
 	}
 
 	//#endregion

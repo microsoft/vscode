@@ -261,6 +261,10 @@ export class TestTextFileService extends NativeTextFileService {
 	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
 		return Promise.resolve(this.promptPath);
 	}
+
+	getDirty(resources?: URI[]): URI[] {
+		return super.getDirty(resources);
+	}
 }
 
 export interface ITestInstantiationService extends IInstantiationService {

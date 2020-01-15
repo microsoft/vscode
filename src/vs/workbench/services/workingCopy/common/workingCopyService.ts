@@ -94,6 +94,8 @@ export interface IWorkingCopyService {
 
 	readonly workingCopies: IWorkingCopy[];
 
+	getWorkingCopies(resource: URI): IWorkingCopy[];
+
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
 
 	//#endregion
@@ -126,6 +128,12 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
 	private _workingCopies = new Set<IWorkingCopy>();
+
+	getWorkingCopies(resource: URI): IWorkingCopy[] {
+		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
+
+		return workingCopies ? values(workingCopies) : [];
+	}
 
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
 		const disposables = new DisposableStore();

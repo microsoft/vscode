@@ -109,6 +109,8 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(service.dirtyWorkingCopies.length, 1);
 		assert.equal(service.dirtyWorkingCopies[0], copy1);
+		assert.equal(service.getWorkingCopies(copy1.resource).length, 1);
+		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
 		assert.equal(service.isDirty(resource1), true);
 		assert.equal(service.hasDirty, true);
 		assert.equal(onDidChangeDirty.length, 1);
@@ -175,6 +177,10 @@ suite('WorkingCopyService', () => {
 
 		const copy2 = new TestWorkingCopy(resource);
 		const unregister2 = service.registerWorkingCopy(copy2);
+
+		assert.equal(service.getWorkingCopies(copy1.resource).length, 2);
+		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
+		assert.equal(service.getWorkingCopies(copy1.resource)[1], copy2);
 
 		copy1.setDirty(true);
 

@@ -22,6 +22,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { BackupOnShutdown } from 'vs/workbench/contrib/backup/electron-browser/backupOnShutdown';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class ServiceAccessor {
 	constructor(
@@ -34,7 +35,8 @@ class ServiceAccessor {
 		@IFileService public fileService: TestFileService,
 		@IElectronService public electronService: TestElectronService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IBackupFileService public backupFileService: TestBackupFileService
+		@IBackupFileService public backupFileService: TestBackupFileService,
+		@IWorkingCopyService public workingCopyService: IWorkingCopyService
 	) {
 	}
 }
@@ -94,7 +96,7 @@ suite('BackupOnShutdown', () => {
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.equal(accessor.textFileService.getDirty().length, 1);
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -110,7 +112,7 @@ suite('BackupOnShutdown', () => {
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.equal(accessor.textFileService.getDirty().length, 1);
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -135,7 +137,7 @@ suite('BackupOnShutdown', () => {
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.equal(accessor.textFileService.getDirty().length, 1);
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -269,7 +271,7 @@ suite('BackupOnShutdown', () => {
 
 			await model.load();
 			model.textEditorModel!.setValue('foo');
-			assert.equal(accessor.textFileService.getDirty().length, 1);
+			assert.equal(accessor.workingCopyService.dirtyCount, 1);
 
 			const event = new BeforeShutdownEventImpl();
 			event.reason = shutdownReason;
