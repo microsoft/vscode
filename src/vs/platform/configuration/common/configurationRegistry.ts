@@ -301,9 +301,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
-				let message;
-				if (validate && (message = validateProperty(key))) {
-					console.warn(message);
+				if (validate) {
 					delete properties[key];
 					continue;
 				}
