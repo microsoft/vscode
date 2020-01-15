@@ -29,7 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ITextSnapshot } from 'vs/editor/common/model';
+import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -535,12 +535,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		else {
 			const textModel = this.modelService.getModel(source);
 			if (textModel) {
-				const model = new BaseTextEditorModel(this.modelService, this.modeService, source);
-				if (model.isResolved()) {
-					success = await this.doSaveAsTextFile(model, source, target, options);
-				}
-
-				model.dispose(); // free up
+				success = await this.doSaveAsTextFile(textModel, source, target, options);
 			}
 		}
 
@@ -552,7 +547,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return target;
 	}
 
-	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 
 		// Find source encoding if any
 		let sourceModelEncoding: string | undefined = undefined;
@@ -606,15 +601,29 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				return false;
 			}
 
+			let sourceTextModel: ITextModel | undefined = undefined;
+			if (sourceModel instanceof BaseTextEditorModel) {
+				if (sourceModel.isResolved()) {
+					sourceTextModel = sourceModel.textEditorModel;
+				}
+			} else {
+				sourceTextModel = sourceModel as ITextModel;
+			}
+
+			let targetTextModel: ITextModel | undefined = undefined;
+			if (targetModel.isResolved()) {
+				targetTextModel = targetModel.textEditorModel;
+			}
+
 			// take over model value, encoding and mode (only if more specific) from source model
 			targetModel.updatePreferredEncoding(sourceModelEncoding);
-			if (sourceModel.isResolved() && targetModel.isResolved()) {
-				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
+			if (sourceTextModel && targetTextModel) {
+				this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
-				const sourceMode = sourceModel.textEditorModel.getLanguageIdentifier();
-				const targetMode = targetModel.textEditorModel.getLanguageIdentifier();
+				const sourceMode = sourceTextModel.getLanguageIdentifier();
+				const targetMode = targetTextModel.getLanguageIdentifier();
 				if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
-					targetModel.textEditorModel.setMode(sourceMode); // only use if more specific than plain/text
+					targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
 				}
 			}
 
