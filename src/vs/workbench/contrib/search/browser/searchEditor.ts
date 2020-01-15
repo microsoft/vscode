@@ -162,6 +162,7 @@ export class SearchEditor extends BaseEditor {
 		});
 
 		this._register(this.searchResultEditor.onDidChangeModel(() => this.hideHeader()));
+		this._register(this.searchResultEditor.onDidChangeModelContent(() => (this._input as SearchEditorInput)?.setDirty(true)));
 	}
 
 	private async runSearch(instant = false) {
@@ -232,6 +233,7 @@ export class SearchEditor extends BaseEditor {
 		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, true);
 		const textModel = assertIsDefined(this.searchResultEditor.getModel());
 		textModel.setValue(results.text.join(lineDelimiter));
+		this.getInput()?.setDirty(this.getInput()?.resource.scheme !== 'search-editor');
 		this.hideHeader();
 		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 
@@ -267,6 +269,10 @@ export class SearchEditor extends BaseEditor {
 			this.inputPatternExcludes.setWidth(this.dimension.width - 28 /* container margin */);
 			this.inputPatternIncludes.setWidth(this.dimension.width - 28 /* container margin */);
 		}
+	}
+
+	private getInput(): SearchEditorInput | undefined {
+		return this._input as SearchEditorInput;
 	}
 
 	async setInput(newInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {

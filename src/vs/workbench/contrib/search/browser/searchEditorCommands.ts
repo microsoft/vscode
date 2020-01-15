@@ -131,6 +131,8 @@ export class SearchEditorInput extends EditorInput {
 	private model: ITextModel;
 	public readonly resource: URI;
 
+	private dirty: boolean = false;
+
 	constructor(
 		config: SearchConfiguration | undefined,
 		initialContents: string | undefined,
@@ -169,11 +171,14 @@ export class SearchEditorInput extends EditorInput {
 						const replacement = this.instantiationService.createInstance(SearchEditorInput, this.config, undefined, path);
 						await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
 						return true;
+					} else if (options?.context === SaveContext.EDITOR_CLOSE) {
+						return true;
 					}
 				}
 			}
 			return false;
 		} else {
+			this.setDirty(false);
 			return !!this.textFileService.write(this.resource, this.model.getValue(), options);
 		}
 	}
@@ -207,6 +212,15 @@ export class SearchEditorInput extends EditorInput {
 
 	async resolve() {
 		return null;
+	}
+
+	setDirty(dirty: boolean) {
+		this.dirty = dirty;
+		this._onDidChangeDirty.fire();
+	}
+
+	isDirty() {
+		return this.dirty;
 	}
 
 	dispose() {
