@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectTMScopes';
+import 'vs/css!./inspectEditorTokens';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { CharCode } from 'vs/base/common/charCode';
@@ -16,7 +16,7 @@ import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorCon
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, SemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -24,13 +24,14 @@ import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/com
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-class InspectTMScopesController extends Disposable implements IEditorContribution {
+class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.inspectTMScopes';
+	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
-	public static get(editor: ICodeEditor): InspectTMScopesController {
-		return editor.getContribution<InspectTMScopesController>(InspectTMScopesController.ID);
+	public static get(editor: ICodeEditor): InspectEditorTokensController {
+		return editor.getContribution<InspectEditorTokensController>(InspectEditorTokensController.ID);
 	}
 
 	private _editor: ICodeEditor;
@@ -38,7 +39,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	private _themeService: IWorkbenchThemeService;
 	private _modeService: IModeService;
 	private _notificationService: INotificationService;
-	private _widget: InspectTMScopesWidget | null;
+	private _widget: InspectEditorTokensWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -72,7 +73,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService);
+		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService);
 	}
 
 	public stop(): void {
@@ -91,19 +92,19 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	}
 }
 
-class InspectTMScopes extends EditorAction {
+class InspectEditorTokens extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.inspectTMScopes',
-			label: nls.localize('inspectTMScopes', "Developer: Inspect TM Scopes"),
-			alias: 'Developer: Inspect TM Scopes',
+			id: 'editor.action.inspectEditorTokens',
+			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens"),
+			alias: 'Developer: Inspect Editor Tokens',
 			precondition: undefined
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = InspectTMScopesController.get(editor);
+		let controller = InspectEditorTokensController.get(editor);
 		if (controller) {
 			controller.toggle();
 		}
@@ -120,9 +121,9 @@ interface ICompleteLineTokenization {
 interface IDecodedMetadata {
 	languageIdentifier: LanguageIdentifier;
 	tokenType: StandardTokenType;
-	fontStyle: FontStyle;
-	foreground: Color;
-	background: Color;
+	fontStyle: string;
+	foreground?: string;
+	background?: string;
 }
 
 function renderTokenText(tokenText: string): string {
@@ -160,9 +161,11 @@ function renderTokenText(tokenText: string): string {
 	return result;
 }
 
-class InspectTMScopesWidget extends Disposable implements IContentWidget {
+type SemanticTokensResult = { tokens: SemanticTokens, legend: SemanticTokensLegend };
 
-	private static readonly _ID = 'editor.contrib.inspectTMScopesWidget';
+class InspectEditorTokensWidget extends Disposable implements IContentWidget {
+
+	private static readonly _ID = 'editor.contrib.inspectEditorTokensWidget';
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public readonly allowEditorOverflow = true;
@@ -175,6 +178,8 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
 	private readonly _grammar: Promise<IGrammar | null>;
+	private readonly _semanticTokens: Promise<SemanticTokensResult | null>;
+	private readonly _currentRequestCancellationTokenSource: CancellationTokenSource;
 
 	constructor(
 		editor: IActiveCodeEditor,
@@ -191,8 +196,10 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		this._notificationService = notificationService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'tm-inspect-widget';
+		this._domNode.className = 'token-inspect-widget';
+		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
 		this._grammar = textMateService.createGrammar(this._model.getLanguageIdentifier().language);
+		this._semanticTokens = this._computeSemanticTokens();
 		this._beginCompute(this._editor.getPosition());
 		this._register(this._editor.onDidChangeCursorPosition((e) => this._beginCompute(this._editor.getPosition())));
 		this._editor.addContentWidget(this);
@@ -201,33 +208,34 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	public dispose(): void {
 		this._isDisposed = true;
 		this._editor.removeContentWidget(this);
+		this._currentRequestCancellationTokenSource.cancel();
 		super.dispose();
 	}
 
 	public getId(): string {
-		return InspectTMScopesWidget._ID;
+		return InspectEditorTokensWidget._ID;
 	}
 
 	private _beginCompute(position: Position): void {
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
-		this._grammar.then(
-			(grammar) => {
-				if (!grammar) {
-					throw new Error(`Could not find grammar for language!`);
-				}
-				this._compute(grammar, position);
-			},
-			(err) => {
-				this._notificationService.warn(err);
-				setTimeout(() => {
-					InspectTMScopesController.get(this._editor).stop();
-				});
+
+		Promise.all([this._grammar, this._semanticTokens]).then(([grammar, semanticTokens]) => {
+			if (!grammar) {
+				throw new Error(`Could not find grammar for language!`);
 			}
-		);
+			this._compute(grammar, semanticTokens, position);
+		}, (err) => {
+			this._notificationService.warn(err);
+
+			setTimeout(() => {
+				InspectEditorTokensController.get(this._editor).stop();
+			});
+		});
+
 	}
 
-	private _compute(grammar: IGrammar, position: Position): void {
+	private _compute(grammar: IGrammar, semanticTokens: SemanticTokensResult | null, position: Position): void {
 		if (this._isDisposed) {
 			return;
 		}
@@ -250,39 +258,54 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 			}
 		}
 
+		let semanticMetadata: IDecodedMetadata | undefined = undefined;
+		let semanticClasssification;
+		if (semanticTokens) {
+			semanticClasssification = this._getSemanticTokenAtPosition(semanticTokens, position);
+			if (semanticClasssification) {
+				const metadata = this._themeService.getTheme().getTokenStyleMetadata(semanticClasssification.type, semanticClasssification.modifiers);
+				if (metadata) {
+					semanticMetadata = this._decodeMetadata(metadata);
+				}
+			}
+		}
+
+
 		let result = '';
 
 		let tokenStartIndex = data.tokens1[token1Index].startIndex;
 		let tokenEndIndex = data.tokens1[token1Index].endIndex;
 		let tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
-		result += `<h2 class="tm-token">${renderTokenText(tokenText)}<span class="tm-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
+		result += `<h2 class="tiw-token">${renderTokenText(tokenText)}<span class="tiw-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
 
-		result += `<hr class="tm-metadata-separator" style="clear:both"/>`;
+		result += `<hr class="tiw-metadata-separator" style="clear:both"/>`;
 
 		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
-		result += `<table class="tm-metadata-table"><tbody>`;
-		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td></tr>`;
-		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td></tr>`;
-		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td></tr>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td></tr>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td></tr>`;
-		if (metadata.background.isOpaque()) {
-			result += `<tr><td class="tm-metadata-key">contrast ratio</td><td class="tm-metadata-value">${metadata.background.getContrastRatio(metadata.foreground.makeOpaque(metadata.background)).toFixed(2)}</td></tr>`;
-		} else {
-			result += '<tr><td class="tm-metadata-key">Contrast ratio cannot be precise for background colors that use transparency</td><td class="tm-metadata-value"></td></tr>';
+		result += `<table class="tiw-metadata-table"><tbody>`;
+		result += `<tr><td class="tiw-metadata-key">language</td><td class="tiw-metadata-value">${escape(metadata.languageIdentifier.language)}</td></tr>`;
+		result += `<tr><td class="tiw-metadata-key">standard token type</td><td class="tiw-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td></tr>`;
+		if (semanticClasssification) {
+			result += `<tr><td class="tiw-metadata-key">semantic token type</td><td class="tiw-metadata-value">${semanticClasssification.type}</td></tr>`;
+
+			const modifiers = semanticClasssification.modifiers.join(' ') || '-';
+			result += `<tr><td class="tiw-metadata-key">semantic token modifiers</td><td class="tiw-metadata-value">${modifiers}</td></tr>`;
 		}
 		result += `</tbody></table>`;
 
+		result += `<h2 class="tiw-metadata-separator"/>`;
+		result += `<hr class="tiw-metadata-separator"/>`;
+		result += `<table class="tiw-metadata-table"><tbody>`;
+		result += this._formatMetadata(metadata, semanticMetadata);
+		result += `</tbody></table>`;
+
 		let theme = this._themeService.getColorTheme();
-		result += `<hr class="tm-metadata-separator"/>`;
+		result += `<hr class="tiw-metadata-separator"/>`;
 		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes, false);
 		if (matchingRule) {
-			result += `<code class="tm-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+			result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 		} else {
-			result += `<span class="tm-theme-selector">No theme selector.</span>`;
+			result += `<span class="tiw-theme-selector">No theme selector.</span>`;
 		}
-
-		result += `<hr class="tm-metadata-separator"/>`;
 
 		result += `<ul>`;
 		for (let i = data.tokens1[token1Index].scopes.length - 1; i >= 0; i--) {
@@ -290,13 +313,34 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		}
 		result += `</ul>`;
 
-
 		this._domNode.innerHTML = result;
 		this._editor.layoutContentWidget(this);
 	}
 
+	private _formatMetadata(metadata: IDecodedMetadata, master?: IDecodedMetadata) {
+		let result = '';
+
+		const fontStyle = master ? master.fontStyle : metadata.fontStyle;
+		result += `<tr><td class="tiw-metadata-key">font style</td><td class="tiw-metadata-value">${fontStyle}</td></tr>`;
+		const foreground = master && master.foreground || metadata.foreground;
+		result += `<tr><td class="tiw-metadata-key">foreground</td><td class="tiw-metadata-value">${foreground}</td></tr>`;
+		const background = master && master.background || metadata.background;
+		result += `<tr><td class="tiw-metadata-key">background</td><td class="tiw-metadata-value">${background}</td></tr>`;
+
+		if (foreground && background) {
+			const backgroundColor = Color.fromHex(background), foregroundColor = Color.fromHex(foreground);
+
+			if (backgroundColor.isOpaque()) {
+				result += `<tr><td class="tiw-metadata-key">contrast ratio</td><td class="tiw-metadata-value">${backgroundColor.getContrastRatio(foregroundColor.makeOpaque(backgroundColor)).toFixed(2)}</td></tr>`;
+			} else {
+				result += '<tr><td class="tiw-metadata-key">Contrast ratio cannot be precise for background colors that use transparency</td><td class="tiw-metadata-value"></td></tr>';
+			}
+		}
+		return result;
+	}
+
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = TokenizationRegistry.getColorMap()!;
+		let colorMap = this._themeService.getColorTheme().tokenColorMap;
 		let languageId = TokenMetadata.getLanguageId(metadata);
 		let tokenType = TokenMetadata.getTokenType(metadata);
 		let fontStyle = TokenMetadata.getFontStyle(metadata);
@@ -305,7 +349,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		return {
 			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
 			tokenType: tokenType,
-			fontStyle: fontStyle,
+			fontStyle: this._fontStyleToString(fontStyle),
 			foreground: colorMap[foreground],
 			background: colorMap[background]
 		};
@@ -363,6 +407,44 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		return state;
 	}
 
+	private isSemanticTokens(token: any): token is SemanticTokens {
+		return token && token.data;
+	}
+
+	private async _computeSemanticTokens(): Promise<SemanticTokensResult | null> {
+		const tokenProviders = SemanticTokensProviderRegistry.ordered(this._model);
+		if (tokenProviders.length) {
+			const provider = tokenProviders[0];
+			const range = this._model.getFullModelRange();
+			const tokens = await Promise.resolve(provider.provideSemanticTokens(this._model, null, [range], this._currentRequestCancellationTokenSource.token));
+			if (this.isSemanticTokens(tokens)) {
+				return { tokens, legend: provider.getLegend() };
+			}
+		}
+		return null;
+	}
+
+	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): { type: string, modifiers: string[] } | null {
+		const tokenData = semanticTokens.tokens.data;
+		let lastLine = 0;
+		let lastCharacter = 0;
+		const posLine = pos.lineNumber - 1, posCharacter = pos.column - 1; // to 0-based position
+		for (let i = 0; i < tokenData.length; i += 5) {
+			const lineDelta = tokenData[i], charDelta = tokenData[i + 1], len = tokenData[i + 2], typeIdx = tokenData[i + 3], modSet = tokenData[i + 4];
+			const line = lastLine + lineDelta; // 0-based
+			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
+			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
+				return {
+					type: semanticTokens.legend.tokenTypes[typeIdx],
+					modifiers: semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k)
+				};
+			}
+			lastLine = line;
+			lastCharacter = character;
+		}
+		return null;
+	}
+
 	public getDomNode(): HTMLElement {
 		return this._domNode;
 	}
@@ -375,18 +457,18 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectTMScopesController.ID, InspectTMScopesController);
-registerEditorAction(InspectTMScopes);
+registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController);
+registerEditorAction(InspectEditorTokens);
 
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
 		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .tm-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .tm-inspect-widget .tm-metadata-separator { background-color: ${border}; }`);
+		collector.addRule(`.monaco-editor .token-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .token-inspect-widget .tiw-metadata-separator { background-color: ${border}; }`);
 	}
 	const background = theme.getColor(editorHoverBackground);
 	if (background) {
-		collector.addRule(`.monaco-editor .tm-inspect-widget { background-color: ${background}; }`);
+		collector.addRule(`.monaco-editor .token-inspect-widget { background-color: ${background}; }`);
 	}
 });
