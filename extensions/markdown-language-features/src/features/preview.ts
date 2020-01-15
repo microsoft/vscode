@@ -227,6 +227,10 @@ export class DynamicMarkdownPreview extends Disposable {
 			}
 		}));
 
+		this._register(vscode.workspace.onDidChangeConfiguration(_ => {
+			this.doUpdate(true);
+		}));
+
 		this.doUpdate();
 	}
 
@@ -515,7 +519,7 @@ export class DynamicMarkdownPreview extends Disposable {
 
 	private setContent(html: string): void {
 		this.editor.title = DynamicMarkdownPreview.getPreviewTitle(this._resource, this._locked);
-		this.editor.iconPath = this.iconPath;
+		this.editor.iconPath = vscode.workspace.getConfiguration('workbench').get('iconTheme') ? this.iconPath : undefined;
 		this.editor.webview.options = DynamicMarkdownPreview.getWebviewOptions(this._resource, this._contributionProvider.contributions);
 		this.editor.webview.html = html;
 	}
