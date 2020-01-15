@@ -499,7 +499,31 @@ export class SearchWidget extends Widget {
 				this.temporarilySkipSearchOnChange = false;
 			} else {
 				this._onSearchCancel.fire({ focus: false });
-				this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				if (this.searchInput.getRegex()) {
+					try {
+						const regex = new RegExp(this.searchInput.getValue(), 'ug');
+						const matchienessHeuristic = `
+~!@#$%^&*()_+
+\`1234567890-=
+qwertyuiop[]\\
+QWERTYUIOP{}|
+asdfghjkl;'
+ASDFGHJKL:"
+zxcvbnm,./
+ZXCVBNM<>? 	`.match(regex)?.length ?? 0;
+
+						const delayMultiplier =
+							matchienessHeuristic < 50 ? 1 :
+								matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
+									10; // only things matching empty string
+
+						this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+					} catch {
+						// pass
+					}
+				} else {
+					this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				}
 			}
 		}
 	}
