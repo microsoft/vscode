@@ -59,7 +59,7 @@ export class CompletionItem {
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
-			: completion.label.label;
+			: completion.label.name;
 
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
@@ -191,7 +191,7 @@ export function provideSuggestionItems(
 							}
 							// fill in default sortText when missing
 							if (!suggestion.sortText) {
-								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
+								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));

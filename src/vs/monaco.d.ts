@@ -4746,11 +4746,9 @@ declare namespace monaco.languages {
 
 	export interface CompletionItemLabel {
 		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
+		 * The name of this completion item's label.
 		 */
-		label: string;
+		name: string;
 		/**
 		 * A description of the completion item which is rendered
 		 * less prominent.

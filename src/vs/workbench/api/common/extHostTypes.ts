@@ -1352,7 +1352,7 @@ export enum CompletionItemTag {
 }
 
 export interface CompletionItemLabel {
-	label: string;
+	name: string;
 	// description?: string;
 	details?: string;
 }

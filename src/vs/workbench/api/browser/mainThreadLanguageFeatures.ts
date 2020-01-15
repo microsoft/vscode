@@ -337,7 +337,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		const label = data[ISuggestDataDtoField.label];
 		const labelText = typeof label === 'string'
 			? label
-			: label.label;
+			: label.name;
 
 		return {
 			label: data[ISuggestDataDtoField.label],

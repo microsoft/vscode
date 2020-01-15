@@ -69,7 +69,7 @@ const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1
 function extractColor(item: CompletionItem, out: string[]): boolean {
 	const label = typeof item.completion.label === 'string'
 		? item.completion.label
-		: item.completion.label.label;
+		: item.completion.label.name;
 
 	if (label.match(colorRegExp)) {
 		out[0] = label;
@@ -167,7 +167,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 	renderElement(element: CompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).completion;
-		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
+		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
@@ -630,7 +630,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.label;
+		const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 		if (this.expandDocsSettingFromStorage()) {
 			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, this.details.getAriaLabel());
 		} else {

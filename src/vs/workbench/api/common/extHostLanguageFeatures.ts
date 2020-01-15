@@ -859,7 +859,7 @@ class SuggestAdapter {
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: extHostProtocol.ChainedCacheId): extHostProtocol.ISuggestDataDto | undefined {
 		const label = typeof item.label === 'string'
 			? item.label
-			: item.label.label;
+			: item.label.name;
 
 		if (typeof label !== 'string' || label.length === 0) {
 			this._logService.warn('INVALID text edit -> must have at least a label');

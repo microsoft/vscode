@@ -50,7 +50,7 @@ export abstract class WordDistance {
 				}
 				let word = typeof suggestion.label === 'string'
 					? suggestion.label
-					: suggestion.label.label;
+					: suggestion.label.name;
 
 				let wordLines = wordRanges[word];
 				if (isFalsyOrEmpty(wordLines)) {

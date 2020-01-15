@@ -192,7 +192,7 @@ export class CompletionModel {
 					}
 				}
 
-				const label = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.label;
+				const label = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
