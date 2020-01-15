@@ -345,9 +345,11 @@ export class SyncActionDescriptor {
 
 //#region --- IAction2
 
+type OneOrN<T> = T | T[];
+
 export interface IAction2Description extends ICommandAction {
 	f1?: boolean;
-	menu?: { id: MenuId } & Omit<IMenuItem, 'command'>;
+	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
 	keybinding?: Omit<IKeybindingRule, 'id'>;
 }
 
@@ -365,7 +367,11 @@ export function registerAction2(action: IAction2): IDisposable {
 		description: undefined,
 	}));
 
-	if (action.desc.menu) {
+	if (Array.isArray(action.desc.menu)) {
+		for (let item of action.desc.menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
+		}
+	} else if (action.desc.menu) {
 		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
 	}
 
