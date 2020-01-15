@@ -13,7 +13,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IDebugSession, IDebugService, IDebugModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -150,7 +150,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getChildren(): Promise<BaseTreeItem[]> {
+	getChildren(): BaseTreeItem[] {
 		const child = this.oneChild();
 		if (child) {
 			return child.getChildren();
@@ -159,7 +159,7 @@ class BaseTreeItem {
 		for (let child of this._children.values()) {
 			array.push(child);
 		}
-		return Promise.resolve(array.sort((a, b) => this.compare(a, b)));
+		return array.sort((a, b) => this.compare(a, b));
 	}
 
 	// skips intermediate single-child nodes
@@ -227,11 +227,8 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
+	constructor(private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
-		this._debugModel.getSessions().forEach(session => {
-			this.add(session);
-		});
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
@@ -248,14 +245,12 @@ class SessionTreeItem extends BaseTreeItem {
 	private static readonly URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
 	private _session: IDebugSession;
-	private _initialized: boolean;
 	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
 	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel());
 		this._labelService = labelService;
-		this._initialized = false;
 		this._session = session;
 	}
 
@@ -273,19 +268,6 @@ class SessionTreeItem extends BaseTreeItem {
 
 	hasChildren(): boolean {
 		return true;
-	}
-
-	getChildren(): Promise<BaseTreeItem[]> {
-
-		if (!this._initialized) {
-			this._initialized = true;
-			return this._session.getLoadedSources().then(paths => {
-				paths.forEach(path => this.addPath(path));
-				return super.getChildren();
-			});
-		}
-
-		return super.getChildren();
 	}
 
 	protected compare(a: BaseTreeItem, b: BaseTreeItem): number {
@@ -423,7 +405,7 @@ export class LoadedScriptsView extends ViewPane {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService, this.labelService);
+		const root = new RootTreeItem(this.environmentService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
@@ -486,12 +468,19 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		};
 
+		const addSourcePathsToSession = (session: IDebugSession) => {
+			const sessionNode = root.add(session);
+			return session.getLoadedSources().then(paths => {
+				paths.forEach(path => sessionNode.addPath(path));
+				scheduleRefreshOnVisible();
+			});
+		};
+
 		const registerSessionListeners = (session: IDebugSession) => {
 			this._register(session.onDidChangeName(() => {
 				// Re-add session, this will trigger proper sorting and id recalculation.
 				root.remove(session.getId());
-				root.add(session);
-				scheduleRefreshOnVisible();
+				addSourcePathsToSession(session);
 			}));
 			this._register(session.onDidLoadedSource(event => {
 				let sessionRoot: SessionTreeItem;
@@ -534,6 +523,9 @@ export class LoadedScriptsView extends ViewPane {
 				this.changeScheduler.schedule();
 			}
 		}));
+
+		// populate tree model with source paths from all debug sessions
+		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
 	}
 
 	layoutBody(height: number, width: number): void {
@@ -565,7 +557,7 @@ class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, Loa
 	}
 
 	getChildren(element: LoadedScriptsItem): Promise<LoadedScriptsItem[]> {
-		return element.getChildren();
+		return Promise.resolve(element.getChildren());
 	}
 }
 
