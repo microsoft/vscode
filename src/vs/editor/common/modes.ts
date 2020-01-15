@@ -1283,22 +1283,11 @@ export interface RenameProvider {
 /**
  * @internal
  */
-export interface Account {
+export interface Session {
 	id: string;
 	accessToken: string;
 	displayName: string;
 }
-
-/**
- * @internal
- */
-export interface AuthenticationProvider {
-	getAccount(): Promise<Account | undefined>;
-	onDidChangeAccount: Event<Account>;
-	login(): Promise<Account>;
-	logout(accountId: string): Promise<void>;
-}
-
 
 export interface Command {
 	id: string;

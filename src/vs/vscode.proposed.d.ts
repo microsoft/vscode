@@ -16,25 +16,45 @@
 
 declare module 'vscode' {
 
-	export interface Account {
-		readonly id: string;
-		readonly accessToken: string;
-		readonly displayName: string;
+	export interface Session {
+		id: string;
+		accessToken: string;
+		displayName: string;
 	}
 
 	export interface AuthenticationProvider {
 		readonly id: string;
 		readonly displayName: string;
+		readonly onDidChangeSessions: Event<void>;
 
-		getAccounts(): Promise<ReadonlyArray<Account>>;
-		readonly onDidChangeAccounts: Event<ReadonlyArray<Account>>;
+		/**
+		 * Returns an array of current sessions.
+		 */
+		getSessions(): Promise<ReadonlyArray<Session>>;
 
-		login(): Promise<Account>;
-		logout(accountId: string): Promise<void>;
+		/**
+		 * Prompts a user to login.
+		 */
+		login(): Promise<Session>;
+		logout(sessionId: string): Promise<void>;
 	}
 
 	export namespace authentication {
 		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+
+		/**
+		 * Fires with the provider id that was registered or unregistered.
+		 */
+		export const onDidRegisterAuthenticationProvider: Event<string>;
+		export const onDidUnregisterAuthenticationProvider: Event<string>;
+
+		/**
+		 * Fires with the provider id that changed sessions.
+		 */
+		export const onDidChangeSessions: Event<string>;
+		export function login(providerId: string): Promise<Session>;
+		export function logout(providerId: string, accountId: string): Promise<void>;
+		export function getSessions(providerId: string): Promise<ReadonlyArray<Session>>;
 	}
 
 	//#region Alex - resolvers

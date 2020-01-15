@@ -148,9 +148,9 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(handle: number, id: string): void;
-	$unregisterAuthenticationProvider(handle: number): void;
-	$onDidChangeAccounts(handle: number, accounts: ReadonlyArray<modes.Account>): void;
+	$registerAuthenticationProvider(id: string): void;
+	$unregisterAuthenticationProvider(id: string): void;
+	$onDidChangeSessions(id: string): void;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -898,10 +898,9 @@ export interface ExtHostLabelServiceShape {
 }
 
 export interface ExtHostAuthenticationShape {
-	$accounts(handle: number): Promise<ReadonlyArray<modes.Account>>;
-	$login(handle: number): Promise<modes.Account>;
-	$logout(handle: number, accountId: string): Promise<void>;
-	// TODO rmacfarlane
+	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
+	$login(id: string): Promise<modes.Session>;
+	$logout(id: string, accountId: string): Promise<void>;
 }
 
 export interface ExtHostSearchShape {

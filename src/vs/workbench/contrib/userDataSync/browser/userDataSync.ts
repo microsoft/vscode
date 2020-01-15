@@ -33,8 +33,8 @@ import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/u
 import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IAuthenticationService, ChangeAccountEventData } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { Account } from 'vs/editor/common/modes';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { Session } from 'vs/editor/common/modes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 const enum MSAAuthStatus {
@@ -58,7 +58,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
-	private _activeAccount: Account | undefined;
+	private _activeAccount: Session | undefined;
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -89,7 +89,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING))(() => this.onDidChangeEnablement()));
 			this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => this.onDidRegisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this.onDidUnregisterAuthenticationProvider(e)));
-			this._register(this.authenticationService.onDidChangeAccounts(e => this.onDidChangeAccounts(e)));
+			this._register(this.authenticationService.onDidChangeSessions(e => this.onDidChangeSessions(e)));
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
 				if (isWeb) {
@@ -102,7 +102,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async initializeActiveAccount(): Promise<void> {
-		const accounts = await this.authenticationService.getAccounts(MSA);
+		const accounts = await this.authenticationService.getSessions(MSA);
 		// MSA provider has not yet been registered
 		if (!accounts) {
 			return;
@@ -130,11 +130,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	get activeAccount(): Account | undefined {
+	get activeAccount(): Session | undefined {
 		return this._activeAccount;
 	}
 
-	set activeAccount(account: Account | undefined) {
+	set activeAccount(account: Session | undefined) {
 		this._activeAccount = account;
 
 		if (account) {
@@ -148,11 +148,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.updateBadge();
 	}
 
-	private onDidChangeAccounts(event: ChangeAccountEventData): void {
-		if (event.providerId === MSA) {
+	private async onDidChangeSessions(providerId: string): Promise<void> {
+		if (providerId === MSA) {
 			if (this.activeAccount) {
 				// Try to update existing account, case where access token has been refreshed
-				const matchingAccount = event.accounts.filter(a => a.id === this.activeAccount?.id)[0];
+				const accounts = (await this.authenticationService.getSessions(MSA) || []);
+				const matchingAccount = accounts.filter(a => a.id === this.activeAccount?.id)[0];
 				this.activeAccount = matchingAccount;
 			} else {
 				this.initializeActiveAccount();
