@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -754,7 +754,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 
-	private readonly cachedViewPositions: Map<string, string>;
+	private cachedViewPositions: Map<string, string>;
 	private readonly viewsAwaitingContainerRegistration: Map<string, IViewDescriptor[]>;
 
 	private readonly registeredViewContainers: Set<ViewContainer>;
@@ -838,6 +838,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this.viewDescriptorCollections.forEach(({ disposable }) => disposable.dispose());
 			this.viewDescriptorCollections.clear();
 		}));
+
+		this._register(this.storageService.onDidChangeStorage((e) => { this.onDidStorageChange(e); }));
 	}
 
 	private registerGroupedViews(groupedViews: Map<string, IViewDescriptor[]>): Map<string, IViewDescriptor[]> {
@@ -929,6 +931,30 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return ret;
 	}
 
+	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
+		if (e.key === ViewDescriptorService.CACHED_VIEW_POSITIONS && e.scope === StorageScope.GLOBAL
+			&& this.cachedViewPositionsValue !== this.getStoredCachedViewPositionsValue() /* This checks if current window changed the value or not */) {
+			this._cachedViewPositionsValue = this.getStoredCachedViewPositionsValue();
+
+			this.cachedViewPositions = this.getCachedViewPositions();
+
+			for (let [viewId, viewContainerId] of this.cachedViewPositions.entries()) {
+				const prevViewContainer = this.viewContainers.get(viewId);
+
+				// view has been moved in a separate window
+				if (prevViewContainer && prevViewContainer.id !== viewContainerId) {
+					const newViewContainer = this.getViewContainerById(viewContainerId);
+					if (newViewContainer) {
+						const viewDescriptor = this.viewsRegistry.getView(viewId);
+						if (viewDescriptor) {
+							this.moveViews([viewDescriptor], newViewContainer);
+						}
+					}
+				}
+			}
+		}
+	}
+
 	private getStoredCachedViewPositionsValue(): string {
 		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_POSITIONS, StorageScope.GLOBAL, '[]');
 	}
@@ -940,13 +966,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private saveViewPositionsToCache(): void {
 		const state: ICachedViewPosition[] = [];
 		for (let [viewId, viewContainer] of this.viewContainers.entries()) {
-			const defaultContainer = this.viewsRegistry.getViewContainer(viewId);
-			if (defaultContainer?.id !== viewContainer.id) {
-				state.push({
-					viewId,
-					viewContainerId: viewContainer.id
-				});
-			}
+			state.push({
+				viewId,
+				viewContainerId: viewContainer.id
+			});
 		}
 
 		this.setStoredCachedViewPositionsValue(JSON.stringify(state));
