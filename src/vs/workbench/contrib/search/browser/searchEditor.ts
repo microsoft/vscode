@@ -232,7 +232,7 @@ export class SearchEditor extends BaseEditor {
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, true);
 		const textModel = assertIsDefined(this.searchResultEditor.getModel());
-		textModel.setValue(results.text.join(lineDelimiter));
+		this.modelService.updateModel(textModel, results.text.join(lineDelimiter));
 		this.getInput()?.setDirty(this.getInput()?.resource.scheme !== 'search-editor');
 		this.hideHeader();
 		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
