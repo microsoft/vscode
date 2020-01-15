@@ -81,6 +81,8 @@ export interface IWorkingCopyService {
 
 	readonly dirtyCount: number;
 
+	readonly dirtyWorkingCopies: IWorkingCopy[];
+
 	readonly hasDirty: boolean;
 
 	isDirty(resource: URI): boolean;
@@ -114,46 +116,6 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	private readonly _onDidChangeContent = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
-
-	//#endregion
-
-
-	//#region Dirty Tracking
-
-	isDirty(resource: URI): boolean {
-		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
-		if (workingCopies) {
-			for (const workingCopy of workingCopies) {
-				if (workingCopy.isDirty()) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	get hasDirty(): boolean {
-		for (const workingCopy of this._workingCopies) {
-			if (workingCopy.isDirty()) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	get dirtyCount(): number {
-		let totalDirtyCount = 0;
-
-		for (const workingCopy of this._workingCopies) {
-			if (workingCopy.isDirty()) {
-				totalDirtyCount++;
-			}
-		}
-
-		return totalDirtyCount;
-	}
 
 	//#endregion
 
@@ -213,6 +175,50 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
+	}
+
+	//#endregion
+
+
+	//#region Dirty Tracking
+
+	get hasDirty(): boolean {
+		for (const workingCopy of this._workingCopies) {
+			if (workingCopy.isDirty()) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	get dirtyCount(): number {
+		let totalDirtyCount = 0;
+
+		for (const workingCopy of this._workingCopies) {
+			if (workingCopy.isDirty()) {
+				totalDirtyCount++;
+			}
+		}
+
+		return totalDirtyCount;
+	}
+
+	get dirtyWorkingCopies(): IWorkingCopy[] {
+		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
+	}
+
+	isDirty(resource: URI): boolean {
+		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
+		if (workingCopies) {
+			for (const workingCopy of workingCopies) {
+				if (workingCopy.isDirty()) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	//#endregion
