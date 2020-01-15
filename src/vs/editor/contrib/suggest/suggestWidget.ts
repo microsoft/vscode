@@ -51,7 +51,10 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
 	iconContainer: HTMLElement;
-	typeLabel: HTMLElement;
+	/**
+	 * Showing either `CompletionItem#details` or `CompletionItemLabel#name`
+	 */
+	detailsLabel: HTMLElement;
 	readMore: HTMLElement;
 	disposables: DisposableStore;
 }
@@ -128,7 +131,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
-		data.typeLabel = append(main, $('span.type-label'));
+		data.detailsLabel = append(main, $('span.details-label'));
 
 		data.readMore = append(main, $('span.readMore.codicon.codicon-info'));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
@@ -214,9 +217,9 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
-			data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 		} else {
-			data.typeLabel.textContent = (suggestion.label.details || '').replace(/\n.*$/m, '');
+			data.detailsLabel.textContent = (suggestion.label.details || '').replace(/\n.*$/m, '');
 		}
 
 		if (canExpandCompletionItem(element)) {

@@ -129,7 +129,7 @@
 
 /** Type Info and icon next to the label in the focused completion item **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label {
 	margin-left: 0.8em;
 	flex: 1;
 	text-align: right;
@@ -139,48 +139,20 @@
 	white-space: nowrap;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label > .monaco-tokenized-source {
 	display: inline;
 }
-
-/** Inline type Label (details) **/
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
-	display: none;
-}
-
-.monaco-editor .suggest-widget.always-reveal-inline-details .monaco-list .monaco-list-row > .contents > .main > .type-label,
-.monaco-editor .suggest-widget.always-reveal-inline-details.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
-	display: inline;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
-	display: inline;
-}
-
-/** readMore icon **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label,
 .monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .details-label,
 .monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
 	display: none;
 }
 
-.monaco-editor .suggest-widget.always-reveal-inline-details .monaco-list .monaco-list-row > .contents > .main > .readMore,
-.monaco-editor .suggest-widget.always-reveal-inline-details.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
-.monaco-editor .suggest-widget.always-reveal-inline-details.docs-below .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
-	display: inline;
-}
-
-.monaco-editor .suggest-widget.always-reveal-inline-details .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
-	visibility: visible;
-}
-.monaco-editor .suggest-widget.always-reveal-inline-details .monaco-list .monaco-list-row:not(.focused) > .contents > .main > .readMore {
-	visibility: hidden;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .details-label {
 	display: inline;
 }
 
