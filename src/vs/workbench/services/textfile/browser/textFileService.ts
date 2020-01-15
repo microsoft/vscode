@@ -592,7 +592,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private suggestFileName(untitledResource: URI): URI {
-		const untitledFileName = this.untitledTextEditorService.suggestFileName(untitledResource);
+		const untitledFileName = this.untitledTextEditorService.exists(untitledResource) ? this.untitledTextEditorService.createOrGet(untitledResource).suggestFileName() : basename(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
@@ -618,19 +618,23 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return !(await this.doRevertAll([resource], options)).results.some(result => result.error);
 	}
 
-	private async doRevertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertAll(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 
 		// Revert files first
-		const revertOperationResult = await this.doRevertAllFiles(resources, options);
+		const revertFileOperationResult = await this.doRevertAllFiles(resources, options);
 
 		// Revert untitled
-		const untitledReverted = this.untitledTextEditorService.revertAll(resources);
-		untitledReverted.forEach(untitled => revertOperationResult.results.push({ source: untitled }));
+		const revertUntitledOperationResult = await this.doRevertAllUntitled(resources, options);
 
-		return revertOperationResult;
+		return {
+			results: [
+				...revertFileOperationResult.results,
+				...revertUntitledOperationResult.results
+			]
+		};
 	}
 
-	private async doRevertAllFiles(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertAllFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
@@ -666,6 +670,22 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}));
 
 		return { results: mapResourceToResult.values() };
+	}
+
+	private async doRevertAllUntitled(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+		const result: ITextFileOperationResult = { results: [] };
+
+		await Promise.all(resources.map(resource => {
+			if (this.untitledTextEditorService.exists(resource)) {
+				result.results.push({ source: resource });
+
+				return this.untitledTextEditorService.createOrGet(resource).revert(options);
+			}
+
+			return Promise.resolve(undefined);
+		}));
+
+		return result;
 	}
 
 	//#endregion

@@ -53,7 +53,6 @@ suite('Files - TextFileService', () => {
 			model.dispose();
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {
@@ -79,6 +78,8 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(untitled.getResource()));
 		assert.equal(accessor.textFileService.getDirty().length, 2);
 		assert.equal(accessor.textFileService.getDirty([untitled.getResource()])[0].toString(), untitled.getResource().toString());
+
+		untitledModel.dispose();
 	});
 
 	test('save - file', async function () {

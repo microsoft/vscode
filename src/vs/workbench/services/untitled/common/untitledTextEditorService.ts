@@ -14,7 +14,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { basename } from 'vs/base/common/resources';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -61,16 +60,6 @@ export interface IUntitledTextEditorService {
 	isDirty(resource: URI): boolean;
 
 	/**
-	 * Find out if a backup with the provided resource exists and has a backup on disk.
-	 */
-	hasBackup(resource: URI): boolean;
-
-	/**
-	 * Reverts the untitled resources if found.
-	 */
-	revertAll(resources?: URI[]): URI[];
-
-	/**
 	 * Creates a new untitled input with the optional resource URI or returns an existing one
 	 * if the provided resource exists already as untitled input.
 	 *
@@ -84,16 +73,6 @@ export interface IUntitledTextEditorService {
 	 * A check to find out if a untitled resource has a file path associated or not.
 	 */
 	hasAssociatedFilePath(resource: URI): boolean;
-
-	/**
-	 * Suggests a filename for the given untitled resource if it is known.
-	 */
-	suggestFileName(resource: URI): string;
-
-	/**
-	 * Get the configured encoding for the given untitled resource if any.
-	 */
-	getEncoding(resource: URI): string | undefined;
 }
 
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
@@ -136,31 +115,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.mapResourceToInput.has(resource);
 	}
 
-	revertAll(resources?: URI[], force?: boolean): URI[] {
-		const reverted: URI[] = [];
-
-		const untitledInputs = this.getAll(resources);
-		untitledInputs.forEach(input => {
-			if (input) {
-				input.revert();
-
-				reverted.push(input.getResource());
-			}
-		});
-
-		return reverted;
-	}
-
 	isDirty(resource: URI): boolean {
 		const input = this.get(resource);
 
 		return input ? input.isDirty() : false;
-	}
-
-	hasBackup(resource: URI): boolean {
-		const input = this.get(resource);
-
-		return input ? input.hasBackup() : false;
 	}
 
 	getDirty(resources?: URI[]): URI[] {
@@ -252,18 +210,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	hasAssociatedFilePath(resource: URI): boolean {
 		return this.mapResourceToAssociatedFilePath.has(resource);
-	}
-
-	suggestFileName(resource: URI): string {
-		const input = this.get(resource);
-
-		return input ? input.suggestFileName() : basename(resource);
-	}
-
-	getEncoding(resource: URI): string | undefined {
-		const input = this.get(resource);
-
-		return input ? input.getEncoding() : undefined;
 	}
 }
 
