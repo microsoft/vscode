@@ -34,6 +34,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', key, 'latest').toString();
 		const headers: IHeaders = {};
+		// Disable caching as they are cached by synchronisers
+		headers['Cache-Control'] = 'no-cache';
 		if (oldValue) {
 			headers['If-None-Match'] = oldValue.ref;
 		}
