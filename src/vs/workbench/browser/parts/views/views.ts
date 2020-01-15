@@ -1023,6 +1023,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			viewDescriptorCollectionItem.disposable.dispose();
 			this.viewDescriptorCollections.delete(viewContainer);
 		}
+
+		this.registeredViewContainers.delete(viewContainer);
 	}
 
 	private onDidChangeActiveViews({ added, removed }: { added: IViewDescriptor[], removed: IViewDescriptor[]; }): void {
