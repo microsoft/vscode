@@ -417,7 +417,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (hasRemote && !hasPreviouslySynced) {
 			const result = await this.dialogService.show(
 				Severity.Info,
-				localize('firs time sync', "First time synchronization"),
+				localize('firs time sync', "First time Sync"),
 				[
 					localize('continue', "Continue"),
 					localize('cancel', "Cancel"),
@@ -426,7 +426,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				],
 				{
 					cancelId: 1,
-					detail: localize('first time sync detail', "Synchronising from this device for the first time. Would you like to \nDownload and replace with the remote data or \nUpload from this device and replace the remote data?")
+					detail: localize('first time sync detail', "Synchronising from this device for the first time. Would you like to \nDownload and replace with the data from cloud or \nUpload and replace with the data from this device?")
 				}
 			);
 
@@ -446,7 +446,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and more will no longer be synced."),
 			primaryButton: localize('turn off', "Turn off"),
 			checkbox: {
-				label: localize('turn off sync everywhere', "Turn off sync in all your devices and clear the data from cloud.")
+				label: localize('turn off sync everywhere', "Turn off sync in all your devices and clear the data in cloud.")
 			}
 		});
 		if (result.confirmed) {
