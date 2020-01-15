@@ -3996,6 +3996,14 @@ gulp-azure-storage@^0.10.0:
     vinyl "^2.2.0"
     vinyl-fs "^3.0.3"
 
+gulp-bom@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/gulp-bom/-/gulp-bom-3.0.0.tgz#b2f1ab0ef304ff5e593665b776ba517ef7ffb4ad"
+  integrity sha512-iw/J94F+MVlxG64Q17BSkHsyjpY17qHl3N3A/jDdrL77zQBkhKtTiKLqM4di9CUX/qFToyyeDsOWwH+rESBgmA==
+  dependencies:
+    plugin-error "^1.0.1"
+    through2 "^3.0.1"
+
 gulp-buffer@0.0.2:
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/gulp-buffer/-/gulp-buffer-0.0.2.tgz#af81b4346101736b49942ec6c9fa867ffe737036"
@@ -8923,6 +8931,13 @@ through2@^3.0.0:
   dependencies:
     readable-stream "2 || 3"
     xtend "~4.0.1"
+
+through2@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/through2/-/through2-3.0.1.tgz#39276e713c3302edf9e388dd9c812dd3b825bd5a"
+  integrity sha512-M96dvTalPT3YbYLaKaCuwu+j06D/8Jfib0o/PxbVt6Amhv3dUAtW6rTV1jPgJSBG83I/e04Y6xkVdVhSRhi0ww==
+  dependencies:
+    readable-stream "2 || 3"
 
 through2@~0.2.3:
   version "0.2.3"
