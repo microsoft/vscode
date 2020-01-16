@@ -379,6 +379,7 @@ function asTreeElement(item: BaseTreeItem): ITreeElement<LoadedScriptsItem> {
 	return {
 		element: item,
 		collapsed: !(item instanceof SessionTreeItem),
+		collapsible: item.hasChildren(),
 		children: children.map(asTreeElement)
 	};
 }
