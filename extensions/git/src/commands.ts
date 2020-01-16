@@ -1312,7 +1312,12 @@ export class CommandCenter {
 
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
-					await repository.add([]);
+
+					// Add only staged documents
+					documents = documents
+						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+
+					await repository.add(documents.map(d => d.uri));
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
 				}
