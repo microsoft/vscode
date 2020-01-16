@@ -723,7 +723,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private static readonly CACHED_VIEW_POSITIONS = 'views.cachedViewPositions';
 
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>;
-	private readonly viewContainers: Map<string, ViewContainer>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 
 	private readonly viewsRegistry: IViewsRegistry;
@@ -755,7 +754,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		super();
 
 		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>();
-		this.viewContainers = new Map<string, ViewContainer>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
@@ -840,7 +838,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewContainer(viewId: string): ViewContainer | null {
-		return this.viewContainers.get(viewId) ?? null;
+		const containerId = this.cachedViewToContainer.get(viewId);
+		return containerId ?
+			this.viewContainersRegistry.get(containerId) ?? null :
+			this.viewsRegistry.getViewContainer(viewId);
 	}
 
 	getViewDescriptors(container: ViewContainer): ViewDescriptorCollection {
@@ -858,15 +859,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			return;
 		}
 
-		const from = this.viewContainers.get(views[0].id);
+		const from = this.getViewContainer(views[0].id);
 		const to = viewContainer;
 
 		if (from && to && from !== to) {
 			this.removeViews(from, views);
 			this.addViews(to, views);
+			this.saveViewPositionsToCache();
 		}
-
-		this.saveViewPositionsToCache();
 	}
 
 	private getViewContainerById(id: string): ViewContainer | undefined {
@@ -882,22 +882,23 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			&& this.cachedViewPositionsValue !== this.getStoredCachedViewPositionsValue() /* This checks if current window changed the value or not */) {
 			this._cachedViewPositionsValue = this.getStoredCachedViewPositionsValue();
 
-			this.cachedViewToContainer = this.getCachedViewPositions();
+			const newCachedPositions = this.getCachedViewPositions();
 
-			for (let [viewId, viewContainerId] of this.cachedViewToContainer.entries()) {
-				const prevViewContainer = this.viewContainers.get(viewId);
-
-				// view has been moved in a separate window
-				if (prevViewContainer && prevViewContainer.id !== viewContainerId) {
-					const newViewContainer = this.getViewContainerById(viewContainerId);
-					if (newViewContainer) {
-						const viewDescriptor = this.viewsRegistry.getView(viewId);
-						if (viewDescriptor) {
-							this.moveViews([viewDescriptor], newViewContainer);
-						}
+			for (let viewId of newCachedPositions.keys()) {
+				const prevViewContainer = this.getViewContainer(viewId);
+				const newViewContainer = this.getViewContainerById(newCachedPositions.get(viewId)!);
+				if (prevViewContainer && newViewContainer && newViewContainer !== prevViewContainer) {
+					const viewDescriptor = this.viewsRegistry.getView(viewId);
+					if (viewDescriptor) {
+						// We don't call move views to avoid sending intermediate
+						// cached data to the window that gave us this information
+						this.removeViews(prevViewContainer, [viewDescriptor]);
+						this.addViews(newViewContainer, [viewDescriptor]);
 					}
 				}
 			}
+
+			this.cachedViewToContainer = this.getCachedViewPositions();
 		}
 	}
 
@@ -974,18 +975,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[]): void {
-		for (const viewDescriptor of views) {
-			this.viewContainers.set(viewDescriptor.id, container);
-		}
-
 		this.getViewDescriptors(container).addViews(views);
 	}
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
-		for (const view of views) {
-			this.viewContainers.delete(view.id);
-		}
-
 		const viewDescriptorCollection = this.getViewDescriptors(container);
 		viewDescriptorCollection.removeViews(views);
 	}
