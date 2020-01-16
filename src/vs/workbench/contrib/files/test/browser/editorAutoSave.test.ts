@@ -87,7 +87,7 @@ suite('EditorAutoSave', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.models.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.loadOrCreate(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
@@ -99,7 +99,7 @@ suite('EditorAutoSave', () => {
 
 		part.dispose();
 		editorAutoSave.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {

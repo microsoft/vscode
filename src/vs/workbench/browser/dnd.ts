@@ -377,7 +377,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 			encoding = model.getEncoding();
 			mode = model.getMode();
 		} else {
-			const model = textFileService.models.get(file.resource);
+			const model = textFileService.files.get(file.resource);
 			if (model) {
 				encoding = model.getEncoding();
 				mode = model.getMode();

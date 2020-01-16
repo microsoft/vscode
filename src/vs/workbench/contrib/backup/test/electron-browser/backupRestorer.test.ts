@@ -84,7 +84,7 @@ suite('BackupRestorer', () => {
 		dispose(disposables);
 		disposables = [];
 
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
@@ -137,11 +137,11 @@ suite('BackupRestorer', () => {
 				model.dispose();
 				counter++;
 			} else if (isEqual(resource, fooFile)) {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
+				const model = await accessor.textFileService.files.get(resource!)?.load();
 				assert.equal(model?.textEditorModel?.getValue(), 'fooFile');
 				counter++;
 			} else {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
+				const model = await accessor.textFileService.files.get(resource!)?.load();
 				assert.equal(model?.textEditorModel?.getValue(), 'barFile');
 				counter++;
 			}

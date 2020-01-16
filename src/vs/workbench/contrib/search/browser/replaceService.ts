@@ -105,7 +105,7 @@ export class ReplaceService implements IReplaceService {
 		await this.bulkEditorService.apply({ edits }, { progress });
 
 		return Promise.all(edits.map(e => {
-			const model = this.textFileService.models.get(e.resource);
+			const model = this.textFileService.files.get(e.resource);
 			if (model) {
 				return model.save();
 			}

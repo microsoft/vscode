@@ -58,8 +58,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Ensure dirty text file and untitled models are always opened as editors
-		this._register(this.textFileService.models.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
-		this._register(this.textFileService.models.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.textFileService.files.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.textFileService.files.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
 		this._register(this.textFileService.untitled.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
 
 		// Out of workspace file watchers
@@ -112,7 +112,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						}
 
 						let encoding: string | undefined = undefined;
-						const model = this.textFileService.models.get(resource);
+						const model = this.textFileService.files.get(resource);
 						if (model) {
 							encoding = model.getEncoding();
 						}
@@ -283,7 +283,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				return false; // resource must be dirty
 			}
 
-			const model = this.textFileService.models.get(resource);
+			const model = this.textFileService.files.get(resource);
 			if (model?.hasState(ModelState.PENDING_SAVE)) {
 				return false; // resource must not be pending to save
 			}
@@ -362,7 +362,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							return undefined;
 						}
 
-						const model = this.textFileService.models.get(resource);
+						const model = this.textFileService.files.get(resource);
 						if (!model) {
 							return undefined;
 						}

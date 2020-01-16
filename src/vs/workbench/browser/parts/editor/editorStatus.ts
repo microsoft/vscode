@@ -312,7 +312,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
-		this._register(this.textFileService.models.onDidChangeEncoding(m => this.onResourceEncodingChange((m.resource))));
+		this._register(this.textFileService.files.onDidChangeEncoding(m => this.onResourceEncodingChange((m.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 	}
 

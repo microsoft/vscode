@@ -38,7 +38,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
-			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
+			return this.textFileService.files.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
 		}
 
 		// Virtual documents
@@ -64,7 +64,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		modelPromise.then(model => {
 			if (this.modelsToDispose.has(key)) {
 				if (model instanceof TextFileEditorModel) {
-					this.textFileService.models.disposeModel(model);
+					this.textFileService.files.disposeModel(model);
 				} else {
 					model.dispose();
 				}

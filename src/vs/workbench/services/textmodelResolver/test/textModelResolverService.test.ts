@@ -48,7 +48,7 @@ suite('Workbench - TextModelResolverService', () => {
 			model.dispose();
 			model = (undefined)!;
 		}
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('resolve resource', async () => {
@@ -86,7 +86,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve file', async function () {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(textModel.resource, textModel);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
 		await textModel.load();
 

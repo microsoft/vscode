@@ -62,7 +62,7 @@ suite('Files - FileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.models.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.loadOrCreate(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 		assert.equal(snapshotToString(model.createSnapshot()!), 'Super Good');
@@ -77,7 +77,7 @@ suite('Files - FileEditorTracker', () => {
 		assert.equal(snapshotToString(model.createSnapshot()!), 'Hello Html');
 
 		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	async function createTracker(): Promise<[EditorPart, ServiceAccessor, FileEditorTracker]> {
@@ -108,7 +108,7 @@ suite('Files - FileEditorTracker', () => {
 
 		assert.ok(!accessor.editorService.isOpen({ resource }));
 
-		const model = await accessor.textFileService.models.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.loadOrCreate(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
@@ -117,7 +117,7 @@ suite('Files - FileEditorTracker', () => {
 
 		part.dispose();
 		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('dirty untitled text file model opens as editor', async function () {

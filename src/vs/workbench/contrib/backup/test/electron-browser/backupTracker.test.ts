@@ -90,7 +90,7 @@ suite('BackupTracker', () => {
 		dispose(disposables);
 		disposables = [];
 
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
@@ -151,7 +151,7 @@ suite('BackupTracker', () => {
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 
-		const fileModel = accessor.textFileService.models.get(resource);
+		const fileModel = accessor.textFileService.files.get(resource);
 		fileModel?.textEditorModel?.setValue('Super Good');
 
 		await accessor.backupFileService.joinBackupResource();

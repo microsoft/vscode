@@ -37,7 +37,7 @@ export interface ITextFileService extends IDisposable {
 	 * Access to the manager of text file editor models providing further
 	 * methods to work with them.
 	 */
-	readonly models: ITextFileEditorModelManager;
+	readonly files: ITextFileEditorModelManager;
 
 	/**
 	 * Access to the manager of untitled text editor models providing further
