@@ -606,7 +606,7 @@ export class RepositoryPane extends ViewPane {
 	private menus: SCMMenus;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
-	// private commitTemplate = '';
+	private commitTemplate = '';
 
 	constructor(
 		readonly repository: ISCMRepository,
@@ -984,20 +984,21 @@ export class RepositoryPane extends ViewPane {
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
-	// TODO@joao
 	private onDidChangeCommitTemplate(): void {
-		// if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
-		// 	return;
-		// }
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
+			return;
+		}
 
-		// const oldCommitTemplate = this.commitTemplate;
-		// this.commitTemplate = this.repository.provider.commitTemplate;
+		const oldCommitTemplate = this.commitTemplate;
+		this.commitTemplate = this.repository.provider.commitTemplate;
 
-		// if (this.inputBox.value && this.inputBox.value !== oldCommitTemplate) {
-		// 	return;
-		// }
+		const value = this.inputModel.getValue();
 
-		// this.inputBox.value = this.commitTemplate;
+		if (value && value !== oldCommitTemplate) {
+			return;
+		}
+
+		this.inputModel.setValue(this.commitTemplate);
 	}
 
 	private updateInputBoxVisibility(): void {
