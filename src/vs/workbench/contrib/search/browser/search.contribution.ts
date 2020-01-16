@@ -200,7 +200,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FocusNextInputAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(Constants.InSearchEditor, Constants.InputBoxFocusedKey),
+		ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey)),
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusNextInputAction, FocusNextInputAction.ID, '').run();
@@ -210,7 +212,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FocusPreviousInputAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey, Constants.SearchInputBoxFocusedKey.toNegated()),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(Constants.InSearchEditor, Constants.InputBoxFocusedKey),
+		ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey, Constants.SearchInputBoxFocusedKey.toNegated())),
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusPreviousInputAction, FocusPreviousInputAction.ID, '').run();
