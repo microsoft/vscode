@@ -918,8 +918,6 @@ class SuggestAdapter {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
-		} else if (item.range2) {
-			range = item.range2;
 		}
 
 		if (range) {
@@ -955,12 +953,12 @@ class SuggestAdapter {
 	}
 
 	private static _mustNotChangeHash(item: vscode.CompletionItem) {
-		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2]);
+		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range]);
 		return res;
 	}
 
 	private static _mustNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
-		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range];
 		const thisHash = JSON.stringify(thisArr);
 		if (hash === thisHash) {
 			return;

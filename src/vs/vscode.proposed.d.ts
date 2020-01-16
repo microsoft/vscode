@@ -1285,25 +1285,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region insert/replace completions: https://github.com/microsoft/vscode/issues/10266
-
-	export interface CompletionItem {
-
-		/**
-		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
-		 *
-		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
-		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position is used.
-		 *
-		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
-		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
-		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
-		 */
-		range2?: Range | { inserting: Range; replacing: Range; };
-	}
-
-	//#endregion
 
 	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 

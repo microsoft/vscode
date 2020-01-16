@@ -1364,8 +1364,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	preselect?: boolean;
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range?: Range;
-	range2?: Range | { inserting: Range; replacing: Range; };
+	range?: Range | { inserting: Range; replacing: Range; };
 	commitCharacters?: string[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
