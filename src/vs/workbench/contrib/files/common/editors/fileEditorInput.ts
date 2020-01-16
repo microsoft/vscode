@@ -70,15 +70,15 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	private registerListeners(): void {
 
 		// Dirty changes
-		this._register(this.textFileService.models.onDidChangeDirty(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.models.onDidSaveError(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.models.onDidSave(e => this.onDirtyStateChange(e.model)));
-		this._register(this.textFileService.models.onDidRevert(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.files.onDidChangeDirty(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.files.onDidSaveError(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.files.onDidSave(e => this.onDirtyStateChange(e.model)));
+		this._register(this.textFileService.files.onDidRevert(m => this.onDirtyStateChange(m)));
 
 		// Label changes
 		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => FileEditorInput.MEMOIZER.clear()));
-		this._register(this.textFileService.models.onDidChangeOrphaned(model => this.onModelOrphanedChanged(model)));
+		this._register(this.textFileService.files.onDidChangeOrphaned(model => this.onModelOrphanedChanged(model)));
 	}
 
 	private onDirtyStateChange(model: ITextFileEditorModel): void {
@@ -95,7 +95,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	getEncoding(): string | undefined {
-		const textModel = this.textFileService.models.get(this.resource);
+		const textModel = this.textFileService.files.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
 		}
@@ -110,7 +110,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	setEncoding(encoding: string, mode: EncodingMode): void {
 		this.setPreferredEncoding(encoding);
 
-		const textModel = this.textFileService.models.get(this.resource);
+		const textModel = this.textFileService.files.get(this.resource);
 		if (textModel) {
 			textModel.setEncoding(encoding, mode);
 		}
@@ -128,7 +128,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	setMode(mode: string): void {
 		this.setPreferredMode(mode);
 
-		const textModel = this.textFileService.models.get(this.resource);
+		const textModel = this.textFileService.files.get(this.resource);
 		if (textModel) {
 			textModel.setMode(mode);
 		}
@@ -212,7 +212,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	private decorateLabel(label: string): string {
-		const model = this.textFileService.models.get(this.resource);
+		const model = this.textFileService.files.get(this.resource);
 
 		if (model?.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted)", label);
@@ -226,13 +226,13 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	isReadonly(): boolean {
-		const model = this.textFileService.models.get(this.resource);
+		const model = this.textFileService.files.get(this.resource);
 
 		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isDirty(): boolean {
-		const model = this.textFileService.models.get(this.resource);
+		const model = this.textFileService.files.get(this.resource);
 		if (!model) {
 			return false;
 		}
@@ -241,7 +241,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	isSaving(): boolean {
-		const model = this.textFileService.models.get(this.resource);
+		const model = this.textFileService.files.get(this.resource);
 		if (!model) {
 			return false;
 		}
@@ -285,7 +285,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 		// Resolve as text
 		try {
-			await this.textFileService.models.loadOrCreate(this.resource, {
+			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
@@ -295,7 +295,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
-			// loadOrCreate ensures we are not creating model references for these kind of resources.
+			// resolve() ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
 			if (!this.textModelReference) {
 				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
@@ -324,7 +324,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	isResolved(): boolean {
-		return !!this.textFileService.models.get(this.resource);
+		return !!this.textFileService.files.get(this.resource);
 	}
 
 	dispose(): void {

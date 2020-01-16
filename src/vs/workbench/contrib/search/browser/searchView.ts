@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder, PANEL_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -53,7 +53,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { FileMatch, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, FolderMatch, FolderMatchWithResource } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -162,7 +162,7 @@ export class SearchView extends ViewPane {
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
@@ -214,7 +214,7 @@ export class SearchView extends ViewPane {
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
-		this._register(this.untitledTextEditorService.onDidDisposeModel(e => this.onUntitledDidDispose(e)));
+		this._register(this.textFileService.untitled.onDidDisposeModel(e => this.onUntitledDidDispose(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
@@ -595,7 +595,7 @@ export class SearchView extends ViewPane {
 
 		let progressComplete: () => void;
 		let progressReporter: IProgress<IProgressStep>;
-		this.progressService.withProgress({ location: VIEWLET_ID, delay: 100, total: occurrences }, p => {
+		this.progressService.withProgress({ location: this.position === SearchViewPosition.SideBar ? VIEWLET_ID : PANEL_ID, delay: 100, total: occurrences }, p => {
 			progressReporter = p;
 
 			return new Promise(resolve => progressComplete = resolve);
@@ -1347,7 +1347,7 @@ export class SearchView extends ViewPane {
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: VIEWLET_ID, delay: triggeredOnType ? 300 : 0 }, _progress => {
+		this.progressService.withProgress({ location: this.position === SearchViewPosition.SideBar ? VIEWLET_ID : PANEL_ID, delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
@@ -1811,6 +1811,8 @@ export class SearchView extends ViewPane {
 		}
 
 		this.searchHistoryService.save(history);
+
+		this.memento.saveMemento();
 
 		super.saveState();
 	}

@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as arrays from 'vs/base/common/arrays';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,6 +13,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
+import type { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -25,9 +26,7 @@ export interface IUntitledCreationOptions {
 	useResourcePath?: boolean;
 }
 
-export interface IUntitledTextEditorService {
-
-	_serviceBrand: undefined;
+export interface IUntitledTextEditorModelManager {
 
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
@@ -50,24 +49,25 @@ export interface IUntitledTextEditorService {
 	exists(resource: URI): boolean;
 
 	/**
-	 * Returns dirty untitled text editors as resource URIs.
+	 * Returns an existing untitled input if already created before.
 	 */
-	getDirty(resources?: URI[]): URI[];
+	get(resource: URI): UntitledTextEditorInput | undefined;
 
 	/**
-	 * Returns true if the provided resource is dirty.
+	 * Creates a new untitled input with the optional resource URI to
+	 * be used as associated file path when saving.
 	 */
-	isDirty(resource: URI): boolean;
+	create(options?: IUntitledCreationOptions): UntitledTextEditorInput;
+	create(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
 
 	/**
-	 * Creates a new untitled input with the optional resource URI or returns an existing one
-	 * if the provided resource exists already as untitled input.
+	 * Creates a new untitled model with the optional resource URI or returns an existing one
+	 * if the provided resource exists already as untitled model.
 	 *
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+	resolve(options?: IUntitledCreationOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -75,12 +75,14 @@ export interface IUntitledTextEditorService {
 	hasAssociatedFilePath(resource: URI): boolean;
 }
 
+export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
+
+	_serviceBrand: undefined;
+}
+
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
 	_serviceBrand: undefined;
-
-	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
-	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -91,6 +93,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
+	protected readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -99,49 +104,25 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		super();
 	}
 
-	protected get(resource: URI): UntitledTextEditorInput | undefined {
-		return this.mapResourceToInput.get(resource);
-	}
-
-	protected getAll(resources?: URI[]): UntitledTextEditorInput[] {
-		if (resources) {
-			return arrays.coalesce(resources.map(r => this.get(r)));
-		}
-
-		return this.mapResourceToInput.values();
-	}
-
 	exists(resource: URI): boolean {
 		return this.mapResourceToInput.has(resource);
 	}
 
-	isDirty(resource: URI): boolean {
-		const input = this.get(resource);
-
-		return input ? input.isDirty() : false;
+	get(resource: URI): UntitledTextEditorInput | undefined {
+		return this.mapResourceToInput.get(resource);
 	}
 
-	getDirty(resources?: URI[]): URI[] {
-		let inputs: UntitledTextEditorInput[];
-		if (resources) {
-			inputs = arrays.coalesce(resources.map(r => this.get(r)));
-		} else {
-			inputs = this.mapResourceToInput.values();
-		}
-
-		return inputs
-			.filter(i => i.isDirty())
-			.map(i => i.getResource());
-	}
-
-	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
-	createOrGet(resourceOrOptions?: URI | IUntitledCreationOptions, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
+	create(options?: IUntitledCreationOptions): UntitledTextEditorInput;
+	create(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+	create(resourceOrOptions?: URI | IUntitledCreationOptions, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
 		if (resourceOrOptions && !URI.isUri(resourceOrOptions)) {
-			return this.createOrGet(resourceOrOptions.resource, resourceOrOptions.mode, resourceOrOptions.initialValue, resourceOrOptions.encoding, resourceOrOptions.useResourcePath);
+			return this.doCreateOrGet(resourceOrOptions.resource, resourceOrOptions.mode, resourceOrOptions.initialValue, resourceOrOptions.encoding, resourceOrOptions.useResourcePath);
 		}
 
-		let resource = resourceOrOptions;
+		return this.doCreateOrGet(resourceOrOptions, mode, initialValue, encoding, hasAssociatedFilePath);
+	}
+
+	private doCreateOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
 		if (resource) {
 
 			// Massage resource if it comes with known file based resource
@@ -206,6 +187,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		this.mapResourceToInput.set(untitledResource, input);
 
 		return input;
+	}
+
+	resolve(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+		return this.doCreateOrGet(options?.resource, options?.mode, options?.initialValue, options?.encoding, options?.useResourcePath).resolve();
 	}
 
 	hasAssociatedFilePath(resource: URI): boolean {

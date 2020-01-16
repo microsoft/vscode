@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -20,6 +20,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 interface ISyncContent {
 	mac?: string;
@@ -216,9 +217,26 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		return !!lastSyncData;
 	}
 
-	async hasRemote(): Promise<boolean> {
+	async hasRemoteData(): Promise<boolean> {
 		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const localFileContent = await this.getLocalFileContent();
+			if (localFileContent) {
+				const keybindings = parse(localFileContent.value.toString());
+				if (isNonEmptyArray(keybindings)) {
+					return true;
+				}
+			}
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	async resetLocal(): Promise<void> {

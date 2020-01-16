@@ -111,7 +111,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			add: (suggestion: CompletionItem) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
-					suggestion.range2 = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
+					suggestion.range = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
 					items.push(suggestion);
 				}
 			},

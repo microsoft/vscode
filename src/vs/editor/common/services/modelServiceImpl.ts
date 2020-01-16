@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, SemanticTokensProviderRegistry, SemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata } from 'vs/editor/common/modes';
+import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -498,23 +498,23 @@ class SemanticColoringFeature extends Disposable {
 
 class SemanticStyling extends Disposable {
 
-	private _caches: WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>;
+	private _caches: WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>;
 
 	constructor(
 		private readonly _themeService: IThemeService,
 		private readonly _logService: ILogService
 	) {
 		super();
-		this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
+		this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 		if (this._themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(this._themeService.onThemeChange(() => {
-				this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
+				this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 			}));
 		}
 	}
 
-	public get(provider: SemanticTokensProvider): SemanticColoringProviderStyling {
+	public get(provider: DocumentSemanticTokensProvider): SemanticColoringProviderStyling {
 		if (!this._caches.has(provider)) {
 			this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService, this._logService));
 		}
@@ -676,13 +676,13 @@ const enum SemanticColoringConstants {
 
 class SemanticTokensResponse {
 	constructor(
-		private readonly _provider: SemanticTokensProvider,
+		private readonly _provider: DocumentSemanticTokensProvider,
 		public readonly resultId: string | undefined,
 		public readonly data: Uint32Array
 	) { }
 
 	public dispose(): void {
-		this._provider.releaseSemanticTokens(this.resultId);
+		this._provider.releaseDocumentSemanticTokens(this.resultId);
 	}
 }
 
@@ -710,7 +710,7 @@ class ModelSemanticColoring extends Disposable {
 				this._fetchSemanticTokens.schedule();
 			}
 		}));
-		this._register(SemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
 		if (themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(themeService.onThemeChange(_ => {
@@ -756,7 +756,7 @@ class ModelSemanticColoring extends Disposable {
 		const styling = this._semanticStyling.get(provider);
 
 		const lastResultId = this._currentResponse ? this._currentResponse.resultId || null : null;
-		const request = Promise.resolve(provider.provideSemanticTokens(this._model, lastResultId, null, this._currentRequestCancellationTokenSource.token));
+		const request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
@@ -784,7 +784,7 @@ class ModelSemanticColoring extends Disposable {
 		}
 	}
 
-	private _setSemanticTokens(provider: SemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
+	private _setSemanticTokens(provider: DocumentSemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
 		const currentResponse = this._currentResponse;
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
@@ -793,7 +793,7 @@ class ModelSemanticColoring extends Disposable {
 		if (this._isDisposed) {
 			// disposed!
 			if (provider && tokens) {
-				provider.releaseSemanticTokens(tokens.resultId);
+				provider.releaseDocumentSemanticTokens(tokens.resultId);
 			}
 			return;
 		}
@@ -954,8 +954,8 @@ class ModelSemanticColoring extends Disposable {
 		this._model.setSemanticTokens(null);
 	}
 
-	private _getSemanticColoringProvider(): SemanticTokensProvider | null {
-		const result = SemanticTokensProviderRegistry.ordered(this._model);
+	private _getSemanticColoringProvider(): DocumentSemanticTokensProvider | null {
+		const result = DocumentSemanticTokensProviderRegistry.ordered(this._model);
 		return (result.length > 0 ? result[0] : null);
 	}
 }

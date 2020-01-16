@@ -626,10 +626,10 @@ tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   resolved "https://registry.yarnpkg.com/tweetnacl/-/tweetnacl-0.14.5.tgz#5ae68177f192d4456269d108afa93ff8743f4f64"
   integrity sha1-WuaBd/GS1EViadEIr6k/+HQ/T2Q=
 
-typescript-vscode-sh-plugin@^0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.5.0.tgz#014dd928f2fa5000396147ed00792a2c901d97b9"
-  integrity sha512-MKqivbdkgllHS3Rab/zvXlGAxwCb1AHzgO/a8vmG6i5kExGIytwjUyXALdnnLUWS03B9eEJmIjzOz4y3MpgliQ==
+typescript-vscode-sh-plugin@^0.6.1:
+  version "0.6.1"
+  resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.6.1.tgz#db1a291cbc385a76e33a83fb9233e3ec66ba15ff"
+  integrity sha512-rqpHjxadpCDuGvYdCojlOLgt/TSCIgruzM/BzA0q8VjDPVh6NOKtiZLPDnzMe1rL77ZGWxYYgKtRg1bexnZrPA==
 
 uri-js@^4.2.2:
   version "4.2.2"
