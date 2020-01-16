@@ -16,6 +16,8 @@
 
 declare module 'vscode' {
 
+	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+
 	export interface Session {
 		id: string;
 		accessToken: string;
@@ -56,6 +58,8 @@ declare module 'vscode' {
 		export function logout(providerId: string, accountId: string): Promise<void>;
 		export function getSessions(providerId: string): Promise<ReadonlyArray<Session>>;
 	}
+
+	//#endregion
 
 	//#region Alex - resolvers
 
