@@ -15,6 +15,7 @@ import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -33,9 +34,16 @@ export interface ITextFileService extends IDisposable {
 	readonly onDidRunOperation: Event<FileOperationDidRunEvent>;
 
 	/**
-	 * Access to the manager of text file editor models providing further methods to work with them.
+	 * Access to the manager of text file editor models providing further
+	 * methods to work with them.
 	 */
-	readonly models: ITextFileEditorModelManager;
+	readonly files: ITextFileEditorModelManager;
+
+	/**
+	 * Access to the manager of untitled text editor models providing further
+	 * methods to work with them.
+	 */
+	readonly untitled: IUntitledTextEditorModelManager;
 
 	/**
 	 * Helper to determine encoding for resources.
@@ -348,8 +356,6 @@ export interface ITextFileEditorModelManager {
 	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
-
-	getAll(resource?: URI): ITextFileEditorModel[];
 
 	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 

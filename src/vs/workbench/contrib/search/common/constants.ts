@@ -43,6 +43,7 @@ export const PatternExcludesFocusedKey = new RawContextKey<boolean>('patternExcl
 export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
 export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', false);
 export const EnableSearchEditorPreview = new RawContextKey<boolean>('previewSearchEditor', false);
+export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
 
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false); // This is actually, Match or File or Folder

@@ -16,7 +16,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -54,8 +53,7 @@ class TestBackupRestorer extends BackupRestorer {
 
 class ServiceAccessor {
 	constructor(
-		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
+		@ITextFileService public textFileService: TestTextFileService
 	) {
 	}
 }
@@ -86,7 +84,7 @@ suite('BackupRestorer', () => {
 		dispose(disposables);
 		disposables = [];
 
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
@@ -129,21 +127,21 @@ suite('BackupRestorer', () => {
 		for (const editor of editorService.editors) {
 			const resource = editor.getResource();
 			if (isEqual(resource, untitledFile1)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
+				const model = await accessor.textFileService.untitled.loadOrCreate({ resource });
 				assert.equal(model.textEditorModel.getValue(), 'untitled-1');
 				model.dispose();
 				counter++;
 			} else if (isEqual(resource, untitledFile2)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
+				const model = await accessor.textFileService.untitled.loadOrCreate({ resource });
 				assert.equal(model.textEditorModel.getValue(), 'untitled-2');
 				model.dispose();
 				counter++;
 			} else if (isEqual(resource, fooFile)) {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
+				const model = await accessor.textFileService.files.get(resource!)?.load();
 				assert.equal(model?.textEditorModel?.getValue(), 'fooFile');
 				counter++;
 			} else {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
+				const model = await accessor.textFileService.files.get(resource!)?.load();
 				assert.equal(model?.textEditorModel?.getValue(), 'barFile');
 				counter++;
 			}

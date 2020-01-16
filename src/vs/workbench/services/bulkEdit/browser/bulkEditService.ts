@@ -389,6 +389,10 @@ export class BulkEditService implements IBulkEditService {
 
 	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
+		if (edit.edits.length === 0) {
+			return { ariaSummary: localize('nothing', "Made no edits") };
+		}
+
 		if (this._previewHandler && options?.showPreview) {
 			edit = await this._previewHandler(edit, options);
 		}

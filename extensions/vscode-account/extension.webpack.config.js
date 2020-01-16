@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .rename-box {
-	z-index: 100;
-	color: inherit;
-	padding: 4px;
-}
+//@ts-check
 
-.monaco-editor .rename-box .rename-input {
-	padding: 4px;
-	width: calc(100% - 8px);
-}
+'use strict';
 
-.monaco-editor .rename-box .rename-label {
-	opacity: .8;
-}
+const withDefaults = require('../shared.webpack.config');
+
+module.exports = withDefaults({
+	context: __dirname,
+	resolve: {
+		mainFields: ['module', 'main']
+	},
+	entry: {
+		extension: './src/extension.ts',
+	},
+	externals: {
+		'keytar': 'commonjs keytar',
+	},
+});

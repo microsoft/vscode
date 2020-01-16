@@ -182,6 +182,24 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const authentication: typeof vscode.authentication = {
 			registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
 				return extHostAuthentication.registerAuthenticationProvider(provider);
+			},
+			login(providerId: string): Promise<vscode.Session> {
+				return extHostAuthentication.$login(providerId);
+			},
+			logout(providerId: string, accountId: string): Promise<void> {
+				return extHostAuthentication.$logout(providerId, accountId);
+			},
+			getSessions(providerId: string): Promise<ReadonlyArray<vscode.Session>> {
+				return extHostAuthentication.$getSessions(providerId);
+			},
+			get onDidChangeSessions() {
+				return extHostAuthentication.onDidChangeSessions;
+			},
+			get onDidRegisterAuthenticationProvider() {
+				return extHostAuthentication.onDidRegisterAuthenticationProvider;
+			},
+			get onDidUnregisterAuthenticationProvider() {
+				return extHostAuthentication.onDidUnregisterAuthenticationProvider;
 			}
 		};
 

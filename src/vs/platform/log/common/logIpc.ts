@@ -77,6 +77,8 @@ export class FollowerLogService extends DelegatedLogService implements ILogServi
 	}
 
 	setLevel(level: LogLevel): void {
+		super.setLevel(level);
+
 		this.master.setLevel(level);
 	}
 }

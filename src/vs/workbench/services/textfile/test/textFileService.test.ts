@@ -11,7 +11,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -27,7 +26,6 @@ class ServiceAccessor {
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
@@ -52,12 +50,12 @@ suite('Files - TextFileService', () => {
 		if (model) {
 			model.dispose();
 		}
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 
@@ -65,26 +63,20 @@ suite('Files - TextFileService', () => {
 		model.textEditorModel!.setValue('foo');
 
 		assert.ok(accessor.textFileService.isDirty(model.resource));
-		assert.equal(accessor.textFileService.getDirty().length, 1);
-		assert.equal(accessor.textFileService.getDirty([model.resource])[0].toString(), model.resource.toString());
 
-		const untitled = accessor.untitledTextEditorService.createOrGet();
-		const untitledModel = await untitled.resolve();
+		const untitled = await accessor.textFileService.untitled.loadOrCreate();
 
-		assert.ok(!accessor.textFileService.isDirty(untitled.getResource()));
-		assert.equal(accessor.textFileService.getDirty().length, 1);
-		untitledModel.textEditorModel!.setValue('changed');
+		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
+		untitled.textEditorModel.setValue('changed');
 
-		assert.ok(accessor.textFileService.isDirty(untitled.getResource()));
-		assert.equal(accessor.textFileService.getDirty().length, 2);
-		assert.equal(accessor.textFileService.getDirty([untitled.getResource()])[0].toString(), untitled.getResource().toString());
+		assert.ok(accessor.textFileService.isDirty(untitled.resource));
 
-		untitledModel.dispose();
+		untitled.dispose();
 	});
 
 	test('save - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -98,14 +90,14 @@ suite('Files - TextFileService', () => {
 	test('save - UNC path', async function () {
 		const untitledUncUri = URI.from({ scheme: 'untitled', authority: 'server', path: '/share/path/file.txt' });
 		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
 		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
-		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
+		const loadOrCreateStub = sinon.stub(accessor.textFileService.files, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
 
-		sinon.stub(accessor.untitledTextEditorService, 'exists', () => true);
-		sinon.stub(accessor.untitledTextEditorService, 'hasAssociatedFilePath', () => true);
+		sinon.stub(accessor.textFileService.untitled, 'exists', () => true);
+		sinon.stub(accessor.textFileService.untitled, 'hasAssociatedFilePath', () => true);
 		sinon.stub(accessor.modelService, 'updateModel', () => { });
 
 		await model.load();
@@ -118,7 +110,7 @@ suite('Files - TextFileService', () => {
 
 	test('saveAll - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -131,7 +123,7 @@ suite('Files - TextFileService', () => {
 
 	test('saveAs - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.textFileService.setPromptPath(model.resource);
 
 		await model.load();
@@ -145,7 +137,7 @@ suite('Files - TextFileService', () => {
 
 	test('revert - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.textFileService.setPromptPath(model.resource);
 
 		await model.load();
@@ -159,7 +151,7 @@ suite('Files - TextFileService', () => {
 
 	test('delete - dirty file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model!.textEditorModel!.setValue('foo');
@@ -180,8 +172,8 @@ suite('Files - TextFileService', () => {
 	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
 		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.resource, sourceModel);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.resource, targetModel);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
 
 		await sourceModel.load();
 		sourceModel.textEditorModel!.setValue('foo');

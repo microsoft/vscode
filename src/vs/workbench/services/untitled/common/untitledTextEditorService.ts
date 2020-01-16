@@ -14,6 +14,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
+import type { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -25,9 +27,7 @@ export interface IUntitledCreationOptions {
 	useResourcePath?: boolean;
 }
 
-export interface IUntitledTextEditorService {
-
-	_serviceBrand: undefined;
+export interface IUntitledTextEditorModelManager {
 
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
@@ -50,16 +50,6 @@ export interface IUntitledTextEditorService {
 	exists(resource: URI): boolean;
 
 	/**
-	 * Returns dirty untitled text editors as resource URIs.
-	 */
-	getDirty(resources?: URI[]): URI[];
-
-	/**
-	 * Returns true if the provided resource is dirty.
-	 */
-	isDirty(resource: URI): boolean;
-
-	/**
 	 * Creates a new untitled input with the optional resource URI or returns an existing one
 	 * if the provided resource exists already as untitled input.
 	 *
@@ -70,17 +60,28 @@ export interface IUntitledTextEditorService {
 	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
 
 	/**
+	 * Creates a new untitled model with the optional resource URI or returns an existing one
+	 * if the provided resource exists already as untitled model.
+	 *
+	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
+	 * The use case is to be able to create a new file with a specific path with VSCode.
+	 */
+	loadOrCreate(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel>;
+
+	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
 	 */
 	hasAssociatedFilePath(resource: URI): boolean;
 }
 
+export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
+
+	_serviceBrand: undefined;
+}
+
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
 	_serviceBrand: undefined;
-
-	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
-	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -90,6 +91,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
+
+	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -113,25 +117,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	exists(resource: URI): boolean {
 		return this.mapResourceToInput.has(resource);
-	}
-
-	isDirty(resource: URI): boolean {
-		const input = this.get(resource);
-
-		return input ? input.isDirty() : false;
-	}
-
-	getDirty(resources?: URI[]): URI[] {
-		let inputs: UntitledTextEditorInput[];
-		if (resources) {
-			inputs = arrays.coalesce(resources.map(r => this.get(r)));
-		} else {
-			inputs = this.mapResourceToInput.values();
-		}
-
-		return inputs
-			.filter(i => i.isDirty())
-			.map(i => i.getResource());
 	}
 
 	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
@@ -206,6 +191,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		this.mapResourceToInput.set(untitledResource, input);
 
 		return input;
+	}
+
+	loadOrCreate(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+		return this.createOrGet(options).resolve();
 	}
 
 	hasAssociatedFilePath(resource: URI): boolean {

@@ -73,18 +73,16 @@ suite('Workbench untitled text editors', () => {
 
 		// dirty
 		const model = await input2.resolve();
+		assert.equal(await service.loadOrCreate({ resource: input2.getResource() }), model);
 
-		assert.ok(!service.isDirty(input2.getResource()));
+		assert.ok(!input2.isDirty());
 
 		const listener = service.onDidChangeDirty(resource => {
 			listener.dispose();
 
 			assert.equal(resource.toString(), input2.getResource().toString());
 
-			assert.ok(service.isDirty(input2.getResource()));
-			assert.equal(service.getDirty()[0].toString(), input2.getResource().toString());
-			assert.equal(service.getDirty([input2.getResource()])[0].toString(), input2.getResource().toString());
-			assert.equal(service.getDirty([input1.getResource()]).length, 0);
+			assert.ok(input2.isDirty());
 
 			assert.ok(workingCopyService.isDirty(input2.getResource()));
 			assert.equal(workingCopyService.dirtyCount, 1);

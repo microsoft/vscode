@@ -890,7 +890,7 @@ class SuggestAdapter {
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
 			[extHostProtocol.ISuggestDataDtoField.sortText]: item.sortText,
 			[extHostProtocol.ISuggestDataDtoField.filterText]: item.filterText,
-			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect,
+			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect || undefined,
 			[extHostProtocol.ISuggestDataDtoField.insertTextRules]: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			[extHostProtocol.ISuggestDataDtoField.commitCharacters]: item.commitCharacters,
 			[extHostProtocol.ISuggestDataDtoField.additionalTextEdits]: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),

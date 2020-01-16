@@ -9,7 +9,7 @@ import { repeat, endsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -31,7 +31,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { dirname, joinPath, isEqual } from 'vs/base/common/resources';
@@ -134,7 +133,7 @@ export class SearchEditorInput extends EditorInput {
 	private dirty: boolean = false;
 
 	constructor(
-		config: SearchConfiguration | undefined,
+		config: Partial<SearchConfiguration> | undefined,
 		initialContents: string | undefined,
 		resource: URI | undefined,
 		@IModelService private readonly modelService: IModelService,
@@ -142,7 +141,6 @@ export class SearchEditorInput extends EditorInput {
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
-		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -150,12 +148,7 @@ export class SearchEditorInput extends EditorInput {
 	) {
 		super();
 		this.resource = resource ?? URI.from({ scheme: 'search-editor', fragment: `${searchEditorInputInstances++}` });
-
-		if (config === undefined) {
-			this._config = { query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false };
-		} else {
-			this._config = config;
-		}
+		this._config = { ...{ query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false }, ...config };
 
 		const searchResultMode = this.modeService.create('search-result');
 
@@ -167,6 +160,7 @@ export class SearchEditorInput extends EditorInput {
 			const path = await this.promptForPath(this.resource, this.suggestFileName());
 			if (path) {
 				if (await this.textFileService.saveAs(this.resource, path, options)) {
+					this.setDirty(false);
 					if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(path, this.resource)) {
 						const replacement = this.instantiationService.createInstance(SearchEditorInput, this.config, undefined, path);
 						await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
@@ -539,7 +533,20 @@ export const refreshActiveEditorSearch =
 
 export const openNewSearchEditor =
 	async (editorService: IEditorService, instantiationService: IInstantiationService) => {
-		await editorService.openEditor(instantiationService.createInstance(SearchEditorInput, undefined, undefined, undefined), { pinned: true });
+		const activeEditor = editorService.activeTextEditorWidget;
+		let activeModel: ICodeEditor | undefined;
+		if (isDiffEditor(activeEditor)) {
+			if (activeEditor.getOriginalEditor().hasTextFocus()) {
+				activeModel = activeEditor.getOriginalEditor();
+			} else {
+				activeModel = activeEditor.getModifiedEditor();
+			}
+		} else {
+			activeModel = activeEditor as ICodeEditor | undefined;
+		}
+		const selection = activeModel?.getSelection();
+		let selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
+		await editorService.openEditor(instantiationService.createInstance(SearchEditorInput, { query: selected }, undefined, undefined), { pinned: true });
 	};
 
 export const createEditorFromSearchResult =

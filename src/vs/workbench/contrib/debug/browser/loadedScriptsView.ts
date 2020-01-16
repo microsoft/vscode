@@ -13,7 +13,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IDebugSession, IDebugService, IDebugModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -26,10 +26,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TreeResourceNavigator2, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
@@ -152,7 +152,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getChildren(): Promise<BaseTreeItem[]> {
+	getChildren(): BaseTreeItem[] {
 		const child = this.oneChild();
 		if (child) {
 			return child.getChildren();
@@ -161,7 +161,7 @@ class BaseTreeItem {
 		for (let child of this._children.values()) {
 			array.push(child);
 		}
-		return Promise.resolve(array.sort((a, b) => this.compare(a, b)));
+		return array.sort((a, b) => this.compare(a, b));
 	}
 
 	// skips intermediate single-child nodes
@@ -238,11 +238,8 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
-		super(undefined, 'Root', true);
-		this._debugModel.getSessions().forEach(session => {
-			this.add(session);
-		});
+	constructor(private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
+		super(undefined, 'Root');
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
@@ -259,14 +256,12 @@ class SessionTreeItem extends BaseTreeItem {
 	private static readonly URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
 	private _session: IDebugSession;
-	private _initialized: boolean;
 	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
 	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel(), true);
 		this._labelService = labelService;
-		this._initialized = false;
 		this._session = session;
 	}
 
@@ -284,19 +279,6 @@ class SessionTreeItem extends BaseTreeItem {
 
 	hasChildren(): boolean {
 		return true;
-	}
-
-	getChildren(): Promise<BaseTreeItem[]> {
-
-		if (!this._initialized) {
-			this._initialized = true;
-			return this._session.getLoadedSources().then(paths => {
-				paths.forEach(path => this.addPath(path));
-				return super.getChildren();
-			});
-		}
-
-		return super.getChildren();
 	}
 
 	protected compare(a: BaseTreeItem, b: BaseTreeItem): number {
@@ -399,11 +381,25 @@ class SessionTreeItem extends BaseTreeItem {
 	}
 }
 
+/**
+ * This maps a model item into a view model item.
+ */
+function asTreeElement(item: BaseTreeItem): ITreeElement<LoadedScriptsItem> {
+	const children = item.getChildren();
+
+	return {
+		element: item,
+		collapsed: !(item instanceof SessionTreeItem),
+		collapsible: item.hasChildren(),
+		children: children.map(asTreeElement)
+	};
+}
+
 export class LoadedScriptsView extends ViewPane {
 
 	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree!: WorkbenchCompressibleAsyncDataTree<LoadedScriptsItem | LoadedScriptsItem[], LoadedScriptsItem, FuzzyScore>;
+	private tree!: WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>;
 	private treeLabels!: ResourceLabels;
 	private changeScheduler!: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible = false;
@@ -434,24 +430,19 @@ export class LoadedScriptsView extends ViewPane {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService, this.labelService);
+		const root = new RootTreeItem(this.environmentService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleAsyncDataTree, WorkbenchCompressibleAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>>(
-			WorkbenchCompressibleAsyncDataTree,
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
 			'LoadedScriptsView',
 			this.treeContainer,
 			new LoadedScriptsDelegate(),
-			{
-				isIncompressible: (element: BaseTreeItem): boolean => element.isIncompressible
-			},
 			[new LoadedScriptsRenderer(this.treeLabels)],
-			new LoadedScriptsDataSource(),
 			{
 				compressionEnabled: NEW_STYLE_COMPRESS,
-				autoExpandSingleChildren: NEW_STYLE_COMPRESS,
+				collapseByDefault: true,
 				identityProvider: {
 					getId: (element: LoadedScriptsItem) => element.getId()
 				},
@@ -468,12 +459,14 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		);
 
-		this.tree.setInput(root);
+		const updateView = () => this.tree.setChildren(null, asTreeElement(root).children);
+
+		updateView();
 
 		this.changeScheduler = new RunOnceScheduler(() => {
 			this.treeNeedsRefreshOnVisible = false;
 			if (this.tree) {
-				this.tree.updateChildren();
+				updateView();
 			}
 		}, 300);
 		this._register(this.changeScheduler);
@@ -507,12 +500,19 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		};
 
+		const addSourcePathsToSession = (session: IDebugSession) => {
+			const sessionNode = root.add(session);
+			return session.getLoadedSources().then(paths => {
+				paths.forEach(path => sessionNode.addPath(path));
+				scheduleRefreshOnVisible();
+			});
+		};
+
 		const registerSessionListeners = (session: IDebugSession) => {
 			this._register(session.onDidChangeName(() => {
 				// Re-add session, this will trigger proper sorting and id recalculation.
 				root.remove(session.getId());
-				root.add(session);
-				scheduleRefreshOnVisible();
+				addSourcePathsToSession(session);
 			}));
 			this._register(session.onDidLoadedSource(event => {
 				let sessionRoot: SessionTreeItem;
@@ -555,6 +555,9 @@ export class LoadedScriptsView extends ViewPane {
 				this.changeScheduler.schedule();
 			}
 		}));
+
+		// populate tree model with source paths from all debug sessions
+		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
 	}
 
 	layoutBody(height: number, width: number): void {
@@ -576,17 +579,6 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 
 	getTemplateId(element: LoadedScriptsItem): string {
 		return LoadedScriptsRenderer.ID;
-	}
-}
-
-class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, LoadedScriptsItem> {
-
-	hasChildren(element: LoadedScriptsItem): boolean {
-		return element.hasChildren();
-	}
-
-	getChildren(element: LoadedScriptsItem): Promise<LoadedScriptsItem[]> {
-		return element.getChildren();
 	}
 }
 

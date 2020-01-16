@@ -72,7 +72,7 @@ suite('MainThreadEditors', () => {
 				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			models = <any>{
+			files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
@@ -112,9 +112,7 @@ suite('MainThreadEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null!,
 			fileService,
-			null!,
 			null!,
 			editorGroupService,
 			bulkEditService,

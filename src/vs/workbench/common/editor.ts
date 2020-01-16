@@ -221,7 +221,9 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * Otherwise the untitled text editor will have an associated path and use that when saving.
+	 * If the used scheme for the resource is not `untitled://`, `forceUntitled: true` must be configured to
+	 * force use the provided resource as associated path. As such, the resource will be used when saving
+	 * the untitled editor.
 	 */
 	resource?: URI;
 

@@ -3,44 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// keytar depends on a native module shipped in vscode, so this is
-// how we load it
-import * as keytarType from 'keytar';
-
-function getKeytar(): Keytar | undefined {
-	try {
-		return require('keytar');
-	} catch (err) {
-		console.log(err);
-	}
-
-	return undefined;
-}
-
-export type Keytar = {
-	getPassword: typeof keytarType['getPassword'];
-	setPassword: typeof keytarType['setPassword'];
-	deletePassword: typeof keytarType['deletePassword'];
-};
+import * as keytar from 'keytar';
 
 const SERVICE_ID = 'vscode.login';
 const ACCOUNT_ID = 'account';
 
 export class Keychain {
-	private keytar: Keytar;
-
-	constructor() {
-		const keytar = getKeytar();
-		if (!keytar) {
-			throw new Error('System keychain unavailable');
-		}
-
-		this.keytar = keytar;
-	}
 
 	async setToken(token: string): Promise<void> {
 		try {
-			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
+			return await keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
 		} catch (e) {
 			// Ignore
 		}
@@ -48,7 +20,7 @@ export class Keychain {
 
 	async getToken() {
 		try {
-			return await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
+			return await keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
 		} catch (e) {
 			// Ignore
 		}
@@ -56,7 +28,7 @@ export class Keychain {
 
 	async deleteToken() {
 		try {
-			return await this.keytar.deletePassword(SERVICE_ID, ACCOUNT_ID);
+			return await keytar.deletePassword(SERVICE_ID, ACCOUNT_ID);
 		} catch (e) {
 			// Ignore
 		}

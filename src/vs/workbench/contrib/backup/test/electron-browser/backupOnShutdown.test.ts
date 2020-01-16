@@ -66,13 +66,13 @@ suite('BackupOnShutdown', () => {
 		if (model) {
 			model.dispose();
 		}
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 		backupOnShutdown.dispose();
 	});
 
 	test('confirm onWillShutdown - no veto', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -87,7 +87,7 @@ suite('BackupOnShutdown', () => {
 
 	test('confirm onWillShutdown - veto if user cancels', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 
@@ -102,7 +102,7 @@ suite('BackupOnShutdown', () => {
 
 	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
@@ -127,7 +127,7 @@ suite('BackupOnShutdown', () => {
 
 	test('confirm onWillShutdown - save (hot.exit: off)', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.SAVE);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
@@ -248,7 +248,7 @@ suite('BackupOnShutdown', () => {
 
 		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
 			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
+			(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 			// Set hot exit config
 			accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: setting } });
