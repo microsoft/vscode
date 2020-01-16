@@ -12,7 +12,6 @@ import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -171,7 +170,6 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
@@ -244,7 +242,7 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.untitledTextEditorService.createOrGet(undefined, droppedDirtyEditor.mode, undefined, droppedDirtyEditor.encoding).getResource();
+			droppedDirtyEditor.resource = this.textFileService.untitled.createOrGet(undefined, droppedDirtyEditor.mode, undefined, droppedDirtyEditor.encoding).getResource();
 		}
 
 		// Return early if the resource is already dirty in target or opened already
@@ -352,7 +350,6 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
-	const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
 	const backupFileService = accessor.get(IBackupFileService);
 	const editorService = accessor.get(IEditorService);
 
@@ -375,12 +372,12 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// Try to find encoding and mode from text model
 		let encoding: string | undefined = undefined;
 		let mode: string | undefined = undefined;
-		if (untitledTextEditorService.exists(file.resource)) {
-			const model = untitledTextEditorService.createOrGet(file.resource);
+		if (textFileService.untitled.exists(file.resource)) {
+			const model = textFileService.untitled.createOrGet(file.resource);
 			encoding = model.getEncoding();
 			mode = model.getMode();
 		} else {
-			const model = textFileService.models.get(file.resource);
+			const model = textFileService.files.get(file.resource);
 			if (model) {
 				encoding = model.getEncoding();
 				mode = model.getMode();

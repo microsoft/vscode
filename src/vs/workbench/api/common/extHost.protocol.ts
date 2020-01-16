@@ -147,6 +147,12 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
 
+export interface MainThreadAuthenticationShape extends IDisposable {
+	$registerAuthenticationProvider(id: string): void;
+	$unregisterAuthenticationProvider(id: string): void;
+	$onDidChangeSessions(id: string): void;
+}
+
 export interface MainThreadConfigurationShape extends IDisposable {
 	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
@@ -891,6 +897,12 @@ export interface ExtHostLabelServiceShape {
 	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable;
 }
 
+export interface ExtHostAuthenticationShape {
+	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
+	$login(id: string): Promise<modes.Session>;
+	$logout(id: string, accountId: string): Promise<void>;
+}
+
 export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
@@ -995,7 +1007,7 @@ export interface ISuggestDataDto {
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
 	[ISuggestDataDtoField.sortText]?: string;
 	[ISuggestDataDtoField.filterText]?: string;
-	[ISuggestDataDtoField.preselect]?: boolean;
+	[ISuggestDataDtoField.preselect]?: true;
 	[ISuggestDataDtoField.insertText]?: string;
 	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
 	[ISuggestDataDtoField.range]?: IRange | { insert: IRange, replace: IRange; };
@@ -1011,7 +1023,8 @@ export interface ISuggestResultDto {
 	x?: number;
 	a: { insert: IRange, replace: IRange; };
 	b: ISuggestDataDto[];
-	c?: boolean;
+	c?: true;
+	d?: true;
 }
 
 export interface ISignatureHelpDto {
@@ -1411,6 +1424,7 @@ export interface ExtHostTunnelServiceShape {
 // --- proxy identifiers
 
 export const MainContext = {
+	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
@@ -1486,5 +1500,6 @@ export const ExtHostContext = {
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
-	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService')
+	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
+	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication')
 };

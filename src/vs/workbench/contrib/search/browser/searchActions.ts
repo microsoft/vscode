@@ -29,10 +29,11 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult, refreshActiveEditorSearch } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import type { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -107,17 +108,23 @@ export class FocusNextInputAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			(this.editorService.activeControl as SearchEditor).focusNextInput();
+		}
+
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.focusNextInputBox();
 		}
-		return Promise.resolve(null);
 	}
 }
 
@@ -127,17 +134,23 @@ export class FocusPreviousInputAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			(this.editorService.activeControl as SearchEditor).focusPrevInput();
+		}
+
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.focusPreviousInputBox();
 		}
-		return Promise.resolve(null);
 	}
 }
 
@@ -508,6 +521,30 @@ export class CancelSearchAction extends Action {
 	}
 }
 
+export class OpenSearchEditorAction extends Action {
+
+	static readonly ID: string = Constants.OpenNewEditorCommandId;
+	static readonly LABEL = nls.localize('search.openNewEditor', "Open new Search Editor");
+
+	constructor(id: string, label: string,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(id, label);
+	}
+
+	get enabled(): boolean {
+		return true;
+	}
+
+	async run() {
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await openNewSearchEditor(this.editorService, this.instantiationService);
+		}
+	}
+}
+
 export class OpenResultsInEditorAction extends Action {
 
 	static readonly ID: string = Constants.OpenInEditorCommandId;
@@ -518,7 +555,8 @@ export class OpenResultsInEditorAction extends Action {
 		@IPanelService private panelService: IPanelService,
 		@ILabelService private labelService: ILabelService,
 		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-go-to-file');
 	}
@@ -535,7 +573,7 @@ export class OpenResultsInEditorAction extends Action {
 	async run() {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService);
+			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
 		}
 	}
 }

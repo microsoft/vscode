@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { merge, computeRemoteContent } from 'vs/platform/userDataSync/common/settingsMerge';
+import { merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };
@@ -567,7 +567,7 @@ suite('SettingsMerge - Compute Remote Content', () => {
 			'd': 4,
 			'e': 6,
 		});
-		const actual = computeRemoteContent(localContent, remoteContent, [], formattingOptions);
+		const actual = updateIgnoredSettings(localContent, remoteContent, [], formattingOptions);
 		assert.equal(actual, localContent);
 	});
 
@@ -588,7 +588,7 @@ suite('SettingsMerge - Compute Remote Content', () => {
 			'b': 2,
 			'c': 3,
 		});
-		const actual = computeRemoteContent(localContent, remoteContent, ['a'], formattingOptions);
+		const actual = updateIgnoredSettings(localContent, remoteContent, ['a'], formattingOptions);
 		assert.equal(actual, expected);
 	});
 

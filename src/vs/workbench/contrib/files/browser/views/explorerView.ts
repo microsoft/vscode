@@ -107,7 +107,7 @@ export class ExplorerView extends ViewPane {
 	constructor(
 		options: IViewPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -125,7 +125,7 @@ export class ExplorerView extends ViewPane {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);

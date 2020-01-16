@@ -10,11 +10,12 @@ import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { Range } from 'vs/editor/common/core/range';
-import { IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSessionOptions, State } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Constants } from 'vs/base/common/uint';
 import { getContext, getContextForContributedActions } from 'vs/workbench/contrib/debug/browser/callStackView';
+import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
@@ -348,5 +349,71 @@ suite('Debug - CallStack', () => {
 		assert.equal(contributedContext, firstStackFrame.thread.threadId);
 		contributedContext = getContextForContributedActions(session);
 		assert.equal(contributedContext, session.getId());
+	});
+
+	test('focusStackFrameThreadAndSesion', () => {
+		const threadId1 = 1;
+		const threadName1 = 'firstThread';
+		const threadId2 = 2;
+		const threadName2 = 'secondThread';
+		const stoppedReason = 'breakpoint';
+
+		// Add the threads
+		const session = new class extends DebugSession {
+			get state(): State {
+				return State.Stopped;
+			}
+		}({ resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
+
+		const runningSession = createMockSession(model);
+		model.addSession(runningSession);
+		model.addSession(session);
+
+		session['raw'] = <any>rawSession;
+
+		model.rawUpdate({
+			sessionId: session.getId(),
+			threads: [{
+				id: threadId1,
+				name: threadName1
+			}]
+		});
+
+		// Stopped event with all threads stopped
+		model.rawUpdate({
+			sessionId: session.getId(),
+			threads: [{
+				id: threadId1,
+				name: threadName1
+			}, {
+				id: threadId2,
+				name: threadName2
+			}],
+			stoppedDetails: {
+				reason: stoppedReason,
+				threadId: 1,
+				allThreadsStopped: true
+			},
+		});
+
+		const thread = session.getThread(threadId1)!;
+		const runningThread = session.getThread(threadId2);
+
+		let toFocus = getStackFrameThreadAndSessionToFocus(model, undefined);
+		// Verify stopped session and stopped thread get focused
+		assert.deepEqual(toFocus, { stackFrame: undefined, thread: thread, session: session });
+
+		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, undefined, runningSession);
+		assert.deepEqual(toFocus, { stackFrame: undefined, thread: undefined, session: runningSession });
+
+		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, thread);
+		assert.deepEqual(toFocus, { stackFrame: undefined, thread: thread, session: session });
+
+		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, runningThread);
+		assert.deepEqual(toFocus, { stackFrame: undefined, thread: runningThread, session: session });
+
+		const stackFrame = new StackFrame(thread, 5, undefined!, 'stackframename2', undefined, undefined!, 1);
+		toFocus = getStackFrameThreadAndSessionToFocus(model, stackFrame);
+		assert.deepEqual(toFocus, { stackFrame: stackFrame, thread: thread, session: session });
 	});
 });

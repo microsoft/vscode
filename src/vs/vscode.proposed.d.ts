@@ -16,7 +16,52 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers, AlexR - ports
+	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+
+	export interface Session {
+		id: string;
+		accessToken: string;
+		displayName: string;
+	}
+
+	export interface AuthenticationProvider {
+		readonly id: string;
+		readonly displayName: string;
+		readonly onDidChangeSessions: Event<void>;
+
+		/**
+		 * Returns an array of current sessions.
+		 */
+		getSessions(): Promise<ReadonlyArray<Session>>;
+
+		/**
+		 * Prompts a user to login.
+		 */
+		login(): Promise<Session>;
+		logout(sessionId: string): Promise<void>;
+	}
+
+	export namespace authentication {
+		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+
+		/**
+		 * Fires with the provider id that was registered or unregistered.
+		 */
+		export const onDidRegisterAuthenticationProvider: Event<string>;
+		export const onDidUnregisterAuthenticationProvider: Event<string>;
+
+		/**
+		 * Fires with the provider id that changed sessions.
+		 */
+		export const onDidChangeSessions: Event<string>;
+		export function login(providerId: string): Promise<Session>;
+		export function logout(providerId: string, accountId: string): Promise<void>;
+		export function getSessions(providerId: string): Promise<ReadonlyArray<Session>>;
+	}
+
+	//#endregion
+
+	//#region Alex - resolvers
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -1431,6 +1476,8 @@ declare module 'vscode' {
 			workspaceLanguageValue?: T;
 			workspaceFolderLanguageValue?: T;
 
+			languages?: string[];
+
 		} | undefined;
 
 		/**
@@ -1501,5 +1548,16 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
 	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/39441
+
+	export interface CompletionList {
+		isDetailsResolved?: boolean;
+	}
+
+	//#endregion
 
 }

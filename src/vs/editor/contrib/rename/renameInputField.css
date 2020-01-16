@@ -6,8 +6,14 @@
 .monaco-editor .rename-box {
 	z-index: 100;
 	color: inherit;
+	padding: 4px;
 }
 
 .monaco-editor .rename-box .rename-input {
 	padding: 4px;
+	width: calc(100% - 8px);
+}
+
+.monaco-editor .rename-box .rename-label {
+	opacity: .8;
 }

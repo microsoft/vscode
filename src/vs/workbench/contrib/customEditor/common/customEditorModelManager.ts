@@ -21,7 +21,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		return this._models.get(this.key(resource, viewType))?.model;
 	}
 
-	public async loadOrCreate(resource: URI, viewType: string): Promise<ICustomEditorModel> {
+	public async resolve(resource: URI, viewType: string): Promise<ICustomEditorModel> {
 		const existing = this.get(resource, viewType);
 		if (existing) {
 			return existing;
@@ -29,7 +29,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 
 		const model = new CustomEditorModel(resource);
 		const disposables = new DisposableStore();
-		this._workingCopyService.registerWorkingCopy(model);
+		disposables.add(this._workingCopyService.registerWorkingCopy(model));
 		this._models.set(this.key(resource, viewType), { model, disposables });
 		return model;
 	}

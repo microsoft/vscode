@@ -15,7 +15,6 @@ import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -296,7 +295,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -313,8 +311,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
-		this._register(this.untitledTextEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
-		this._register(this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange((e.resource))));
+		this._register(this.textFileService.untitled.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
+		this._register(this.textFileService.files.onDidChangeEncoding(m => this.onResourceEncodingChange((m.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 	}
 
@@ -1001,7 +999,7 @@ export class ChangeModeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1016,7 +1014,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.untitledTextEditorService.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource)) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 

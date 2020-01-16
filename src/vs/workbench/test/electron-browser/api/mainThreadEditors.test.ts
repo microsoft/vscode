@@ -72,10 +72,10 @@ suite('MainThreadEditors', () => {
 				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+			files = <any>{
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();
@@ -112,9 +112,7 @@ suite('MainThreadEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null!,
 			fileService,
-			null!,
 			null!,
 			editorGroupService,
 			bulkEditService,
