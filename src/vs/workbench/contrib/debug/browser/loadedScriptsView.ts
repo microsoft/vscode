@@ -26,10 +26,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
@@ -370,11 +370,24 @@ class SessionTreeItem extends BaseTreeItem {
 	}
 }
 
+/**
+ * This maps a model item into a view model item.
+ */
+function asTreeElement(item: BaseTreeItem): ITreeElement<LoadedScriptsItem> {
+	const children = item.getChildren();
+
+	return {
+		element: item,
+		collapsed: !(item instanceof SessionTreeItem),
+		children: children.map(asTreeElement)
+	};
+}
+
 export class LoadedScriptsView extends ViewPane {
 
 	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree!: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
+	private tree!: WorkbenchObjectTree<LoadedScriptsItem, FuzzyScore>;
 	private treeLabels!: ResourceLabels;
 	private changeScheduler!: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible = false;
@@ -410,10 +423,13 @@ export class LoadedScriptsView extends ViewPane {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'LoadedScriptsView', this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
+			'LoadedScriptsView',
+			this.treeContainer,
+			new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
-			new LoadedScriptsDataSource(),
 			{
+				collapseByDefault: true,
 				identityProvider: {
 					getId: (element: LoadedScriptsItem) => element.getId()
 				},
@@ -429,12 +445,14 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		);
 
-		this.tree.setInput(root);
+		const updateView = () => this.tree.setChildren(null, asTreeElement(root).children);
+
+		updateView();
 
 		this.changeScheduler = new RunOnceScheduler(() => {
 			this.treeNeedsRefreshOnVisible = false;
 			if (this.tree) {
-				this.tree.updateChildren();
+				updateView();
 			}
 		}, 300);
 		this._register(this.changeScheduler);
@@ -547,17 +565,6 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 
 	getTemplateId(element: LoadedScriptsItem): string {
 		return LoadedScriptsRenderer.ID;
-	}
-}
-
-class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, LoadedScriptsItem> {
-
-	hasChildren(element: LoadedScriptsItem): boolean {
-		return element.hasChildren();
-	}
-
-	getChildren(element: LoadedScriptsItem): Promise<LoadedScriptsItem[]> {
-		return Promise.resolve(element.getChildren());
 	}
 }
 
