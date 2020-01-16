@@ -453,8 +453,12 @@ export class LoadedScriptsView extends ViewPane {
 					getId: (element: LoadedScriptsItem) => element.getId()
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => element.getLabel(),
-					getCompressedNodeKeyboardNavigationLabel: () => 'foo'	// TODO
+					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => {
+						return element.getLabel();
+					},
+					getCompressedNodeKeyboardNavigationLabel: (elements: LoadedScriptsItem[]) => {
+						return elements.map(e => e.getLabel()).join('/');
+					}
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
