@@ -150,9 +150,21 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		return !!lastSyncData;
 	}
 
-	async hasRemote(): Promise<boolean> {
+	async hasRemoteData(): Promise<boolean> {
 		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const localGloablState = await this.getLocalGlobalState();
+			if (localGloablState.argv['locale'] !== 'en') {
+				return true;
+			}
+		} catch (error) {
+			/* ignore error */
+		}
+		return false;
 	}
 
 	async resetLocal(): Promise<void> {

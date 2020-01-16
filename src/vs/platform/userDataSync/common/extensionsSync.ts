@@ -18,6 +18,7 @@ import { Queue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -171,9 +172,21 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		return !!lastSyncData;
 	}
 
-	async hasRemote(): Promise<boolean> {
+	async hasRemoteData(): Promise<boolean> {
 		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const localExtensions = await this.getLocalExtensions();
+			if (isNonEmptyArray(localExtensions)) {
+				return true;
+			}
+		} catch (error) {
+			/* ignore error */
+		}
+		return false;
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {

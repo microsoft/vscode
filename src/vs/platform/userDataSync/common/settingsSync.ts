@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -21,6 +21,8 @@ import { updateIgnoredSettings, merge } from 'vs/platform/userDataSync/common/se
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
+import { isEmptyObject } from 'vs/base/common/types';
+import { edit } from 'vs/platform/userDataSync/common/content';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -207,9 +209,28 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		return !!lastSyncData;
 	}
 
-	async hasRemote(): Promise<boolean> {
+	async hasRemoteData(): Promise<boolean> {
 		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const localFileContent = await this.getLocalFileContent();
+			if (localFileContent) {
+				const formatUtils = await this.getFormattingOptions();
+				const content = edit(localFileContent.value.toString(), [CONFIGURATION_SYNC_STORE_KEY], undefined, formatUtils);
+				const settings = parse(content);
+				if (!isEmptyObject(settings)) {
+					return true;
+				}
+			}
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	async resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {

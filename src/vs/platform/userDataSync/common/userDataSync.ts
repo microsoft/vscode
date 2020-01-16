@@ -19,7 +19,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 
-const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
+export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
 export const DEFAULT_IGNORED_SETTINGS = [
 	CONFIGURATION_SYNC_STORE_KEY,
@@ -190,7 +190,8 @@ export interface ISynchroniser {
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
 	hasPreviouslySynced(): Promise<boolean>
-	hasRemote(): Promise<boolean>;
+	hasRemoteData(): Promise<boolean>;
+	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 }
 
@@ -198,6 +199,7 @@ export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUser
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
 	readonly conflictsSource: SyncSource | null;
+	isFirstTimeSyncAndHasUserData(): Promise<boolean>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;

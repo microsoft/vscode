@@ -35,7 +35,8 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { Session } from 'vs/editor/common/modes';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 const enum MSAAuthStatus {
 	Initializing = 'Initializing',
@@ -192,7 +193,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							label: localize('resolve', "Resolve Conflicts"),
 							run: () => this.handleConflicts()
 						}
-					]);
+					],
+					{
+						sticky: true
+					}
+				);
 				this.conflictsWarningDisposable.value = toDisposable(() => handle.close());
 				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
 			}
@@ -210,7 +215,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authenticationState.get() === MSAAuthStatus.SignedOut) {
-				const handle = this.notificationService.prompt(Severity.Info, this.getSignInAndTurnOnDetailString(),
+				const handle = this.notificationService.prompt(Severity.Info, localize('sign in message', "Please sign in with your {0} account to continue sync", this.userDataSyncStore!.account),
 					[
 						{
 							label: localize('Sign in', "Sign in"),
@@ -247,18 +252,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private getSignInAndTurnOnDetailString(): string {
-		return localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.{1}", this.userDataSyncStore!.account, this.getSyncAreasString());
-	}
-
 	private async turnOn(): Promise<void> {
 		const message = localize('turn on sync', "Turn on Sync");
 		let detail: string, primaryButton: string;
 		if (this.authenticationState.get() === MSAAuthStatus.SignedIn) {
-			detail = localize('turn on sync detail', "This will synchronize your following data across all your devices.{0}", this.getSyncAreasString());
+			detail = `${localize('turn on sync detail', "This will synchronize your following data across all your devices.")}\n${this.getSyncAreasString()}`;
 			primaryButton = localize('turn on', "Turn on");
 		} else {
-			detail = this.getSignInAndTurnOnDetailString();
+			detail = `${localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", this.userDataSyncStore!.account)}\n${this.getSyncAreasString()}`;
 			primaryButton = localize('sign in and turn on sync', "Sign in & Turn on");
 		}
 		const result = await this.dialogService.show(
@@ -266,7 +267,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			[
 				primaryButton,
 				localize('cancel', "Cancel"),
-				localize('configure', "Configure What to Sync")
+				localize('configure', "Configure...")
 			],
 			{
 				detail,
@@ -281,8 +282,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		await this.handleFirstTimeSync();
-		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
-		this.notificationService.info(localize('Sync Started', "Sync Started."));
+		await this.enableSync();
 	}
 
 	private getSyncAreasString(): string {
@@ -349,22 +349,36 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async handleFirstTimeSync(): Promise<void> {
-
-		const hasRemote = await this.userDataSyncService.hasRemote();
-		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
-
-		if (hasRemote && !hasPreviouslySynced) {
-			const result = await this.dialogService.confirm({
-				type: 'info',
-				message: localize('firs time sync', "First time Sync"),
-				primaryButton: localize('download', "Download"),
-				detail: localize('first time sync detail', "Would you like to download and replace with the data from cloud?"),
-			});
-
-			if (result.confirmed) {
-				await this.userDataSyncService.pull();
-			}
+		const hasRemote = await this.userDataSyncService.hasRemoteData();
+		if (!hasRemote) {
+			return;
 		}
+		const isFirstSyncAndHasUserData = await this.userDataSyncService.isFirstTimeSyncAndHasUserData();
+		if (!isFirstSyncAndHasUserData) {
+			return;
+		}
+		const result = await this.dialogService.show(
+			Severity.Info,
+			localize('firs time sync', "First time Sync"),
+			[
+				localize('merge', "Merge"),
+				localize('cancel', "Cancel"),
+				localize('replace', "Replace (Overwrite Local)"),
+			],
+			{
+				cancelId: 1,
+				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from cloud?"),
+			}
+		);
+		switch (result.choice) {
+			case 0: await this.userDataSyncService.sync(); break;
+			case 1: throw canceled();
+			case 2: await this.userDataSyncService.pull(); break;
+		}
+	}
+
+	private enableSync(): Promise<void> {
+		return this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 	}
 
 	private async turnOff(): Promise<void> {
@@ -474,7 +488,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				await this.turnOn();
 			} catch (e) {
 				if (!isPromiseCanceledError(e)) {
-					this.notificationService.error(e);
+					this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
 				}
 			}
 		});

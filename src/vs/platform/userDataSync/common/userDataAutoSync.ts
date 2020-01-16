@@ -72,7 +72,7 @@ export class UserDataAutoSync extends Disposable implements IUserDataAutoSyncSer
 	}
 
 	private async isTurnedOffEverywhere(): Promise<boolean> {
-		const hasRemote = await this.userDataSyncService.hasRemote();
+		const hasRemote = await this.userDataSyncService.hasRemoteData();
 		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
 		return !hasRemote && hasPreviouslySynced;
 	}
