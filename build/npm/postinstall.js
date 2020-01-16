@@ -23,12 +23,6 @@ function yarnInstall(location, opts) {
 	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
 
 	console.log(`Installing dependencies in ${location}...`);
-	if (location.startsWith("remote") && process.env["npm_config_arch"] == "arm64") {
-		// Temporarily set remote arch to x86, because the remote portion builds
-		// against node, which is not consistently supported on Windows on Arm
-		// (yet).
-		opts.npm_config_arch = "ia32"
-	}
 	console.log(`$ yarn ${args.join(' ')}`);
 	const result = cp.spawnSync(yarn, args, opts);
 	if (result.error || result.status !== 0) {
@@ -36,11 +30,22 @@ function yarnInstall(location, opts) {
 	}
 }
 
+function remoteOpts() {
+	opts = {};
+	if (process.env["npm_config_arch"] == "arm64") {
+		// Temporarily set remote arch to x86, because the remote portion builds
+		// against node, which is not consistently supported on Windows on Arm
+		// (yet).
+		opts.npm_config_arch = "ia32"
+	}
+	return opts;
+}
+
 yarnInstall('extensions'); // node modules shared by all extensions
 
-yarnInstall('remote'); // node modules used by vscode server
+yarnInstall('remote', remoteOpts()); // node modules used by vscode server
 
-yarnInstall('remote/web'); // node modules used by vscode web
+yarnInstall('remote/web', remoteOpts()); // node modules used by vscode web
 
 const allExtensionFolders = fs.readdirSync('extensions');
 const extensions = allExtensionFolders.filter(e => {
