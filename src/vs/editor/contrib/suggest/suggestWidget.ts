@@ -136,6 +136,8 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.readMore = append(main, $('span.readMore.codicon.codicon-info'));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
+		data.readMore.style.backgroundColor = this._themeService.getTheme().getColor('list.hoverBackground', true)!.toString();
+
 		const configureFont = () => {
 			const options = this.editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
@@ -225,6 +227,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		}
 
 		if (canExpandCompletionItem(element)) {
+			addClass(data.detailsLabel, 'can-expand');
 			show(data.readMore);
 			data.readMore.onmousedown = e => {
 				e.stopPropagation();
@@ -236,6 +239,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 				this.widget.toggleDetails();
 			};
 		} else {
+			removeClass(data.detailsLabel, 'can-expand');
 			hide(data.readMore);
 			data.readMore.onmousedown = null;
 			data.readMore.onclick = null;

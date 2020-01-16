@@ -110,9 +110,10 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore::before {
 	color: inherit;
-	opacity: 0.6;
+	opacity: 1;
 	font-size: 14px;
-	margin-left: 4px;
+	margin-left: 2px;
+	margin-right: 2px;
 	cursor: pointer;
 }
 
@@ -161,14 +162,33 @@
 	display: inline;
 }
 
-/** ReadMore: always layout, only shown on focus **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .details-label {
+	opacity: 0.3;
+}
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row:hover > .contents > .main > .details-label,
+.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row:hover > .contents > .main > .details-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .details-label:not(.can-expand) {
+	opacity: 0.7;
+}
+
+/** ReadMore: always layout, only shown on hover **/
+/** But if docs is side or bottom, hide still **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	display: inline;
 	visibility: hidden;
+	position: absolute;
+	top: 0px;
+	right: 0px;
+	padding-right: 10px;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row > .contents > .main > .readMore,
+.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row > .contents > .main > .readMore {
+	display: none;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .readMore {
 	visibility: visible;
 }
 
