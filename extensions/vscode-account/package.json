@@ -20,10 +20,8 @@
 		"compile": "tsc -p ./",
 		"watch": "tsc -watch -p ./"
 	},
-	"dependencies": {
-		"keytar": "^5.0.0"
-	},
 	"devDependencies": {
+		"keytar": "^5.0.0",
 		"typescript": "^3.7.4",
 		"tslint": "^5.12.1",
 		"@types/node": "^10.12.21",
