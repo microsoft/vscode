@@ -381,17 +381,22 @@ class SessionTreeItem extends BaseTreeItem {
 	}
 }
 
+interface IViewState {
+	readonly expanded: Set<string>;
+}
+
 /**
  * This maps a model item into a view model item.
  */
-function asTreeElement(item: BaseTreeItem): ITreeElement<LoadedScriptsItem> {
+function asTreeElement(item: BaseTreeItem, viewState?: IViewState): ITreeElement<LoadedScriptsItem> {
 	const children = item.getChildren();
+	const collapsed = viewState ? !viewState.expanded.has(item.getId()) : !(item instanceof SessionTreeItem);
 
 	return {
 		element: item,
-		collapsed: !(item instanceof SessionTreeItem),
+		collapsed,
 		collapsible: item.hasChildren(),
-		children: children.map(asTreeElement)
+		children: children.map(i => asTreeElement(i, viewState))
 	};
 }
 
@@ -443,6 +448,7 @@ export class LoadedScriptsView extends ViewPane {
 			{
 				compressionEnabled: NEW_STYLE_COMPRESS,
 				collapseByDefault: true,
+				hideTwistiesOfChildlessElements: true,
 				identityProvider: {
 					getId: (element: LoadedScriptsItem) => element.getId()
 				},
@@ -459,7 +465,7 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		);
 
-		const updateView = () => this.tree.setChildren(null, asTreeElement(root).children);
+		const updateView = (viewState?: IViewState) => this.tree.setChildren(null, asTreeElement(root, viewState).children);
 
 		updateView();
 
@@ -553,6 +559,35 @@ export class LoadedScriptsView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.treeNeedsRefreshOnVisible) {
 				this.changeScheduler.schedule();
+			}
+		}));
+
+		// feature: expand all nodes when filtering (not when finding)
+		let viewState: IViewState | undefined;
+		this._register(this.tree.onDidChangeTypeFilterPattern(pattern => {
+			if (!this.tree.options.filterOnType) {
+				return;
+			}
+
+			if (!viewState && pattern) {
+				const expanded = new Set<string>();
+				const visit = (node: ITreeNode<BaseTreeItem | null, FuzzyScore>) => {
+					if (node.element && !node.collapsed) {
+						expanded.add(node.element.getId());
+					}
+
+					for (const child of node.children) {
+						visit(child);
+					}
+				};
+
+				visit(this.tree.getNode());
+				viewState = { expanded };
+				this.tree.expandAll();
+			} else if (!pattern && viewState) {
+				this.tree.setFocus([]);
+				updateView(viewState);
+				viewState = undefined;
 			}
 		}));
 
