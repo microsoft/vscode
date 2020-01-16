@@ -1007,7 +1007,7 @@ export interface ISuggestDataDto {
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
 	[ISuggestDataDtoField.sortText]?: string;
 	[ISuggestDataDtoField.filterText]?: string;
-	[ISuggestDataDtoField.preselect]?: boolean;
+	[ISuggestDataDtoField.preselect]?: true;
 	[ISuggestDataDtoField.insertText]?: string;
 	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
 	[ISuggestDataDtoField.range]?: IRange | { insert: IRange, replace: IRange; };
@@ -1023,8 +1023,8 @@ export interface ISuggestResultDto {
 	x?: number;
 	a: { insert: IRange, replace: IRange; };
 	b: ISuggestDataDto[];
-	c?: boolean;
-	d?: boolean;
+	c?: true;
+	d?: true;
 }
 
 export interface ISignatureHelpDto {
