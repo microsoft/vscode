@@ -216,7 +216,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._textFileService.untitled.loadOrCreate({
+		return this._textFileService.untitled.resolve({
 			resource,
 			mode,
 			initialValue,

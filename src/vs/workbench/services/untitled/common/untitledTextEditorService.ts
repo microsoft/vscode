@@ -66,7 +66,7 @@ export interface IUntitledTextEditorModelManager {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	loadOrCreate(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -193,7 +193,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return input;
 	}
 
-	loadOrCreate(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+	resolve(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 		return this.createOrGet(options).resolve();
 	}
 
