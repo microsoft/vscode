@@ -500,7 +500,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		else {
 			targetExists = await this.fileService.exists(target);
 
-			// create target model adhoc if file does not exist yet
+			// create target file adhoc if it does not exist yet
 			if (!targetExists) {
 				await this.create(target, '');
 			}
@@ -514,70 +514,73 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 			}
 
-			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModelEncoding, mode });
+			try {
+				targetModel = await this.models.loadOrCreate(target, { encoding: sourceModelEncoding, mode });
+			} catch (error) {
+				// if the target already exists and was not created by us, it is possible
+				// that we cannot load the target as text model if it is binary or too
+				// large. in that case we have to delete the target file first and then
+				// re-run the operation.
+				if (targetExists) {
+					if (
+						(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
+						(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+					) {
+						await this.fileService.del(target);
+
+						return this.doSaveAsTextFile(sourceModel, source, target, options);
+					}
+				}
+
+				throw error;
+			}
 		}
 
-		try {
-
-			// Confirm to overwrite if we have an untitled file with associated file where
-			// the file actually exists on disk and we are instructed to save to that file
-			// path. This can happen if the file was created after the untitled file was opened.
-			// See https://github.com/Microsoft/vscode/issues/67946
-			let write: boolean;
-			if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority))) {
-				write = await this.confirmOverwrite(target);
-			} else {
-				write = true;
-			}
-
-			if (!write) {
-				return false;
-			}
-
-			let sourceTextModel: ITextModel | undefined = undefined;
-			if (sourceModel instanceof BaseTextEditorModel) {
-				if (sourceModel.isResolved()) {
-					sourceTextModel = sourceModel.textEditorModel;
-				}
-			} else {
-				sourceTextModel = sourceModel as ITextModel;
-			}
-
-			let targetTextModel: ITextModel | undefined = undefined;
-			if (targetModel.isResolved()) {
-				targetTextModel = targetModel.textEditorModel;
-			}
-
-			// take over model value, encoding and mode (only if more specific) from source model
-			targetModel.updatePreferredEncoding(sourceModelEncoding);
-			if (sourceTextModel && targetTextModel) {
-				this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
-
-				const sourceMode = sourceTextModel.getLanguageIdentifier();
-				const targetMode = targetTextModel.getLanguageIdentifier();
-				if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
-					targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
-				}
-			}
-
-			// save model
-			await targetModel.save(options);
-
-			return true;
-		} catch (error) {
-
-			// binary model: delete the file and run the operation again
-			if (
-				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
-				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
-			) {
-				await this.fileService.del(target);
-
-				return this.doSaveAsTextFile(sourceModel, source, target, options);
-			}
-
-			throw error;
+		// Confirm to overwrite if we have an untitled file with associated file where
+		// the file actually exists on disk and we are instructed to save to that file
+		// path. This can happen if the file was created after the untitled file was opened.
+		// See https://github.com/Microsoft/vscode/issues/67946
+		let write: boolean;
+		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority))) {
+			write = await this.confirmOverwrite(target);
+		} else {
+			write = true;
 		}
+
+		if (!write) {
+			return false;
+		}
+
+		let sourceTextModel: ITextModel | undefined = undefined;
+		if (sourceModel instanceof BaseTextEditorModel) {
+			if (sourceModel.isResolved()) {
+				sourceTextModel = sourceModel.textEditorModel;
+			}
+		} else {
+			sourceTextModel = sourceModel as ITextModel;
+		}
+
+		let targetTextModel: ITextModel | undefined = undefined;
+		if (targetModel.isResolved()) {
+			targetTextModel = targetModel.textEditorModel;
+		}
+
+		// take over model value, encoding and mode (only if more specific) from source model
+		targetModel.updatePreferredEncoding(sourceModelEncoding);
+		if (sourceTextModel && targetTextModel) {
+			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
+
+			const sourceMode = sourceTextModel.getLanguageIdentifier();
+			const targetMode = targetTextModel.getLanguageIdentifier();
+			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
+				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
+			}
+		}
+
+		// save model
+		await targetModel.save(options);
+
+		return true;
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
