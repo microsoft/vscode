@@ -701,8 +701,14 @@ export class RepositoryPane extends ViewPane {
 			...getSimpleEditorOptions(),
 			lineDecorationsWidth: 4,
 			dragAndDrop: false,
-			// fontFamily: 'Arial'
+			cursorWidth: 1,
+			fontSize: 13,
+			lineHeight: 20,
+			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			wrappingAlgorithm: 'dom',
+			wrappingIndent: 'none'
 		};
+
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -744,7 +750,8 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
 		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		// this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidScrollChange, e => e.scrollHeightChanged);
+		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
@@ -865,11 +872,12 @@ export class RepositoryPane extends ViewPane {
 		}
 
 		this.cachedHeight = height;
+		this.cachedWidth = width;
 
 		if (this.repository.input.visible) {
 			removeClass(this.inputContainer, 'hidden');
-			// const editorHeight = 25; // TODO@joao
-			const editorHeight = 250; // TODO@joao
+			const editorHeight = this.inputEditor.getScrollHeight();
+
 			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 /* - 8 */ }); // TODO@joao
 
 			const listHeight = height - (editorHeight + 5 + 2 /* + 3 + 3 */ + 5);
