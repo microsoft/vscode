@@ -405,6 +405,7 @@ declare namespace monaco {
 		readonly leftButton: boolean;
 		readonly middleButton: boolean;
 		readonly rightButton: boolean;
+		readonly buttons: number;
 		readonly target: HTMLElement;
 		readonly detail: number;
 		readonly posx: number;
