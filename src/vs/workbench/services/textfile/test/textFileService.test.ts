@@ -64,7 +64,7 @@ suite('Files - TextFileService', () => {
 
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const untitled = await accessor.textFileService.untitled.loadOrCreate();
+		const untitled = await accessor.textFileService.untitled.resolve();
 
 		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
 		untitled.textEditorModel.setValue('changed');
@@ -94,7 +94,7 @@ suite('Files - TextFileService', () => {
 
 		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
 		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
-		const loadOrCreateStub = sinon.stub(accessor.textFileService.files, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
+		const loadOrCreateStub = sinon.stub(accessor.textFileService.files, 'resolve', () => Promise.resolve(mockedEditorInput));
 
 		sinon.stub(accessor.textFileService.untitled, 'exists', () => true);
 		sinon.stub(accessor.textFileService.untitled, 'hasAssociatedFilePath', () => true);

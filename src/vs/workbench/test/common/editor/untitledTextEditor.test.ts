@@ -73,7 +73,7 @@ suite('Workbench untitled text editors', () => {
 
 		// dirty
 		const model = await input2.resolve();
-		assert.equal(await service.loadOrCreate({ resource: input2.getResource() }), model);
+		assert.equal(await service.resolve({ resource: input2.getResource() }), model);
 
 		assert.ok(!input2.isDirty());
 

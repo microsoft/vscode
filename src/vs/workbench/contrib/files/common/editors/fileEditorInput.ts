@@ -285,7 +285,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 		// Resolve as text
 		try {
-			await this.textFileService.files.loadOrCreate(this.resource, {
+			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
@@ -295,7 +295,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
-			// loadOrCreate ensures we are not creating model references for these kind of resources.
+			// resolve() ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
 			if (!this.textModelReference) {
 				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);

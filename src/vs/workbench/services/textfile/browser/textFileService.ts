@@ -275,7 +275,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// we know the file has changed on disk after the move and the
 			// model might have still existed with the previous state. this
 			// ensures we are not tracking a stale state.
-			const restoredModel = await this.files.loadOrCreate(modelToRestore.resource, { reload: { async: false }, encoding: modelToRestore.encoding, mode: modelToRestore.mode });
+			const restoredModel = await this.files.resolve(modelToRestore.resource, { reload: { async: false }, encoding: modelToRestore.encoding, mode: modelToRestore.mode });
 
 			// restore previous dirty content if any and ensure to mark
 			// the model as dirty
@@ -522,7 +522,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			}
 
 			try {
-				targetModel = await this.files.loadOrCreate(target, { encoding: sourceModelEncoding, mode });
+				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding, mode });
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
 				// that we cannot load the target as text model if it is binary or too

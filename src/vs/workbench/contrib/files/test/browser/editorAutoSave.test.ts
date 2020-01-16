@@ -87,7 +87,7 @@ suite('EditorAutoSave', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.files.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
