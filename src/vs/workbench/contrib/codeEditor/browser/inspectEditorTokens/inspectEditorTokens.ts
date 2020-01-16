@@ -97,8 +97,8 @@ class InspectEditorTokens extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inspectEditorTokens',
-			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens"),
-			alias: 'Developer: Inspect Editor Tokens',
+			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
+			alias: 'Developer: Inspect Editor Tokens and Scopes',
 			precondition: undefined
 		});
 	}
