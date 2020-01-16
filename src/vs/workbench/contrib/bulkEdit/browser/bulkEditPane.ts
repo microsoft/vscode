@@ -32,6 +32,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import type { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import type { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const enum State {
 	Data = 'data',
@@ -135,7 +136,7 @@ export class BulkEditPane extends ViewPane {
 		this.element.dataset['state'] = state;
 	}
 
-	async setInput(edit: WorkspaceEdit, label?: string): Promise<WorkspaceEdit | undefined> {
+	async setInput(edit: WorkspaceEdit, token: CancellationToken): Promise<WorkspaceEdit | undefined> {
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 
@@ -152,6 +153,8 @@ export class BulkEditPane extends ViewPane {
 		this._currentInput = input;
 
 		return new Promise(async resolve => {
+
+			token.onCancellationRequested(() => resolve());
 
 			this._currentResolve = resolve;
 			await this._tree.setInput(input);
