@@ -28,6 +28,9 @@ export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
 export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
 export const ToggleRegexCommandId = 'toggleSearchRegex';
+export const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
+export const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
+export const ToggleSearchEditorRegexCommandId = 'toggleSearchEditorRegex';
 export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
 export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
 

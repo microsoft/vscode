@@ -168,8 +168,6 @@ export class SearchEditor extends BaseEditor {
 			}
 		});
 
-
-
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
 		this._register(this.searchResultEditor.onDidChangeModel(() => this.hideHeader()));
@@ -208,6 +206,21 @@ export class SearchEditor extends BaseEditor {
 		} else if (this.searchResultEditor.hasWidgetFocus()) {
 			// ureachable.
 		}
+	}
+
+	toggleWholeWords() {
+		this.queryEditorWidget.searchInput.setWholeWords(!this.queryEditorWidget.searchInput.getWholeWords());
+		this.runSearch();
+	}
+
+	toggleRegex() {
+		this.queryEditorWidget.searchInput.setRegex(!this.queryEditorWidget.searchInput.getRegex());
+		this.runSearch();
+	}
+
+	toggleCaseSensitive() {
+		this.queryEditorWidget.searchInput.setCaseSensitive(!this.queryEditorWidget.searchInput.getCaseSensitive());
+		this.runSearch();
 	}
 
 	private async runSearch(instant = false) {
@@ -371,6 +384,7 @@ export class SearchEditor extends BaseEditor {
 	}
 
 	clearInput() {
+		super.clearInput();
 		this.inSearchEditorContextKey.set(false);
 	}
 }

@@ -87,11 +87,26 @@ export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleCaseSensitive();
+	}
+};
+
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 	if (searchView) {
-
 		searchView.toggleWholeWords();
+	}
+};
+
+export const toggleSearchEditorWholeWordCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleWholeWords();
 	}
 };
 
@@ -99,6 +114,14 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 	if (searchView) {
 		searchView.toggleRegex();
+	}
+};
+
+export const toggleSearchEditorRegexCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleRegex();
 	}
 };
 
