@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./bulkEdit';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -14,7 +14,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkTextEdit, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -29,10 +29,11 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { basename } from 'vs/base/common/resources';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import type { IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import type { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const enum State {
 	Data = 'data',
@@ -107,16 +108,11 @@ export class BulkEditPane extends ViewPane {
 			}
 		);
 
-		this._disposables.add(this._tree.onDidOpen(e => {
-			const [first] = e.elements;
-			if (first instanceof TextEditElement) {
-				this._openElementAsEditor(first.parent, first.edit);
-			} else if (first instanceof FileElement) {
-				this._openElementAsEditor(first);
-			}
-		}));
-
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
+
+		const navigator = new TreeResourceNavigator2(this._tree, { openOnFocus: true });
+		this._disposables.add(navigator);
+		this._disposables.add(navigator.onDidOpenResource(e => this._openElementAsEditor(e)));
 
 		// message
 		this._message = document.createElement('span');
@@ -212,10 +208,24 @@ export class BulkEditPane extends ViewPane {
 		this._sessionDisposables.clear();
 	}
 
-	private async _openElementAsEditor(fileElement: FileElement, textElement?: BulkTextEdit): Promise<void> {
+	private async _openElementAsEditor(e: IOpenEvent<any>): Promise<void> {
+		type Mutable<T> = {
+			-readonly [P in keyof T]: T[P]
+		};
 
-		if (!textElement) {
-			textElement = fileElement.edit.textEdits[0];
+		let options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
+		let fileElement: FileElement;
+		if (e.element instanceof TextEditElement) {
+			fileElement = e.element.parent;
+			options.selection = e.element.edit.edit.range;
+
+		} else if (e.element instanceof FileElement) {
+			fileElement = e.element;
+			options.selection = e.element.edit.textEdits[0]?.edit.range;
+
+		} else {
+			// invalid event
+			return;
 		}
 
 		let leftResource: URI | undefined;
@@ -236,15 +246,10 @@ export class BulkEditPane extends ViewPane {
 				leftResource,
 				rightResource: previewUri,
 				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.uri)),
-				options: {
-					selection: textElement?.edit.range,
-					revealInCenterIfOutsideViewport: true,
-					preserveFocus: true
-				}
+				options
 			});
 		} else {
 			// show 'normal' editor
-
 			let typeLabel: string | undefined;
 			if (fileElement.edit.type & BulkFileOperationType.Rename) {
 				typeLabel = localize('rename', "rename");
@@ -257,7 +262,7 @@ export class BulkEditPane extends ViewPane {
 			this._editorService.openEditor({
 				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.uri), typeLabel),
 				resource: previewUri,
-				options: { preserveFocus: true }
+				options
 			});
 		}
 	}
