@@ -64,15 +64,14 @@ suite('Files - TextFileService', () => {
 
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const untitled = accessor.textFileService.untitled.createOrGet();
-		const untitledModel = await untitled.resolve();
+		const untitled = await accessor.textFileService.untitled.loadOrCreate();
 
-		assert.ok(!accessor.textFileService.isDirty(untitled.getResource()));
-		untitledModel.textEditorModel!.setValue('changed');
+		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
+		untitled.textEditorModel.setValue('changed');
 
-		assert.ok(accessor.textFileService.isDirty(untitled.getResource()));
+		assert.ok(accessor.textFileService.isDirty(untitled.resource));
 
-		untitledModel.dispose();
+		untitled.dispose();
 	});
 
 	test('save - file', async function () {

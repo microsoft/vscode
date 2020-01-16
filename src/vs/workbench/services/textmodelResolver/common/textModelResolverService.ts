@@ -141,9 +141,9 @@ export class TextModelResolverService implements ITextModelService {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
-			const model = await this.untitledTextEditorService.createOrGet({ resource }).resolve();
+			const model = await this.untitledTextEditorService.loadOrCreate({ resource });
 
-			return new ImmortalReference(model as IResolvedTextEditorModel);
+			return new ImmortalReference(model);
 		}
 
 		// InMemory Schema: go through model service cache

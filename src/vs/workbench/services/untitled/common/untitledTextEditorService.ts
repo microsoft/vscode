@@ -14,6 +14,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
+import type { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -56,6 +58,15 @@ export interface IUntitledTextEditorModelManager {
 	 */
 	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
 	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+
+	/**
+	 * Creates a new untitled model with the optional resource URI or returns an existing one
+	 * if the provided resource exists already as untitled model.
+	 *
+	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
+	 * The use case is to be able to create a new file with a specific path with VSCode.
+	 */
+	loadOrCreate(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -180,6 +191,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		this.mapResourceToInput.set(untitledResource, input);
 
 		return input;
+	}
+
+	loadOrCreate(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+		return this.createOrGet(options).resolve();
 	}
 
 	hasAssociatedFilePath(resource: URI): boolean {

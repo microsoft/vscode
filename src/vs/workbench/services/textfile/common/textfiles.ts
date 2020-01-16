@@ -357,8 +357,6 @@ export interface ITextFileEditorModelManager {
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
-	getAll(resource?: URI): ITextFileEditorModel[];
-
 	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
 	disposeModel(model: ITextFileEditorModel): void;
