@@ -10,19 +10,18 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { CodeAction } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionWidget, CodeActionShowOptions } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
 export class CodeActionUi extends Disposable {
 
-	private readonly _codeActionWidget: Lazy<CodeActionWidget>;
+	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
@@ -33,13 +32,12 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => Promise<void>
 		},
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._codeActionWidget = new Lazy(() => {
-			return this._register(new CodeActionWidget(this._editor, contextMenuService, keybindingService, {
+			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
 				onSelectCodeAction: async (action) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true);
 				}
@@ -47,8 +45,8 @@ export class CodeActionUi extends Disposable {
 		});
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, preferredFixActionId, keybindingService));
-			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false })));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false })));
 			return widget;
 		});
 	}
@@ -67,9 +65,9 @@ export class CodeActionUi extends Disposable {
 			return;
 		}
 
-		this._lightBulbWidget.getValue().update(actions, newState.position);
+		this._lightBulbWidget.getValue().update(actions, newState.trigger, newState.position);
 
-		if (newState.trigger.type === 'manual') {
+		if (newState.trigger.type === CodeActionTriggerType.Manual) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
 				// Check to see if we want to auto apply.
 
@@ -105,7 +103,7 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(actions, newState.position, { includeDisabledActions });
+			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions });
 		} else {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {
@@ -145,7 +143,7 @@ export class CodeActionUi extends Disposable {
 		return undefined;
 	}
 
-	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
-		this._codeActionWidget.getValue().show(actions, at, options);
+	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+		this._codeActionWidget.getValue().show(trigger, actions, at, options);
 	}
 }

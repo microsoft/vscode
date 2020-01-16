@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor, TokenizationRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -34,7 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -186,6 +186,11 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 }
 
+const markerCodeActionTrigger: CodeActionTrigger = {
+	type: CodeActionTriggerType.Manual,
+	filter: { include: CodeActionKind.QuickFix }
+};
+
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
@@ -237,6 +242,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
+		}));
+		this._register(TokenizationRegistry.onDidChange((e) => {
+			if (this.isVisible && this._lastRange && this._messages.length > 0) {
+				this._domNode.textContent = '';
+				this._renderMessages(this._lastRange, this._messages);
+			}
 		}));
 	}
 
@@ -569,7 +580,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					showing = true;
 					const controller = QuickFixController.get(this._editor);
 					const elementPosition = dom.getDomNodePagePosition(target);
-					controller.showCodeActions(actions, {
+					controller.showCodeActions(markerCodeActionTrigger, actions, {
 						x: elementPosition.left + 6,
 						y: elementPosition.top + elementPosition.height + 6
 					});
@@ -586,7 +597,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
-				{ type: 'manual', filter: { include: CodeActionKind.QuickFix } },
+				markerCodeActionTrigger,
 				cancellationToken);
 		});
 	}

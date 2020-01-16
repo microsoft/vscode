@@ -206,7 +206,7 @@ suite('ExtensionsTipsService Test', () => {
 			...{
 				extensionTips: {
 					'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
+					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
 					'lukehoban.Go': '**/*.go'
 				},
 				extensionImportantTips: {

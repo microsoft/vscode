@@ -162,7 +162,7 @@
 	opacity: 0.66;
 	text-decoration: unset;
 }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated > .monaco-icon-label-description-container {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated > .monaco-icon-label-container > .monaco-icon-name-container {
 	text-decoration: line-through;
 }
 
@@ -280,10 +280,7 @@
 
 /* replace/insert decorations */
 
-.monaco-editor .suggest-insertMode-goes {
-	text-decoration-line: line-through;
-}
-
-.monaco-editor .suggest-insertMode-stays {
+.monaco-editor .suggest-insert-unexpected {
 	font-style: italic;
 }
+

@@ -23,6 +23,8 @@ import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs
 import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { ITextModel } from 'vs/editor/common/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 export class FileElement {
 	constructor(
@@ -53,9 +55,9 @@ export class EditorBreadcrumbsModel {
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
-
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(_configurationService);
 
@@ -69,6 +71,7 @@ export class EditorBreadcrumbsModel {
 	dispose(): void {
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
+		this._outlineDisposables.dispose();
 		this._disposables.dispose();
 	}
 
@@ -142,6 +145,17 @@ export class EditorBreadcrumbsModel {
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('breadcrumbs')) {
 				this._updateOutline(true);
+				return;
+			}
+			if (this._editor && this._editor.getModel()) {
+				const editorModel = this._editor.getModel() as ITextModel;
+				const languageName = editorModel.getLanguageIdentifier().language;
+
+				// Checking for changes in the current language override config.
+				// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
+				if (e.affectsConfiguration(`[${languageName}]`)) {
+					this._updateOutline(true);
+				}
 			}
 		}));
 
@@ -179,13 +193,16 @@ export class EditorBreadcrumbsModel {
 
 		this._outlineDisposables.add({
 			dispose: () => {
-				source.cancel();
-				source.dispose();
+				source.dispose(true);
 				timeout.dispose();
 			}
 		});
 
 		OutlineModel.create(buffer, source.token).then(model => {
+			if (source.token.isCancellationRequested) {
+				// cancelled -> do nothing
+				return;
+			}
 			if (TreeElement.empty(model)) {
 				// empty -> no outline elements
 				this._updateOutlineElements([]);
@@ -250,7 +267,12 @@ export class EditorBreadcrumbsModel {
 	private _isFiltered(element: TreeElement): boolean {
 		if (element instanceof OutlineElement) {
 			const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
-			return !this._configurationService.getValue<boolean>(key);
+			let uri: URI | undefined;
+			if (this._editor && this._editor.getModel()) {
+				const model = this._editor.getModel() as ITextModel;
+				uri = model.uri;
+			}
+			return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
 		}
 		return false;
 	}

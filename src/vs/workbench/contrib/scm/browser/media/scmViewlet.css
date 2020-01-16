@@ -42,6 +42,7 @@
 	text-overflow: ellipsis;
 	display: flex;
 	align-items: center;
+	min-width: 14px;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
@@ -53,6 +54,7 @@
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
 	vertical-align: sub;
+	display: inline-flex;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {
@@ -112,7 +114,7 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
+.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
 	text-decoration: line-through;
 }
 

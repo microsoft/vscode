@@ -91,10 +91,14 @@ export interface ITerminalConfiguration {
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
+	cursorWidth: number;
 	drawBoldTextInBrightColors: boolean;
+	fastScrollSensitivity: number;
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
+	minimumContrastRatio: number;
+	mouseWheelScrollSensitivity: number;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -452,6 +456,7 @@ export const enum TERMINAL_COMMAND_ID {
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
 	MANAGE_WORKSPACE_SHELL_PERMISSIONS = 'workbench.action.terminal.manageWorkspaceShellPermissions',
 	RENAME = 'workbench.action.terminal.rename',
+	RENAME_WITH_ARG = 'workbench.action.terminal.renameWithArg',
 	FIND_WIDGET_FOCUS = 'workbench.action.terminal.focusFindWidget',
 	FIND_WIDGET_HIDE = 'workbench.action.terminal.hideFindWidget',
 	QUICK_OPEN_TERM = 'workbench.action.quickOpenTerm',

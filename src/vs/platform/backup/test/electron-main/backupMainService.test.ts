@@ -44,16 +44,16 @@ suite('BackupMainService', () => {
 			this.workspacesJsonPath = backupWorkspacesPath;
 		}
 
-		public toBackupPath(arg: URI | string): string {
+		toBackupPath(arg: URI | string): string {
 			const id = arg instanceof URI ? super.getFolderHash(arg) : arg;
 			return path.join(this.backupHome, id);
 		}
 
-		public getFolderHash(folderUri: URI): string {
+		getFolderHash(folderUri: URI): string {
 			return super.getFolderHash(folderUri);
 		}
 
-		public toLegacyBackupPath(folderPath: string): string {
+		toLegacyBackupPath(folderPath: string): string {
 			return path.join(this.backupHome, super.getLegacyFolderHash(folderPath));
 		}
 	}
@@ -119,17 +119,16 @@ suite('BackupMainService', () => {
 	let service: TestBackupMainService;
 	let configService: TestConfigurationService;
 
-	setup(() => {
+	setup(async () => {
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE).then(() => {
-			return pfs.mkdirp(backupHome);
-		}).then(() => {
-			configService = new TestConfigurationService();
-			service = new TestBackupMainService(backupHome, backupWorkspacesPath, configService);
+		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.mkdirp(backupHome);
 
-			return service.initialize();
-		});
+		configService = new TestConfigurationService();
+		service = new TestBackupMainService(backupHome, backupWorkspacesPath, configService);
+
+		return service.initialize();
 	});
 
 	teardown(() => {
@@ -591,71 +590,71 @@ suite('BackupMainService', () => {
 		});
 	});
 
-	test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive (folder workspace)', () => {
+	test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive (folder workspace)', async () => {
 		service.registerFolderBackupSync(URI.file(fooFile.fsPath.toUpperCase()));
 		assertEqualUris(service.getFolderBackupPaths(), [URI.file(fooFile.fsPath.toUpperCase())]);
-		return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-			assert.deepEqual(json.folderURIWorkspaces, [URI.file(fooFile.fsPath.toUpperCase()).toString()]);
-		});
+
+		const buffer = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+		const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
+		assert.deepEqual(json.folderURIWorkspaces, [URI.file(fooFile.fsPath.toUpperCase()).toString()]);
 	});
 
-	test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive (root workspace)', () => {
+	test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive (root workspace)', async () => {
 		const upperFooPath = fooFile.fsPath.toUpperCase();
 		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(upperFooPath));
 		assertEqualUris(service.getWorkspaceBackups().map(b => b.workspace.configPath), [URI.file(upperFooPath)]);
-		return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-			assert.deepEqual(json.rootURIWorkspaces.map(b => b.configURIPath), [URI.file(upperFooPath).toString()]);
-		});
+
+		const buffer = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+		const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
+		assert.deepEqual(json.rootURIWorkspaces.map(b => b.configURIPath), [URI.file(upperFooPath).toString()]);
 	});
 
 	suite('removeBackupPathSync', () => {
-		test('should remove folder workspaces from workspaces.json (folder workspace)', () => {
+		test('should remove folder workspaces from workspaces.json (folder workspace)', async () => {
 			service.registerFolderBackupSync(fooFile);
 			service.registerFolderBackupSync(barFile);
 			service.unregisterFolderBackupSync(fooFile);
-			return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
-				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-				assert.deepEqual(json.folderURIWorkspaces, [barFile.toString()]);
-				service.unregisterFolderBackupSync(barFile);
-				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
-					const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
-					assert.deepEqual(json2.folderURIWorkspaces, []);
-				});
-			});
+
+			const buffer = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
+			assert.deepEqual(json.folderURIWorkspaces, [barFile.toString()]);
+			service.unregisterFolderBackupSync(barFile);
+
+			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
+			assert.deepEqual(json2.folderURIWorkspaces, []);
 		});
 
-		test('should remove folder workspaces from workspaces.json (root workspace)', () => {
+		test('should remove folder workspaces from workspaces.json (root workspace)', async () => {
 			const ws1 = toWorkspaceBackupInfo(fooFile.fsPath);
 			service.registerWorkspaceBackupSync(ws1);
 			const ws2 = toWorkspaceBackupInfo(barFile.fsPath);
 			service.registerWorkspaceBackupSync(ws2);
 			service.unregisterWorkspaceBackupSync(ws1.workspace);
-			return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
-				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-				assert.deepEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [barFile.toString()]);
-				service.unregisterWorkspaceBackupSync(ws2.workspace);
-				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
-					const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
-					assert.deepEqual(json2.rootURIWorkspaces, []);
-				});
-			});
+
+			const buffer = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
+			assert.deepEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [barFile.toString()]);
+			service.unregisterWorkspaceBackupSync(ws2.workspace);
+
+			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
+			assert.deepEqual(json2.rootURIWorkspaces, []);
 		});
 
-		test('should remove empty workspaces from workspaces.json', () => {
+		test('should remove empty workspaces from workspaces.json', async () => {
 			service.registerEmptyWindowBackupSync('foo');
 			service.registerEmptyWindowBackupSync('bar');
 			service.unregisterEmptyWindowBackupSync('foo');
-			return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
-				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-				assert.deepEqual(json.emptyWorkspaces, ['bar']);
-				service.unregisterEmptyWindowBackupSync('bar');
-				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
-					const json2 = <IBackupWorkspacesFormat>JSON.parse(content);
-					assert.deepEqual(json2.emptyWorkspaces, []);
-				});
-			});
+
+			const buffer = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
+			assert.deepEqual(json.emptyWorkspaces, ['bar']);
+			service.unregisterEmptyWindowBackupSync('bar');
+
+			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
+			assert.deepEqual(json2.emptyWorkspaces, []);
 		});
 
 		test('should fail gracefully when removing a path that doesn\'t exist', async () => {

@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -26,7 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-export class EmptyView extends ViewletPane {
+export class EmptyView extends ViewPane {
 
 	static readonly ID: string = 'workbench.explorer.emptyView';
 	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
@@ -37,7 +37,7 @@ export class EmptyView extends ViewletPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -46,7 +46,7 @@ export class EmptyView extends ViewletPane {
 		@ILabelService private labelService: ILabelService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
 	}
@@ -130,17 +130,12 @@ export class EmptyView extends ViewletPane {
 		}
 	}
 
-	layoutBody(size: number): void {
+	layoutBody(_size: number): void {
 		// no-op
 	}
 
 	focus(): void {
-		this.focusBody();
+		this.button.element.focus();
 	}
 
-	focusBody(): void {
-		if (this.button) {
-			this.button.element.focus();
-		}
-	}
 }

@@ -134,7 +134,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
+
+	@memoize
 	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.keybindings.json'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
@@ -232,8 +238,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	nodeCachedDataDir?: string;
 
-	argvResource!: URI;
-
 	disableCrashReporter!: boolean;
 
 	driverHandle?: string;
@@ -303,36 +307,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						extensionHostDebugEnvironment.params.break = true;
 						break;
-				}
-			}
-		} else {
-			// TODO@Ben remove me once environment is adopted
-			if (document && document.location && document.location.search) {
-				const map = new Map<string, string>();
-				const query = document.location.search.substring(1);
-				const vars = query.split('&');
-				for (let p of vars) {
-					const pair = p.split('=');
-					if (pair.length >= 2) {
-						map.set(pair[0], decodeURIComponent(pair[1]));
-					}
-				}
-
-				const edp = map.get('extensionDevelopmentPath');
-				if (edp) {
-					extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(edp)];
-					extensionHostDebugEnvironment.isExtensionDevelopment = true;
-				}
-
-				const di = map.get('debugId');
-				if (di) {
-					extensionHostDebugEnvironment.params.debugId = di;
-				}
-
-				const ibe = map.get('inspect-brk-extensions');
-				if (ibe) {
-					extensionHostDebugEnvironment.params.port = parseInt(ibe);
-					extensionHostDebugEnvironment.params.break = false;
 				}
 			}
 		}

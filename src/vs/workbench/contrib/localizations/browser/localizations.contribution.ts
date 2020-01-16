@@ -21,7 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -139,7 +139,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								run: () => {
 									logUserReaction('search');
 									this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-										.then(viewlet => viewlet as IExtensionsViewlet)
+										.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 										.then(viewlet => {
 											viewlet.search(`tag:lp-${locale}`);
 											viewlet.focus();
@@ -199,7 +199,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
 		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
 			.then(() => this.extensionManagementService.installFromGallery(extension))
 			.then(() => undefined, err => this.notificationService.error(err));

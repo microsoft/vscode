@@ -121,7 +121,7 @@ export interface IEncodedTokens {
 	getMetadata(tokenIndex: number): number;
 
 	clear(): void;
-	acceptDeleteRange(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void;
+	acceptDeleteRange(horizontalShiftForFirstLineTokens: number, startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void;
 	acceptInsertText(deltaLine: number, character: number, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void;
 }
 
@@ -173,7 +173,7 @@ export class SparseEncodedTokens implements IEncodedTokens {
 		this._tokenCount = 0;
 	}
 
-	public acceptDeleteRange(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
+	public acceptDeleteRange(horizontalShiftForFirstLineTokens: number, startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
 		// This is a bit complex, here are the cases I used to think about this:
 		//
 		// 1. The token starts before the deletion range
@@ -292,9 +292,13 @@ export class SparseEncodedTokens implements IEncodedTokens {
 				tokenDeltaLine -= deletedLineCount;
 			} else if (tokenDeltaLine === endDeltaLine && tokenStartCharacter >= endCharacter) {
 				// 4. (continued) The token starts after the deletion range, on the last line where a deletion occurs
+				if (horizontalShiftForFirstLineTokens && tokenDeltaLine === 0) {
+					tokenStartCharacter += horizontalShiftForFirstLineTokens;
+					tokenEndCharacter += horizontalShiftForFirstLineTokens;
+				}
 				tokenDeltaLine -= deletedLineCount;
-				tokenStartCharacter -= endCharacter;
-				tokenEndCharacter -= endCharacter;
+				tokenStartCharacter -= (endCharacter - startCharacter);
+				tokenEndCharacter -= (endCharacter - startCharacter);
 			} else {
 				throw new Error(`Not possible!`);
 			}
@@ -373,8 +377,8 @@ export class SparseEncodedTokens implements IEncodedTokens {
 					}
 				}
 				// => the token must move and keep its size constant
-				tokenDeltaLine += eolCount;
 				if (tokenDeltaLine === deltaLine) {
+					tokenDeltaLine += eolCount;
 					// this token is on the line where the insertion is taking place
 					if (eolCount === 0) {
 						tokenStartCharacter += firstLineLength;
@@ -384,6 +388,8 @@ export class SparseEncodedTokens implements IEncodedTokens {
 						tokenStartCharacter = lastLineLength + (tokenStartCharacter - character);
 						tokenEndCharacter = tokenStartCharacter + tokenLength;
 					}
+				} else {
+					tokenDeltaLine += eolCount;
 				}
 			}
 
@@ -527,9 +533,9 @@ export class MultilineTokens2 {
 			const deletedBefore = -firstLineIndex;
 			this.startLineNumber -= deletedBefore;
 
-			this.tokens.acceptDeleteRange(0, 0, lastLineIndex, range.endColumn - 1);
+			this.tokens.acceptDeleteRange(range.startColumn - 1, 0, 0, lastLineIndex, range.endColumn - 1);
 		} else {
-			this.tokens.acceptDeleteRange(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1);
+			this.tokens.acceptDeleteRange(0, firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1);
 		}
 	}
 

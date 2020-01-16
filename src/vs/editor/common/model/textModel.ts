@@ -34,6 +34,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
+import { Constants } from 'vs/base/common/uint';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -156,6 +157,17 @@ class TextModelSnapshot implements model.ITextSnapshot {
 }
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
+
+const enum StringOffsetValidationType {
+	/**
+	 * Even allowed in surrogate pairs
+	 */
+	Relaxed = 0,
+	/**
+	 * Not allowed in surrogate pairs
+	 */
+	SurrogatePairs = 1,
+}
 
 export class TextModel extends Disposable implements model.ITextModel {
 
@@ -672,7 +684,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
-		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
+		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, StringOffsetValidationType.Relaxed);
 		return this._buffer.getOffsetAt(position.lineNumber, position.column);
 	}
 
@@ -867,10 +879,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
-	/**
-	 * @param strict Do NOT allow a position inside a high-low surrogate pair
-	 */
-	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+	private _isValidPosition(lineNumber: number, column: number, validationType: StringOffsetValidationType): boolean {
 		if (typeof lineNumber !== 'number' || typeof column !== 'number') {
 			return false;
 		}
@@ -892,14 +901,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return false;
 		}
 
+		if (column === 1) {
+			return true;
+		}
+
 		const maxColumn = this.getLineMaxColumn(lineNumber);
 		if (column > maxColumn) {
 			return false;
 		}
 
-		if (strict) {
-			const [charStartOffset,] = strings.getCharContainingOffset(this._buffer.getLineContent(lineNumber), column - 1);
-			if (column !== charStartOffset + 1) {
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
+			// !!At this point, column > 1
+			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
+			if (strings.isHighSurrogate(charCodeBefore)) {
 				return false;
 			}
 		}
@@ -907,10 +921,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return true;
 	}
 
-	/**
-	 * @param strict Do NOT allow a position inside a high-low surrogate pair
-	 */
-	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
+	private _validatePosition(_lineNumber: number, _column: number, validationType: StringOffsetValidationType): Position {
 		const lineNumber = Math.floor((typeof _lineNumber === 'number' && !isNaN(_lineNumber)) ? _lineNumber : 1);
 		const column = Math.floor((typeof _column === 'number' && !isNaN(_column)) ? _column : 1);
 		const lineCount = this._buffer.getLineCount();
@@ -932,10 +943,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return new Position(lineNumber, maxColumn);
 		}
 
-		if (strict) {
-			const [charStartOffset,] = strings.getCharContainingOffset(this._buffer.getLineContent(lineNumber), column - 1);
-			if (column !== charStartOffset + 1) {
-				return new Position(lineNumber, charStartOffset + 1);
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
+			// If the position would end up in the middle of a high-low surrogate pair,
+			// we move it to before the pair
+			// !!At this point, column > 1
+			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
+			if (strings.isHighSurrogate(charCodeBefore)) {
+				return new Position(lineNumber, column - 1);
 			}
 		}
 
@@ -943,94 +957,95 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public validatePosition(position: IPosition): Position {
+		const validationType = StringOffsetValidationType.SurrogatePairs;
 		this._assertNotDisposed();
 
 		// Avoid object allocation and cover most likely case
 		if (position instanceof Position) {
-			if (this._isValidPosition(position.lineNumber, position.column, true)) {
+			if (this._isValidPosition(position.lineNumber, position.column, validationType)) {
 				return position;
 			}
 		}
 
-		return this._validatePosition(position.lineNumber, position.column, true);
+		return this._validatePosition(position.lineNumber, position.column, validationType);
 	}
 
-	/**
-	 * @param strict Do NOT allow a range to have its boundaries inside a high-low surrogate pair
-	 */
-	private _isValidRange(range: Range, strict: boolean): boolean {
+	private _isValidRange(range: Range, validationType: StringOffsetValidationType): boolean {
 		const startLineNumber = range.startLineNumber;
 		const startColumn = range.startColumn;
 		const endLineNumber = range.endLineNumber;
 		const endColumn = range.endColumn;
 
-		if (!this._isValidPosition(startLineNumber, startColumn, false)) {
+		if (!this._isValidPosition(startLineNumber, startColumn, StringOffsetValidationType.Relaxed)) {
 			return false;
 		}
-		if (!this._isValidPosition(endLineNumber, endColumn, false)) {
+		if (!this._isValidPosition(endLineNumber, endColumn, StringOffsetValidationType.Relaxed)) {
 			return false;
 		}
 
-		if (strict) {
-			const startLineContent = this._buffer.getLineContent(startLineNumber);
-			if (startColumn < startLineContent.length + 1) {
-				const [charStartOffset,] = strings.getCharContainingOffset(startLineContent, startColumn - 1);
-				if (startColumn !== charStartOffset + 1) {
-					return false;
-				}
-			}
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
+			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
 
-			if (endColumn >= 2) {
-				const endLineContent = (endLineNumber === startLineNumber ? startLineContent : this._buffer.getLineContent(endLineNumber));
-				const [, charEndOffset] = strings.getCharContainingOffset(endLineContent, endColumn - 2);
-				if (endColumn !== charEndOffset + 1) {
-					return false;
-				}
-			}
+			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
 
-			return true;
+			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+				return true;
+			}
+			return false;
 		}
 
 		return true;
 	}
 
 	public validateRange(_range: IRange): Range {
+		const validationType = StringOffsetValidationType.SurrogatePairs;
 		this._assertNotDisposed();
 
 		// Avoid object allocation and cover most likely case
 		if ((_range instanceof Range) && !(_range instanceof Selection)) {
-			if (this._isValidRange(_range, true)) {
+			if (this._isValidRange(_range, validationType)) {
 				return _range;
 			}
 		}
 
-		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
-		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
+		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, StringOffsetValidationType.Relaxed);
+		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, StringOffsetValidationType.Relaxed);
 
 		const startLineNumber = start.lineNumber;
-		let startColumn = start.column;
+		const startColumn = start.column;
 		const endLineNumber = end.lineNumber;
-		let endColumn = end.column;
-		const isEmpty = (startLineNumber === endLineNumber && startColumn === endColumn);
+		const endColumn = end.column;
 
-		const startLineContent = this._buffer.getLineContent(startLineNumber);
-		if (startColumn < startLineContent.length + 1) {
-			const [charStartOffset,] = strings.getCharContainingOffset(startLineContent, startColumn - 1);
-			if (startColumn !== charStartOffset + 1) {
-				if (isEmpty) {
-					// do not expand a collapsed range, simply move it to a valid location
-					return new Range(startLineNumber, charStartOffset + 1, startLineNumber, charStartOffset + 1);
-				}
-				startColumn = charStartOffset + 1;
-			}
-		}
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
+			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
 
-		if (endColumn >= 2) {
-			const endLineContent = (endLineNumber === startLineNumber ? startLineContent : this._buffer.getLineContent(endLineNumber));
-			const [, charEndOffset] = strings.getCharContainingOffset(endLineContent, endColumn - 2);
-			if (endColumn !== charEndOffset + 1) {
-				endColumn = charEndOffset + 1;
+			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+
+			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+				return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 			}
+
+			if (startLineNumber === endLineNumber && startColumn === endColumn) {
+				// do not expand a collapsed range, simply move it to a valid location
+				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn - 1);
+			}
+
+			if (startInsideSurrogatePair && endInsideSurrogatePair) {
+				// expand range at both ends
+				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn + 1);
+			}
+
+			if (startInsideSurrogatePair) {
+				// only expand range at the start
+				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn);
+			}
+
+			// only expand range at the end
+			return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
 		}
 
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
@@ -2341,16 +2356,21 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
-	public findEnclosingBrackets(_position: IPosition): [Range, Range] | null {
+	public findEnclosingBrackets(_position: IPosition, maxDuration = Constants.MAX_SAFE_SMALL_INTEGER): [Range, Range] | null {
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
+		const savedCounts = new Map<number, number[]>();
 
 		let counts: number[] = [];
-		const resetCounts = (modeBrackets: RichEditBrackets | null) => {
-			counts = [];
-			for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
-				counts[i] = 0;
+		const resetCounts = (languageId: number, modeBrackets: RichEditBrackets | null) => {
+			if (!savedCounts.has(languageId)) {
+				let tmp = [];
+				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
+					tmp[i] = 0;
+				}
+				savedCounts.set(languageId, tmp);
 			}
+			counts = savedCounts.get(languageId)!;
 		};
 		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null => {
 			while (true) {
@@ -2380,7 +2400,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let languageId: LanguageId = -1;
 		let modeBrackets: RichEditBrackets | null = null;
+		const startTime = Date.now();
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
+			const elapsedTime = Date.now() - startTime;
+			if (elapsedTime > maxDuration) {
+				return null;
+			}
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);
@@ -2396,7 +2421,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(modeBrackets);
+					resetCounts(languageId, modeBrackets);
 				}
 			}
 
@@ -2415,7 +2440,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					}
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(modeBrackets);
+					resetCounts(languageId, modeBrackets);
 				}
 
 				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));

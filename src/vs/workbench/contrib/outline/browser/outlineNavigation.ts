@@ -17,9 +17,9 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { forEach } from 'vs/base/common/collections';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { binarySearch } from 'vs/base/common/arrays';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 class FlatOutline {
 
@@ -78,7 +78,7 @@ export class OutlineNavigation implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
 	) {
 		this._editor = editor;
 	}
@@ -104,7 +104,7 @@ export class OutlineNavigation implements IEditorContribution {
 
 		this._cts = new EditorStateCancellationTokenSource(this._editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Scroll);
 
-		const filter = new OutlineFilter('outline', this._configService);
+		const filter = new OutlineFilter('outline', this._textResourceConfigService);
 		const outlineModel = await OutlineModel.create(textModel, this._cts.token);
 
 		if (this._cts.token.isCancellationRequested) {

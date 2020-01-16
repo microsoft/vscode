@@ -436,7 +436,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion.
+	 * this completion. When `falsy` the [label](#CompletionItem.label)
 	 * is used.
 	 */
 	insertText: string;
@@ -481,6 +481,7 @@ export interface CompletionItem {
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
+	isDetailsResolved?: boolean;
 	dispose?(): void;
 }
 
@@ -554,8 +555,8 @@ export interface CodeAction {
 /**
  * @internal
  */
-export const enum CodeActionTrigger {
-	Automatic = 1,
+export const enum CodeActionTriggerType {
+	Auto = 1,
 	Manual = 2,
 }
 
@@ -564,7 +565,7 @@ export const enum CodeActionTrigger {
  */
 export interface CodeActionContext {
 	only?: string;
-	trigger: CodeActionTrigger;
+	trigger: CodeActionTriggerType;
 }
 
 export interface CodeActionList extends IDisposable {
@@ -586,6 +587,11 @@ export interface CodeActionProvider {
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
+
+	/**
+	 * @internal
+	 */
+	_getAdditionalMenuItems?(context: CodeActionContext, actions: readonly CodeAction[]): Command[];
 }
 
 /**
@@ -1246,9 +1252,9 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 }
 
 export interface ResourceFileEdit {
-	oldUri: URI;
-	newUri: URI;
-	options: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	oldUri?: URI;
+	newUri?: URI;
+	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
 }
 
 export interface ResourceTextEdit {
@@ -1274,6 +1280,14 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+/**
+ * @internal
+ */
+export interface Session {
+	id: string;
+	accessToken: string;
+	displayName: string;
+}
 
 export interface Command {
 	id: string;
@@ -1465,31 +1479,31 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
-export interface SemanticColoringLegend {
+export interface SemanticTokensLegend {
 	readonly tokenTypes: string[];
 	readonly tokenModifiers: string[];
 }
 
-export interface SemanticColoringArea {
-	/**
-	 * The zero-based line value where this token block begins.
-	 */
-	readonly line: number;
-	/**
-	 * The actual token block encoded data.
-	 */
+export interface SemanticTokens {
+	readonly resultId?: string;
 	readonly data: Uint32Array;
-
 }
 
-export interface SemanticColoring {
-	readonly areas: SemanticColoringArea[];
-	dispose(): void;
+export interface SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
 }
 
-export interface SemanticColoringProvider {
-	getLegend(): SemanticColoringLegend;
-	provideSemanticColoring(model: model.ITextModel, token: CancellationToken): ProviderResult<SemanticColoring>;
+export interface SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+}
+
+export interface SemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseSemanticTokens(resultId: string | undefined): void;
 }
 
 // --- feature registries ------
@@ -1597,7 +1611,7 @@ export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingR
 /**
  * @internal
  */
-export const SemanticColoringProviderRegistry = new LanguageFeatureRegistry<SemanticColoringProvider>();
+export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
 
 /**
  * @internal

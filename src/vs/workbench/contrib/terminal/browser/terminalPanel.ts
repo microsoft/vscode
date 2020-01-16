@@ -88,7 +88,7 @@ export class TerminalPanel extends Panel {
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
 						run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
 					}];
-					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
+					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart VS Code if this is a newly installed font."), choices);
 				}
 			}
 		}));
@@ -97,18 +97,14 @@ export class TerminalPanel extends Panel {
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
-				if (this._terminalService.terminalInstances.length > 0) {
-					this._updateFont();
-					this._updateTheme();
-				} else {
-					// Check if instances were already restored as part of workbench restore
-					if (this._terminalService.terminalInstances.length === 0) {
-						this._terminalService.createTerminal();
-					}
-					if (this._terminalService.terminalInstances.length > 0) {
-						this._updateFont();
-						this._updateTheme();
-					}
+				const hadTerminals = this._terminalService.terminalInstances.length > 0;
+				if (!hadTerminals) {
+					this._terminalService.createTerminal();
+				}
+				this._updateFont();
+				this._updateTheme();
+				if (hadTerminals) {
+					this._terminalService.getActiveTab()?.setVisible(visible);
 				}
 			}
 		}));

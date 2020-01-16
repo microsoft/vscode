@@ -12,7 +12,7 @@ import { ConfigurationModel } from 'vs/platform/configuration/common/configurati
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assign } from 'vs/base/common/objects';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -608,7 +608,7 @@ suite('ExtHostConfiguration', function () {
 			createConfigurationData({
 				'farboo': {
 					'config': false,
-					'updatedconfig': false
+					'updatedConfig': false
 				}
 			}),
 			new NullLogService()
@@ -617,29 +617,16 @@ suite('ExtHostConfiguration', function () {
 		const newConfigData = createConfigurationData({
 			'farboo': {
 				'config': false,
-				'updatedconfig': true,
+				'updatedConfig': true,
 				'newConfig': true,
 			}
 		});
-		const changedConfigurationByResource = Object.create({});
-		changedConfigurationByResource[workspaceFolder.uri.toString()] = new ConfigurationModel({
-			'farboo': {
-				'newConfig': true,
-			}
-		}, ['farboo.newConfig']);
-		const configEventData = {
-			changedConfiguration: new ConfigurationModel({
-				'farboo': {
-					'updatedConfig': true,
-				}
-			}, ['farboo.updatedConfig']),
-			changedConfigurationByResource
-		};
+		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig', 'farboo.newConfig'], overrides: [] };
 		testObject.onDidChangeConfiguration(e => {
 
 			assert.deepEqual(testObject.getConfiguration().get('farboo'), {
 				'config': false,
-				'updatedconfig': true,
+				'updatedConfig': true,
 				'newConfig': true,
 			});
 
@@ -653,7 +640,7 @@ suite('ExtHostConfiguration', function () {
 
 			assert.ok(e.affectsConfiguration('farboo.newConfig'));
 			assert.ok(e.affectsConfiguration('farboo.newConfig', workspaceFolder.uri));
-			assert.ok(!e.affectsConfiguration('farboo.newConfig', URI.file('any')));
+			assert.ok(e.affectsConfiguration('farboo.newConfig', URI.file('any')));
 
 			assert.ok(!e.affectsConfiguration('farboo.config'));
 			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));

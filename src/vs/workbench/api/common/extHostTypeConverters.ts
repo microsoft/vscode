@@ -10,7 +10,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -30,6 +30,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 
 export interface PositionLike {
 	line: number;
@@ -289,20 +290,27 @@ export namespace MarkdownString {
 		if (!data) {
 			return part;
 		}
+		let changed = false;
 		data = cloneAndChange(data, value => {
 			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
+				changed = true;
 				return key;
 			} else {
 				return undefined;
 			}
 		});
-		return encodeURIComponent(JSON.stringify(data));
+
+		if (!changed) {
+			return part;
+		}
+
+		return JSON.stringify(data);
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		return new htmlContent.MarkdownString(value.value, value.isTrusted);
+		return new htmlContent.MarkdownString(value.value, { isTrusted: value.isTrusted, supportThemeIcons: value.supportThemeIcons });
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
@@ -823,7 +831,7 @@ export namespace CompletionItemKind {
 
 export namespace CompletionItem {
 
-	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
+	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
@@ -837,14 +845,17 @@ export namespace CompletionItem {
 		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : undefined;
 		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
-		// 'inserText'-logic
+		// 'insertText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
 			result.textEdit = result.range instanceof types.Range ? new types.TextEdit(result.range, result.insertText) : undefined;
 		}
-		// TODO additionalEdits, command
+		if (suggestion.additionalTextEdits && suggestion.additionalTextEdits.length > 0) {
+			result.additionalTextEdits = suggestion.additionalTextEdits.map(e => TextEdit.to(e as modes.TextEdit));
+		}
+		result.command = converter && suggestion.command ? converter.fromInternal(suggestion.command) : undefined;
 
 		return result;
 	}

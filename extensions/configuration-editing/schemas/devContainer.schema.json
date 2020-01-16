@@ -1,5 +1,5 @@
 {
-	"$schema": "http://json-schema.org/schema#",
+	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
 	"type": "object",
@@ -15,7 +15,9 @@
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
-						"type": "string"
+						"type": "string",
+						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)$",
+						"errorMessage": "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'."
 					}
 				},
 				"settings": {
@@ -31,6 +33,10 @@
 						]
 					},
 					"description": "Remote environment variables."
+				},
+				"remoteUser": {
+					"type": "string",
+					"description": "The user VS Code Server will be started with. The default is the same user as the container."
 				},
 				"postCreateCommand": {
 					"type": [
@@ -71,6 +77,21 @@
 						"type": "string"
 					},
 					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"updateRemoteUserUID": {
+					"type": "boolean",
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"type": "string"
+					}
 				},
 				"runArgs": {
 					"type": "array",

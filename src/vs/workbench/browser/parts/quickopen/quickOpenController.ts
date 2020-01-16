@@ -726,7 +726,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private resource: URI | undefined;
 	private label: string;
 	private description?: string;
-	private dirty: boolean;
+	private icon: string;
 
 	constructor(
 		input: IEditorInput | IResourceInput,
@@ -747,22 +747,29 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.resource = resourceForEditorHistory(input, fileService);
 			this.label = input.getName();
 			this.description = input.getDescription();
-			this.dirty = input.isDirty();
+			this.icon = this.getDirtyIndicatorForEditor(input);
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = resources.basenameOrAuthority(resourceInput.resource);
 			this.description = labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
-			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
-
-			if (this.dirty && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
-			}
+			this.icon = this.getDirtyIndicatorForEditor(resourceInput);
 		}
 	}
 
+	private getDirtyIndicatorForEditor(input: EditorInput | IResourceInput): string {
+		let signalDirty = false;
+		if (input instanceof EditorInput) {
+			signalDirty = input.isDirty() && !input.isSaving();
+		} else {
+			signalDirty = this.textFileService.isDirty(input.resource) && this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY;
+		}
+
+		return signalDirty ? 'codicon codicon-circle-filled' : '';
+	}
+
 	getIcon(): string {
-		return this.dirty ? 'dirty' : '';
+		return this.icon;
 	}
 
 	getLabel(): string {

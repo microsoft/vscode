@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -32,7 +32,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 	constructor(
 		private readonly modelService: IModelService,
-		private readonly untitledTextEditorService: IUntitledTextEditorService,
+		private readonly textFileService: ITextFileService,
 		private readonly editorService: IEditorService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly logService: ILogService,
@@ -59,7 +59,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -83,7 +83,11 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 		};
 
-		return this.doSearch(query, token, onProviderProgress);
+		const otherResults = await this.doSearch(query, token, onProviderProgress);
+		return {
+			...otherResults,
+			results: [...otherResults.results, ...arrays.coalesce(localResults.values())]
+		};
 	}
 
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
@@ -391,15 +395,26 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
+				// Skip search results
+				if (model.getModeId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
+					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
+					return;
+				}
+
 				// Support untitled files
 				if (resource.scheme === Schemas.untitled) {
-					if (!this.untitledTextEditorService.exists(resource)) {
+					if (!this.textFileService.untitled.exists(resource)) {
 						return;
 					}
 				}
 
 				// Block walkthrough, webview, etc.
 				else if (!this.fileService.canHandleResource(resource)) {
+					return;
+				}
+
+				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
+				if (resource.scheme === 'gitfs') {
 					return;
 				}
 
@@ -442,14 +457,14 @@ export class SearchService extends Disposable implements ISearchService {
 export class RemoteSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService
 	) {
-		super(modelService, untitledTextEditorService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, textFileService, editorService, telemetryService, logService, extensionService, fileService);
 	}
 }
 

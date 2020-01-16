@@ -6,7 +6,7 @@
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import * as assert from 'assert';
 import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, comments, variables, types, functions, keywords, numbers, strings, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { Color } from 'vs/base/common/color';
 import { isString } from 'vs/base/common/types';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -49,9 +49,9 @@ function assertTokenStyle(actual: TokenStyle | undefined | null, expected: Token
 	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
-function assertTokenStyleMetaData(colorIndex: string[], actual: number, expected: TokenStyle | undefined | null, message?: string) {
-	if (!expected) {
-		assert.equal(actual, 0);
+function assertTokenStyleMetaData(colorIndex: string[], actual: number | undefined, expected: TokenStyle | undefined | null, message?: string) {
+	if (expected === undefined || expected === null || actual === undefined) {
+		assert.equal(actual, expected, message);
 		return;
 	}
 	const actualFontStyle = TokenMetadata.getFontStyle(actual);
@@ -74,14 +74,16 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 	const colorIndex = themeData.tokenColorMap;
 
 	for (let qualifiedClassifier in expected) {
-		const classification = tokenClassificationRegistry.getTokenClassificationFromString(qualifiedClassifier);
+		const [type, ...modifiers] = qualifiedClassifier.split('.');
+
+		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 		assert.ok(classification, 'Classification not found');
 
 		const tokenStyle = themeData.getTokenStyle(classification!);
 		const expectedTokenStyle = expected[qualifiedClassifier];
 		assertTokenStyle(tokenStyle, expectedTokenStyle, qualifiedClassifier);
 
-		const tokenStyleMetaData = themeData.getTokenStyleMetadata(classification!);
+		const tokenStyleMetaData = themeData.getTokenStyleMetadata(type, modifiers);
 		assertTokenStyleMetaData(colorIndex, tokenStyleMetaData, expectedTokenStyle);
 	}
 }
@@ -105,13 +107,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#88846f', undefinedStyle),
-			[variables]: ts('#F8F8F2', unsetStyle),
-			[types]: ts('#A6E22E', { underline: true }),
-			[functions]: ts('#A6E22E', unsetStyle),
-			[strings]: ts('#E6DB74', undefinedStyle),
-			[numbers]: ts('#AE81FF', undefinedStyle),
-			[keywords]: ts('#F92672', undefinedStyle)
+			'comment': ts('#88846f', undefinedStyle),
+			'variable': ts('#F8F8F2', unsetStyle),
+			'type': ts('#A6E22E', { underline: true }),
+			'function': ts('#A6E22E', unsetStyle),
+			'string': ts('#E6DB74', undefinedStyle),
+			'number': ts('#AE81FF', undefinedStyle),
+			'keyword': ts('#F92672', undefinedStyle)
 		});
 
 	});
@@ -125,13 +127,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#6A9955', undefinedStyle),
-			[variables]: ts('#9CDCFE', undefinedStyle),
-			[types]: ts('#4EC9B0', undefinedStyle),
-			[functions]: ts('#DCDCAA', undefinedStyle),
-			[strings]: ts('#CE9178', undefinedStyle),
-			[numbers]: ts('#B5CEA8', undefinedStyle),
-			[keywords]: ts('#C586C0', undefinedStyle)
+			'comment': ts('#6A9955', undefinedStyle),
+			'variable': ts('#9CDCFE', undefinedStyle),
+			'type': ts('#4EC9B0', undefinedStyle),
+			'function': ts('#DCDCAA', undefinedStyle),
+			'string': ts('#CE9178', undefinedStyle),
+			'number': ts('#B5CEA8', undefinedStyle),
+			'keyword': ts('#C586C0', undefinedStyle)
 		});
 
 	});
@@ -145,13 +147,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#008000', undefinedStyle),
-			[variables]: ts(undefined, undefinedStyle),
-			[types]: ts(undefined, undefinedStyle),
-			[functions]: ts(undefined, undefinedStyle),
-			[strings]: ts('#a31515', undefinedStyle),
-			[numbers]: ts('#09885a', undefinedStyle),
-			[keywords]: ts('#0000ff', undefinedStyle)
+			'comment': ts('#008000', undefinedStyle),
+			'variable': ts(undefined, undefinedStyle),
+			'type': ts(undefined, undefinedStyle),
+			'function': ts(undefined, undefinedStyle),
+			'string': ts('#a31515', undefinedStyle),
+			'number': ts('#09885a', undefinedStyle),
+			'keyword': ts('#0000ff', undefinedStyle)
 		});
 
 	});
@@ -165,13 +167,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#7ca668', undefinedStyle),
-			[variables]: ts('#9CDCFE', undefinedStyle),
-			[types]: ts('#4EC9B0', undefinedStyle),
-			[functions]: ts('#DCDCAA', undefinedStyle),
-			[strings]: ts('#ce9178', undefinedStyle),
-			[numbers]: ts('#b5cea8', undefinedStyle),
-			[keywords]: ts('#C586C0', undefinedStyle)
+			'comment': ts('#7ca668', undefinedStyle),
+			'variable': ts('#9CDCFE', undefinedStyle),
+			'type': ts('#4EC9B0', undefinedStyle),
+			'function': ts('#DCDCAA', undefinedStyle),
+			'string': ts('#ce9178', undefinedStyle),
+			'number': ts('#b5cea8', undefinedStyle),
+			'keyword': ts('#C586C0', undefinedStyle)
 		});
 
 	});
@@ -185,13 +187,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#a57a4c', undefinedStyle),
-			[variables]: ts('#dc3958', undefinedStyle),
-			[types]: ts('#f06431', undefinedStyle),
-			[functions]: ts('#8ab1b0', undefinedStyle),
-			[strings]: ts('#889b4a', undefinedStyle),
-			[numbers]: ts('#f79a32', undefinedStyle),
-			[keywords]: ts('#98676a', undefinedStyle)
+			'comment': ts('#a57a4c', undefinedStyle),
+			'variable': ts('#dc3958', undefinedStyle),
+			'type': ts('#f06431', undefinedStyle),
+			'function': ts('#8ab1b0', undefinedStyle),
+			'string': ts('#889b4a', undefinedStyle),
+			'number': ts('#f79a32', undefinedStyle),
+			'keyword': ts('#98676a', undefinedStyle)
 		});
 
 	});
@@ -205,13 +207,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#384887', undefinedStyle),
-			[variables]: ts(undefined, unsetStyle),
-			[types]: ts('#ffeebb', { underline: true }),
-			[functions]: ts('#ddbb88', unsetStyle),
-			[strings]: ts('#22aa44', undefinedStyle),
-			[numbers]: ts('#f280d0', undefinedStyle),
-			[keywords]: ts('#225588', undefinedStyle)
+			'comment': ts('#384887', undefinedStyle),
+			'variable': ts(undefined, unsetStyle),
+			'type': ts('#ffeebb', { underline: true }),
+			'function': ts('#ddbb88', unsetStyle),
+			'string': ts('#22aa44', undefinedStyle),
+			'number': ts('#f280d0', undefinedStyle),
+			'keyword': ts('#225588', undefinedStyle)
 		});
 
 	});
@@ -299,23 +301,23 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
 		themeData.setCustomColors({ 'editor.foreground': '#000000' });
 		themeData.setCustomTokenStyleRules({
-			'types': '#ff0000',
-			'classes': { foreground: '#0000ff', fontStyle: 'italic' },
+			'type': '#ff0000',
+			'class': { foreground: '#0000ff', fontStyle: 'italic' },
 			'*.static': { fontStyle: 'bold' },
 			'*.declaration': { fontStyle: 'italic' },
 			'*.async.static': { fontStyle: 'italic underline' },
-			'*.async': { foreground: '#000fff', fontStyle: '-italic underline' }
+			'*.async': { foreground: '#000fff', fontStyle: 'underline' }
 		});
 
 		assertTokenStyles(themeData, {
-			'types': ts('#ff0000', undefinedStyle),
-			'types.static': ts('#ff0000', { bold: true }),
-			'types.static.declaration': ts('#ff0000', { bold: true, italic: true }),
-			'classes': ts('#0000ff', { italic: true }),
-			'classes.static.declaration': ts('#0000ff', { bold: true, italic: true }),
-			'classes.declaration': ts('#0000ff', { italic: true }),
-			'classes.declaration.async': ts('#000fff', { underline: true, italic: false }),
-			'classes.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
+			'type': ts('#ff0000', undefinedStyle),
+			'type.static': ts('#ff0000', { bold: true }),
+			'type.static.declaration': ts('#ff0000', { bold: true, italic: true }),
+			'class': ts('#0000ff', { italic: true }),
+			'class.static.declaration': ts('#0000ff', { bold: true, italic: true }),
+			'class.declaration': ts('#0000ff', { italic: true }),
+			'class.declaration.async': ts('#000fff', { underline: true, italic: true }),
+			'class.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
 		});
 
 	});

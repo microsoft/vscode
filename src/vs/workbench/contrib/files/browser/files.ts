@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { OpenEditor } from 'vs/workbench/contrib/files/common/files';
+import { OpenEditor, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { toResource, SideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -53,19 +53,15 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	return editorService.activeEditor ? toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : undefined;
 }
 
-export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): Array<URI> {
+export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		// Explorer
-		if (list instanceof AsyncDataTree) {
-			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);
-			const focusedElements = list.getFocus();
-			const focus = focusedElements.length ? focusedElements[0] : undefined;
-			const mainUriStr = URI.isUri(resource) ? resource.toString() : focus instanceof ExplorerItem ? focus.resource.toString() : undefined;
-			// If the resource is passed it has to be a part of the returned context.
-			// We only respect the selection if it contains the focused element.
-			if (selection.some(s => URI.isUri(s) && s.toString() === mainUriStr)) {
-				return selection;
+		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
+			// Explorer
+			const context = explorerService.getContext(true);
+			if (context.length) {
+				return context.map(c => c.resource);
 			}
 		}
 

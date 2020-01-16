@@ -13,7 +13,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG, IFileService } from 'vs/platform/files/common/files';
@@ -260,7 +260,7 @@ class ResourceLabelWidget extends IconLabel {
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(container, options);
@@ -390,7 +390,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		let description: string | undefined;
-		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledTextEditorService.hasAssociatedFilePath(resource));
+		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource));
 		if (!hidePath) {
 			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
 		}
@@ -444,7 +444,8 @@ class ResourceLabelWidget extends IconLabel {
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
 			extraClasses: [],
-			separator: this.options?.separator
+			separator: this.options?.separator,
+			domId: this.options?.domId
 		};
 
 		const resource = this.label.resource;

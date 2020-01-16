@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TokenClassification } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -19,7 +18,6 @@ export const VS_HC_THEME = 'hc-black';
 export const HC_THEME_ID = 'Default High Contrast';
 
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
-export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
@@ -33,16 +31,6 @@ export interface IColorTheme extends ITheme {
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors: ITextMateThemingRule[];
-
-	/**
-	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
-	 */
-	getTokenStyleMetadata(classification: TokenClassification): number;
-
-	/**
-	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.
-	 */
-	readonly tokenColorMap: string[];
 }
 
 export interface IColorMap {

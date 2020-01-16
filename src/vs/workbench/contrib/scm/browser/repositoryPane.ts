@@ -7,7 +7,7 @@ import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMRepository, ISCMResourceGroup, ISCMResource } from 'vs/workbench/contrib/scm/common/scm';
@@ -59,6 +59,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -591,7 +592,7 @@ export class ToggleViewModeAction extends Action {
 // 	}
 // }
 
-export class RepositoryPane extends ViewletPane {
+export class RepositoryPane extends ViewPane {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -609,7 +610,7 @@ export class RepositoryPane extends ViewletPane {
 
 	constructor(
 		readonly repository: ISCMRepository,
-		options: IViewletPaneOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -624,7 +625,7 @@ export class RepositoryPane extends ViewletPane {
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -1004,7 +1005,7 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 
 	readonly id: string;
 	readonly name: string;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<RepositoryPane>;
 	readonly canToggleVisibility = true;
 	readonly order = -500;
 	readonly workspace = true;
@@ -1017,6 +1018,6 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 		this.id = `scm:repository:${hasher.value}`;
 		this.name = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
 
-		this.ctorDescriptor = { ctor: RepositoryPane, arguments: [repository] };
+		this.ctorDescriptor = new SyncDescriptor(RepositoryPane, [repository]);
 	}
 }

@@ -19,13 +19,14 @@
     "jsonc-parser": "^2.1.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
+    "typescript-vscode-sh-plugin": "^0.6.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
-    "@types/semver": "^5.5.0",
     "@types/rimraf": "2.0.2",
+    "@types/semver": "^5.5.0",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -45,10 +46,20 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
+    "onCommand:_typescript.learnMoreAboutRefactorings",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {
+    "documentation": {
+      "refactoring": [
+        {
+          "title": "%documentation.refactoring.title%",
+          "when": "typescript.isManagedFile",
+          "command": "_typescript.learnMoreAboutRefactorings"
+        }
+      ]
+    },
     "jsonValidation": [
       {
         "fileMatch": "package.json",
@@ -159,10 +170,22 @@
           "description": "%javascript.referencesCodeLens.enabled%",
           "scope": "window"
         },
+        "javascript.referencesCodeLens.showOnAllFunctions": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.referencesCodeLens.showOnAllFunctions%",
+          "scope": "window"
+        },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
           "description": "%typescript.referencesCodeLens.enabled%",
+          "scope": "window"
+        },
+        "typescript.referencesCodeLens.showOnAllFunctions": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.referencesCodeLens.showOnAllFunctions%",
           "scope": "window"
         },
         "typescript.implementationsCodeLens.enabled": {
@@ -930,6 +953,11 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
+      }
+    ],
+    "typescriptServerPlugins": [
+      {
+        "name": "typescript-vscode-sh-plugin"
       }
     ]
   }

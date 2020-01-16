@@ -7,6 +7,7 @@ import * as Proto from '../protocol';
 import { escapeRegExp } from '../utils/regexp';
 import { TypeScriptVersion } from '../utils/versionProvider';
 
+
 export class TypeScriptServerError extends Error {
 	public static create(
 		serverId: string,
@@ -30,6 +31,23 @@ export class TypeScriptServerError extends Error {
 	public get serverErrorText() { return this.response.message; }
 
 	public get serverCommand() { return this.response.command; }
+
+	public get telemetry() {
+		/* __GDPR__FRAGMENT__
+			"TypeScriptRequestErrorProperties" : {
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		return {
+			command: this.serverCommand,
+			message: this.serverMessage || '',
+			stack: this.serverStack || '',
+			errortext: this.serverErrorText || '',
+		} as const;
+	}
 
 	/**
 	 * Given a `errorText` from a tsserver request indicating failure in handling a request,

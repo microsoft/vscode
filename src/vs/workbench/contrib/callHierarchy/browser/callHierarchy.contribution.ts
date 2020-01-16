@@ -22,8 +22,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
-const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
+const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
 
 class CallHierarchyController implements IEditorContribution {
@@ -51,7 +52,7 @@ class CallHierarchyController implements IEditorContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
-		this._ctxHasProvider = _ctxHasCompletionItemProvider.bindTo(this._contextKeyService);
+		this._ctxHasProvider = _ctxHasCallHierarchyProvider.bindTo(this._contextKeyService);
 		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
 			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
 		}));
@@ -161,8 +162,9 @@ registerEditorAction(class extends EditorAction {
 			label: localize('title', "Peek Call Hierarchy"),
 			alias: 'Peek Call Hierarchy',
 			contextMenuOpts: {
+				menuId: MenuId.EditorContextPeek,
 				group: 'navigation',
-				order: 1.48
+				order: 1000
 			},
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -170,8 +172,7 @@ registerEditorAction(class extends EditorAction {
 				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
 			},
 			precondition: ContextKeyExpr.and(
-				_ctxCallHierarchyVisible.negate(),
-				_ctxHasCompletionItemProvider,
+				_ctxHasCallHierarchyProvider,
 				PeekContext.notInPeekEditor
 			)
 		});

@@ -16,7 +16,7 @@ import { ConfigurationDependentRegistration } from '../utils/dependentRegistrati
 import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
@@ -150,17 +150,18 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 				return vscode.CompletionItemKind.Keyword;
 			case PConst.Kind.const:
-				return vscode.CompletionItemKind.Constant;
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 			case PConst.Kind.alias:
+			case PConst.Kind.parameter:
 				return vscode.CompletionItemKind.Variable;
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
 			case PConst.Kind.function:
+			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.constructSignature:
@@ -169,6 +170,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.Method;
 			case PConst.Kind.enum:
 				return vscode.CompletionItemKind.Enum;
+			case PConst.Kind.enumMember:
+				return vscode.CompletionItemKind.EnumMember;
 			case PConst.Kind.module:
 			case PConst.Kind.externalModuleName:
 				return vscode.CompletionItemKind.Module;
@@ -402,15 +405,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
 				this.telemetryReporter.logTelemetry('completions.execute', {
-					duration: duration + '',
-					type: response ? response.type : 'unknown',
-					count: (response && response.type === 'response' && response.body ? response.body.entries.length : 0) + ''
+					duration: duration,
+					type: response?.type ?? 'unknown',
+					count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
+					updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
 				});
 			}
 

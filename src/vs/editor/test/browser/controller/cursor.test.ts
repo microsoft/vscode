@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder, IConfiguration } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -25,6 +25,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/tes
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 const H = Handler;
 
@@ -130,6 +131,11 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 	assert.deepEqual(actual, expected);
 }
 
+function createViewModel(configuration: IConfiguration, model: ITextModel): ViewModel {
+	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
+	return new ViewModel(0, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
+}
+
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
@@ -152,7 +158,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = createTextModel(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
+		thisViewModel = createViewModel(thisConfiguration, thisModel);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -726,7 +732,7 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('combining marks', () => {
+	test('grapheme breaking', () => {
 		withTestCodeEditor([
 			'abcabc',
 			'ãããããã',
@@ -776,7 +782,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -816,7 +822,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -880,7 +886,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -929,7 +935,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -2074,7 +2080,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -2269,6 +2275,64 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, [
 				new Selection(1, 1, 1, 1),
 			]);
+		});
+
+		model.dispose();
+	});
+
+	test('issue #85712: Paste line moves cursor to start of current line rather than start of next line', () => {
+		let model = createTextModel(
+			[
+				'abc123',
+				''
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(2, 1, 2, 1)
+			]);
+			cursorCommand(cursor, H.Paste, { text: 'something\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'abc123',
+				'something',
+				''
+			].join('\n'));
+			assertCursor(cursor, new Position(3, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #84897: Left delete behavior in some languages is changed', () => {
+		let model = createTextModel(
+			[
+				'สวัสดี'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 7, 1, 7)
+			]);
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวัส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวั');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สว');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'ส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), '');
 		});
 
 		model.dispose();
@@ -2630,7 +2694,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(4, 1));
+			assertCursor(cursor, new Position(5, 1));
 		});
 
 		model.dispose();
@@ -2834,7 +2898,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2857,7 +2921,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
@@ -2876,7 +2940,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
 			assertCursor(cursor, new Selection(2, 15, 2, 15));
@@ -2896,7 +2960,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
@@ -2924,7 +2988,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
@@ -2948,7 +3012,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
@@ -3084,7 +3148,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
@@ -3554,7 +3618,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 4, 7, false);
 			assertCursor(cursor, new Selection(4, 7, 4, 7));
 
@@ -3615,7 +3679,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3664,7 +3728,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 7, 6, false);
 			assertCursor(cursor, new Selection(7, 6, 7, 6));
 
@@ -3728,7 +3792,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 8, 1, false);
 			assertCursor(cursor, new Selection(8, 1, 8, 1));
 
@@ -3791,7 +3855,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 3, 19, false);
 			assertCursor(cursor, new Selection(3, 19, 3, 19));
 
@@ -3834,7 +3898,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cur
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts || {});
-	let viewModel = new ViewModel(0, config, model, null!);
+	let viewModel = createViewModel(config, model);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);

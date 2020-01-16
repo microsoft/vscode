@@ -17,7 +17,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewletPaneOptions, ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -37,7 +37,7 @@ let forgetScopes = true;
 
 export const variableSetEmitter = new Emitter<void>();
 
-export class VariablesView extends ViewletPane {
+export class VariablesView extends ViewPane {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh = false;
@@ -50,11 +50,11 @@ export class VariablesView extends ViewletPane {
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
@@ -185,7 +185,7 @@ export class VariablesView extends ViewletPane {
 				if (dataid) {
 					actions.push(new Separator());
 					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
-						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
+						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist, response.accessTypes);
 					}));
 				}
 			}

@@ -22,7 +22,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { equalsIgnoreCase, format, startsWithIgnoreCase, startsWith } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
@@ -35,6 +35,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -134,6 +135,7 @@ export class SimpleFileDialog {
 		@IModeService private readonly modeService: IModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -154,8 +156,8 @@ export class SimpleFileDialog {
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
-		this.userHome = await this.getUserHome();
-		const newOptions = await this.getOptions(options);
+		this.userHome = await this.remotePathService.userHome;
+		const newOptions = this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -165,9 +167,9 @@ export class SimpleFileDialog {
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
-		this.userHome = await this.getUserHome();
+		this.userHome = await this.remotePathService.userHome;
 		this.requiresTrailing = true;
-		const newOptions = await this.getOptions(options, true);
+		const newOptions = this.getOptions(options, true);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -205,8 +207,11 @@ export class SimpleFileDialog {
 	}
 
 	private remoteUriFrom(path: string): URI {
-		path = path.replace(/\\/g, '/');
-		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
+		if (!startsWith(path, '\\\\')) {
+			path = path.replace(/\\/g, '/');
+		}
+		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
+		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
@@ -224,16 +229,6 @@ export class SimpleFileDialog {
 			this.remoteAgentEnvironment = await this.remoteAgentService.getEnvironment();
 		}
 		return this.remoteAgentEnvironment;
-	}
-
-	private async getUserHome(): Promise<URI> {
-		if (this.scheme !== Schemas.file) {
-			const env = await this.getRemoteAgentEnvironment();
-			if (env) {
-				return env.userHome;
-			}
-		}
-		return URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
@@ -553,7 +548,7 @@ export class SimpleFileDialog {
 			} else if (this.endsWithSlash(value)) {
 				// The input box contains a path that doesn't exist on the system.
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
-				// Save this bad path. It can take too long to to a stat on every user entered character, but once a user enters a bad path they are likely
+				// Save this bad path. It can take too long to a stat on every user entered character, but once a user enters a bad path they are likely
 				// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
 				this.badPath = value;
 				return UpdateResult.InvalidPath;
@@ -661,7 +656,7 @@ export class SimpleFileDialog {
 
 	private addPostfix(uri: URI): URI {
 		let result = uri;
-		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0) {
+		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0 && !resources.hasTrailingPathSeparator(uri)) {
 			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
 			let hasExt: boolean = false;
 			const currentExt = resources.extname(uri).substr(1);

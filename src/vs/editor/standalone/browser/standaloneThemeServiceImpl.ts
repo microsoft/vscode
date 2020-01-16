@@ -129,6 +129,14 @@ class StandaloneTheme implements IStandaloneTheme {
 		}
 		return this._tokenTheme;
 	}
+
+	public getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+		return undefined;
+	}
+
+	public get tokenColorMap(): string[] {
+		return [];
+	}
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {

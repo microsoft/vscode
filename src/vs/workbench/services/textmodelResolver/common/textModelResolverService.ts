@@ -38,7 +38,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
-			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
+			return this.textFileService.files.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
 		}
 
 		// Virtual documents
@@ -64,7 +64,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		modelPromise.then(model => {
 			if (this.modelsToDispose.has(key)) {
 				if (model instanceof TextFileEditorModel) {
-					this.textFileService.models.disposeModel(model);
+					this.textFileService.files.disposeModel(model);
 				} else {
 					model.dispose();
 				}
@@ -143,7 +143,7 @@ export class TextModelResolverService implements ITextModelService {
 		if (resource.scheme === network.Schemas.untitled) {
 			const model = await this.untitledTextEditorService.loadOrCreate({ resource });
 
-			return new ImmortalReference(model as IResolvedTextEditorModel);
+			return new ImmortalReference(model);
 		}
 
 		// InMemory Schema: go through model service cache
@@ -175,6 +175,10 @@ export class TextModelResolverService implements ITextModelService {
 	}
 
 	hasTextModelContentProvider(scheme: string): boolean {
+		if (scheme === network.Schemas.untitled || scheme === network.Schemas.inMemory) {
+			return true; // we handle untitled:// and inMemory:// within
+		}
+
 		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }

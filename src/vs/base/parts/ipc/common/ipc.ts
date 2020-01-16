@@ -187,7 +187,7 @@ const BufferPresets = {
 	Object: createOneByteBuffer(DataType.Object),
 };
 
-declare var Buffer: any;
+declare const Buffer: any;
 const hasBuffer = (typeof Buffer !== 'undefined');
 
 function serialize(writer: IWriter, data: any): void {
@@ -553,7 +553,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			}
 		});
 
-		const handler: IHandler = (res: IRawEventFireResponse) => emitter.fire(res.data);
+		const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
 		this.handlers.set(id, handler);
 
 		return emitter.event;

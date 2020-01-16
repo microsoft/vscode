@@ -11,7 +11,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -256,6 +256,20 @@ function migrateOptions(options: IEditorOptions): void {
 			enabled: false
 		};
 	}
+
+	const autoIndent = options.autoIndent;
+	if (<any>autoIndent === true) {
+		options.autoIndent = 'full';
+	} else if (<any>autoIndent === false) {
+		options.autoIndent = 'advanced';
+	}
+
+	const matchBrackets = options.matchBrackets;
+	if (<any>matchBrackets === true) {
+		options.matchBrackets = 'always';
+	} else if (<any>matchBrackets === false) {
+		options.matchBrackets = 'never';
+	}
 }
 
 function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
@@ -264,7 +278,7 @@ function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
 	return options;
 }
 
-export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
+export abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
@@ -294,7 +308,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
-	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
+	public observeReferenceElement(dimension?: IDimension): void {
 	}
 
 	public dispose(): void {
@@ -418,8 +432,7 @@ export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
-	overridable: true,
-	scope: ConfigurationScope.RESOURCE,
+	scope: ConfigurationScope.RESOURCE_LANGUAGE,
 });
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);

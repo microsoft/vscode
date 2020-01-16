@@ -20,7 +20,7 @@ import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccess
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertType } from 'vs/base/common/types';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
@@ -44,8 +44,8 @@ export interface ICommandKeybindingsOptions extends IKeybindings {
 }
 export interface ICommandMenuOptions {
 	menuId: MenuId;
-	group?: string;
-	order?: number;
+	group: string;
+	order: number;
 	when?: ContextKeyExpr;
 	title: string;
 }
@@ -194,53 +194,42 @@ export interface IEditorActionContextMenuOptions {
 	group: string;
 	order: number;
 	when?: ContextKeyExpr;
+	menuId?: MenuId;
 }
-export interface IActionOptions {
-	id: string;
+export interface IActionOptions extends ICommandOptions {
 	label: string;
 	alias: string;
-	description?: ICommandHandlerDescription;
-	precondition: ContextKeyExpr | undefined;
-	kbOpts?: ICommandKeybindingsOptions;
-	contextMenuOpts?: IEditorActionContextMenuOptions;
-	menuOpts?: Partial<ICommandMenuOptions> | Partial<ICommandMenuOptions[]>;
+	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
 }
 
 export abstract class EditorAction extends EditorCommand {
 
 	private static convertOptions(opts: IActionOptions): ICommandOptions {
 
-		function patch(menu: Partial<ICommandMenuOptions>): ICommandMenuOptions {
-			if (!menu.title) {
-				menu.title = opts.label;
-			}
-			if (!menu.menuId) {
-				menu.menuId = MenuId.EditorContext;
-			}
-			if (!menu.when) {
-				menu.when = opts.precondition;
-			}
-			return <ICommandMenuOptions>menu;
-		}
-
 		let menuOpts: ICommandMenuOptions[];
 		if (Array.isArray(opts.menuOpts)) {
-			menuOpts = opts.menuOpts.map(m => patch(m!));
+			menuOpts = opts.menuOpts;
 		} else if (opts.menuOpts) {
-			menuOpts = [patch(opts.menuOpts)];
+			menuOpts = [opts.menuOpts];
 		} else {
 			menuOpts = [];
 		}
 
-		if (opts.contextMenuOpts) {
-			const contextMenuItem = {
-				title: opts.label,
-				when: ContextKeyExpr.and(opts.precondition, opts.contextMenuOpts.when),
-				menuId: MenuId.EditorContext,
-				group: opts.contextMenuOpts.group,
-				order: opts.contextMenuOpts.order
-			};
-			menuOpts.push(contextMenuItem);
+		function withDefaults(item: Partial<ICommandMenuOptions>): ICommandMenuOptions {
+			if (!item.menuId) {
+				item.menuId = MenuId.EditorContext;
+			}
+			if (!item.title) {
+				item.title = opts.label;
+			}
+			item.when = ContextKeyExpr.and(opts.precondition, item.when);
+			return <ICommandMenuOptions>item;
+		}
+
+		if (Array.isArray(opts.contextMenuOpts)) {
+			menuOpts.push(...opts.contextMenuOpts.map(withDefaults));
+		} else if (opts.contextMenuOpts) {
+			menuOpts.push(withDefaults(opts.contextMenuOpts));
 		}
 
 		opts.menuOpts = menuOpts;
@@ -322,6 +311,60 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 	});
 }
 
+export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
+	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+
+		const [resource, position] = args;
+		assertType(URI.isUri(resource));
+		assertType(Position.isIPosition(position));
+
+		const model = accessor.get(IModelService).getModel(resource);
+		if (model) {
+			const editorPosition = Position.lift(position);
+			return handler(model, editorPosition, args.slice(2));
+		}
+
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return new Promise((resolve, reject) => {
+				try {
+					const result = handler(reference.object.textEditorModel, Position.lift(position), args.slice(2));
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}).finally(() => {
+				reference.dispose();
+			});
+		});
+	});
+}
+
+export function registerModelCommand(id: string, handler: (model: ITextModel, ...args: any[]) => any) {
+	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+
+		const [resource] = args;
+		assertType(URI.isUri(resource));
+
+		const model = accessor.get(IModelService).getModel(resource);
+		if (model) {
+			return handler(model, args.slice(1));
+		}
+
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return new Promise((resolve, reject) => {
+				try {
+					const result = handler(reference.object.textEditorModel, args.slice(1));
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}).finally(() => {
+				reference.dispose();
+			});
+		});
+	});
+}
+
 export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
 	EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
 	return editorCommand;
@@ -388,7 +431,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }): void {
-		this.editorContributions.push({ id, ctor });
+		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor });
 	}
 
 	public getEditorContributions(): IEditorContributionDescription[] {
@@ -396,7 +439,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
-		this.diffEditorContributions.push({ id, ctor });
+		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
 	}
 
 	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {

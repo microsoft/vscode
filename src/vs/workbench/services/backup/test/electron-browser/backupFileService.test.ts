@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { BackupFilesModel } from 'vs/workbench/services/backup/common/backupFileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -51,14 +51,16 @@ class TestBackupEnvironmentService extends NativeWorkbenchEnvironmentService {
 	constructor(backupPath: string) {
 		super({ ...parseArgs(process.argv, OPTIONS), ...{ backupPath, 'user-data-dir': userdataDir } } as IWindowConfiguration, process.execPath, 0);
 	}
-
 }
 
-class TestBackupFileService extends BackupFileService {
+export class NodeTestBackupFileService extends BackupFileService {
 
 	readonly fileService: IFileService;
 
-	constructor(workspace: URI, backupHome: string, workspacesJsonPath: string) {
+	private backupResourceJoiners: Function[];
+	private discardBackupJoiners: Function[];
+
+	constructor(workspaceBackupPath: string) {
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 		const fileService = new FileService(new NullLogService());
 		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
@@ -68,18 +70,44 @@ class TestBackupFileService extends BackupFileService {
 		super(environmentService, fileService);
 
 		this.fileService = fileService;
+		this.backupResourceJoiners = [];
+		this.discardBackupJoiners = [];
 	}
 
 	toBackupResource(resource: URI): URI {
 		return super.toBackupResource(resource);
 	}
+
+	joinBackupResource(): Promise<void> {
+		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
+	}
+
+	async backupResource(resource: URI, content: ITextSnapshot, versionId?: number, meta?: any): Promise<void> {
+		await super.backupResource(resource, content, versionId, meta);
+
+		while (this.backupResourceJoiners.length) {
+			this.backupResourceJoiners.pop()!();
+		}
+	}
+
+	joinDiscardBackup(): Promise<void> {
+		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
+	}
+
+	async discardResourceBackup(resource: URI): Promise<void> {
+		await super.discardResourceBackup(resource);
+
+		while (this.discardBackupJoiners.length) {
+			this.discardBackupJoiners.pop()!();
+		}
+	}
 }
 
 suite('BackupFileService', () => {
-	let service: TestBackupFileService;
+	let service: NodeTestBackupFileService;
 
 	setup(async () => {
-		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
@@ -141,7 +169,7 @@ suite('BackupFileService', () => {
 		test('should return whether a backup resource exists', async () => {
 			await pfs.mkdirp(path.dirname(fooBackupPath));
 			fs.writeFileSync(fooBackupPath, 'foo');
-			service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+			service = new NodeTestBackupFileService(workspaceBackupPath);
 			const resource = await service.loadBackupResource(fooFile);
 			assert.ok(resource);
 			assert.equal(path.basename(resource!.fsPath), path.basename(fooBackupPath));
@@ -528,10 +556,10 @@ suite('BackupFileService', () => {
 
 suite('BackupFilesModel', () => {
 
-	let service: TestBackupFileService;
+	let service: NodeTestBackupFileService;
 
 	setup(async () => {
-		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);

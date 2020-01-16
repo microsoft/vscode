@@ -33,6 +33,7 @@ import { Color } from 'vs/base/common/color';
 import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 import { MinimapPosition } from 'vs/editor/common/model';
+import { once } from 'vs/base/common/functional';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap, scale: number): number {
 	if (renderMinimap === RenderMinimap.Text) {
@@ -73,7 +74,7 @@ class MinimapOptions {
 
 	public readonly fontScale: number;
 
-	public readonly charRenderer: MinimapCharRenderer;
+	public readonly charRenderer: () => MinimapCharRenderer;
 
 	/**
 	 * container dom node left position (in CSS px)
@@ -117,7 +118,7 @@ class MinimapOptions {
 		const minimapOpts = options.get(EditorOption.minimap);
 		this.showSlider = minimapOpts.showSlider;
 		this.fontScale = Math.round(minimapOpts.scale * pixelRatio);
-		this.charRenderer = MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily);
+		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
@@ -554,6 +555,7 @@ export class Minimap extends ViewPart {
 				this._slider.toggleClassName('active', true);
 
 				this._sliderMouseMoveMonitor.startMonitoring(
+					e.buttons,
 					standardMouseMoveMerger,
 					(mouseMoveData: IStandardMouseMoveEventData) => {
 						const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
@@ -850,6 +852,11 @@ export class Minimap extends ViewPart {
 		charWidth: number): void {
 		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
+		// Skip rendering the line if it's vertically outside our viewport
+		if (y + height < 0 || y > this._options.canvasOuterHeight) {
+			return;
+		}
+
 		// Cache line offset data so that it is only read once per line
 		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
 		const isFirstDecorationForLine = !lineIndexToXOffset;
@@ -900,6 +907,7 @@ export class Minimap extends ViewPart {
 
 	private renderLines(layout: MinimapLayout): RenderData {
 		const renderMinimap = this._options.renderMinimap;
+		const charRenderer = this._options.charRenderer();
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
 		const minimapLineHeight = getMinimapLineHeight(renderMinimap, this._options.fontScale);
@@ -941,7 +949,7 @@ export class Minimap extends ViewPart {
 					useLighterFont,
 					renderMinimap,
 					this._tokensColorTracker,
-					this._options.charRenderer,
+					charRenderer,
 					dy,
 					tabSize,
 					lineInfo.data[lineIndex]!,

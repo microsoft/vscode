@@ -15,7 +15,7 @@ import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/ba
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
@@ -27,25 +27,22 @@ import { Readable } from 'stream';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
-import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -53,18 +50,16 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@INotificationService notificationService: INotificationService,
-		@IBackupFileService backupFileService: IBackupFileService,
 		@IHistoryService historyService: IHistoryService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IElectronService private readonly electronService: IElectronService,
 		@IProductService private readonly productService: IProductService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService textModelService: ITextModelService
 	) {
-		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
@@ -310,10 +305,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 			});
 		});
 	}
-
-	protected getWindowCount(): Promise<number> {
-		return this.electronService.getWindowCount();
-	}
 }
 
 export interface IEncodingOverride {
@@ -350,8 +341,9 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		// Global settings
 		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
 
-		// Workspace files
+		// Workspace files (via extension and via untitled workspaces location)
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
 
 		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {

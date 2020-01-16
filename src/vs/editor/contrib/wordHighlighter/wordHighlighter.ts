@@ -11,12 +11,12 @@ import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/err
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerDefaultLanguageCommand, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -155,7 +155,7 @@ function computeOccurencesAtPosition(model: ITextModel, selection: Selection, wo
 	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
 }
 
-registerDefaultLanguageCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
 
 class WordHighlighter {
 
@@ -456,7 +456,7 @@ class WordHighlighter {
 	}
 }
 
-class WordHighlighterContribution extends Disposable implements editorCommon.IEditorContribution {
+class WordHighlighterContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.wordHighlighter';
 
