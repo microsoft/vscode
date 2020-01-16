@@ -687,7 +687,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 	readonly onDidOpenResource: Event<IOpenEvent<T | null>> = this._onDidOpenResource.event;
 
 	constructor(
-		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<any, T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<any, T, TFilterData>,
+		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchCompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<any, T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<any, T, TFilterData>,
 		options?: IResourceResultsNavigationOptions2
 	) {
 		super();
