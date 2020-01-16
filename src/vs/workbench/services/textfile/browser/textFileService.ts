@@ -176,8 +176,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// before event
 		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
 
-		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
-		await this.doRevertAll(dirtyFiles, { soft: true });
+		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
+		await this.doRevertAllFiles(dirtyFiles, { soft: true });
 
 		await this.fileService.del(resource, options);
 
@@ -243,7 +243,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// in order to move and copy, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.doRevertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		await this.doRevertAllFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -618,23 +618,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region revert
 
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
-		return !(await this.doRevertAll([resource], options)).results.some(result => result.error);
-	}
 
-	private async doRevertAll(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+		// Untitled
+		if (this.untitledTextEditorService.exists(resource)) {
+			return this.untitledTextEditorService.createOrGet(resource).revert(options);
+		}
 
-		// Revert files first
-		const revertFileOperationResult = await this.doRevertAllFiles(resources, options);
-
-		// Revert untitled
-		const revertUntitledOperationResult = await this.doRevertAllUntitled(resources, options);
-
-		return {
-			results: [
-				...revertFileOperationResult.results,
-				...revertUntitledOperationResult.results
-			]
-		};
+		// File
+		return !(await this.doRevertAllFiles([resource], options)).results.some(result => result.error);
 	}
 
 	private async doRevertAllFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
@@ -675,22 +666,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return { results: mapResourceToResult.values() };
 	}
 
-	private async doRevertAllUntitled(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
-		const result: ITextFileOperationResult = { results: [] };
-
-		await Promise.all(resources.map(resource => {
-			if (this.untitledTextEditorService.exists(resource)) {
-				result.results.push({ source: resource });
-
-				return this.untitledTextEditorService.createOrGet(resource).revert(options);
-			}
-
-			return Promise.resolve(undefined);
-		}));
-
-		return result;
-	}
-
 	//#endregion
 
 	//#region dirty
@@ -703,18 +678,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Check for dirty untitled
-		return this.untitledTextEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
-	}
-
-	protected getDirty(resources?: URI[]): URI[] {
-
-		// Collect files
-		const dirty = this.getDirtyFileModels(resources).map(dirtyFileModel => dirtyFileModel.resource);
-
-		// Add untitled ones
-		dirty.push(...this.untitledTextEditorService.getDirty(resources));
-
-		return dirty;
+		return this.untitledTextEditorService.exists(resource) && this.untitledTextEditorService.createOrGet(resource).isDirty();
 	}
 
 	//#endregion

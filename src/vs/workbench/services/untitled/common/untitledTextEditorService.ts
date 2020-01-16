@@ -50,16 +50,6 @@ export interface IUntitledTextEditorService {
 	exists(resource: URI): boolean;
 
 	/**
-	 * Returns dirty untitled text editors as resource URIs.
-	 */
-	getDirty(resources?: URI[]): URI[];
-
-	/**
-	 * Returns true if the provided resource is dirty.
-	 */
-	isDirty(resource: URI): boolean;
-
-	/**
 	 * Creates a new untitled input with the optional resource URI or returns an existing one
 	 * if the provided resource exists already as untitled input.
 	 *
@@ -79,9 +69,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	_serviceBrand: undefined;
 
-	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
-	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
-
 	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
@@ -90,6 +77,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
+
+	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -113,25 +103,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	exists(resource: URI): boolean {
 		return this.mapResourceToInput.has(resource);
-	}
-
-	isDirty(resource: URI): boolean {
-		const input = this.get(resource);
-
-		return input ? input.isDirty() : false;
-	}
-
-	getDirty(resources?: URI[]): URI[] {
-		let inputs: UntitledTextEditorInput[];
-		if (resources) {
-			inputs = arrays.coalesce(resources.map(r => this.get(r)));
-		} else {
-			inputs = this.mapResourceToInput.values();
-		}
-
-		return inputs
-			.filter(i => i.isDirty())
-			.map(i => i.getResource());
 	}
 
 	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;

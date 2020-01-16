@@ -65,19 +65,14 @@ suite('Files - TextFileService', () => {
 		model.textEditorModel!.setValue('foo');
 
 		assert.ok(accessor.textFileService.isDirty(model.resource));
-		assert.equal(accessor.textFileService.getDirty().length, 1);
-		assert.equal(accessor.textFileService.getDirty([model.resource])[0].toString(), model.resource.toString());
 
 		const untitled = accessor.untitledTextEditorService.createOrGet();
 		const untitledModel = await untitled.resolve();
 
 		assert.ok(!accessor.textFileService.isDirty(untitled.getResource()));
-		assert.equal(accessor.textFileService.getDirty().length, 1);
 		untitledModel.textEditorModel!.setValue('changed');
 
 		assert.ok(accessor.textFileService.isDirty(untitled.getResource()));
-		assert.equal(accessor.textFileService.getDirty().length, 2);
-		assert.equal(accessor.textFileService.getDirty([untitled.getResource()])[0].toString(), untitled.getResource().toString());
 
 		untitledModel.dispose();
 	});
