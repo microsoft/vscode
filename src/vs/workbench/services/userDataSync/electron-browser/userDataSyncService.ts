@@ -50,6 +50,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync', [_continue]);
 	}
 
+	reset(): Promise<void> {
+		return this.channel.call('reset');
+	}
+
+	resetLocal(): Promise<void> {
+		return this.channel.call('resetLocal');
+	}
+
 	stop(): void {
 		this.channel.call('stop');
 	}

@@ -44,7 +44,6 @@ suite('Workbench untitled text editors', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledTextEditorService.revertAll();
 		accessor.untitledTextEditorService.dispose();
 	});
 
@@ -67,30 +66,28 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(service.getAll().length, 2);
 		assert.equal(service.getAll([input1.getResource(), input2.getResource()]).length, 2);
 
-		// revertAll()
-		service.revertAll([input1.getResource()]);
+		// revert()
+		input1.revert();
 		assert.ok(input1.isDisposed());
 		assert.equal(service.getAll().length, 1);
 
 		// dirty
 		const model = await input2.resolve();
 
-		assert.ok(!service.isDirty(input2.getResource()));
+		assert.ok(!input2.isDirty());
 
 		const listener = service.onDidChangeDirty(resource => {
 			listener.dispose();
 
 			assert.equal(resource.toString(), input2.getResource().toString());
 
-			assert.ok(service.isDirty(input2.getResource()));
-			assert.equal(service.getDirty()[0].toString(), input2.getResource().toString());
-			assert.equal(service.getDirty([input2.getResource()])[0].toString(), input2.getResource().toString());
-			assert.equal(service.getDirty([input1.getResource()]).length, 0);
+			assert.ok(input2.isDirty());
 
 			assert.ok(workingCopyService.isDirty(input2.getResource()));
 			assert.equal(workingCopyService.dirtyCount, 1);
 
-			service.revertAll();
+			input1.revert();
+			input2.revert();
 			assert.equal(service.getAll().length, 0);
 			assert.ok(!input2.isDirty());
 			assert.ok(!model.isDirty());
@@ -109,6 +106,9 @@ suite('Workbench untitled text editors', () => {
 		});
 
 		model.textEditorModel.setValue('foo bar');
+		model.dispose();
+		input1.dispose();
+		input2.dispose();
 	});
 
 	test('Untitled with associated resource is dirty', () => {
@@ -136,6 +136,7 @@ suite('Workbench untitled text editors', () => {
 		assert.ok(!model.isDirty());
 		assert.ok(!workingCopyService.isDirty(model.resource));
 		input.dispose();
+		model.dispose();
 	});
 
 	test('Untitled via createOrGet options', async () => {
@@ -174,7 +175,8 @@ suite('Workbench untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
-		assert.ok(service.suggestFileName(input.getResource()));
+		assert.ok(input.suggestFileName().length > 0);
+		input.dispose();
 	});
 
 	test('Untitled with associated path remains dirty when content gets empty', async () => {
@@ -189,6 +191,7 @@ suite('Workbench untitled text editors', () => {
 		model.textEditorModel.setValue('');
 		assert.ok(model.isDirty());
 		input.dispose();
+		model.dispose();
 	});
 
 	test('Untitled with initial content is dirty', async () => {
@@ -211,6 +214,7 @@ suite('Workbench untitled text editors', () => {
 
 		untitled.dispose();
 		listener.dispose();
+		model.dispose();
 	});
 
 	test('Untitled created with files.defaultLanguage setting', () => {
@@ -281,6 +285,7 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(input.getMode(), PLAINTEXT_MODE_ID);
 
 		input.dispose();
+		model.dispose();
 	});
 
 	test('encoding change event', async () => {
@@ -299,6 +304,7 @@ suite('Workbench untitled text editors', () => {
 		model.setEncoding('utf16');
 		assert.equal(counter, 1);
 		input.dispose();
+		model.dispose();
 	});
 
 	test('onDidChangeContent event', async function () {
@@ -324,6 +330,7 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(counter, 4, 'Dirty model should trigger event');
 
 		input.dispose();
+		model.dispose();
 	});
 
 	test('onDidChangeDirty event', async function () {
@@ -343,6 +350,7 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(counter, 1, 'Another change does not fire event');
 
 		input.dispose();
+		model.dispose();
 	});
 
 	test('onDidDisposeModel event', async () => {
@@ -356,9 +364,10 @@ suite('Workbench untitled text editors', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		await input.resolve();
+		const model = await input.resolve();
 		assert.equal(counter, 0);
 		input.dispose();
 		assert.equal(counter, 1);
+		model.dispose();
 	});
 });

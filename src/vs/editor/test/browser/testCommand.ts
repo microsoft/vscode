@@ -50,17 +50,19 @@ export function testCommand(
 export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
 	let operations: IIdentifiedSingleEditOperation[] = [];
 	let editOperationBuilder: IEditOperationBuilder = {
-		addEditOperation: (range: Range, text: string) => {
+		addEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 
-		addTrackedEditOperation: (range: Range, text: string) => {
+		addTrackedEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 

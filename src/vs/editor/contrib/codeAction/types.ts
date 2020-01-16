@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { startsWith } from 'vs/base/common/strings';
-import { CodeAction } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 
 export class CodeActionKind {
@@ -14,7 +14,6 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
-	public static readonly RefactorDocumentation = new CodeActionKind('refactor.documentation');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
@@ -100,11 +99,6 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	}
 
 	return true;
-}
-
-export const enum CodeActionTriggerType {
-	Auto,
-	Manual
 }
 
 export interface CodeActionTrigger {

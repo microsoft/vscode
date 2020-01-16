@@ -104,7 +104,7 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 			const remote = await this.getLocalGlobalState();
 			await this.apply({ local: undefined, remote, remoteUserData: null });
 
-			this.logService.info('UI State: Finished pulling UI State.');
+			this.logService.info('UI State: Finished pushing UI State.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -153,6 +153,12 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 	async hasRemote(): Promise<boolean> {
 		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
+	}
+
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncGlobalStateResource);
+		} catch (e) { /* ignore */ }
 	}
 
 	private async getPreview(): Promise<ISyncPreviewResult> {

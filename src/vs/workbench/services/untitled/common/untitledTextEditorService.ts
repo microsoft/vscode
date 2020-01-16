@@ -14,7 +14,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { basename } from 'vs/base/common/resources';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -51,26 +50,6 @@ export interface IUntitledTextEditorService {
 	exists(resource: URI): boolean;
 
 	/**
-	 * Returns dirty untitled text editors as resource URIs.
-	 */
-	getDirty(resources?: URI[]): URI[];
-
-	/**
-	 * Returns true if the provided resource is dirty.
-	 */
-	isDirty(resource: URI): boolean;
-
-	/**
-	 * Find out if a backup with the provided resource exists and has a backup on disk.
-	 */
-	hasBackup(resource: URI): boolean;
-
-	/**
-	 * Reverts the untitled resources if found.
-	 */
-	revertAll(resources?: URI[]): URI[];
-
-	/**
 	 * Creates a new untitled input with the optional resource URI or returns an existing one
 	 * if the provided resource exists already as untitled input.
 	 *
@@ -84,24 +63,11 @@ export interface IUntitledTextEditorService {
 	 * A check to find out if a untitled resource has a file path associated or not.
 	 */
 	hasAssociatedFilePath(resource: URI): boolean;
-
-	/**
-	 * Suggests a filename for the given untitled resource if it is known.
-	 */
-	suggestFileName(resource: URI): string;
-
-	/**
-	 * Get the configured encoding for the given untitled resource if any.
-	 */
-	getEncoding(resource: URI): string | undefined;
 }
 
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
 	_serviceBrand: undefined;
-
-	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
-	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -111,6 +77,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
+
+	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -134,46 +103,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	exists(resource: URI): boolean {
 		return this.mapResourceToInput.has(resource);
-	}
-
-	revertAll(resources?: URI[], force?: boolean): URI[] {
-		const reverted: URI[] = [];
-
-		const untitledInputs = this.getAll(resources);
-		untitledInputs.forEach(input => {
-			if (input) {
-				input.revert();
-
-				reverted.push(input.getResource());
-			}
-		});
-
-		return reverted;
-	}
-
-	isDirty(resource: URI): boolean {
-		const input = this.get(resource);
-
-		return input ? input.isDirty() : false;
-	}
-
-	hasBackup(resource: URI): boolean {
-		const input = this.get(resource);
-
-		return input ? input.hasBackup() : false;
-	}
-
-	getDirty(resources?: URI[]): URI[] {
-		let inputs: UntitledTextEditorInput[];
-		if (resources) {
-			inputs = arrays.coalesce(resources.map(r => this.get(r)));
-		} else {
-			inputs = this.mapResourceToInput.values();
-		}
-
-		return inputs
-			.filter(i => i.isDirty())
-			.map(i => i.getResource());
 	}
 
 	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
@@ -252,18 +181,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	hasAssociatedFilePath(resource: URI): boolean {
 		return this.mapResourceToAssociatedFilePath.has(resource);
-	}
-
-	suggestFileName(resource: URI): string {
-		const input = this.get(resource);
-
-		return input ? input.suggestFileName() : basename(resource);
-	}
-
-	getEncoding(resource: URI): string | undefined {
-		const input = this.get(resource);
-
-		return input ? input.getEncoding() : undefined;
 	}
 }
 

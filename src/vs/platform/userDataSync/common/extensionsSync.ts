@@ -122,7 +122,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			const { added, removed, updated, remote } = merge(localExtensions, null, null, [], this.getIgnoredExtensions());
 			await this.apply({ added, removed, updated, remote, remoteUserData: null, skippedExtensions: [] });
 
-			this.logService.info('Extensions: Finished pulling extensions.');
+			this.logService.info('Extensions: Finished pushing extensions.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -190,6 +190,12 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 				await this.writeToRemote(remoteExtensions, remoteData.ref);
 			}
 		});
+	}
+
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncExtensionsResource);
+		} catch (e) { /* ignore */ }
 	}
 
 	private async getPreview(): Promise<ISyncPreviewResult> {

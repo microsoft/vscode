@@ -386,7 +386,6 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(m1Mtime > 0);
 		assert.ok(m2Mtime > 0);
 
-		assert.ok(accessor.textFileService.isDirty());
 		assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
@@ -394,7 +393,8 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
 		await timeout(10);
-		await accessor.textFileService.saveAll();
+		await accessor.textFileService.save(toResource.call(this, '/path/index_async.txt'));
+		await accessor.textFileService.save(toResource.call(this, '/path/index_async2.txt'));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 		assert.ok(assertIsDefined(model1.getStat()).mtime > m1Mtime);

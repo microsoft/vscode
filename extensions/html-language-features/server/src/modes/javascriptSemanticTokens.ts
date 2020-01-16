@@ -39,8 +39,11 @@ function collectTokens(jsLanguageService: ts.LanguageService, fileName: string, 
 				return;
 			}
 			if (ts.isIdentifier(node)) {
-				const symbol = typeChecker.getSymbolAtLocation(node);
+				let symbol = typeChecker.getSymbolAtLocation(node);
 				if (symbol) {
+					if (symbol.flags & ts.SymbolFlags.Alias) {
+						symbol = typeChecker.getAliasedSymbol(symbol);
+					}
 					let typeIdx = classifySymbol(symbol);
 					if (typeIdx !== undefined) {
 						let modifierSet = 0;

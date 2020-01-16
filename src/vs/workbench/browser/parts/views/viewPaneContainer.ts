@@ -51,6 +51,7 @@ export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
 	title: string;
 	showActionsAlways?: boolean;
+	titleMenuId?: MenuId;
 }
 
 export abstract class ViewPane extends Pane implements IView {
@@ -75,7 +76,7 @@ export abstract class ViewPane extends Pane implements IView {
 	readonly id: string;
 	title: string;
 
-	private readonly menuActions: CustomViewMenuActions;
+	private readonly menuActions?: ViewMenuActions;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar?: ToolBar;
@@ -100,8 +101,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
-		this.menuActions = this._register(instantiationService.createInstance(CustomViewMenuActions, this.id));
-		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+		if (options.titleMenuId !== undefined) {
+			this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId));
+			this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -215,11 +218,11 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActions(): IAction[] {
-		return this.menuActions.getPrimaryActions();
+		return this.menuActions ? this.menuActions.getPrimaryActions() : [];
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menuActions.getSecondaryActions();
+		return this.menuActions ? this.menuActions.getSecondaryActions() : [];
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -770,7 +773,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 }
 
 
-class CustomViewMenuActions extends Disposable {
+class ViewMenuActions extends Disposable {
 
 	private primaryActions: IAction[] = [];
 	private readonly titleActionsDisposable = this._register(new MutableDisposable());
@@ -780,24 +783,25 @@ class CustomViewMenuActions extends Disposable {
 	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
 	constructor(
-		id: string,
+		viewId: string,
+		menuId: MenuId,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('view', id);
+		scopedContextKeyService.createKey('view', viewId);
 
-		const titleMenu = this._register(this.menuService.createMenu(MenuId.ViewTitle, scopedContextKeyService));
+		const menu = this._register(this.menuService.createMenu(menuId, scopedContextKeyService));
 		const updateActions = () => {
 			this.primaryActions = [];
 			this.secondaryActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, { primary: this.primaryActions, secondary: this.secondaryActions });
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(menu, undefined, { primary: this.primaryActions, secondary: this.secondaryActions });
 			this._onDidChangeTitle.fire();
 		};
 
-		this._register(titleMenu.onDidChange(updateActions));
+		this._register(menu.onDidChange(updateActions));
 		updateActions();
 
 		this._register(toDisposable(() => {

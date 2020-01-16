@@ -29,6 +29,7 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 // --- adapter
 
@@ -326,7 +327,8 @@ class CodeActionAdapter {
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _provider: vscode.CodeActionProvider,
 		private readonly _logService: ILogService,
-		private readonly _extensionId: ExtensionIdentifier
+		private readonly _extension: IExtensionDescription,
+		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
@@ -367,6 +369,10 @@ class CodeActionAdapter {
 				}
 				if (CodeActionAdapter._isCommand(candidate)) {
 					// old school: synthetic code action
+
+					this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
+						`Return 'CodeAction' instances instead.`);
+
 					actions.push({
 						_isSynthetic: true,
 						title: candidate.title,
@@ -375,9 +381,9 @@ class CodeActionAdapter {
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
-							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+							this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
@@ -748,8 +754,9 @@ class SuggestAdapter {
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.CompletionItemProvider,
 		private readonly _logService: ILogService,
+		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 		private readonly _telemetry: extHostProtocol.MainThreadTelemetryShape,
-		private readonly _extensionId: ExtensionIdentifier
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
@@ -838,15 +845,15 @@ class SuggestAdapter {
 
 			let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
 			if (typeof _mustNotChangeIndex === 'string') {
-				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must', index: _mustNotChangeIndex });
+				this._logService.warn(`[${this._extension.identifier.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extension.identifier.value, kind: 'must', index: _mustNotChangeIndex });
 				this._didWarnMust = true;
 			}
 
 			let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
 			if (typeof _mayNotChangeIndex === 'string') {
-				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should', index: _mayNotChangeIndex });
+				this._logService.info(`[${this._extension.identifier.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extension.identifier.value, kind: 'should', index: _mayNotChangeIndex });
 				this._didWarnShould = true;
 			}
 
@@ -892,6 +899,9 @@ class SuggestAdapter {
 
 		// 'insertText'-logic
 		if (item.textEdit) {
+			this._apiDeprecation.report('CompletionItem.textEdit', this._extension,
+				`Use 'CompletionItem.insertText' and 'CompletionItem.range' instead.`);
+
 			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
@@ -1339,6 +1349,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, AdapterData>();
 	private readonly _logService: ILogService;
+	private readonly _apiDeprecation: IExtHostApiDeprecationService;
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -1346,7 +1357,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		diagnostics: ExtHostDiagnostics,
-		logService: ILogService
+		logService: ILogService,
+		apiDeprecationService: IExtHostApiDeprecationService,
 	) {
 		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
@@ -1355,6 +1367,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._commands = commands;
 		this._diagnostics = diagnostics;
 		this._logService = logService;
+		this._apiDeprecation = apiDeprecationService;
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<extHostProtocol.IDocumentFilterDto> {
@@ -1562,7 +1575,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- quick fix
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension.identifier), extension);
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), (metadata && metadata.providedCodeActionKinds) ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
@@ -1665,7 +1678,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._telemetryShape, extension.identifier), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._apiDeprecation, this._telemetryShape, extension), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1813,7 +1826,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
 	}
 
-	setLanguageConfiguration(languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
+	setLanguageConfiguration(extension: IExtensionDescription, languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 		let { wordPattern } = configuration;
 
 		// check for a valid word pattern
@@ -1826,6 +1839,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			this._documents.setWordDefinitionFor(languageId, wordPattern);
 		} else {
 			this._documents.setWordDefinitionFor(languageId, undefined);
+		}
+
+		if (configuration.__electricCharacterSupport) {
+			this._apiDeprecation.report('LanguageConfiguration.__electricCharacterSupport', extension,
+				`Do not use.`);
+		}
+
+		if (configuration.__characterPairSupport) {
+			this._apiDeprecation.report('LanguageConfiguration.__characterPairSupport', extension,
+				`Do not use.`);
 		}
 
 		const handle = this._nextHandle();

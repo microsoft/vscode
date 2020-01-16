@@ -93,7 +93,6 @@ suite('BackupTracker', () => {
 		disposables = [];
 
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
 
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});

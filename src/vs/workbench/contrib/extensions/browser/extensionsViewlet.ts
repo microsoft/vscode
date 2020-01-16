@@ -583,9 +583,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		if (this.configurationService.getValue<boolean>(CloseExtensionDetailsOnViewChangeKey)) {
 			const promises = this.editorGroupService.groups.map(group => {
 				const editors = group.editors.filter(input => input instanceof ExtensionsInput);
-				const promises = editors.map(editor => group.closeEditor(editor));
 
-				return Promise.all(promises);
+				return group.closeEditors(editors);
 			});
 
 			Promise.all(promises);

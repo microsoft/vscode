@@ -133,8 +133,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private saveAllDirty(options?: ISaveOptions): void {
-		for (const workingCopy of this.workingCopyService.workingCopies) {
-			if (workingCopy.isDirty() && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
+		for (const workingCopy of this.workingCopyService.dirtyWorkingCopies) {
+			if (!(workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
 				workingCopy.save(options);
 			}
 		}

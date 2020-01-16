@@ -26,7 +26,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { Schemas } from 'vs/base/common/network';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -282,19 +281,13 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private ensureDirtyFilesAreOpened(resources: URI[]): void {
 		this.doEnsureDirtyFilesAreOpened(distinct(resources.filter(resource => {
-			if (resource.scheme === Schemas.untitled) {
-				if (!this.untitledTextEditorService.isDirty(resource)) {
-					return false; // untitled must be dirty
-				}
-			} else {
-				const model = this.textFileService.models.get(resource);
-				if (!model) {
-					return false; // only for text file models
-				}
+			if (!this.textFileService.isDirty(resource)) {
+				return false; // resource must be dirty
+			}
 
-				if (!model?.hasState(ModelState.DIRTY) || model.hasState(ModelState.PENDING_SAVE)) {
-					return false; // model must be dirty and not being saved
-				}
+			const model = this.textFileService.models.get(resource);
+			if (model?.hasState(ModelState.PENDING_SAVE)) {
+				return false; // resource must not be pending to save
 			}
 
 			if (this.editorService.isOpen({ resource })) {

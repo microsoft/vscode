@@ -127,7 +127,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('pasero events', async function () {
+	test('events', async function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource1 = toResource.call(this, '/path/index.txt');

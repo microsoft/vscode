@@ -9,6 +9,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
+import type { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 suite('KeybindingsMerge - No Conflicts', () => {
 
@@ -731,4 +732,8 @@ class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
 	async resolveFormattingOptions(file?: URI): Promise<FormattingOptions> {
 		return { eol: '\n', insertSpaces: false, tabSize: 4 };
 	}
+
+	async updateConfigurationValue(key: string, value: any): Promise<void> { }
+
+	async ignoreExtensionsToSync(extensions: IExtensionIdentifier[]): Promise<IExtensionIdentifier[]> { return extensions; }
 }

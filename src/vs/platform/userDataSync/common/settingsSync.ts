@@ -122,6 +122,8 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			else {
 				this.logService.info('Settings: Remote settings does not exist.');
 			}
+
+			this.logService.info('Settings: Finished pulling settings.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -162,6 +164,8 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			else {
 				this.logService.info('Settings: Local settings does not exist.');
 			}
+
+			this.logService.info('Settings: Finished pushing settings.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -216,6 +220,12 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		}
 	}
 
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncSettingsResource);
+		} catch (e) { /* ignore */ }
+	}
+
 	private async doSync(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<boolean> {
 		try {
 			const result = await this.getPreview(resolvedConflicts);
@@ -224,8 +234,13 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
-			await this.apply();
-			return true;
+			try {
+				await this.apply();
+				this.logService.trace('Settings: Finished synchronizing settings.');
+				return true;
+			} finally {
+				this.setStatus(SyncStatus.Idle);
+			}
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
@@ -240,8 +255,6 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 				return this.sync();
 			}
 			throw e;
-		} finally {
-			this.setStatus(SyncStatus.Idle);
 		}
 	}
 
@@ -293,7 +306,6 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			this.logService.trace('Settings: No changes found during synchronizing settings.');
 		}
 
-		this.logService.trace('Settings: Finised synchronizing settings.');
 		this.syncPreviewResultPromise = null;
 	}
 
