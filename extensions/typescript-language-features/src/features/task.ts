@@ -75,7 +75,7 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 	public async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
 		const definition = <TypeScriptTaskDefinition>task.definition;
 		const badTsconfig = /\\tsconfig.*\.json/;
-		if (badTsconfig.exec(definition.tsconfig) !== null) {
+		if (badTsconfig.test(definition.tsconfig)) {
 			// Warn that the task has the wrong slash type
 			vscode.window.showWarningMessage(localize('badTsConfig', "TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
 			return undefined;
