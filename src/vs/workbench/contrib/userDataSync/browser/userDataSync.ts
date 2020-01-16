@@ -250,46 +250,46 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private getTurnOnDetailString(): string {
 		const { enableSettings, enableKeybindings, enableExtensions, enableUIState } = this.configurationService.getValue<{ enableSettings: boolean, enableKeybindings: boolean, enableExtensions: boolean, enableUIState: boolean }>('sync');
 		if (enableSettings && enableKeybindings && enableExtensions && enableUIState) {
-			return localize('turn on sync detail 1', "This will synchronize your settings, keybindings, extensions and other UI state (display language) across all your devices.");
+			return localize('turn on sync detail 1', "This will synchronize your following data across all your devices.\n - Settings\n - Keybindings\n - Extensions\n - UI State (Display Language Only)");
 		}
 		if (enableSettings && enableKeybindings && enableExtensions) {
-			return localize('turn on sync detail 2', "This will synchronize your settings, keybindings and extensions across all your devices.");
+			return localize('turn on sync detail 2', "This will synchronize your following data across all your devices.\n - Settings\n - Keybindings\n - Extensions");
 		}
 		if (enableSettings && enableKeybindings && enableUIState) {
-			return localize('turn on sync detail 3', "This will synchronize your settings, keybindings and other UI state (display language) across all your devices.");
+			return localize('turn on sync detail 3', "This will synchronize your following data across all your devices.\n - Settings\n - Keybindings\n - UI State (Display Language Only)");
 		}
 		if (enableSettings && enableExtensions && enableUIState) {
-			return localize('turn on sync detail 4', "This will synchronize your settings, extensions and other UI state (display language) across all your devices.");
+			return localize('turn on sync detail 4', "This will synchronize your following data across all your devices.\n - Settings\n - Extensions\n - UI State (Display Language Only)");
 		}
 		if (enableSettings && enableKeybindings) {
-			return localize('turn on sync detail 5', "This will synchronize your settings and keybindings across all your devices.");
+			return localize('turn on sync detail 5', "This will synchronize your following data across all your devices.\n - Settings\n - keybindings");
 		}
 		if (enableSettings && enableExtensions) {
-			return localize('turn on sync detail 6', "This will synchronize your settings and extensions across all your devices.");
+			return localize('turn on sync detail 6', "This will synchronize your following data across all your devices.\n - Settings\n - Extensions");
 		}
 		if (enableSettings && enableUIState) {
-			return localize('turn on sync detail 7', "This will synchronize your settings and UI state (display language) across all your devices.");
+			return localize('turn on sync detail 7', "This will synchronize your following data across all your devices.\n - Settings\n - UI State (Display Language Only)");
 		}
 		if (enableKeybindings && enableExtensions) {
-			return localize('turn on sync detail 8', "This will synchronize your keybindings and extensions across all your devices.");
+			return localize('turn on sync detail 8', "This will synchronize your following data across all your devices.\n - Keybindings\n - Extensions");
 		}
 		if (enableKeybindings && enableUIState) {
-			return localize('turn on sync detail 9', "This will synchronize your keybindings and UI state (display language) across all your devices.");
+			return localize('turn on sync detail 9', "This will synchronize your following data across all your devices.\n - Keybindings\n - UI State (Display Language Only)");
 		}
 		if (enableExtensions && enableUIState) {
-			return localize('turn on sync detail 10', "This will synchronize your extensions and UI state (display language) across all your devices.");
+			return localize('turn on sync detail 10', "This will synchronize your following data across all your devices.\n - Extensions\n - UI State (Display Language Only)");
 		}
 		if (enableSettings) {
-			return localize('turn on sync detail 11', "This will synchronize your settings across all your devices.");
+			return localize('turn on sync detail 11', "This will synchronize your following data across all your devices.\n - Settings");
 		}
 		if (enableKeybindings) {
-			return localize('turn on sync detail 12', "This will synchronize your keybindings across all your devices.");
+			return localize('turn on sync detail 12', "This will synchronize your following data across all your devices.\n - Keybindings");
 		}
 		if (enableExtensions) {
-			return localize('turn on sync detail 13', "This will synchronize your extensions across all your devices.");
+			return localize('turn on sync detail 13', "This will synchronize your following data across all your devices.\n - Extensions");
 		}
 		if (enableUIState) {
-			return localize('turn on sync detail 14', "This will synchronize your UI state (display language) across all your devices.");
+			return localize('turn on sync detail 14', "This will synchronize your following data across all your devices.\n - UI State (Display Language Only)");
 		}
 		return '';
 	}
@@ -297,46 +297,46 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private getSignInAndTurnOnDetailString(): string {
 		const { enableSettings, enableKeybindings, enableExtensions, enableUIState } = this.configurationService.getValue<ISyncConfiguration>().sync;
 		if (enableSettings && enableKeybindings && enableExtensions && enableUIState) {
-			return localize('sign in and turn on sync detail 1', "Please sign in with your {0} account to synchronize your settings, keybindings, extensions and other UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 1', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - Keybindings\n - Extensions\n - UI State (Display Language Only)", this.userDataSyncStore!.account);
 		}
 		if (enableSettings && enableKeybindings && enableExtensions) {
-			return localize('sign in and turn on sync detail 2', "Please sign in with your {0} account to synchronize your settings, keybindings and extensions across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 2', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - Keybindings\n - Extensions", this.userDataSyncStore!.account);
 		}
 		if (enableSettings && enableKeybindings && enableUIState) {
-			return localize('sign in and turn on sync detail 3', "Please sign in with your {0} account to synchronize your settings, keybindings and other UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 3', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - Keybindings\n - UI State (Display Language Only)", this.userDataSyncStore!.account);
 		}
 		if (enableSettings && enableExtensions && enableUIState) {
-			return localize('sign in and turn on sync detail 4', "Please sign in with your {0} account to synchronize your settings, extensions and other UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 4', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - Extensions\n - UI state (Display Language Only)", this.userDataSyncStore!.account);
 		}
 		if (enableSettings && enableKeybindings) {
-			return localize('sign in and turn on sync detail 5', "Please sign in with your {0} account to synchronize your settings and keybindings across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 5', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - Keybindings", this.userDataSyncStore!.account);
 		}
 		if (enableSettings && enableExtensions) {
-			return localize('sign in and turn on sync detail 6', "Please sign in with your {0} account to synchronize your settings and extensions across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 6', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - Extensions", this.userDataSyncStore!.account);
 		}
 		if (enableSettings && enableUIState) {
-			return localize('sign in and turn on sync detail 7', "Please sign in with your {0} account to synchronize your settings and UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 7', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings\n - UI state (Display Language Only)", this.userDataSyncStore!.account);
 		}
 		if (enableKeybindings && enableExtensions) {
-			return localize('sign in and turn on sync detail 8', "Please sign in with your {0} account to synchronize your keybindings and extensions across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 8', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Keybindings\n - Extensions", this.userDataSyncStore!.account);
 		}
 		if (enableKeybindings && enableUIState) {
-			return localize('sign in and turn on sync detail 9', "Please sign in with your {0} account to synchronize your keybindings and UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 9', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Keybindings\n - UI state (Display Language Only)", this.userDataSyncStore!.account);
 		}
 		if (enableExtensions && enableUIState) {
-			return localize('sign in and turn on sync detail 10', "Please sign in with your {0} account to synchronize your extensions and UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 10', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Extensions\n - UI state (Display Language Only)", this.userDataSyncStore!.account);
 		}
 		if (enableSettings) {
-			return localize('sign in and turn on sync detail 11', "Please sign in with your {0} account to synchronize your settings across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 11', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Settings", this.userDataSyncStore!.account);
 		}
 		if (enableKeybindings) {
-			return localize('sign in and turn on sync detail 12', "Please sign in with your {0} account to synchronize your keybindings across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 12', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Keybindings", this.userDataSyncStore!.account);
 		}
 		if (enableExtensions) {
-			return localize('sign in and turn on sync detail 13', "Please sign in with your {0} account to synchronize your extensions across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 13', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - Extensions", this.userDataSyncStore!.account);
 		}
 		if (enableUIState) {
-			return localize('sign in and turn on sync detail 14', "Please sign in with your {0} account to synchronize your UI state (display language) across all your devices.", this.userDataSyncStore!.account);
+			return localize('sign in and turn on sync detail 14', "Please sign in with your {0} account to synchronize your following data across all your devices.\n - UI state (display language)", this.userDataSyncStore!.account);
 		}
 		return '';
 	}
@@ -351,7 +351,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			detail = this.getSignInAndTurnOnDetailString();
 			primaryButton = localize('sign in and turn on sync', "Sign in & Turn on");
 		}
-		const result = await this.dialogService.show(Severity.Info, message, [primaryButton, localize('cancel', "Cancel"), localize('configure', "Configure")], { detail, cancelId: 1 });
+		const result = await this.dialogService.show(
+			Severity.Info, message,
+			[
+				primaryButton,
+				localize('cancel', "Cancel"),
+				localize('configure', "Configure What to Sync")
+			],
+			{
+				detail,
+				cancelId: 1
+			});
 		switch (result.choice) {
 			case 1: return;
 			case 2: await this.configureSyncOptions(); return this.turnOn();
@@ -370,23 +380,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick();
 			disposables.add(quickPick);
-			quickPick.title = localize('configure sync title', "Sync: Configure");
-			quickPick.placeholder = localize('select configurations to sync', "Choose what to sync");
+			quickPick.title = localize('configure sync title', "Sync: Configure What to Sync");
+			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
 			const items = [{
 				id: 'sync.enableSettings',
-				label: localize('user settings', "User Settings")
+				label: localize('user settings', "Settings")
 			}, {
 				id: 'sync.enableKeybindings',
-				label: localize('user keybindings', "User Keybindings")
+				label: localize('user keybindings', "Keybindings")
+			}, {
+				id: 'sync.enableExtensions',
+				label: localize('extensions', "Extensions")
 			}, {
 				id: 'sync.enableUIState',
 				label: localize('ui state', "UI State"),
 				description: localize('ui state description', "Display Language (Only)")
-			}, {
-				id: 'sync.enableExtensions',
-				label: localize('extensions', "Extensions")
 			}];
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
