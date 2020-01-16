@@ -21,11 +21,10 @@
 		"watch": "tsc -watch -p ./"
 	},
 	"devDependencies": {
-		"keytar": "^5.0.0",
 		"typescript": "^3.7.4",
 		"tslint": "^5.12.1",
 		"@types/node": "^10.12.21",
-		"@types/keytar": "^4.4.2",
+		"@types/keytar": "^4.0.1",
 		"@types/vscode": "^1.41.0"
 	}
 }
