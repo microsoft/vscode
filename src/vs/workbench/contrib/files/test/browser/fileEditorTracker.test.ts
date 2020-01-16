@@ -123,7 +123,7 @@ suite('Files - FileEditorTracker', () => {
 	test('dirty untitled text file model opens as editor', async function () {
 		const [part, accessor, tracker] = await createTracker();
 
-		const untitledEditor = accessor.textFileService.untitled.createOrGet();
+		const untitledEditor = accessor.textFileService.untitled.create();
 		const model = await untitledEditor.resolve();
 
 		assert.ok(!accessor.editorService.isOpen(untitledEditor));

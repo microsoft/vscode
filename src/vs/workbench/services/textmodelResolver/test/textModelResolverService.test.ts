@@ -110,7 +110,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve untitled', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		await input.resolve();
 		const ref = await accessor.textModelResolverService.createModelReference(input.getResource());

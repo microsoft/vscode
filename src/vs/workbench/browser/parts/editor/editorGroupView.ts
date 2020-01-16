@@ -256,7 +256,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isEmpty) {
 				EventHelper.stop(e);
 
-				this.openEditor(this.textFileService.untitled.createOrGet(), EditorOptions.create({ pinned: true }));
+				this.openEditor(this.textFileService.untitled.create(), EditorOptions.create({ pinned: true }));
 			}
 		}));
 

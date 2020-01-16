@@ -300,11 +300,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
-			if (this.untitled.exists(resource)) {
+			const model = this.untitled.get(resource);
+			if (model) {
 				let targetUri: URI | undefined;
 
 				// Untitled with associated file path don't need to prompt
-				if (this.untitled.hasAssociatedFilePath(resource)) {
+				if (model.hasAssociatedFilePath) {
 					targetUri = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 				}
 
@@ -602,7 +603,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private suggestFileName(untitledResource: URI): URI {
-		const untitledFileName = this.untitled.exists(untitledResource) ? this.untitled.createOrGet(untitledResource).suggestFileName() : basename(untitledResource);
+		const untitledFileName = this.untitled.get(untitledResource)?.suggestFileName() ?? basename(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
@@ -627,8 +628,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
 
 		// Untitled
-		if (this.untitled.exists(resource)) {
-			return this.untitled.createOrGet(resource).revert(options);
+		if (resource.scheme === Schemas.untitled) {
+			const model = this.untitled.get(resource);
+			if (model) {
+				return model.revert(options);
+			}
+
+			return false;
 		}
 
 		// File
@@ -679,13 +685,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	isDirty(resource: URI): boolean {
 
-		// Check for dirty file
-		if (this.files.getAll(resource).some(model => model.isDirty())) {
-			return true;
+		// Check for dirty untitled
+		if (resource.scheme === Schemas.untitled) {
+			const model = this.untitled.get(resource);
+			if (model) {
+				return model.isDirty();
+			}
+
+			return false;
 		}
 
-		// Check for dirty untitled
-		return this.untitled.exists(resource) && this.untitled.createOrGet(resource).isDirty();
+		// Check for dirty file
+		return this.files.getAll(resource).some(model => model.isDirty());
 	}
 
 	//#endregion

@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as arrays from 'vs/base/common/arrays';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,7 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
+import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import type { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
@@ -50,14 +49,16 @@ export interface IUntitledTextEditorModelManager {
 	exists(resource: URI): boolean;
 
 	/**
-	 * Creates a new untitled input with the optional resource URI or returns an existing one
-	 * if the provided resource exists already as untitled input.
-	 *
-	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
-	 * The use case is to be able to create a new file with a specific path with VSCode.
+	 * Returns an existing untitled input if already created before.
 	 */
-	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+	get(resource: URI): UntitledTextEditorInput | undefined;
+
+	/**
+	 * Creates a new untitled input with the optional resource URI to
+	 * be used as associated file path when saving.
+	 */
+	create(options?: IUntitledCreationOptions): UntitledTextEditorInput;
+	create(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
 
 	/**
 	 * Creates a new untitled model with the optional resource URI or returns an existing one
@@ -66,7 +67,7 @@ export interface IUntitledTextEditorModelManager {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	resolve(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: IUntitledCreationOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -92,7 +93,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
-	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	protected readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(
@@ -103,30 +104,25 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		super();
 	}
 
-	protected get(resource: URI): UntitledTextEditorInput | undefined {
-		return this.mapResourceToInput.get(resource);
-	}
-
-	protected getAll(resources?: URI[]): UntitledTextEditorInput[] {
-		if (resources) {
-			return arrays.coalesce(resources.map(r => this.get(r)));
-		}
-
-		return this.mapResourceToInput.values();
-	}
-
 	exists(resource: URI): boolean {
 		return this.mapResourceToInput.has(resource);
 	}
 
-	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
-	createOrGet(resourceOrOptions?: URI | IUntitledCreationOptions, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
+	get(resource: URI): UntitledTextEditorInput | undefined {
+		return this.mapResourceToInput.get(resource);
+	}
+
+	create(options?: IUntitledCreationOptions): UntitledTextEditorInput;
+	create(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+	create(resourceOrOptions?: URI | IUntitledCreationOptions, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
 		if (resourceOrOptions && !URI.isUri(resourceOrOptions)) {
-			return this.createOrGet(resourceOrOptions.resource, resourceOrOptions.mode, resourceOrOptions.initialValue, resourceOrOptions.encoding, resourceOrOptions.useResourcePath);
+			return this.doCreateOrGet(resourceOrOptions.resource, resourceOrOptions.mode, resourceOrOptions.initialValue, resourceOrOptions.encoding, resourceOrOptions.useResourcePath);
 		}
 
-		let resource = resourceOrOptions;
+		return this.doCreateOrGet(resourceOrOptions, mode, initialValue, encoding, hasAssociatedFilePath);
+	}
+
+	private doCreateOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
 		if (resource) {
 
 			// Massage resource if it comes with known file based resource
@@ -194,7 +190,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	}
 
 	resolve(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
-		return this.createOrGet(options).resolve();
+		return this.doCreateOrGet(options?.resource, options?.mode, options?.initialValue, options?.encoding, options?.useResourcePath).resolve();
 	}
 
 	hasAssociatedFilePath(resource: URI): boolean {

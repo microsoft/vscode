@@ -192,7 +192,7 @@ export class TabsTitleControl extends TitleControl {
 
 				EventHelper.stop(e);
 
-				this.group.openEditor(this.textFileService.untitled.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
+				this.group.openEditor(this.textFileService.untitled.create(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
 			}));
 		});
 
