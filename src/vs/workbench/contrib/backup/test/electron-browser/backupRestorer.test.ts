@@ -16,7 +16,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -54,8 +53,7 @@ class TestBackupRestorer extends BackupRestorer {
 
 class ServiceAccessor {
 	constructor(
-		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
+		@ITextFileService public textFileService: TestTextFileService
 	) {
 	}
 }
@@ -129,12 +127,12 @@ suite('BackupRestorer', () => {
 		for (const editor of editorService.editors) {
 			const resource = editor.getResource();
 			if (isEqual(resource, untitledFile1)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
+				const model = await accessor.textFileService.untitled.createOrGet(resource).resolve();
 				assert.equal(model.textEditorModel.getValue(), 'untitled-1');
 				model.dispose();
 				counter++;
 			} else if (isEqual(resource, untitledFile2)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
+				const model = await accessor.textFileService.untitled.createOrGet(resource).resolve();
 				assert.equal(model.textEditorModel.getValue(), 'untitled-2');
 				model.dispose();
 				counter++;

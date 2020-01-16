@@ -8,7 +8,6 @@ import { IDisposable, IReference, dispose, DisposableStore } from 'vs/base/commo
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -16,7 +15,6 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThre
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
 
@@ -70,7 +68,6 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textModelResolverService: ITextModelService;
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
-	private readonly _untitledTextEditorService: IUntitledTextEditorService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 
 	private readonly _toDispose = new DisposableStore();
@@ -83,18 +80,15 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
-		this._untitledTextEditorService = untitledTextEditorService;
 		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
@@ -222,7 +216,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._untitledTextEditorService.createOrGet({
+		return this._textFileService.untitled.createOrGet({
 			resource,
 			mode,
 			initialValue,

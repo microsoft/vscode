@@ -31,7 +31,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { dirname, joinPath, isEqual } from 'vs/base/common/resources';
@@ -142,7 +141,6 @@ export class SearchEditorInput extends EditorInput {
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
-		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,

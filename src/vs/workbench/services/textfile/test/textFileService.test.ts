@@ -11,7 +11,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -27,7 +26,6 @@ class ServiceAccessor {
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
@@ -66,7 +64,7 @@ suite('Files - TextFileService', () => {
 
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const untitled = accessor.untitledTextEditorService.createOrGet();
+		const untitled = accessor.textFileService.untitled.createOrGet();
 		const untitledModel = await untitled.resolve();
 
 		assert.ok(!accessor.textFileService.isDirty(untitled.getResource()));
@@ -99,8 +97,8 @@ suite('Files - TextFileService', () => {
 		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
 		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
 
-		sinon.stub(accessor.untitledTextEditorService, 'exists', () => true);
-		sinon.stub(accessor.untitledTextEditorService, 'hasAssociatedFilePath', () => true);
+		sinon.stub(accessor.textFileService.untitled, 'exists', () => true);
+		sinon.stub(accessor.textFileService.untitled, 'hasAssociatedFilePath', () => true);
 		sinon.stub(accessor.modelService, 'updateModel', () => { });
 
 		await model.load();

@@ -23,15 +23,13 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 class ServiceAccessor {
 	constructor(
 		@IEditorService public editorService: IEditorService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IFileService public fileService: TestFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
+		@IFileService public fileService: TestFileService
 	) {
 	}
 }
@@ -125,7 +123,7 @@ suite('Files - FileEditorTracker', () => {
 	test('dirty untitled text file model opens as editor', async function () {
 		const [part, accessor, tracker] = await createTracker();
 
-		const untitledEditor = accessor.untitledTextEditorService.createOrGet();
+		const untitledEditor = accessor.textFileService.untitled.createOrGet();
 		const model = await untitledEditor.resolve();
 
 		assert.ok(!accessor.editorService.isOpen(untitledEditor));

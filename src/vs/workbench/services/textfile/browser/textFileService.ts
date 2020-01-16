@@ -13,7 +13,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -56,11 +56,16 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	readonly models = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
+	private _untitled: IUntitledTextEditorModelManager;
+	get untitled(): IUntitledTextEditorModelManager {
+		return this._untitled;
+	}
+
 	abstract get encoding(): IResourceEncodings;
 
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
-		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService private readonly modeService: IModeService,
@@ -75,6 +80,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super();
+
+		this._untitled = untitledTextEditorService;
 
 		this.registerListeners();
 	}
@@ -293,11 +300,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
-			if (this.untitledTextEditorService.exists(resource)) {
+			if (this.untitled.exists(resource)) {
 				let targetUri: URI | undefined;
 
 				// Untitled with associated file path don't need to prompt
-				if (this.untitledTextEditorService.hasAssociatedFilePath(resource)) {
+				if (this.untitled.hasAssociatedFilePath(resource)) {
 					targetUri = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 				}
 
@@ -595,7 +602,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private suggestFileName(untitledResource: URI): URI {
-		const untitledFileName = this.untitledTextEditorService.exists(untitledResource) ? this.untitledTextEditorService.createOrGet(untitledResource).suggestFileName() : basename(untitledResource);
+		const untitledFileName = this.untitled.exists(untitledResource) ? this.untitled.createOrGet(untitledResource).suggestFileName() : basename(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
@@ -620,8 +627,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
 
 		// Untitled
-		if (this.untitledTextEditorService.exists(resource)) {
-			return this.untitledTextEditorService.createOrGet(resource).revert(options);
+		if (this.untitled.exists(resource)) {
+			return this.untitled.createOrGet(resource).revert(options);
 		}
 
 		// File
@@ -678,7 +685,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Check for dirty untitled
-		return this.untitledTextEditorService.exists(resource) && this.untitledTextEditorService.createOrGet(resource).isDirty();
+		return this.untitled.exists(resource) && this.untitled.createOrGet(resource).isDirty();
 	}
 
 	//#endregion

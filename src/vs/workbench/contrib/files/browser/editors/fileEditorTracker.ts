@@ -25,7 +25,6 @@ import { timeout, RunOnceWorker } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -41,8 +40,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -62,7 +60,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Ensure dirty text file and untitled models are always opened as editors
 		this._register(this.textFileService.models.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
 		this._register(this.textFileService.models.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
-		this._register(this.untitledTextEditorService.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
+		this._register(this.textFileService.untitled.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
 
 		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));

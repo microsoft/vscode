@@ -14,7 +14,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -44,7 +43,6 @@ const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
 class ServiceAccessor {
 	constructor(
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService public editorService: IEditorService,
 		@IBackupFileService public backupFileService: NodeTestBackupFileService
 	) {
@@ -125,7 +123,7 @@ suite('BackupTracker', () => {
 
 		const [accessor, part, tracker] = await createTracker();
 
-		const untitledEditor = accessor.untitledTextEditorService.createOrGet();
+		const untitledEditor = accessor.textFileService.untitled.createOrGet();
 		await accessor.editorService.openEditor(untitledEditor, { pinned: true });
 
 		const untitledModel = await untitledEditor.resolve();

@@ -21,7 +21,6 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -35,7 +34,6 @@ class ServiceAccessor {
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFileService public fileService: TestFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IConfigurationService public configurationService: TestConfigurationService
 	) {
 	}

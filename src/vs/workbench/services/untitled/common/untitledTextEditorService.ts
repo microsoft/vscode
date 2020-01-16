@@ -25,9 +25,7 @@ export interface IUntitledCreationOptions {
 	useResourcePath?: boolean;
 }
 
-export interface IUntitledTextEditorService {
-
-	_serviceBrand: undefined;
+export interface IUntitledTextEditorModelManager {
 
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
@@ -63,6 +61,11 @@ export interface IUntitledTextEditorService {
 	 * A check to find out if a untitled resource has a file path associated or not.
 	 */
 	hasAssociatedFilePath(resource: URI): boolean;
+}
+
+export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
+
+	_serviceBrand: undefined;
 }
 
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
