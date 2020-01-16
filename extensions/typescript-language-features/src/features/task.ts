@@ -74,29 +74,29 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 
 	public async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
 		const definition = <TypeScriptTaskDefinition>task.definition;
-		const badTsconfig = /\\tsconfig.*\.json/;
-		if (badTsconfig.test(definition.tsconfig)) {
+		if (/\\tsconfig.*\.json/.test(definition.tsconfig)) {
 			// Warn that the task has the wrong slash type
 			vscode.window.showWarningMessage(localize('badTsConfig', "TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
 			return undefined;
 		}
 
-		const typescriptTask = definition.tsconfig;
-		if (typescriptTask) {
-			if (task.scope === undefined || task.scope === vscode.TaskScope.Global || task.scope === vscode.TaskScope.Workspace) {
-				// scope is required to be a WorkspaceFolder for resolveTask
-				return undefined;
-			}
-			const tsconfigUri: vscode.Uri = task.scope.uri.with({ path: task.scope.uri.path + '/' + definition.tsconfig });
-			const tsconfig: TSConfig = {
-				uri: tsconfigUri,
-				fsPath: tsconfigUri.fsPath,
-				posixPath: tsconfigUri.path,
-				workspaceFolder: task.scope
-			};
-			return this.getTasksForProjectAndDefinition(tsconfig, definition);
+		const tsconfigPath = definition.tsconfig;
+		if (!tsconfigPath) {
+			return undefined;
 		}
-		return undefined;
+
+		if (task.scope === undefined || task.scope === vscode.TaskScope.Global || task.scope === vscode.TaskScope.Workspace) {
+			// scope is required to be a WorkspaceFolder for resolveTask
+			return undefined;
+		}
+		const tsconfigUri = task.scope.uri.with({ path: task.scope.uri.path + '/' + tsconfigPath });
+		const tsconfig: TSConfig = {
+			uri: tsconfigUri,
+			fsPath: tsconfigUri.fsPath,
+			posixPath: tsconfigUri.path,
+			workspaceFolder: task.scope
+		};
+		return this.getTasksForProjectAndDefinition(tsconfig, definition);
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {
