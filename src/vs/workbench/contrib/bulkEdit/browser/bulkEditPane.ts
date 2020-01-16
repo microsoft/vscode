@@ -157,9 +157,11 @@ export class BulkEditPane extends ViewPane {
 			this._tree.domFocus();
 			this._tree.focusFirst();
 
-			const first = this._tree.getFirstElementChild();
-			if (first instanceof FileElement) {
-				this._tree.expand(first);
+			// this._tree.expandAll() workaround
+			for (let node of this._tree.getNode(input).children) {
+				if (node.element instanceof FileElement) {
+					this._tree.expand(node.element, false);
+				}
 			}
 
 			// refresh when check state changes
