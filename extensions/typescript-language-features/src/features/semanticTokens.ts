@@ -16,17 +16,20 @@ const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.
 
 export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
 	return new VersionDependentRegistration(client, minTypeScriptVersion, () => {
-		const provider = new SemanticTokensProvider(client);
-		return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
+		const provider = new DocumentSemanticTokensProvider(client);
+		return vscode.Disposable.from(
+			vscode.languages.registerDocumentSemanticTokensProvider(selector, provider, provider.getLegend()),
+			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector, provider, provider.getLegend()),
+		);
 	});
 }
 
 /**
- * Prototype of a SemanticTokensProvider, relying on the experimental `encodedSemanticClassifications-full` request from the TypeScript server.
+ * Prototype of a DocumentSemanticTokensProvider, relying on the experimental `encodedSemanticClassifications-full` request from the TypeScript server.
  * As the results retured by the TypeScript server are limited, we also add a Typescript plugin (typescript-vscode-sh-plugin) to enrich the returned token.
  * See https://github.com/aeschli/typescript-vscode-sh-plugin.
  */
-class SemanticTokensProvider implements vscode.SemanticTokensProvider {
+class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider, vscode.DocumentRangeSemanticTokensProvider {
 
 	constructor(private readonly client: ITypeScriptServiceClient) {
 	}
@@ -41,68 +44,65 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
 
-	async provideSemanticTokens(document: vscode.TextDocument, options: vscode.SemanticTokensRequestOptions, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+	async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+		const file = this.client.toOpenedFilePath(document);
+		if (!file) {
+			return null;
+		}
+		return this._provideSemanticTokens(document, { file, start: 0, length: document.getText().length }, token);
+	}
+
+	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+		const file = this.client.toOpenedFilePath(document);
+		if (!file) {
+			return null;
+		}
+		const start = document.offsetAt(range.start);
+		const length = document.offsetAt(range.end) - start;
+		return this._provideSemanticTokens(document, { file, start, length }, token);
+	}
+
+	async _provideSemanticTokens(document: vscode.TextDocument, requestArg: ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return null;
 		}
 
-		const versionBeforeRequest = document.version;
-
-		const allTokenSpans: number[][] = [];
-
-		let requestArgs: ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs[] = [];
-		if (options.ranges) {
-			requestArgs = options.ranges.map(r => { const start = document.offsetAt(r.start); const length = document.offsetAt(r.end) - start; return { file, start, length }; });
-			requestArgs = requestArgs.sort((a1, a2) => a1.start - a2.start);
-		} else {
-			requestArgs = [{ file, start: 0, length: document.getText().length }]; // full document
-		}
-		for (const requestArg of requestArgs) {
-			const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
-			if (response.type === 'response' && response.body) {
-				allTokenSpans.push(response.body.spans);
-			} else {
-				return null;
-			}
-		}
-
-		const versionAfterRequest = document.version;
-		if (versionBeforeRequest !== versionAfterRequest) {
-			// A new request will come in soon...
+		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
+		if (response.type !== 'response' || !response.body) {
 			return null;
 		}
 
+		const tokenSpan = response.body.spans;
+
 		const builder = new vscode.SemanticTokensBuilder();
-		for (const tokenSpan of allTokenSpans) {
-			let i = 0;
-			while (i < tokenSpan.length) {
-				const offset = tokenSpan[i++];
-				const length = tokenSpan[i++];
-				const tsClassification = tokenSpan[i++];
+		let i = 0;
+		while (i < tokenSpan.length) {
+			const offset = tokenSpan[i++];
+			const length = tokenSpan[i++];
+			const tsClassification = tokenSpan[i++];
 
-				let tokenModifiers = 0;
-				let tokenType = getTokenTypeFromClassification(tsClassification);
-				if (tokenType !== undefined) {
-					// it's a classification as returned by the typescript-vscode-sh-plugin
-					tokenModifiers = getTokenModifierFromClassification(tsClassification);
-				} else {
-					// typescript-vscode-sh-plugin is not present
-					tokenType = tokenTypeMap[tsClassification];
-					if (tokenType === undefined) {
-						continue;
-					}
+			let tokenModifiers = 0;
+			let tokenType = getTokenTypeFromClassification(tsClassification);
+			if (tokenType !== undefined) {
+				// it's a classification as returned by the typescript-vscode-sh-plugin
+				tokenModifiers = getTokenModifierFromClassification(tsClassification);
+			} else {
+				// typescript-vscode-sh-plugin is not present
+				tokenType = tokenTypeMap[tsClassification];
+				if (tokenType === undefined) {
+					continue;
 				}
+			}
 
-				// we can use the document's range conversion methods because the result is at the same version as the document
-				const startPos = document.positionAt(offset);
-				const endPos = document.positionAt(offset + length);
+			// we can use the document's range conversion methods because the result is at the same version as the document
+			const startPos = document.positionAt(offset);
+			const endPos = document.positionAt(offset + length);
 
-				for (let line = startPos.line; line <= endPos.line; line++) {
-					const startCharacter = (line === startPos.line ? startPos.character : 0);
-					const endCharacter = (line === endPos.line ? endPos.character : document.lineAt(line).text.length);
-					builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
-				}
+			for (let line = startPos.line; line <= endPos.line; line++) {
+				const startCharacter = (line === startPos.line ? startPos.character : 0);
+				const endCharacter = (line === endPos.line ? endPos.character : document.lineAt(line).text.length);
+				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
 			}
 		}
 		return new vscode.SemanticTokens(builder.build());

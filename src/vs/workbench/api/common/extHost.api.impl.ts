@@ -379,9 +379,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
-			registerSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+			registerDocumentSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
+				return extHostLanguageFeatures.registerDocumentSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
+			},
+			registerDocumentRangeSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerDocumentRangeSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
 				if (typeof firstItem === 'object') {
