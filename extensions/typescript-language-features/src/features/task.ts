@@ -72,8 +72,8 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 		return tasks;
 	}
 
-	public async resolveTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const definition = <TypeScriptTaskDefinition>_task.definition;
+	public async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
+		const definition = <TypeScriptTaskDefinition>task.definition;
 		const badTsconfig = /\\tsconfig.*\.json/;
 		if (badTsconfig.exec(definition.tsconfig) !== null) {
 			// Warn that the task has the wrong slash type
@@ -81,21 +81,20 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 			return undefined;
 		}
 
-		const typescriptTask = (<any>_task.definition).tsconfig;
+		const typescriptTask = definition.tsconfig;
 		if (typescriptTask) {
-			if (_task.scope === undefined || _task.scope === vscode.TaskScope.Global || _task.scope === vscode.TaskScope.Workspace) {
+			if (task.scope === undefined || task.scope === vscode.TaskScope.Global || task.scope === vscode.TaskScope.Workspace) {
 				// scope is required to be a WorkspaceFolder for resolveTask
 				return undefined;
 			}
-			const kind: TypeScriptTaskDefinition = (<any>_task.definition);
-			const tsconfigUri: vscode.Uri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.tsconfig });
+			const tsconfigUri: vscode.Uri = task.scope.uri.with({ path: task.scope.uri.path + '/' + definition.tsconfig });
 			const tsconfig: TSConfig = {
 				uri: tsconfigUri,
 				fsPath: tsconfigUri.fsPath,
 				posixPath: tsconfigUri.path,
-				workspaceFolder: _task.scope
+				workspaceFolder: task.scope
 			};
-			return this.getTasksForProjectAndDefinition(tsconfig, kind);
+			return this.getTasksForProjectAndDefinition(tsconfig, definition);
 		}
 		return undefined;
 	}
