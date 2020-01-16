@@ -731,6 +731,9 @@ export class Repository implements Disposable {
 		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
 		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
 
+		const onConfigListenerForIgnoreSubmodules = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.ignoreSubmodules', root));
+		onConfigListenerForIgnoreSubmodules(this.updateModelState, this, this.disposables);
+
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
 

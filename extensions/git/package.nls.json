@@ -121,6 +121,7 @@
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
 	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
+	"config.ignoreSubmodules": "Ignore modifications to submodules in the file tree.",
 	"config.ignoredRepositories": "List of git repositories to ignore.",
 	"config.scanRepositories": "List of paths to search for git repositories in.",
 	"config.showProgress": "Controls whether git actions should show progress.",
