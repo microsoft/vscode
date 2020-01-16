@@ -405,6 +405,7 @@ declare namespace monaco {
 		readonly leftButton: boolean;
 		readonly middleButton: boolean;
 		readonly rightButton: boolean;
+		readonly buttons: number;
 		readonly target: HTMLElement;
 		readonly detail: number;
 		readonly posx: number;
@@ -5947,10 +5948,15 @@ declare namespace monaco.languages {
 		readonly edits: SemanticTokensEdit[];
 	}
 
-	export interface SemanticTokensProvider {
+	export interface DocumentSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
-		provideSemanticTokens(model: editor.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-		releaseSemanticTokens(resultId: string | undefined): void;
+		provideDocumentSemanticTokens(model: editor.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+		releaseDocumentSemanticTokens(resultId: string | undefined): void;
+	}
+
+	export interface DocumentRangeSemanticTokensProvider {
+		getLegend(): SemanticTokensLegend;
+		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}
 
 	export interface ILanguageExtensionPoint {

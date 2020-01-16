@@ -47,7 +47,7 @@ export type CustomEditorEdit = { source?: any, data: any };
 export interface ICustomEditorModelManager {
 	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
 
-	loadOrCreate(resource: URI, viewType: string): Promise<ICustomEditorModel>;
+	resolve(resource: URI, viewType: string): Promise<ICustomEditorModel>;
 
 	disposeModel(model: ICustomEditorModel): void;
 }

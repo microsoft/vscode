@@ -9,75 +9,93 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
+const _onDidUnregisterAuthenticationProvider = new Emitter<string>();
+const _onDidChangeSessions = new Emitter<string>();
+
 export class ExtHostAuthenticationProvider implements IDisposable {
 	constructor(private _provider: vscode.AuthenticationProvider,
-		private readonly _handle: number,
+		private _id: string,
 		private _proxy: MainThreadAuthenticationShape) {
-		this._provider.onDidChangeAccounts(x => this._proxy.$onDidChangeAccounts(this._handle, x));
+		this._provider.onDidChangeSessions(x => {
+			this._proxy.$onDidChangeSessions(this._id);
+			_onDidChangeSessions.fire(this._id);
+		});
 	}
 
-	getAccounts(): Promise<ReadonlyArray<vscode.Account>> {
-		return this._provider.getAccounts();
+	getSessions(): Promise<ReadonlyArray<vscode.Session>> {
+		return this._provider.getSessions();
 	}
 
-	login(): Promise<vscode.Account> {
+	login(): Promise<vscode.Session> {
 		return this._provider.login();
 	}
 
-	logout(accountId: string): Promise<void> {
-		return this._provider.logout(accountId);
+	logout(sessionId: string): Promise<void> {
+		return this._provider.logout(sessionId);
 	}
 
 	dispose(): void {
-		this._proxy.$unregisterAuthenticationProvider(this._handle);
+		this._proxy.$unregisterAuthenticationProvider(this._id);
+		_onDidUnregisterAuthenticationProvider.fire(this._id);
 	}
 }
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
-	public static _handlePool: number = 0;
 	private _proxy: MainThreadAuthenticationShape;
-	private _authenticationProviders: Map<number, ExtHostAuthenticationProvider> = new Map<number, ExtHostAuthenticationProvider>();
+	private _authenticationProviders: Map<string, ExtHostAuthenticationProvider> = new Map<string, ExtHostAuthenticationProvider>();
+
+	private _onDidRegisterAuthenticationProvider = new Emitter<string>();
+	readonly onDidRegisterAuthenticationProvider: Event<string> = this._onDidRegisterAuthenticationProvider.event;
+
+	readonly onDidUnregisterAuthenticationProvider: Event<string> = _onDidUnregisterAuthenticationProvider.event;
+
+	readonly onDidChangeSessions: Event<string> = _onDidChangeSessions.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
+
+		this.onDidUnregisterAuthenticationProvider(providerId => {
+			this._authenticationProviders.delete(providerId);
+		});
 	}
 
-	private readonly _onDidRefreshToken = new Emitter<any>();
-	readonly onDidRefreshToken: Event<any> = this._onDidRefreshToken.event;
-
 	registerAuthenticationProvider(provider: vscode.AuthenticationProvider) {
-		const handle = ExtHostAuthentication._handlePool++;
-		const authenticationProvider = new ExtHostAuthenticationProvider(provider, handle, this._proxy);
-		this._authenticationProviders.set(handle, authenticationProvider);
+		if (this._authenticationProviders.get(provider.id)) {
+			throw new Error(`An authentication provider with id '${provider.id}' is already registered.`);
+		}
 
-		this._proxy.$registerAuthenticationProvider(handle, provider.id);
+		const authenticationProvider = new ExtHostAuthenticationProvider(provider, provider.id, this._proxy);
+		this._authenticationProviders.set(provider.id, authenticationProvider);
+
+		this._proxy.$registerAuthenticationProvider(provider.id);
+		this._onDidRegisterAuthenticationProvider.fire(provider.id);
 		return authenticationProvider;
 	}
 
-	$accounts(handle: number): Promise<ReadonlyArray<modes.Account>> {
-		const authProvider = this._authenticationProviders.get(handle);
+	$login(providerId: string): Promise<modes.Session> {
+		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
-			return Promise.resolve(authProvider.getAccounts());
+			return Promise.resolve(authProvider.login());
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${handle}`);
+		throw new Error(`Unable to find authentication provider with handle: ${0}`);
 	}
 
-	$login(handle: number): Promise<modes.Account> {
-		const authProvider = this._authenticationProviders.get(handle);
+	$logout(providerId: string, sessionId: string): Promise<void> {
+		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
-			return authProvider.login();
+			return Promise.resolve(authProvider.logout(sessionId));
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${handle}`);
+		throw new Error(`Unable to find authentication provider with handle: ${0}`);
 	}
 
-	$logout(handle: number, accountId: string): Promise<void> {
-		const authProvider = this._authenticationProviders.get(handle);
+	$getSessions(providerId: string): Promise<ReadonlyArray<modes.Session>> {
+		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
-			return authProvider.logout(accountId);
+			return Promise.resolve(authProvider.getSessions());
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${handle}`);
+		throw new Error(`Unable to find authentication provider with handle: ${0}`);
 	}
 }

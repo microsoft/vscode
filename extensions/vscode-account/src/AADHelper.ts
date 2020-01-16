@@ -23,7 +23,7 @@ interface IToken {
 	refreshToken: string;
 }
 
-export const onDidChangeAccounts = new vscode.EventEmitter<vscode.Account[]>();
+export const onDidChangeSessions = new vscode.EventEmitter<void>();
 
 export class AzureActiveDirectoryService {
 	private _token: IToken | undefined;
@@ -44,20 +44,20 @@ export class AzureActiveDirectoryService {
 			// Another window has logged in, generate access token for this instance.
 			if (refreshToken && !this._token) {
 				await this.refreshToken(refreshToken);
-				onDidChangeAccounts.fire(this.accounts);
+				onDidChangeSessions.fire();
 			}
 
 			// Another window has logged out
 			if (!refreshToken && this._token) {
 				await this.logout();
-				onDidChangeAccounts.fire(this.accounts);
+				onDidChangeSessions.fire();
 			}
 
 			this.pollForChange();
 		}, 1000 * 30);
 	}
 
-	private tokenToAccount(token: IToken): vscode.Account {
+	private tokenToAccount(token: IToken): vscode.Session {
 		return {
 			id: '',
 			accessToken: token.accessToken,
@@ -77,7 +77,7 @@ export class AzureActiveDirectoryService {
 		return displayName;
 	}
 
-	get accounts(): vscode.Account[] {
+	get sessions(): vscode.Session[] {
 		return this._token ? [this.tokenToAccount(this._token)] : [];
 	}
 
@@ -146,7 +146,7 @@ export class AzureActiveDirectoryService {
 			} catch (e) {
 				await this.logout();
 			} finally {
-				onDidChangeAccounts.fire(this.accounts);
+				onDidChangeSessions.fire();
 			}
 		}, 1000 * (parseInt(token.expiresIn) - 10));
 

@@ -21,7 +21,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		return this._models.get(this.key(resource, viewType))?.model;
 	}
 
-	public async loadOrCreate(resource: URI, viewType: string): Promise<ICustomEditorModel> {
+	public async resolve(resource: URI, viewType: string): Promise<ICustomEditorModel> {
 		const existing = this.get(resource, viewType);
 		if (existing) {
 			return existing;

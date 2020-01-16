@@ -69,8 +69,12 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('hasPreviouslySynced');
 	}
 
-	hasRemote(): Promise<boolean> {
-		return this.channel.call('hasRemote');
+	hasRemoteData(): Promise<boolean> {
+		return this.channel.call('hasRemoteData');
+	}
+
+	hasLocalData(): Promise<boolean> {
+		return this.channel.call('hasLocalData');
 	}
 
 	resolveConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
