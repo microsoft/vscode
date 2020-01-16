@@ -118,7 +118,7 @@ export class FocusNextInputAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeControl as SearchEditor).focusNextInput();
+			(this.editorService.activeControl as SearchEditor).focusNextInput();
 		}
 
 		const searchView = getSearchView(this.viewletService, this.panelService);
@@ -144,7 +144,7 @@ export class FocusPreviousInputAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeControl as SearchEditor).focusPrevInput();
+			(this.editorService.activeControl as SearchEditor).focusPrevInput();
 		}
 
 		const searchView = getSearchView(this.viewletService, this.panelService);
