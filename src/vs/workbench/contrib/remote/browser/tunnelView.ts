@@ -95,7 +95,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		}
 		if (this.model.detected.size > 0) {
 			groups.push({
-				label: nls.localize('remote.tunnelsView.detected', "Detected"),
+				label: nls.localize('remote.tunnelsView.detected', "Existing Tunnels"),
 				tunnelType: TunnelType.Detected,
 				items: this.detected
 			});
@@ -103,7 +103,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		const candidates = await this.candidates;
 		if (candidates.length > 0) {
 			groups.push({
-				label: nls.localize('remote.tunnelsView.candidates', "Candidates"),
+				label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
 				tunnelType: TunnelType.Candidate,
 				items: candidates
 			});
@@ -369,7 +369,7 @@ class TunnelItem implements ITunnelItem {
 		} else if (this.localAddress) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} \u2192 {1}", this.remotePort, this.localAddress);
 		} else if (this.remoteHost !== 'localhost') {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1} not forwarded", this.remoteHost, this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1}", this.remoteHost, this.remotePort);
 		} else {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0} not forwarded", this.remotePort);
 		}
