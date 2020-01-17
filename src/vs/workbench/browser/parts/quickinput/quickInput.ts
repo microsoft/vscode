@@ -64,6 +64,7 @@ interface QuickInputUI {
 	leftActionBar: ActionBar;
 	titleBar: HTMLElement;
 	title: HTMLElement;
+	description: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
@@ -95,6 +96,7 @@ interface QuickInputUI {
 
 type Visibilities = {
 	title?: boolean;
+	description?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
 	visibleCount?: boolean;
@@ -108,6 +110,7 @@ type Visibilities = {
 class QuickInput extends Disposable implements IQuickInput {
 
 	private _title: string | undefined;
+	private _description: string | undefined;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	protected visible = false;
@@ -136,6 +139,15 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	set title(title: string | undefined) {
 		this._title = title;
+		this.update();
+	}
+
+	get description() {
+		return this._description;
+	}
+
+	set description(description: string | undefined) {
+		this._description = description;
 		this.update();
 	}
 
@@ -244,6 +256,10 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		}
+		const description = this.getDescription();
+		if (this.ui.description.textContent !== description) {
+			this.ui.description.textContent = description;
+		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
 			this.busyDelay.setIfNotSet(() => {
@@ -296,6 +312,10 @@ class QuickInput extends Disposable implements IQuickInput {
 			return this.getSteps();
 		}
 		return '';
+	}
+
+	private getDescription() {
+		return this.description || '';
 	}
 
 	private getSteps() {
@@ -713,7 +733,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: this.ok, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, description: !!this.description, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -872,7 +892,7 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
+		this.ui.setVisibilities({ title: !!this.title || !!this.step, description: !!this.description || !!this.step, inputBox: true, message: true });
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -1037,6 +1057,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const rightActionBar = this._register(new ActionBar(titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
+		const description = dom.append(container, $('.quick-input-description'));
+
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
@@ -1166,6 +1188,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			leftActionBar,
 			titleBar,
 			title,
+			description,
 			rightActionBar,
 			checkAll,
 			filterContainer,
@@ -1377,6 +1400,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.setEnabled(true);
 		ui.leftActionBar.clear();
 		ui.title.textContent = '';
+		ui.description.textContent = '';
 		ui.rightActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
@@ -1410,6 +1434,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private setVisibilities(visibilities: Visibilities) {
 		const ui = this.getUI();
 		ui.title.style.display = visibilities.title ? '' : 'none';
+		ui.description.style.display = visibilities.description ? '' : 'none';
 		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';

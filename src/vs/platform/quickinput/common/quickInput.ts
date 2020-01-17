@@ -131,6 +131,8 @@ export interface IQuickInput {
 
 	title: string | undefined;
 
+	description: string | undefined;
+
 	step: number | undefined;
 
 	totalSteps: number | undefined;
