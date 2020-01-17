@@ -182,7 +182,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					return this.serverState.tsserverVersion;
 				}
 			}
-			return this.apiVersion.version;
+			return this.apiVersion.fullVersionString;
 		}));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
