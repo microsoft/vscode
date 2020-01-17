@@ -611,7 +611,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const untitledInput = input as IUntitledTextResourceInput;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
 			return this.untitledTextEditorService.create({
-				resource: untitledInput.resource,
+				untitledResource: untitledInput.resource?.scheme === Schemas.untitled ? untitledInput.resource : undefined,
+				associatedResource: untitledInput.resource?.scheme !== Schemas.untitled ? untitledInput.resource : undefined,
 				mode: untitledInput.mode,
 				initialValue: untitledInput.contents,
 				encoding: untitledInput.encoding
