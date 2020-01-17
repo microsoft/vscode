@@ -195,7 +195,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 
 	private cachedViewInfo: Map<string, ICachedViewContainerInfo>;
-
+	private generatedContainerSourceViewIds: Map<string, string>;
 
 	private _cachedViewPositionsValue: string | undefined;
 	private get cachedViewPositionsValue(): string {
@@ -225,6 +225,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		this.generatedContainerSourceViewIds = new Map<string, string>();
 
 		this.cachedViewInfo = this.getCachedViewPositions();
 
@@ -442,21 +443,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	// Generated Container Id Format
 	// {Common Prefix}.{Uniqueness Id}.{Source View Id}
 	private generateContainerIdFromSourceViewId(viewId: string, location: ViewContainerLocation): string {
-		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${location === ViewContainerLocation.Panel ? 'panel' : 'sidebar'}.${viewId}`;
-	}
-
-	private extractSourceViewIdFromContainerId(containerId: string): string | undefined {
-		if (!containerId.startsWith(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX)) {
-			return undefined;
-		}
-
-		// Remove the common prefix for generated container ids
-		const prefixRemoved = containerId.substr(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX.length + 1);
-
-		// Remove uniqueness section
-		const uniquenessRemoved = prefixRemoved.substr(prefixRemoved.indexOf('.') + 1);
-
-		return uniquenessRemoved;
+		const result = `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${location === ViewContainerLocation.Panel ? 'panel' : 'sidebar'}.${viewId}`;
+		this.generatedContainerSourceViewIds.set(result, viewId);
+		return result;
 	}
 
 	private getStoredCachedViewPositionsValue(): string {
@@ -471,7 +460,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewContainersRegistry.all.forEach(viewContainer => {
 			const viewDescriptorCollection = this.getViewDescriptors(viewContainer);
 			viewDescriptorCollection.allViewDescriptors.forEach(viewDescriptor => {
-				const sourceViewId = this.extractSourceViewIdFromContainerId(viewContainer.id);
+				const sourceViewId = this.generatedContainerSourceViewIds.get(viewContainer.id);
 				const containerLocation = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 				this.cachedViewInfo.set(viewDescriptor.id, {
 					containerId: viewContainer.id,
