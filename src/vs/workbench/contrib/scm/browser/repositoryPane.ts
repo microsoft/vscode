@@ -63,6 +63,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -715,6 +717,8 @@ export class RepositoryPane extends ViewPane {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SuggestController.ID,
+				SnippetController2.ID,
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID
@@ -731,8 +735,7 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
 		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
 
-		let resource = URI.parse('scm://input');
-		this.inputModel = this.modelService.createModel('', null, resource, true);
+		this.inputModel = this.modelService.createModel('', null, URI.parse('scm:///input'));
 		this.inputEditor.setModel(this.inputModel);
 
 		this.inputEditor.changeViewZones(accessor => {
