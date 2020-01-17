@@ -563,6 +563,7 @@ export interface WebviewExtensionDescription {
 
 export enum WebviewEditorCapabilities {
 	Editable,
+	SupportsHotExit,
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {

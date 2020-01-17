@@ -337,7 +337,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			model.onWillSave(e => {
 				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
 			});
-
 		}
 
 		// Save as should always be implemented even if the model is readonly
@@ -349,6 +348,11 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				e.waitUntil(this._fileService.copy(e.resource, e.targetResource, false /* overwrite */));
 			}
 		});
+
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SupportsHotExit)) {
+			// TODO: Hook up hot exit / backup logic
+		}
+
 		return model;
 	}
 
