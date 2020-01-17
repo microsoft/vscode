@@ -331,7 +331,7 @@ namespace CompletionConfiguration {
 
 class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -459,6 +459,18 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
+		// Workaround for https://github.com/microsoft/TypeScript/issues/36234
+		if (context.triggerCharacter === '#') {
+			return undefined;
+		}
+
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+		if (context.triggerCharacter === '@'
+			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
+		) {
+			return undefined;
+		}
+
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
 		if (context.triggerCharacter === '@'
 			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
