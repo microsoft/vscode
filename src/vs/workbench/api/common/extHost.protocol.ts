@@ -49,7 +49,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
-import { TimelineItem } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TimelineItem, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -799,8 +799,8 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 }
 
 export interface MainThreadTimelineShape extends IDisposable {
-	$registerTimelineProvider(key: string, id: string): void;
-	$unregisterTimelineProvider(key: string): void;
+	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
+	$unregisterTimelineProvider(source: string): void;
 
 	$getTimeline(resource: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
 }
@@ -1450,9 +1450,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	// $registerTimelineProvider(handle: number, provider: TimelineProvider): void;
-
-	$getTimeline(key: string, uri: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(source: string, uri: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // --- proxy identifiers

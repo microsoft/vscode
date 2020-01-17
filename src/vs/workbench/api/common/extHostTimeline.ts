@@ -7,13 +7,15 @@ import * as vscode from 'vscode';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { TimelineItem, TimelineProvider, toKey } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { TimelineItem, TimelineItemWithSource, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
-	$getTimeline(key: string, uri: UriComponents, since: number, token: vscode.CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(source: string, uri: UriComponents, since: number, token: vscode.CancellationToken): Promise<TimelineItem[]>;
 }
 
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
@@ -27,54 +29,86 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 	constructor(
 		mainContext: IMainContext,
-
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTimeline);
+	}
 
-		this.registerTimelineProvider('bar', {
-			id: 'baz',
-			async provideTimeline(uri: URI, since: number, token: vscode.CancellationToken) {
-				return [
-					{
-						id: '1',
-						label: 'Bar Timeline1',
-						description: uri.toString(true),
-						detail: new Date().toString(),
-						date: Date.now(),
-						source: 'log'
-					},
-					{
-						id: '2',
-						label: 'Bar Timeline2',
-						description: uri.toString(true),
-						detail: new Date(Date.now() - 100).toString(),
-						date: Date.now() - 100,
-						source: 'log'
-					}
-				];
+	async $getTimeline(source: string, uri: UriComponents, since: number, token: vscode.CancellationToken): Promise<TimelineItem[]> {
+		const provider = this._providers.get(source);
+		return provider?.provideTimeline(URI.revive(uri), since, token) ?? [];
+	}
+
+	registerTimelineProvider(provider: vscode.TimelineProvider, commandConverter: CommandsConverter): IDisposable {
+		const disposables = new DisposableStore();
+
+		const convertTimelineItem = this.convertTimelineItem(provider.source, commandConverter, disposables);
+		return this.registerTimelineProviderCore({
+			...provider,
+			async provideTimeline(uri: URI, since: number, token: CancellationToken) {
+				disposables.clear();
+
+				const results = await provider.provideTimeline(uri, since, token);
+				// eslint-disable-next-line eqeqeq
+				return results != null
+					? results.map(item => convertTimelineItem(item))
+					: [];
+			},
+			dispose() {
+				disposables.dispose();
 			}
 		});
 	}
 
-	async $getTimeline(key: string, uri: UriComponents, since: number, token: vscode.CancellationToken): Promise<TimelineItem[]> {
-		const provider = this._providers.get(key);
-		return provider?.provideTimeline(URI.revive(uri), since, token) ?? [];
+	private convertTimelineItem(source: string, commandConverter: CommandsConverter, disposables: DisposableStore): (item: vscode.TimelineItem) => TimelineItemWithSource {
+		return (item: vscode.TimelineItem) => {
+			const { iconPath, ...props } = item;
+
+			let icon;
+			let iconDark;
+			let themeIcon;
+			if (item.iconPath) {
+				if (iconPath instanceof ThemeIcon) {
+					themeIcon = { id: iconPath.id };
+				}
+				else if (URI.isUri(iconPath)) {
+					icon = iconPath;
+					iconDark = iconPath;
+				}
+				else {
+					({ light: icon, dark: iconDark } = iconPath as { light: URI; dark: URI });
+				}
+			}
+
+			return {
+				...props,
+				source: source,
+				command: item.command ? commandConverter.toInternal(item.command, disposables) : undefined,
+				icon: icon,
+				iconDark: iconDark,
+				themeIcon: themeIcon
+			};
+		};
 	}
 
-	registerTimelineProvider(extension: ExtensionIdentifier | string, provider: TimelineProvider): IDisposable {
-		console.log(`ExtHostTimeline#registerTimelineProvider: extension=${extension.toString()}, provider=${provider.id}`);
+	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable {
+		console.log(`ExtHostTimeline#registerTimelineProvider: provider=${provider.source}`);
 
-		const key = toKey(extension, provider.id);
-		if (this._providers.has(key)) {
-			throw new Error(`Timeline Provider ${key} already exists.`);
+		const existing = this._providers.get(provider.source);
+		if (existing && !existing.replaceable) {
+			throw new Error(`Timeline Provider ${provider.source} already exists.`);
 		}
 
-		this._proxy.$registerTimelineProvider(key, provider.id);
-		this._providers.set(key, provider);
+		this._proxy.$registerTimelineProvider({
+			source: provider.source,
+			sourceDescription: provider.sourceDescription,
+			replaceable: provider.replaceable
+		});
+		this._providers.set(provider.source, provider);
 
 		return toDisposable(() => {
-			this._providers.delete(key);
-			this._proxy.$unregisterTimelineProvider(key);
+			this._providers.delete(provider.source);
+			this._proxy.$unregisterTimelineProvider(provider.source);
+			provider.dispose();
 		});
 	}
 }

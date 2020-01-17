@@ -19,88 +19,95 @@ export class TimelineService implements ITimelineService {
 	private readonly _providers = new Map<string, TimelineProvider>();
 
 	constructor(@ILogService private readonly logService: ILogService) {
-		this.registerTimelineProvider('foo', {
-			id: 'bar',
+		this.registerTimelineProvider({
+			source: 'local-history',
+			sourceDescription: 'Local History',
 			async provideTimeline(uri: URI, since: number, token: CancellationToken) {
 				return [
 					{
 						id: '1',
-						label: '$(git-commit) Timeline1',
+						label: 'Undo Timeline1',
 						description: uri.toString(true),
-						date: Date.now(),
-						source: 'internal'
+						date: Date.now()
 					},
 					{
 						id: '2',
-						label: '$(git-commit) Timeline2',
+						label: 'Undo Timeline2',
 						description: uri.toString(true),
-						date: Date.now() - 100,
-						source: 'internal'
+						date: Date.now() - 100
 					}
-
 				];
-			}
+			},
+			dispose() { }
 		});
 	}
 
+	// TODO: Add filtering
 	async getTimeline(uri: URI, since: number, token: CancellationToken) {
 		this.logService.trace(`TimelineService#getTimeline: uri=${uri.toString(true)}`);
 		const requests = [];
 
 		for (const provider of this._providers.values()) {
-			requests.push(provider.provideTimeline(uri, since, token));
+			requests.push(
+				provider.provideTimeline(uri, since, token).then(items => ({ source: provider.source, items: items }))
+			);
 		}
 
-		const timelines = await raceAll(requests, 5000);
+		const timelines = await raceAll(requests /*, 5000*/);
 
 		const timeline = [];
-		for (const items of timelines) {
+		for (const result of timelines) {
 			// eslint-disable-next-line eqeqeq
-			if (items == null || items instanceof CancellationError || items.length === 0) {
+			if (result == null || result instanceof CancellationError) {
 				continue;
 			}
 
-			timeline.push(...items);
+			const { source, items } = result;
+			if (items.length === 0) {
+				continue;
+			}
+
+			timeline.push(...items.map(item => ({ ...item, source: source })));
 		}
 
 		timeline.sort((a, b) => b.date - a.date);
 		return timeline;
 	}
 
-	registerTimelineProvider(key: string, provider: TimelineProvider): IDisposable {
-		this.logService.trace('TimelineService#registerTimelineProvider');
+	registerTimelineProvider(provider: TimelineProvider): IDisposable {
+		this.logService.trace(`TimelineService#registerTimelineProvider: provider=${provider.source}`);
 
-		if (this._providers.has(key)) {
-			throw new Error(`Timeline Provider ${key} already exists.`);
+		const source = provider.source;
+
+		const existing = this._providers.get(source);
+		if (existing && !existing.replaceable) {
+			throw new Error(`Timeline Provider ${source} already exists.`);
 		}
 
-		this._providers.set(key, provider);
+		this._providers.set(source, provider);
 		this._onDidChangeProviders.fire();
 
 		return {
 			dispose: () => {
-				this._providers.delete(key);
+				this._providers.delete(source);
 				this._onDidChangeProviders.fire();
 			}
 		};
 	}
 
-	unregisterTimelineProvider(key: string): void {
+	unregisterTimelineProvider(source: string): void {
 		this.logService.trace('TimelineService#unregisterTimelineProvider');
 
-		if (!this._providers.has(key)) {
+		if (!this._providers.has(source)) {
 			return;
 		}
 
-		this._providers.delete(key);
+		this._providers.delete(source);
 		this._onDidChangeProviders.fire();
 	}
 }
 
-function* map<T, TMapped>(
-	source: Iterable<T> | IterableIterator<T>,
-	mapper: (item: T) => TMapped
-): Iterable<TMapped> {
+function* map<T, TMapped>(source: Iterable<T> | IterableIterator<T>, mapper: (item: T) => TMapped): Iterable<TMapped> {
 	for (const item of source) {
 		yield mapper(item);
 	}
@@ -150,10 +157,7 @@ async function raceAll<TPromise, T>(
 	if (promises instanceof Map) {
 		return new Map(
 			await Promise.all(
-				map<
-					[T, Promise<TPromise>],
-					Promise<[T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>]>
-				>(
+				map<[T, Promise<TPromise>], Promise<[T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>]>>(
 					promises.entries(),
 					// eslint-disable-next-line eqeqeq
 					timeout == null
@@ -163,10 +167,7 @@ async function raceAll<TPromise, T>(
 								promise,
 
 								new Promise<CancellationErrorWithId<T, Promise<TPromise>>>(resolve =>
-									setTimeout(
-										() => resolve(new CancellationErrorWithId(id, promise, 'TIMED OUT')),
-										timeout!
-									)
+									setTimeout(() => resolve(new CancellationErrorWithId(id, promise, 'TIMED OUT')), timeout!)
 								)
 							]).then(p => [id, p])
 				)

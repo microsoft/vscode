@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, LogFileOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule } from './git';
@@ -304,6 +304,7 @@ export const enum Operation {
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
+	LogFile = 'LogFile',
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -866,6 +867,11 @@ export class Repository implements Disposable {
 
 	log(options?: LogOptions): Promise<Commit[]> {
 		return this.run(Operation.Log, () => this.repository.log(options));
+	}
+
+	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+		// TODO: This probably needs per-uri granularity
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
 	}
 
 	@throttle

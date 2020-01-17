@@ -7,6 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { Command } from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -16,33 +17,39 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 
 export interface TimelineItem {
 	date: number;
-	source: string;
 	label: string;
 	id?: string;
-	// iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+	icon?: URI,
+	iconDark?: URI,
+	themeIcon?: { id: string },
 	description?: string;
 	detail?: string;
-
-	// resourceUri?: Uri;
-	// tooltip?: string | undefined;
-	// command?: Command;
-	// collapsibleState?: TreeItemCollapsibleState;
-	// contextValue?: string;
+	command?: Command;
+	contextValue?: string;
 }
 
-export interface TimelineProvider {
-	id: string;
-	// selector: DocumentSelector;
+export interface TimelineItemWithSource extends TimelineItem {
+	source: string;
+}
 
+export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	provideTimeline(uri: URI, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+}
+
+export interface TimelineProviderDescriptor {
+	source: string;
+	sourceDescription: string;
+
+	replaceable?: boolean;
+	// selector: DocumentSelector;
 }
 
 export interface ITimelineService {
 	readonly _serviceBrand: undefined;
 
 	onDidChangeProviders: Event<void>;
-	registerTimelineProvider(key: string, provider: TimelineProvider): IDisposable;
-	unregisterTimelineProvider(key: string): void;
+	registerTimelineProvider(provider: TimelineProvider): IDisposable;
+	unregisterTimelineProvider(source: string): void;
 
 	getTimeline(uri: URI, since: number, token: CancellationToken): Promise<TimelineItem[]>;
 }
