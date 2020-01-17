@@ -308,6 +308,10 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 		return false;
 	}
+	public onContentSizeChanged(e: viewEvents.ViewContentSizeChangedEvent): boolean {
+		this.outgoingEvents.emitContentSizeChange(e);
+		return false;
+	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this.domNode.setClassName(this.getEditorClassName());
 		this._context.model.setHasFocus(e.isFocused);

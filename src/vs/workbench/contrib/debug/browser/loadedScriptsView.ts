@@ -26,17 +26,19 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TreeResourceNavigator2, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 
-const SMART = true;
+const NEW_STYLE_COMPRESS = true;
 
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
 const URI_SCHEMA_PATTERN = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
@@ -49,7 +51,7 @@ class BaseTreeItem {
 	private _children = new Map<string, BaseTreeItem>();
 	private _source: Source | undefined;
 
-	constructor(private _parent: BaseTreeItem | undefined, private _label: string) {
+	constructor(private _parent: BaseTreeItem | undefined, private _label: string, public readonly isIncompressible = false) {
 		this._showedMoreThanOne = false;
 	}
 
@@ -205,7 +207,7 @@ class BaseTreeItem {
 	}
 
 	private oneChild(): BaseTreeItem | undefined {
-		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem)) {
+		if (!this._source && !this._showedMoreThanOne && this.skipOneChild()) {
 			if (this._children.size === 1) {
 				return this._children.values().next().value;
 			}
@@ -216,12 +218,21 @@ class BaseTreeItem {
 		}
 		return undefined;
 	}
+
+	private skipOneChild(): boolean {
+		if (NEW_STYLE_COMPRESS) {
+			// if the root node has only one Session, don't show the session
+			return this instanceof RootTreeItem;
+		} else {
+			return !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem);
+		}
+	}
 }
 
 class RootFolderTreeItem extends BaseTreeItem {
 
 	constructor(parent: BaseTreeItem, public folder: IWorkspaceFolder) {
-		super(parent, folder.name);
+		super(parent, folder.name, true);
 	}
 }
 
@@ -249,7 +260,7 @@ class SessionTreeItem extends BaseTreeItem {
 	private _labelService: ILabelService;
 
 	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
-		super(parent, session.getLabel());
+		super(parent, session.getLabel(), true);
 		this._labelService = labelService;
 		this._session = session;
 	}
@@ -370,17 +381,22 @@ class SessionTreeItem extends BaseTreeItem {
 	}
 }
 
+interface IViewState {
+	readonly expanded: Set<string>;
+}
+
 /**
  * This maps a model item into a view model item.
  */
-function asTreeElement(item: BaseTreeItem): ITreeElement<LoadedScriptsItem> {
+function asTreeElement(item: BaseTreeItem, viewState?: IViewState): ITreeElement<LoadedScriptsItem> {
 	const children = item.getChildren();
+	const collapsed = viewState ? !viewState.expanded.has(item.getId()) : !(item instanceof SessionTreeItem);
 
 	return {
 		element: item,
-		collapsed: !(item instanceof SessionTreeItem),
+		collapsed,
 		collapsible: item.hasChildren(),
-		children: children.map(asTreeElement)
+		children: children.map(i => asTreeElement(i, viewState))
 	};
 }
 
@@ -388,7 +404,7 @@ export class LoadedScriptsView extends ViewPane {
 
 	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree!: WorkbenchObjectTree<LoadedScriptsItem, FuzzyScore>;
+	private tree!: WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>;
 	private treeLabels!: ResourceLabels;
 	private changeScheduler!: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible = false;
@@ -424,18 +440,25 @@ export class LoadedScriptsView extends ViewPane {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
 			'LoadedScriptsView',
 			this.treeContainer,
 			new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
 			{
+				compressionEnabled: NEW_STYLE_COMPRESS,
 				collapseByDefault: true,
+				hideTwistiesOfChildlessElements: true,
 				identityProvider: {
 					getId: (element: LoadedScriptsItem) => element.getId()
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => element.getLabel()
+					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => {
+						return element.getLabel();
+					},
+					getCompressedNodeKeyboardNavigationLabel: (elements: LoadedScriptsItem[]) => {
+						return elements.map(e => e.getLabel()).join('/');
+					}
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
@@ -446,7 +469,7 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		);
 
-		const updateView = () => this.tree.setChildren(null, asTreeElement(root).children);
+		const updateView = (viewState?: IViewState) => this.tree.setChildren(null, asTreeElement(root, viewState).children);
 
 		updateView();
 
@@ -543,6 +566,35 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		}));
 
+		// feature: expand all nodes when filtering (not when finding)
+		let viewState: IViewState | undefined;
+		this._register(this.tree.onDidChangeTypeFilterPattern(pattern => {
+			if (!this.tree.options.filterOnType) {
+				return;
+			}
+
+			if (!viewState && pattern) {
+				const expanded = new Set<string>();
+				const visit = (node: ITreeNode<BaseTreeItem | null, FuzzyScore>) => {
+					if (node.element && !node.collapsed) {
+						expanded.add(node.element.getId());
+					}
+
+					for (const child of node.children) {
+						visit(child);
+					}
+				};
+
+				visit(this.tree.getNode());
+				viewState = { expanded };
+				this.tree.expandAll();
+			} else if (!pattern && viewState) {
+				this.tree.setFocus([]);
+				updateView(viewState);
+				viewState = undefined;
+			}
+		}));
+
 		// populate tree model with source paths from all debug sessions
 		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
 	}
@@ -573,7 +625,7 @@ interface ILoadedScriptsItemTemplateData {
 	label: IResourceLabel;
 }
 
-class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, FuzzyScore, ILoadedScriptsItemTemplateData> {
+class LoadedScriptsRenderer implements ICompressibleTreeRenderer<BaseTreeItem, FuzzyScore, ILoadedScriptsItemTemplateData> {
 
 	static readonly ID = 'lsrenderer';
 
@@ -594,9 +646,23 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, FuzzyScore, I
 	renderElement(node: ITreeNode<BaseTreeItem, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData): void {
 
 		const element = node.element;
+		const label = element.getLabel();
+
+		this.render(element, label, data, node.filterData);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<BaseTreeItem>, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData, height: number | undefined): void {
+
+		const element = node.element.elements[node.element.elements.length - 1];
+		const labels = node.element.elements.map(e => e.getLabel());
+
+		this.render(element, labels, data, node.filterData);
+	}
+
+	private render(element: BaseTreeItem, labels: string | string[], data: ILoadedScriptsItemTemplateData, filterData: FuzzyScore | undefined) {
 
 		const label: IResourceLabelProps = {
-			name: element.getLabel()
+			name: labels
 		};
 		const options: IResourceLabelOptions = {
 			title: element.getHoverLabel()
@@ -621,7 +687,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, FuzzyScore, I
 				options.fileKind = FileKind.FOLDER;
 			}
 		}
-		options.matches = createMatches(node.filterData);
+		options.matches = createMatches(filterData);
 
 		data.label.setResource(label, options);
 	}

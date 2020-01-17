@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as sinon from 'sinon';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
@@ -16,7 +15,6 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -64,7 +62,7 @@ suite('Files - TextFileService', () => {
 
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const untitled = await accessor.textFileService.untitled.loadOrCreate();
+		const untitled = await accessor.textFileService.untitled.resolve();
 
 		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
 		untitled.textEditorModel.setValue('changed');
@@ -85,27 +83,6 @@ suite('Files - TextFileService', () => {
 		const res = await accessor.textFileService.save(model.resource);
 		assert.ok(res);
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
-	});
-
-	test('save - UNC path', async function () {
-		const untitledUncUri = URI.from({ scheme: 'untitled', authority: 'server', path: '/share/path/file.txt' });
-		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-
-		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
-		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
-		const loadOrCreateStub = sinon.stub(accessor.textFileService.files, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
-
-		sinon.stub(accessor.textFileService.untitled, 'exists', () => true);
-		sinon.stub(accessor.textFileService.untitled, 'hasAssociatedFilePath', () => true);
-		sinon.stub(accessor.modelService, 'updateModel', () => { });
-
-		await model.load();
-		model.textEditorModel!.setValue('foo');
-
-		const res = await accessor.textFileService.save(untitledUncUri);
-		assert.ok(loadOrCreateStub.calledOnce);
-		assert.ok(res);
 	});
 
 	test('saveAll - file', async function () {

@@ -41,7 +41,7 @@ export class Viewport {
 
 export interface IViewLayout {
 
-	readonly scrollable: Scrollable;
+	getScrollable(): Scrollable;
 
 	onMaxLineWidthChanged(width: number): void;
 

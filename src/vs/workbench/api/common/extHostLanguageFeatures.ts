@@ -629,37 +629,38 @@ class SemanticTokensPreviousResult {
 	) { }
 }
 
-export class SemanticTokensAdapter {
+export class DocumentSemanticTokensAdapter {
 
 	private readonly _previousResults: Map<number, SemanticTokensPreviousResult>;
 	private _nextResultId = 1;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SemanticTokensProvider,
+		private readonly _provider: vscode.DocumentSemanticTokensProvider,
 	) {
 		this._previousResults = new Map<number, SemanticTokensPreviousResult>();
 	}
 
-	provideSemanticTokens(resource: URI, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+	provideDocumentSemanticTokens(resource: URI, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
 		const doc = this._documents.getDocument(resource);
 		const previousResult = (previousResultId !== 0 ? this._previousResults.get(previousResultId) : null);
-		const opts: vscode.SemanticTokensRequestOptions = {
-			ranges: (Array.isArray(ranges) && ranges.length > 0 ? ranges.map<Range>(typeConvert.Range.to) : undefined),
-			previousResultId: (previousResult ? previousResult.resultId : undefined)
-		};
-		return asPromise(() => this._provider.provideSemanticTokens(doc, opts, token)).then(value => {
-			if (!value) {
-				return null;
+		return asPromise(() => {
+			if (previousResult && typeof previousResult.resultId === 'string' && typeof this._provider.provideDocumentSemanticTokensEdits === 'function') {
+				return this._provider.provideDocumentSemanticTokensEdits(doc, previousResult.resultId, token);
 			}
+			return this._provider.provideDocumentSemanticTokens(doc, token);
+		}).then(value => {
 			if (previousResult) {
 				this._previousResults.delete(previousResultId);
 			}
-			return this._send(SemanticTokensAdapter._convertToEdits(previousResult, value), value);
+			if (!value) {
+				return null;
+			}
+			return this._send(DocumentSemanticTokensAdapter._convertToEdits(previousResult, value), value);
 		});
 	}
 
-	async releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
+	async releaseDocumentSemanticColoring(semanticColoringResultId: number): Promise<void> {
 		this._previousResults.delete(semanticColoringResultId);
 	}
 
@@ -672,7 +673,7 @@ export class SemanticTokensAdapter {
 	}
 
 	private static _convertToEdits(previousResult: SemanticTokensPreviousResult | null | undefined, newResult: vscode.SemanticTokens | vscode.SemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
-		if (!SemanticTokensAdapter._isSemanticTokens(newResult)) {
+		if (!DocumentSemanticTokensAdapter._isSemanticTokens(newResult)) {
 			return newResult;
 		}
 		if (!previousResult || !previousResult.tokens) {
@@ -708,7 +709,7 @@ export class SemanticTokensAdapter {
 	}
 
 	private _send(value: vscode.SemanticTokens | vscode.SemanticTokensEdits, original: vscode.SemanticTokens | vscode.SemanticTokensEdits): VSBuffer | null {
-		if (SemanticTokensAdapter._isSemanticTokens(value)) {
+		if (DocumentSemanticTokensAdapter._isSemanticTokens(value)) {
 			const myId = this._nextResultId++;
 			this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId, value.data));
 			return encodeSemanticTokensDto({
@@ -718,9 +719,9 @@ export class SemanticTokensAdapter {
 			});
 		}
 
-		if (SemanticTokensAdapter._isSemanticTokensEdits(value)) {
+		if (DocumentSemanticTokensAdapter._isSemanticTokensEdits(value)) {
 			const myId = this._nextResultId++;
-			if (SemanticTokensAdapter._isSemanticTokens(original)) {
+			if (DocumentSemanticTokensAdapter._isSemanticTokens(original)) {
 				// store the original
 				this._previousResults.set(myId, new SemanticTokensPreviousResult(original.resultId, original.data));
 			} else {
@@ -734,6 +735,33 @@ export class SemanticTokensAdapter {
 		}
 
 		return null;
+	}
+}
+
+export class DocumentRangeSemanticTokensAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentRangeSemanticTokensProvider,
+	) {
+	}
+
+	provideDocumentRangeSemanticTokens(resource: URI, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
+		const doc = this._documents.getDocument(resource);
+		return asPromise(() => this._provider.provideDocumentRangeSemanticTokens(doc, typeConvert.Range.to(range), token)).then(value => {
+			if (!value) {
+				return null;
+			}
+			return this._send(value);
+		});
+	}
+
+	private _send(value: vscode.SemanticTokens): VSBuffer | null {
+		return encodeSemanticTokensDto({
+			id: 0,
+			type: 'full',
+			data: value.data
+		});
 	}
 }
 
@@ -918,8 +946,6 @@ class SuggestAdapter {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
-		} else if (item.range2) {
-			range = item.range2;
 		}
 
 		if (range) {
@@ -955,12 +981,12 @@ class SuggestAdapter {
 	}
 
 	private static _mustNotChangeHash(item: vscode.CompletionItem) {
-		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2]);
+		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range]);
 		return res;
 	}
 
 	private static _mustNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
-		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range];
 		const thisHash = JSON.stringify(thisArr);
 		if (hash === thisHash) {
 			return;
@@ -1326,9 +1352,9 @@ class CallHierarchyAdapter {
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SemanticTokensAdapter | SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter
-	| ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter
-	| DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
+	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
+	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter;
 
 class AdapterData {
 	constructor(
@@ -1659,18 +1685,28 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	//#region semantic coloring
 
-	registerSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._addNewAdapter(new SemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
+	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+		const handle = this._addNewAdapter(new DocumentSemanticTokensAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
 		return this._createDisposable(handle);
 	}
 
-	$provideSemanticTokens(handle: number, resource: UriComponents, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.provideSemanticTokens(URI.revive(resource), ranges, previousResultId, token), null);
+	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null);
 	}
 
-	$releaseSemanticTokens(handle: number, semanticColoringResultId: number): void {
-		this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.releaseSemanticColoring(semanticColoringResultId), undefined);
+	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void {
+		this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.releaseDocumentSemanticColoring(semanticColoringResultId), undefined);
+	}
+
+	registerDocumentRangeSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+		const handle = this._addNewAdapter(new DocumentRangeSemanticTokensAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null);
 	}
 
 	//#endregion

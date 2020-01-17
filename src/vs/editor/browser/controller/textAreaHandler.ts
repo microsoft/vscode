@@ -103,7 +103,7 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.contentHeight;
+		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
@@ -354,7 +354,7 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.contentHeight;
+		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);

@@ -320,9 +320,9 @@ export interface IModelLoadOrCreateOptions {
 	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
-	 * - async: loadOrCreate() will return immediately and trigger
+	 * - async: resolve() will return immediately and trigger
 	 * a reload that will run in the background.
-	 * - sync: loadOrCreate() will only return resolved when the
+	 * - sync: resolve() will only return resolved when the
 	 * model has finished reloading.
 	 */
 	reload?: {
@@ -357,7 +357,7 @@ export interface ITextFileEditorModelManager {
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
+	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

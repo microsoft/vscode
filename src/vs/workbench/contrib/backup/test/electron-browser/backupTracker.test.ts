@@ -123,7 +123,7 @@ suite('BackupTracker', () => {
 
 		const [accessor, part, tracker] = await createTracker();
 
-		const untitledEditor = accessor.textFileService.untitled.createOrGet();
+		const untitledEditor = accessor.textFileService.untitled.create();
 		await accessor.editorService.openEditor(untitledEditor, { pinned: true });
 
 		const untitledModel = await untitledEditor.resolve();

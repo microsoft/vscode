@@ -242,7 +242,7 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.textFileService.untitled.createOrGet(undefined, droppedDirtyEditor.mode, undefined, droppedDirtyEditor.encoding).getResource();
+			droppedDirtyEditor.resource = this.textFileService.untitled.create({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding }).getResource();
 		}
 
 		// Return early if the resource is already dirty in target or opened already
@@ -372,16 +372,11 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// Try to find encoding and mode from text model
 		let encoding: string | undefined = undefined;
 		let mode: string | undefined = undefined;
-		if (textFileService.untitled.exists(file.resource)) {
-			const model = textFileService.untitled.createOrGet(file.resource);
+
+		const model = file.resource.scheme === Schemas.untitled ? textFileService.untitled.get(file.resource) : textFileService.files.get(file.resource);
+		if (model) {
 			encoding = model.getEncoding();
 			mode = model.getMode();
-		} else {
-			const model = textFileService.files.get(file.resource);
-			if (model) {
-				encoding = model.getEncoding();
-				mode = model.getMode();
-			}
 		}
 
 		// If the resource is dirty, send over its backup

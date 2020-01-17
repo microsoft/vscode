@@ -371,24 +371,27 @@ export class SearchWidget extends Widget {
 
 
 		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), actionClassName: 'codicon-list-selection' });
-		this._register(this.showContextCheckbox.onChange(() => {
-			dom.toggleClass(parent, 'show-context', this.showContextCheckbox.checked);
-			this._onDidToggleContext.fire();
-		}));
+		this._register(this.showContextCheckbox.onChange(() => this.onContextLinesChanged()));
 
 		if (options.showContextToggle) {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
 			dom.addClass(this.contextLinesInput.element, 'context-lines-input');
 			this.contextLinesInput.value = '2';
-			this._register(this.contextLinesInput.onDidChange(() => {
-				if (this.contextLinesInput.value.includes('-')) {
-					this.contextLinesInput.value = '0';
-				}
-				this._onDidToggleContext.fire();
-			}));
+			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
 			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
 		}
+	}
+
+	private onContextLinesChanged() {
+		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
+		this._onDidToggleContext.fire();
+
+		if (this.contextLinesInput.value.includes('-')) {
+			this.contextLinesInput.value = '0';
+		}
+
+		this._onDidToggleContext.fire();
 	}
 
 	public setContextLines(lines: number) {
@@ -504,14 +507,14 @@ export class SearchWidget extends Widget {
 					try {
 						const regex = new RegExp(this.searchInput.getValue(), 'ug');
 						const matchienessHeuristic = `
-~!@#$%^&*()_+
-\`1234567890-=
-qwertyuiop[]\\
-QWERTYUIOP{}|
-asdfghjkl;'
-ASDFGHJKL:"
-zxcvbnm,./
-ZXCVBNM<>? 	`.match(regex)?.length ?? 0;
+								~!@#$%^&*()_+
+								\`1234567890-=
+								qwertyuiop[]\\
+								QWERTYUIOP{}|
+								asdfghjkl;'
+								ASDFGHJKL:"
+								zxcvbnm,./
+								ZXCVBNM<>? `.match(regex)?.length ?? 0;
 
 						const delayMultiplier =
 							matchienessHeuristic < 50 ? 1 :
@@ -650,6 +653,11 @@ ZXCVBNM<>? 	`.match(regex)?.length ?? 0;
 
 	contextLines() {
 		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+	}
+
+	toggleContextLines() {
+		this.showContextCheckbox.checked = !this.showContextCheckbox.checked;
+		this.onContextLinesChanged();
 	}
 
 	dispose(): void {

@@ -38,7 +38,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
-			return this.textFileService.files.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
+			return this.textFileService.files.resolve(resource, { reason: LoadReason.REFERENCE });
 		}
 
 		// Virtual documents
@@ -141,7 +141,7 @@ export class TextModelResolverService implements ITextModelService {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
-			const model = await this.untitledTextEditorService.loadOrCreate({ resource });
+			const model = await this.untitledTextEditorService.resolve({ untitledResource: resource });
 
 			return new ImmortalReference(model);
 		}

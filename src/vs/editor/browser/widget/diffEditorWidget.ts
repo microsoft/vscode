@@ -1124,11 +1124,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let scrollTop = this.modifiedEditor.getScrollTop();
 		let scrollHeight = this.modifiedEditor.getScrollHeight();
 
-		let computedAvailableSize = Math.max(0, layoutInfo.contentHeight);
+		let computedAvailableSize = Math.max(0, layoutInfo.height);
 		let computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
 		let computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
-		let computedSliderSize = Math.max(0, Math.floor(layoutInfo.contentHeight * computedRatio));
+		let computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
 		let computedSliderPosition = Math.floor(scrollTop * computedRatio);
 
 		return {

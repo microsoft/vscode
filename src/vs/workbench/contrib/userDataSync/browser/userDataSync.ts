@@ -35,7 +35,8 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { Session } from 'vs/editor/common/modes';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 const enum MSAAuthStatus {
 	Initializing = 'Initializing',
@@ -47,6 +48,7 @@ const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workben
 const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-dark.svg`));
 
 const MSA = 'MSA';
+type ConfigureSyncQuickPickItem = { id: string, label: string, description?: string };
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -192,7 +194,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							label: localize('resolve', "Resolve Conflicts"),
 							run: () => this.handleConflicts()
 						}
-					]);
+					],
+					{
+						sticky: true
+					}
+				);
 				this.conflictsWarningDisposable.value = toDisposable(() => handle.close());
 				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
 			}
@@ -210,7 +216,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authenticationState.get() === MSAAuthStatus.SignedOut) {
-				const handle = this.notificationService.prompt(Severity.Info, this.getSignInAndTurnOnDetailString(),
+				const handle = this.notificationService.prompt(Severity.Info, localize('sign in message', "Please sign in with your {0} account to continue sync", this.userDataSyncStore!.account),
 					[
 						{
 							label: localize('Sign in', "Sign in"),
@@ -247,96 +253,92 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private getSignInAndTurnOnDetailString(): string {
-		return localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.{1}", this.userDataSyncStore!.account, this.getSyncAreasString());
+	private async turnOn(): Promise<void> {
+		return new Promise((c, e) => {
+			const disposables: DisposableStore = new DisposableStore();
+			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
+			disposables.add(quickPick);
+			quickPick.title = localize('turn on sync', "Turn on Sync");
+			quickPick.ok = false;
+			quickPick.customButton = true;
+			if (this.authenticationState.get() === MSAAuthStatus.SignedIn) {
+				quickPick.description = localize('turn on sync detail', "Turn on to synchronize your following data across all your devices.");
+				quickPick.customLabel = localize('turn on', "Turn on");
+			} else {
+				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", this.userDataSyncStore!.account);
+				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
+			}
+			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
+			quickPick.canSelectMany = true;
+			quickPick.ignoreFocusOut = true;
+			const items = this.getConfigureSyncQuickPickItems();
+			quickPick.items = items;
+			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
+			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
+				if (quickPick.selectedItems.length) {
+					await this.updateConfiguration(items, quickPick.selectedItems);
+					this.doTurnOn();
+					quickPick.hide();
+				}
+			}));
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				c();
+			}));
+			quickPick.show();
+		});
 	}
 
-	private async turnOn(): Promise<void> {
-		const message = localize('turn on sync', "Turn on Sync");
-		let detail: string, primaryButton: string;
-		if (this.authenticationState.get() === MSAAuthStatus.SignedIn) {
-			detail = localize('turn on sync detail', "This will synchronize your following data across all your devices.{0}", this.getSyncAreasString());
-			primaryButton = localize('turn on', "Turn on");
-		} else {
-			detail = this.getSignInAndTurnOnDetailString();
-			primaryButton = localize('sign in and turn on sync', "Sign in & Turn on");
-		}
-		const result = await this.dialogService.show(
-			Severity.Info, message,
-			[
-				primaryButton,
-				localize('cancel', "Cancel"),
-				localize('configure', "Configure What to Sync")
-			],
-			{
-				detail,
-				cancelId: 1
-			});
-		switch (result.choice) {
-			case 1: return;
-			case 2: await this.configureSyncOptions(); return this.turnOn();
-		}
+	private async doTurnOn(): Promise<void> {
 		if (this.authenticationState.get() === MSAAuthStatus.SignedOut) {
 			await this.signIn();
 		}
-
 		await this.handleFirstTimeSync();
-		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
-		this.notificationService.info(localize('Sync Started', "Sync Started."));
+		await this.enableSync();
 	}
 
-	private getSyncAreasString(): string {
-		const { enableSettings, enableKeybindings, enableExtensions, enableUIState } = this.configurationService.getValue<{ enableSettings: boolean, enableKeybindings: boolean, enableExtensions: boolean, enableUIState: boolean }>('sync');
-		let result = '';
-		if (enableSettings) {
-			result += '\n - ' + localize('settings', "Settings");
+	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
+		return [{
+			id: 'sync.enableSettings',
+			label: localize('settings', "Settings")
+		}, {
+			id: 'sync.enableKeybindings',
+			label: localize('keybindings', "Keybindings")
+		}, {
+			id: 'sync.enableExtensions',
+			label: localize('extensions', "Extensions")
+		}, {
+			id: 'sync.enableUIState',
+			label: localize('ui state label', "UI State"),
+			description: localize('ui state description', "Display Language (Only)")
+		}];
+	}
+
+	private async updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): Promise<void> {
+		for (const item of items) {
+			const wasEnabled = this.configurationService.getValue(item.id);
+			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
+			if (wasEnabled !== isEnabled) {
+				await this.configurationService.updateValue(item.id!, isEnabled);
+			}
 		}
-		if (enableKeybindings) {
-			result += '\n - ' + localize('keybindings', "Keybindings");
-		}
-		if (enableExtensions) {
-			result += '\n - ' + localize('extensions', "Extensions");
-		}
-		if (enableUIState) {
-			result += '\n - ' + localize('ui state', "UI State (Display Language Only)");
-		}
-		return result;
 	}
 
 	private async configureSyncOptions(): Promise<ISyncConfiguration> {
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick();
+			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
 			disposables.add(quickPick);
-			quickPick.title = localize('configure sync title', "Sync: Configure What to Sync");
+			quickPick.title = localize('turn on sync', "Turn on Sync");
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
-			const items = [{
-				id: 'sync.enableSettings',
-				label: localize('settings', "Settings")
-			}, {
-				id: 'sync.enableKeybindings',
-				label: localize('keybindings', "Keybindings")
-			}, {
-				id: 'sync.enableExtensions',
-				label: localize('extensions', "Extensions")
-			}, {
-				id: 'sync.enableUIState',
-				label: localize('ui state label', "UI State"),
-				description: localize('ui state description', "Display Language (Only)")
-			}];
+			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
-					for (const item of items) {
-						const wasEnabled = this.configurationService.getValue(item.id);
-						const isEnabled = !!quickPick.selectedItems.filter(selected => selected.id === item.id)[0];
-						if (wasEnabled !== isEnabled) {
-							await this.configurationService.updateValue(item.id!, isEnabled);
-						}
-					}
+					await this.updateConfiguration(items, quickPick.selectedItems);
 					quickPick.hide();
 				}
 			}));
@@ -349,22 +351,36 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async handleFirstTimeSync(): Promise<void> {
-
-		const hasRemote = await this.userDataSyncService.hasRemote();
-		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
-
-		if (hasRemote && !hasPreviouslySynced) {
-			const result = await this.dialogService.confirm({
-				type: 'info',
-				message: localize('firs time sync', "First time Sync"),
-				primaryButton: localize('download', "Download"),
-				detail: localize('first time sync detail', "Would you like to download and replace with the data from cloud?"),
-			});
-
-			if (result.confirmed) {
-				await this.userDataSyncService.pull();
-			}
+		const hasRemote = await this.userDataSyncService.hasRemoteData();
+		if (!hasRemote) {
+			return;
 		}
+		const isFirstSyncAndHasUserData = await this.userDataSyncService.isFirstTimeSyncAndHasUserData();
+		if (!isFirstSyncAndHasUserData) {
+			return;
+		}
+		const result = await this.dialogService.show(
+			Severity.Info,
+			localize('firs time sync', "First time Sync"),
+			[
+				localize('merge', "Merge"),
+				localize('cancel', "Cancel"),
+				localize('replace', "Replace (Overwrite Local)"),
+			],
+			{
+				cancelId: 1,
+				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from cloud?"),
+			}
+		);
+		switch (result.choice) {
+			case 0: await this.userDataSyncService.sync(); break;
+			case 1: throw canceled();
+			case 2: await this.userDataSyncService.pull(); break;
+		}
+	}
+
+	private enableSync(): Promise<void> {
+		return this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 	}
 
 	private async turnOff(): Promise<void> {
@@ -474,7 +490,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				await this.turnOn();
 			} catch (e) {
 				if (!isPromiseCanceledError(e)) {
-					this.notificationService.error(e);
+					this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
 				}
 			}
 		});

@@ -75,8 +75,8 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled is dirty', function () {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.workspaceFolders![0].uri.toString() || '', './newfile.txt'))).then(doc => {
+	test('openTextDocument, untitled is dirty', async function () {
+		return vscode.workspace.openTextDocument(vscode.workspace.workspaceFolders![0].uri.with({ scheme: 'untitled', path: posix.join(vscode.workspace.workspaceFolders![0].uri.path, 'newfile.txt') })).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 		});
