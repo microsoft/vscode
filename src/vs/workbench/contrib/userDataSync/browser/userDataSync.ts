@@ -48,6 +48,7 @@ const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workben
 const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-dark.svg`));
 
 const MSA = 'MSA';
+type ConfigureSyncQuickPickItem = { id: string, label: string, description?: string };
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -253,90 +254,88 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
-		const message = localize('turn on sync', "Turn on Sync");
-		let detail: string, primaryButton: string;
-		if (this.authenticationState.get() === MSAAuthStatus.SignedIn) {
-			detail = `${localize('turn on sync detail', "This will synchronize your following data across all your devices.")}\n${this.getSyncAreasString()}`;
-			primaryButton = localize('turn on', "Turn on");
-		} else {
-			detail = `${localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", this.userDataSyncStore!.account)}\n${this.getSyncAreasString()}`;
-			primaryButton = localize('sign in and turn on sync', "Sign in & Turn on");
-		}
-		const result = await this.dialogService.show(
-			Severity.Info, message,
-			[
-				primaryButton,
-				localize('cancel', "Cancel"),
-				localize('configure', "Configure...")
-			],
-			{
-				detail,
-				cancelId: 1
-			});
-		switch (result.choice) {
-			case 1: return;
-			case 2: await this.configureSyncOptions(); return this.turnOn();
-		}
+		return new Promise((c, e) => {
+			const disposables: DisposableStore = new DisposableStore();
+			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
+			disposables.add(quickPick);
+			quickPick.title = localize('turn on sync', "Turn on Sync");
+			quickPick.ok = false;
+			quickPick.customButton = true;
+			if (this.authenticationState.get() === MSAAuthStatus.SignedIn) {
+				quickPick.description = localize('turn on sync detail', "Turn on to synchronize your following data across all your devices.");
+				quickPick.customLabel = localize('turn on', "Turn on");
+			} else {
+				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", this.userDataSyncStore!.account);
+				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
+			}
+			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
+			quickPick.canSelectMany = true;
+			quickPick.ignoreFocusOut = true;
+			const items = this.getConfigureSyncQuickPickItems();
+			quickPick.items = items;
+			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
+			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
+				if (quickPick.selectedItems.length) {
+					await this.updateConfiguration(items, quickPick.selectedItems);
+					this.doTurnOn().then(c, e);
+					quickPick.hide();
+				}
+			}));
+			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+			quickPick.show();
+		});
+	}
+
+	private async doTurnOn(): Promise<void> {
 		if (this.authenticationState.get() === MSAAuthStatus.SignedOut) {
 			await this.signIn();
 		}
-
 		await this.handleFirstTimeSync();
 		await this.enableSync();
 	}
 
-	private getSyncAreasString(): string {
-		const { enableSettings, enableKeybindings, enableExtensions, enableUIState } = this.configurationService.getValue<{ enableSettings: boolean, enableKeybindings: boolean, enableExtensions: boolean, enableUIState: boolean }>('sync');
-		let result = '';
-		if (enableSettings) {
-			result += '\n - ' + localize('settings', "Settings");
+	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
+		return [{
+			id: 'sync.enableSettings',
+			label: localize('settings', "Settings")
+		}, {
+			id: 'sync.enableKeybindings',
+			label: localize('keybindings', "Keybindings")
+		}, {
+			id: 'sync.enableExtensions',
+			label: localize('extensions', "Extensions")
+		}, {
+			id: 'sync.enableUIState',
+			label: localize('ui state label', "UI State"),
+			description: localize('ui state description', "Display Language (Only)")
+		}];
+	}
+
+	private async updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): Promise<void> {
+		for (const item of items) {
+			const wasEnabled = this.configurationService.getValue(item.id);
+			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
+			if (wasEnabled !== isEnabled) {
+				await this.configurationService.updateValue(item.id!, isEnabled);
+			}
 		}
-		if (enableKeybindings) {
-			result += '\n - ' + localize('keybindings', "Keybindings");
-		}
-		if (enableExtensions) {
-			result += '\n - ' + localize('extensions', "Extensions");
-		}
-		if (enableUIState) {
-			result += '\n - ' + localize('ui state', "UI State (Display Language Only)");
-		}
-		return result;
 	}
 
 	private async configureSyncOptions(): Promise<ISyncConfiguration> {
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick();
+			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
 			disposables.add(quickPick);
-			quickPick.title = localize('configure sync title', "Sync: Configure What to Sync");
+			quickPick.title = localize('turn on sync', "Turn on Sync");
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
-			const items = [{
-				id: 'sync.enableSettings',
-				label: localize('settings', "Settings")
-			}, {
-				id: 'sync.enableKeybindings',
-				label: localize('keybindings', "Keybindings")
-			}, {
-				id: 'sync.enableExtensions',
-				label: localize('extensions', "Extensions")
-			}, {
-				id: 'sync.enableUIState',
-				label: localize('ui state label', "UI State"),
-				description: localize('ui state description', "Display Language (Only)")
-			}];
+			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
-					for (const item of items) {
-						const wasEnabled = this.configurationService.getValue(item.id);
-						const isEnabled = !!quickPick.selectedItems.filter(selected => selected.id === item.id)[0];
-						if (wasEnabled !== isEnabled) {
-							await this.configurationService.updateValue(item.id!, isEnabled);
-						}
-					}
+					await this.updateConfiguration(items, quickPick.selectedItems);
 					quickPick.hide();
 				}
 			}));

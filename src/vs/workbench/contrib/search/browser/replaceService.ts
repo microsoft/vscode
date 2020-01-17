@@ -18,7 +18,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -101,7 +101,7 @@ export class ReplaceService implements IReplaceService {
 	replace(files: FileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
 	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
 	async replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
-		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
+		const edits: WorkspaceTextEdit[] = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply({ edits }, { progress });
 
 		return Promise.all(edits.map(e => {
@@ -173,8 +173,8 @@ export class ReplaceService implements IReplaceService {
 		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
-	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {
-		const edits: ResourceTextEdit[] = [];
+	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): WorkspaceTextEdit[] {
+		const edits: WorkspaceTextEdit[] = [];
 
 		if (arg instanceof Match) {
 			const match = <Match>arg;
@@ -197,9 +197,9 @@ export class ReplaceService implements IReplaceService {
 		return edits;
 	}
 
-	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
+	private createEdit(match: Match, text: string, resource: URI | null = null): WorkspaceTextEdit {
 		const fileMatch: FileMatch = match.parent();
-		const resourceEdit: ResourceTextEdit = {
+		const resourceEdit: WorkspaceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource,
 			edits: [{
 				range: match.range(),

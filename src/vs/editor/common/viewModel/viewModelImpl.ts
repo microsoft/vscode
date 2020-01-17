@@ -100,6 +100,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}));
 
+		this._register(this.viewLayout.onDidContentSizeChange((e) => {
+			try {
+				const eventsCollector = this._beginEmit();
+				eventsCollector.emit(new viewEvents.ViewContentSizeChangedEvent(e));
+			} finally {
+				this._endEmit();
+			}
+		}));
+
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
 		this._registerModelEvents();

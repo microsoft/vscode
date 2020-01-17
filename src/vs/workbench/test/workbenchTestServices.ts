@@ -198,7 +198,6 @@ export class TestTextFileService extends NativeTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IHistoryService historyService: IHistoryService,
@@ -215,7 +214,6 @@ export class TestTextFileService extends NativeTextFileService {
 			untitledTextEditorService,
 			lifecycleService,
 			instantiationService,
-			modeService,
 			modelService,
 			environmentService,
 			historyService,
@@ -413,7 +411,7 @@ export class TestFileDialogService implements IFileDialogService {
 	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
 	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {

@@ -2022,6 +2022,13 @@ declare namespace monaco.editor {
 		readonly charChanges: ICharChange[] | undefined;
 	}
 
+	export interface IContentSizeChangedEvent {
+		readonly contentWidth: number;
+		readonly contentHeight: number;
+		readonly contentWidthChanged: boolean;
+		readonly contentHeightChanged: boolean;
+	}
+
 	export interface INewScrollPosition {
 		scrollLeft?: number;
 		scrollTop?: number;
@@ -3258,10 +3265,6 @@ declare namespace monaco.editor {
 		 */
 		readonly glyphMarginWidth: number;
 		/**
-		 * The height of the glyph margin.
-		 */
-		readonly glyphMarginHeight: number;
-		/**
 		 * Left position for the line numbers.
 		 */
 		readonly lineNumbersLeft: number;
@@ -3269,10 +3272,6 @@ declare namespace monaco.editor {
 		 * The width of the line numbers.
 		 */
 		readonly lineNumbersWidth: number;
-		/**
-		 * The height of the line numbers.
-		 */
-		readonly lineNumbersHeight: number;
 		/**
 		 * Left position for the line decorations.
 		 */
@@ -3282,10 +3281,6 @@ declare namespace monaco.editor {
 		 */
 		readonly decorationsWidth: number;
 		/**
-		 * The height of the line decorations.
-		 */
-		readonly decorationsHeight: number;
-		/**
 		 * Left position for the content (actual text)
 		 */
 		readonly contentLeft: number;
@@ -3293,10 +3288,6 @@ declare namespace monaco.editor {
 		 * The width of the content (actual text)
 		 */
 		readonly contentWidth: number;
-		/**
-		 * The height of the content (actual height)
-		 */
-		readonly contentHeight: number;
 		/**
 		 * The position for the minimap
 		 */
@@ -4317,6 +4308,11 @@ declare namespace monaco.editor {
 		 */
 		onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
 		/**
+		 * An event emitted when the content width or content height in the editor has changed.
+		 * @event
+		 */
+		onDidContentSizeChange(listener: (e: IContentSizeChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted when the scroll in the editor has changed.
 		 * @event
 		 */
@@ -4378,6 +4374,11 @@ declare namespace monaco.editor {
 		 */
 		setValue(newValue: string): void;
 		/**
+		 * Get the width of the editor's content.
+		 * This is information that is "erased" when computing `scrollWidth = Math.max(contentWidth, width)`
+		 */
+		getContentWidth(): number;
+		/**
 		 * Get the scrollWidth of the editor's viewport.
 		 */
 		getScrollWidth(): number;
@@ -4385,6 +4386,11 @@ declare namespace monaco.editor {
 		 * Get the scrollLeft of the editor's viewport.
 		 */
 		getScrollLeft(): number;
+		/**
+		 * Get the height of the editor's content.
+		 * This is information that is "erased" when computing `scrollHeight = Math.max(contentHeight, height)`
+		 */
+		getContentHeight(): number;
 		/**
 		 * Get the scrollHeight of the editor's viewport.
 		 */
@@ -5868,7 +5874,7 @@ declare namespace monaco.languages {
 		constructor(value: string);
 	}
 
-	export interface ResourceFileEdit {
+	export interface WorkspaceFileEdit {
 		oldUri?: Uri;
 		newUri?: Uri;
 		options?: {
@@ -5879,14 +5885,14 @@ declare namespace monaco.languages {
 		};
 	}
 
-	export interface ResourceTextEdit {
+	export interface WorkspaceTextEdit {
 		resource: Uri;
 		modelVersionId?: number;
 		edits: TextEdit[];
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+		edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
 	}
 
 	export interface Rejection {

@@ -14,7 +14,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
@@ -279,8 +279,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.equal(dto.edits.length, 1);
-			assert.ok(isResourceTextEdit(dto.edits[0]));
-			assert.equal((<ResourceTextEdit>dto.edits[0]).edits.length, 2);
+			assert.ok(WorkspaceTextEdit.is(dto.edits[0]));
+			assert.equal((<WorkspaceTextEdit>dto.edits[0]).edits.length, 2);
 		});
 	});
 
@@ -326,7 +326,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto) {
 
 				for (const edit of dto.edits) {
-					if (!isResourceTextEdit(edit)) {
+					if (!WorkspaceTextEdit.is(edit)) {
 						continue;
 					}
 					const { resource, edits } = edit;

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, isResourceTextEdit, TextEdit, ResourceTextEdit, ResourceFileEdit } from 'vs/editor/common/modes';
+import { WorkspaceEdit, TextEdit, WorkspaceTextEdit, WorkspaceFileEdit } from 'vs/editor/common/modes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mergeSort, coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -59,7 +59,7 @@ export class BulkFileOperation extends CheckedObject {
 
 	type: BulkFileOperationType = 0;
 	textEdits: BulkTextEdit[] = [];
-	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
+	originalEdits = new Map<number, WorkspaceTextEdit | WorkspaceFileEdit>();
 	newUri?: URI;
 
 	constructor(
@@ -69,10 +69,10 @@ export class BulkFileOperation extends CheckedObject {
 		super(parent._onDidChangeCheckedState);
 	}
 
-	addEdit(index: number, type: BulkFileOperationType, edit: ResourceTextEdit | ResourceFileEdit, ) {
+	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit, ) {
 		this.type += type;
 		this.originalEdits.set(index, edit);
-		if (isResourceTextEdit(edit)) {
+		if (WorkspaceTextEdit.is(edit)) {
 			this.textEdits = this.textEdits.concat(edit.edits.map(edit => new BulkTextEdit(this, edit, this._emitter)));
 
 		} else if (type === BulkFileOperationType.Rename) {
@@ -117,7 +117,7 @@ export class BulkFileOperations {
 			let uri: URI;
 			let type: BulkFileOperationType;
 
-			if (isResourceTextEdit(edit)) {
+			if (WorkspaceTextEdit.is(edit)) {
 				type = BulkFileOperationType.TextEdit;
 				uri = edit.resource;
 
@@ -194,8 +194,8 @@ export class BulkFileOperations {
 
 			file.originalEdits.forEach((value, idx) => {
 
-				if (isResourceTextEdit(value)) {
-					let newValue: ResourceTextEdit = { ...value, edits: [] };
+				if (WorkspaceTextEdit.is(value)) {
+					let newValue: WorkspaceTextEdit = { ...value, edits: [] };
 					let allEditsAccepted = true;
 					for (let edit of value.edits) {
 						if (!checkedEdits.has(keyOfEdit(edit))) {

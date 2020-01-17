@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -23,6 +22,7 @@ import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { isEmptyObject } from 'vs/base/common/types';
 import { edit } from 'vs/platform/userDataSync/common/content';
+import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -32,7 +32,7 @@ interface ISyncPreviewResult {
 	readonly conflicts: IConflictSetting[];
 }
 
-export class SettingsSynchroniser extends Disposable implements ISettingsSyncService {
+export class SettingsSynchroniser extends AbstractSynchroniser implements ISettingsSyncService {
 
 	_serviceBrand: any;
 
@@ -56,14 +56,14 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 	private readonly lastSyncSettingsResource: URI;
 
 	constructor(
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
+		super(SyncSource.Settings, fileService, environmentService);
 		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
 		this._register(this.fileService.watch(dirname(this.environmentService.settingsResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this._onDidChangeLocal.fire()));
@@ -430,6 +430,7 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 	private async writeToLocal(newContent: string, oldContent: IFileContent | null): Promise<void> {
 		if (oldContent) {
 			// file exists already
+			await this.backupLocal(oldContent.value);
 			await this.fileService.writeFile(this.environmentService.settingsResource, VSBuffer.fromString(newContent), oldContent);
 		} else {
 			// file does not exist

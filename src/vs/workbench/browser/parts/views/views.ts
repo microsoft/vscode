@@ -889,13 +889,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewDescriptors(container: ViewContainer): ViewDescriptorCollection {
-		let viewDescriptorCollectionItem = this.viewDescriptorCollections.get(container);
-		if (!viewDescriptorCollectionItem) {
-			// Create and register the collection if does not exist
-			this.onDidRegisterViewContainer(container);
-			viewDescriptorCollectionItem = this.viewDescriptorCollections.get(container);
-		}
-		return viewDescriptorCollectionItem!.viewDescriptorCollection;
+		return this.getOrRegisterViewDescriptorCollection(container);
 	}
 
 	moveView(view: IViewDescriptor, location: ViewContainerLocation): void {
@@ -1024,22 +1018,28 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
-		if (this.viewDescriptorCollections.has(viewContainer)) {
-			return;
+		this.getOrRegisterViewDescriptorCollection(viewContainer);
+	}
+
+	private getOrRegisterViewDescriptorCollection(viewContainer: ViewContainer): ViewDescriptorCollection {
+		let viewDescriptorCollection = this.viewDescriptorCollections.get(viewContainer)?.viewDescriptorCollection;
+
+		if (!viewDescriptorCollection) {
+			const disposables = new DisposableStore();
+			viewDescriptorCollection = disposables.add(new ViewDescriptorCollection(this.contextKeyService));
+
+			this.onDidChangeActiveViews({ added: viewDescriptorCollection.activeViewDescriptors, removed: [] });
+			viewDescriptorCollection.onDidChangeActiveViews(changed => this.onDidChangeActiveViews(changed), this, disposables);
+
+			this.viewDescriptorCollections.set(viewContainer, { viewDescriptorCollection, disposable: disposables });
+
+			const viewsToRegister = this.getViewsByContainer(viewContainer);
+			if (viewsToRegister.length) {
+				this.addViews(viewContainer, viewsToRegister);
+			}
 		}
 
-		const disposables = new DisposableStore();
-		const viewDescriptorCollection = disposables.add(new ViewDescriptorCollection(this.contextKeyService));
-
-		this.onDidChangeActiveViews({ added: viewDescriptorCollection.activeViewDescriptors, removed: [] });
-		viewDescriptorCollection.onDidChangeActiveViews(changed => this.onDidChangeActiveViews(changed), this, disposables);
-
-		this.viewDescriptorCollections.set(viewContainer, { viewDescriptorCollection, disposable: disposables });
-
-		const viewsToRegister = this.getViewsByContainer(viewContainer);
-		if (viewsToRegister.length) {
-			this.addViews(viewContainer, viewsToRegister);
-		}
+		return viewDescriptorCollection;
 	}
 
 	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {

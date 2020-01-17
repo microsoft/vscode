@@ -759,8 +759,8 @@ suite('ExtHostLanguageFeatures', function () {
 		const value = await rename(model, new EditorPosition(1, 1), 'newName');
 		// least relevant rename provider
 		assert.equal(value.edits.length, 2);
-		assert.equal((<modes.ResourceTextEdit>value.edits[0]).edits.length, 1);
-		assert.equal((<modes.ResourceTextEdit>value.edits[1]).edits.length, 1);
+		assert.equal((<modes.WorkspaceTextEdit>value.edits[0]).edits.length, 1);
+		assert.equal((<modes.WorkspaceTextEdit>value.edits[1]).edits.length, 1);
 	});
 
 	// --- parameter hints
