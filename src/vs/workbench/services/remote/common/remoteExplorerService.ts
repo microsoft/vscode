@@ -223,8 +223,8 @@ export class TunnelModel extends Disposable {
 
 export interface IRemoteExplorerService {
 	_serviceBrand: undefined;
-	onDidChangeTargetType: Event<string>;
-	targetType: string;
+	onDidChangeTargetType: Event<string[]>;
+	targetType: string[];
 	readonly tunnelModel: TunnelModel;
 	onDidChangeEditable: Event<ITunnelItem | undefined>;
 	setEditable(tunnelItem: ITunnelItem | undefined, data: IEditableData | null): void;
@@ -238,9 +238,9 @@ export interface IRemoteExplorerService {
 
 class RemoteExplorerService implements IRemoteExplorerService {
 	public _serviceBrand: undefined;
-	private _targetType: string = '';
-	private readonly _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
-	public readonly onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
+	private _targetType: string[] = [];
+	private readonly _onDidChangeTargetType: Emitter<string[]> = new Emitter<string[]>();
+	public readonly onDidChangeTargetType: Event<string[]> = this._onDidChangeTargetType.event;
 	private _tunnelModel: TunnelModel;
 	private _editable: { tunnelItem: ITunnelItem | undefined, data: IEditableData } | undefined;
 	private readonly _onDidChangeEditable: Emitter<ITunnelItem | undefined> = new Emitter();
@@ -254,15 +254,18 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService);
 	}
 
-	set targetType(name: string) {
-		if (this._targetType !== name) {
+	set targetType(name: string[]) {
+		// Can just compare the first element of the array since there are no target overlaps
+		const current: string = this._targetType.length > 0 ? this._targetType[0] : '';
+		const newName: string = name.length > 0 ? name[0] : '';
+		if (current !== newName) {
 			this._targetType = name;
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType, StorageScope.WORKSPACE);
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType, StorageScope.GLOBAL);
+			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.WORKSPACE);
+			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.GLOBAL);
 			this._onDidChangeTargetType.fire(this._targetType);
 		}
 	}
-	get targetType(): string {
+	get targetType(): string[] {
 		return this._targetType;
 	}
 

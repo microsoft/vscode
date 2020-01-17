@@ -51,23 +51,25 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		if (this.optionsItems.length > 0) {
 			let index = 0;
 			const remoteAuthority = environmentService.configuration.remoteAuthority;
-			const explorerType: string | undefined = remoteAuthority ? remoteAuthority.split('+')[0] :
-				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE) ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL);
-			if (explorerType) {
+			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] :
+				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL)?.split(',');
+			if (explorerType !== undefined) {
 				index = this.getOptionIndexForExplorerType(optionsItems, explorerType);
 			}
 			this.select(index);
-			remoteExplorerService.targetType = optionsItems[index].authority[0];
+			remoteExplorerService.targetType = optionsItems[index].authority;
 		}
 	}
 
-	private getOptionIndexForExplorerType(optionsItems: IRemoteSelectItem[], explorerType: string): number {
+	private getOptionIndexForExplorerType(optionsItems: IRemoteSelectItem[], explorerType: string[]): number {
 		let index = 0;
 		for (let optionIterator = 0; (optionIterator < this.optionsItems.length) && (index === 0); optionIterator++) {
 			for (let authorityIterator = 0; authorityIterator < optionsItems[optionIterator].authority.length; authorityIterator++) {
-				if (optionsItems[optionIterator].authority[authorityIterator] === explorerType) {
-					index = optionIterator;
-					break;
+				for (let i = 0; i < explorerType.length; i++) {
+					if (optionsItems[optionIterator].authority[authorityIterator] === explorerType[i]) {
+						index = optionIterator;
+						break;
+					}
 				}
 			}
 		}
@@ -110,6 +112,6 @@ export class SwitchRemoteAction extends Action {
 	}
 
 	public async run(item: IRemoteSelectItem): Promise<any> {
-		this.remoteExplorerService.targetType = item.authority[0];
+		this.remoteExplorerService.targetType = item.authority;
 	}
 }
