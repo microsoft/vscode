@@ -277,14 +277,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 				if (quickPick.selectedItems.length) {
 					await this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn();
+					this.doTurnOn().then(c, e);
 					quickPick.hide();
 				}
 			}));
-			disposables.add(quickPick.onDidHide(() => {
-				disposables.dispose();
-				c();
-			}));
+			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 			quickPick.show();
 		});
 	}
