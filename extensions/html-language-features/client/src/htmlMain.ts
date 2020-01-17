@@ -104,12 +104,6 @@ export function activate(context: ExtensionContext) {
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
 					if (r) {
 						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
-
-						if (!Array.isArray(r)) {
-							r.items.forEach(i => {
-								i.detail = typeof i.label === 'string' ? i.label : i.label.name;
-							});
-						}
 					}
 					return r;
 				}

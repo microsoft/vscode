@@ -54,12 +54,6 @@ export function getPathCompletionParticipant(
 				});
 			}
 
-			if (suggestions[0]) {
-				suggestions[0].documentation = 'test: ' + suggestions[0].label;
-			}
-			if (suggestions[2]) {
-				suggestions[2].documentation = 'test: ' + suggestions[2].label;
-			}
 			result.items = [...suggestions, ...result.items];
 		}
 	};
