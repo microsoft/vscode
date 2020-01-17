@@ -24,7 +24,7 @@ import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/a
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IThemeService, LIGHT, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
@@ -60,6 +60,9 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import * as platform from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
+import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -666,13 +669,13 @@ export class RepositoryPane extends ViewPane {
 		this.inputContainer = append(container, $('.scm-editor'));
 		const editorContainer = append(this.inputContainer, $('.scm-editor-container'));
 
-		// TODO@joao
+		const placeholderTextContainer = append(editorContainer, $('.scm-editor-placeholder'));
 		const updatePlaceholder = () => {
-			// const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
-			// const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			// const placeholder = format(this.repository.input.placeholder, label);
+			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
+			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const placeholderText = format(this.repository.input.placeholder, label);
 
-			// this.inputBox.setPlaceHolder(placeholder);
+			placeholderTextContainer.textContent = placeholderText;
 		};
 
 		// const validationDelayer = new ThrottledDelayer<any>(200);
@@ -745,6 +748,10 @@ export class RepositoryPane extends ViewPane {
 		// this.inputBox.value = this.repository.input.value;
 		// this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
 		// this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
+
+		this.inputModel.onDidChangeContent(() => {
+			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+		});
 
 		updatePlaceholder();
 		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
@@ -1030,3 +1037,10 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 		this.ctorDescriptor = new SyncDescriptor(RepositoryPane, [repository]);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
+	if (inputPlaceholderForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
+	}
+});

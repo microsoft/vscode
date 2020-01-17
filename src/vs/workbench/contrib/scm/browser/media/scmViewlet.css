@@ -177,6 +177,18 @@
 	padding: 1px;
 }
 
+.scm-viewlet .scm-editor-placeholder {
+	position: absolute;
+	pointer-events: none;
+	z-index: 1;
+	margin: 1px;
+	padding: 3px 4px;
+}
+
+.scm-viewlet .scm-editor-placeholder.hidden {
+	display: none;
+}
+
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
 	overflow-y: scroll;
 }
