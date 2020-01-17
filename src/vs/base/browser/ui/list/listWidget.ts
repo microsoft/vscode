@@ -572,6 +572,10 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+		if (e.browserEvent.target && this.list.view.domNode.contains(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		if (document.activeElement !== e.browserEvent.target) {
 			this.list.domFocus();
 		}

@@ -147,7 +147,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		let handle = await this._proxy.$resolveNotebook(viewType, uri);
 
 		if (handle !== undefined) {
-			return this._documents.get(handle);
+			const doc = this._documents.get(handle);
+
+			if (doc === undefined) {
+				console.log('resolve notebook from main but undefined');
+			}
+
+			return doc;
 		}
 
 		return;

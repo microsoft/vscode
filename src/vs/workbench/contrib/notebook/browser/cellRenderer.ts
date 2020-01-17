@@ -71,6 +71,8 @@ export class ViewCell {
 	public id: string;
 
 	constructor(
+		public viewType: string,
+		public notebookHandle: number,
 		public cell: ICell,
 		private _isEditing: boolean,
 		private readonly modelService: IModelService,
@@ -159,7 +161,8 @@ export class ViewCell {
 	getTextModel(): ITextModel {
 		if (!this._textModel) {
 			let ext = this.cellType === 'markdown' ? 'md' : 'py';
-			const resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
+			let resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
+			resource = resource.with({ authority: `${this.viewType}-${this.notebookHandle}-${this.cell.handle}` });
 			let content = this.cell.source.join('\n');
 			this._textModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 		}
@@ -406,7 +409,7 @@ class StatefullMarkdownCell extends Disposable {
 						height: totalHeight
 					}, () => {
 						let newWidth = cellWidthResizeObserver.getWidth();
-						let height = templateData.editor!.getLayoutInfo().height;
+						let height = this.editor!.getLayoutInfo().height;
 						this.editor!.layout(
 							{
 								width: newWidth,

@@ -121,12 +121,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		}
 
 		if (viewType === undefined) {
-			if (
-				!resource ||
-				!endsWith(resource.path, '.ipynb')
-			) {
-				return undefined;
-			}
+			return undefined;
 		}
 
 		if (this._resourceMapping.has(resource!.path)) {

@@ -30,6 +30,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INotebook } from 'vs/editor/common/modes';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -47,6 +48,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
+	private notebook: INotebook | undefined;
+	private viewType: string | undefined;
 	private viewCells: ViewCell[] = [];
 	private localStore: DisposableStore = new DisposableStore();
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -248,9 +251,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}));
 
 				let viewState = this.loadTextEditorViewState(input);
-				this.viewCells = model.getNotebook().cells.map(cell => {
+				let notebook = model.getNotebook();
+				this.viewType = input.viewType;
+				this.viewCells = notebook.cells.map(cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return new ViewCell(cell, !!isEditing, this.modelService, this.modeService);
+					return new ViewCell(input.viewType!, notebook.handle, cell, !!isEditing, this.modelService, this.modeService);
 				});
 
 				const updateScrollPosition = () => {
@@ -335,7 +340,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
-		let newCell = new ViewCell({
+		let newCell = new ViewCell(this.viewType!, this.notebook!.handle, {
 			handle: -1,
 			cell_type: type,
 			source: [],
