@@ -38,6 +38,7 @@ import { serializeSearchResultForEditor, SearchConfiguration, SearchEditorInput 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InSearchEditor, InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 
@@ -63,6 +64,7 @@ export class SearchEditor extends BaseEditor {
 	private showingIncludesExcludes: boolean = false;
 	private inSearchEditorContextKey: IContextKey<boolean>;
 	private inputFocusContextKey: IContextKey<boolean>;
+	private searchOperation: LongRunningOperation;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -77,10 +79,12 @@ export class SearchEditor extends BaseEditor {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IEditorProgressService readonly progressService: IEditorProgressService,
 	) {
 		super(SearchEditor.ID, telemetryService, themeService, storageService);
 		this.inSearchEditorContextKey = InSearchEditor.bindTo(contextKeyService);
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(contextKeyService);
+		this.searchOperation = this._register(new LongRunningOperation(progressService));
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -285,7 +289,8 @@ export class SearchEditor extends BaseEditor {
 			return;
 		}
 		const searchModel = this.instantiationService.createInstance(SearchModel);
-		await searchModel.search(query);
+		this.searchOperation.start(500);
+		await searchModel.search(query).finally(() => this.searchOperation.stop());
 		if (this.input !== startInput) {
 			searchModel.dispose();
 			return;
