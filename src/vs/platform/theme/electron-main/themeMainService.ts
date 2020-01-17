@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { systemPreferences, ipcMain as ipc, nativeTheme } from 'electron';
+import { ipcMain as ipc, nativeTheme } from 'electron';
 import { IStateService } from 'vs/platform/state/node/state';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
