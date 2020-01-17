@@ -17,6 +17,8 @@ export interface IMainNotebookController {
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	updateNotebook(uri: URI, notebook: INotebook): void;
+	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
+	executeNotebookActiveCell(uri: URI): void;
 }
 
 export interface INotebookService {
@@ -25,8 +27,10 @@ export interface INotebookService {
 	unregisterNotebookProvider(viewType: string): void;
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
+	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
+	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
 }
 
 export class NotebookInfoStore {
@@ -88,14 +92,22 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._notebookProviders.delete(viewType);
 	}
 
-	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
+	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.resolveNotebook(viewType, uri);
 		}
 
-		return Promise.resolve(undefined);
+		return;
+	}
+
+	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			provider.controller.updateNotebookActiveCell(resource, cellHandle);
+		}
 	}
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
@@ -106,6 +118,14 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		return;
+	}
+
+	async executeNotebookActiveCell(viewType: string, uri: URI): Promise<void> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			await provider.controller.executeNotebookActiveCell(uri);
+		}
 	}
 
 	public getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {

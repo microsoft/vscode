@@ -121,7 +121,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				supportDynamicHeights: true,
 				horizontalScrolling: false,
 				keyboardSupport: false,
-				mouseSupport: false,
+				mouseSupport: true,
 				multipleSelectionSupport: false,
 				overrideStyles: {
 					listBackground: editorBackground,
@@ -284,6 +284,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}));
 				this.localStore.add(this.list!.onDidScroll(() => updateScrollPosition()));
 				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
+				this.localStore.add(this.list!.onFocusChange((e) => {
+					if (e.elements.length > 0) {
+						this.notebookService.updateNotebookActiveCell(input.viewType!, input.getResource()!, e.elements[0].cell.handle);
+					}
+				}));
 
 				this.list?.splice(0, this.list?.length);
 				this.list?.splice(0, 0, this.viewCells);

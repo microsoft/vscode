@@ -139,7 +139,7 @@ export class ViewCell {
 	}
 
 	getText(): string {
-		return this.cell.source.join('');
+		return this.cell.source.join('\n');
 	}
 
 	getHTML(): string | null {
@@ -160,7 +160,7 @@ export class ViewCell {
 		if (!this._textModel) {
 			let ext = this.cellType === 'markdown' ? 'md' : 'py';
 			const resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
-			let content = this.cell.source.join('');
+			let content = this.cell.source.join('\n');
 			this._textModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 		}
 

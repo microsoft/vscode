@@ -1522,7 +1522,7 @@ export interface IMetadata {
  */
 export interface INotebook {
 	handle: number;
-	metadata: IMetadata;
+	// metadata: IMetadata;
 	cells: ICell[];
 	onDidChangeCells?: Event<void>;
 }

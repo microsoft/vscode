@@ -609,9 +609,12 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): void;
-	$unregisterNotebookProvider(viewType: string): void;
-	$updateNotebook(viewType: string, resource: UriComponents, notebook: modes.INotebook): void;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
+	$unregisterNotebookProvider(viewType: string): Promise<void>;
+	$createNotebookDocument(handle: number, resource: UriComponents): Promise<void>;
+	$updateNotebook(viewType: string, resource: UriComponents, notebook: modes.INotebook): Promise<void>;
+	$updateNotebookCells(handle: number, cells: modes.ICell[]): Promise<void>;
+	$updateNotebookCell(handle: number, cell: modes.ICell): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1403,8 +1406,9 @@ export interface ExtHostCommentsShape {
 }
 
 export interface ExtHostNotebookShape {
-	$resolveNotebook(viewType: string, uri: URI): Promise<modes.INotebook | undefined>;
+	$resolveNotebook(viewType: string, uri: URI): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: URI): Promise<void>;
+	$executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void>;
 }
 
 export interface ExtHostStorageShape {

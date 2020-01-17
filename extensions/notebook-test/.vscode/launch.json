@@ -13,8 +13,14 @@
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			]
+				"${workspaceFolder}/dist/*.js"
+			],
+			"sourceMapPathOverrides": {
+                "webpack:///*": "${webRoot}/../*",
+                "webpack:///./*": "${webRoot}/../*",
+                "webpack:///src/*": "${webRoot}/../src/*",
+                "webpack:///./~/*": "${webRoot}/../node_modules/*"
+            }
 		}
     ]
 }

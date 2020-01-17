@@ -36,36 +36,53 @@ export class MainThreadCell implements ICell {
 	}
 }
 
-export class MainThreadNotebook implements INotebook {
+export class MainThreadNotebookDocument implements INotebook {
 
 	private readonly _onDidChangeCells = new Emitter<void>();
 	get onDidChangeCells(): Event<void> { return this._onDidChangeCells.event; }
 	private _mapping: Map<number, MainThreadCell> = new Map();
 	public cells: MainThreadCell[];
+	public activeCell: MainThreadCell | undefined;
 
 	constructor(
+		private readonly _proxy: ExtHostNotebookShape,
 		public handle: number,
-		public metadata: IMetadata,
-		cells: ICell[]
+		public resource: URI
 	) {
 		this.cells = [];
-		cells.forEach(cell => {
-			let mainCell = new MainThreadCell(cell.handle, cell.source, cell.cell_type, cell.outputs);
-			this._mapping.set(cell.handle, mainCell);
-			this.cells.push(mainCell);
-		});
+	}
+
+	updateCell(cell: ICell) {
+		let mcell = this._mapping.get(cell.handle);
+
+		if (mcell) {
+			mcell.outputs = cell.outputs;
+		}
 	}
 
 	updateCells(newCells: ICell[]) {
 		// todo, handle cell insertion and deletion
-		newCells.forEach(newCell => {
-			let cell = this._mapping.get(newCell.handle);
-			if (cell) {
-				cell.outputs = newCell.outputs;
-			}
-		});
+
+		if (this.cells.length === 0) {
+			newCells.forEach(cell => {
+				let mainCell = new MainThreadCell(cell.handle, cell.source, cell.cell_type, cell.outputs);
+				this._mapping.set(cell.handle, mainCell);
+				this.cells.push(mainCell);
+			});
+		} else {
+			newCells.forEach(newCell => {
+				let cell = this._mapping.get(newCell.handle);
+				if (cell) {
+					cell.outputs = newCell.outputs;
+				}
+			});
+		}
 
 		this._onDidChangeCells.fire();
+	}
+
+	updateActiveCell(handle: number) {
+		this.activeCell = this._mapping.get(handle);
 	}
 }
 
@@ -74,6 +91,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
 	private readonly _proxy: ExtHostNotebookShape;
 
+	private readonly _documents: Map<number, MainThreadNotebookDocument> = new Map();
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookService private _notebookService: INotebookService
@@ -82,27 +100,57 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 	}
 
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): void {
-		let controller = new MainThreadNotebookController(this);
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void> {
+		let controller = new MainThreadNotebookController(this._proxy, this, viewType);
 		this._notebookProviders.set(viewType, controller);
 		this._notebookService.registerNotebookController(viewType, extension, controller);
+		return;
 	}
 
-	$unregisterNotebookProvider(viewType: string): void {
+	async $unregisterNotebookProvider(viewType: string): Promise<void> {
 		this._notebookProviders.delete(viewType);
 		this._notebookService.unregisterNotebookProvider(viewType);
+		return;
 	}
 
-	$updateNotebook(viewType: string, uri: URI, notebook: INotebook): void {
+	async $createNotebookDocument(handle: number, resource: URI): Promise<void> {
+		let document = new MainThreadNotebookDocument(this._proxy, handle, resource);
+		this._documents.set(handle, document);
+		return;
+	}
+
+	async $updateNotebookCells(handle: number, cells: ICell[]): Promise<void> {
+		let document = this._documents.get(handle);
+
+		if (document) {
+			document.updateCells(cells);
+		}
+	}
+
+	async $updateNotebookCell(handle: number, cell: ICell): Promise<void> {
+		let document = this._documents.get(handle);
+
+		if (document) {
+			document.updateCell(cell);
+		}
+	}
+
+
+	async $updateNotebook(viewType: string, uri: URI, notebook: INotebook): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
 		if (controller) {
 			controller.updateNotebook(uri, notebook);
 		}
 	}
+	async resolveNotebook(viewType: string, uri: URI): Promise<MainThreadNotebookDocument | undefined> {
+		let handle = await this._proxy.$resolveNotebook(viewType, uri);
 
-	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
-		return this._proxy.$resolveNotebook(viewType, uri);
+		if (handle !== undefined) {
+			return this._documents.get(handle);
+		}
+
+		return;
 	}
 
 	executeNotebook(viewType: string, uri: URI): Promise<void> {
@@ -111,19 +159,20 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 }
 
 export class MainThreadNotebookController implements IMainNotebookController {
-	private _mapping: Map<string, MainThreadNotebook> = new Map();
+	private _mapping: Map<string, MainThreadNotebookDocument> = new Map();
 
 	constructor(
-		private _mainThreadNotebook: MainThreadNotebooks
+		private readonly _proxy: ExtHostNotebookShape,
+		private _mainThreadNotebook: MainThreadNotebooks,
+		private _viewType: string
 	) {
 	}
 
 	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
 		let notebook = await this._mainThreadNotebook.resolveNotebook(viewType, uri);
 		if (notebook) {
-			let mainthreadNotebook = new MainThreadNotebook(notebook.handle, notebook.metadata, notebook.cells);
-			this._mapping.set(uri.toString(), mainthreadNotebook);
-			return mainthreadNotebook;
+			this._mapping.set(uri.toString(), notebook);
+			return notebook;
 		}
 		return undefined;
 	}
@@ -137,6 +186,22 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 		if (mainthreadNotebook) {
 			mainthreadNotebook.updateCells(notebook.cells);
+		}
+	}
+
+	updateNotebookActiveCell(uri: URI, cellHandle: number): void {
+		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
+
+		if (mainthreadNotebook) {
+			mainthreadNotebook.updateActiveCell(cellHandle);
+		}
+	}
+
+	executeNotebookActiveCell(uri: URI): void {
+		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
+
+		if (mainthreadNotebook && mainthreadNotebook.activeCell) {
+			this._proxy.$executeNotebookCell(this._viewType, uri, mainthreadNotebook.activeCell.handle);
 		}
 	}
 }

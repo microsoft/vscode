@@ -23,6 +23,7 @@ import { IActiveCodeEditor, isDiffEditor, isCodeEditor } from 'vs/editor/browser
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -36,6 +37,34 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 
+export class ExecuteNotebookCellAction extends Action {
+
+	static readonly ID = 'workbench.action.executeNotebookCell';
+	static readonly LABEL = 'Execute Notebook Cell';
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotebookService private readonly notebookService: INotebookService
+
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		let resource = this.editorService.activeEditor?.getResource();
+
+		if (resource) {
+			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+
+			if (notebookProviders.length > 0) {
+				let viewType = notebookProviders[0].id;
+				this.notebookService.executeNotebookActiveCell(viewType, resource);
+			}
+		}
+	}
+}
 export class ExecuteNotebookAction extends Action {
 
 	static readonly ID = 'workbench.action.executeNotebook';
@@ -124,6 +153,19 @@ export class NotebookContribution implements IWorkbenchContribution {
 				id: 'workbench.action.executeNotebook',
 				title: 'Execute Notebook (Run all cells)',
 				icon: { id: 'codicon/debug-start' }
+			},
+			order: -1,
+			group: 'navigation',
+			when: ResourceContextKey.Extension.isEqualTo('.ipynb')
+		});
+
+		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ExecuteNotebookCellAction, ExecuteNotebookCellAction.ID, ExecuteNotebookCellAction.LABEL), 'Execute Notebook Cell', 'Notebook');
+
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: 'workbench.action.executeNotebookCell',
+				title: 'Execute Notebook Cell',
+				icon: { id: 'codicon/debug-continue' }
 			},
 			order: -1,
 			group: 'navigation',

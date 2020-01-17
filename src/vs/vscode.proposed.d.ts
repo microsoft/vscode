@@ -1305,47 +1305,49 @@ declare module 'vscode' {
 
 	//#region Peng: Notebook
 
-	export interface IStreamOutput {
+	export interface CellStreamOutput {
 		output_type: 'stream';
 		text: string;
 	}
 
-	export interface IErrorOutput {
+	export interface CellErrorOutput {
 		output_type: 'error';
 		evalue: string;
 		traceback: string[];
 	}
 
-	export interface IDisplayOutput {
+	export interface CellDisplayOutput {
 		output_type: 'display_data';
 		data: { [key: string]: any };
 	}
 
-	export type IOutput = IStreamOutput | IErrorOutput | IDisplayOutput;
+	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
-	export interface ICell {
-		source: string[];
+	export interface NotebookCell {
+		handle: number,
 		cell_type: 'markdown' | 'code';
-		outputs: IOutput[];
+		outputs: CellOutput[];
+		getContent(): string;
 	}
 
-	export interface LanguageInfo {
-		file_extension: string;
+	export interface NotebookDocument {
+		readonly uri: Uri;
+		readonly fileName: string;
+		cells: NotebookCell[];
 	}
 
-	export interface IMetadata {
-		language_info: LanguageInfo;
-	}
-
-	export interface INotebook {
-		metadata: IMetadata;
-		cells: ICell[];
+	export interface NotebookEditor {
+		readonly document: NotebookDocument;
+		viewColumn?: ViewColumn;
+		/**
+		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
+		 */
+		createCell(content: string, language: string, type: 'markdown' | 'code', outputs: CellOutput[]): NotebookCell;
 	}
 
 	export interface NotebookProvider {
-		onDidChangeNotebook?: Event<{ resource: Uri, notebook: INotebook }>;
-		resolveNotebook(resource: Uri): Promise<INotebook | undefined>;
-		executeNotebook(resource: Uri): Promise<void>;
+		resolveNotebook(editor: NotebookEditor): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
 	}
 
 	namespace window {
