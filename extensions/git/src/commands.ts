@@ -2332,6 +2332,11 @@ export class CommandCenter {
 		return result && result.stash;
 	}
 
+	@command('git.openDiff', { repository: false })
+	async openDiff(uri: Uri, hash: string) {
+		return commands.executeCommand('vscode.diff', toGitUri(uri, hash), toGitUri(uri, `${hash}^`));
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;

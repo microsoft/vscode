@@ -447,6 +447,11 @@
         "command": "git.stashDrop",
         "title": "%command.stashDrop%",
         "category": "Git"
+      },
+      {
+        "command": "git.openDiff",
+        "title": "%command.openDiff%",
+        "category": "Git"
       }
     ],
     "menus": {

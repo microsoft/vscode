@@ -960,8 +960,8 @@ declare module 'vscode' {
 	export interface SourceControlInputBox {
 
 		/**
-			* Controls whether the input box is visible (default is `true`).
-			*/
+		 * Controls whether the input box is visible (default is `true`).
+		 */
 		visible: boolean;
 	}
 
@@ -1315,8 +1315,8 @@ declare module 'vscode' {
 
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
-		* An optional flag to sort the final results by index of first query match in label. Defaults to true.
-		*/
+		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
+		 */
 		sortByLabel: boolean;
 	}
 
@@ -1479,12 +1479,6 @@ declare module 'vscode' {
 		date: number;
 
 		/**
-		 * A human-readable string describing the source of the timeline item. This can be used for filtering by sources so keep it consistent across timeline item types.
-		 */
-		source: string;
-
-
-		/**
 		 * A human-readable string describing the timeline item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
 		label: string;
@@ -1497,7 +1491,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item. See [TreeItem.iconPath](#TreeItem.iconPath) for more details.
 		 */
-		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
 		 * A human readable string describing less prominent details of the timeline item. See [TreeItem.description](#TreeItem.description) for more details.
@@ -1505,14 +1499,9 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * The [uri](#Uri) of the resource representing the timeline item (if any). See [TreeItem.resourceUri](#TreeItem.resourceUri) for more details.
-		 */
-		resourceUri?: Uri;
-
-		/**
 		 * The tooltip text when you hover over the timeline item.
 		 */
-		tooltip?: string | undefined;
+		detail?: string;
 
 		/**
 		 * The [command](#Command) that should be executed when the timeline item is selected.
@@ -1532,36 +1521,47 @@ declare module 'vscode' {
 		constructor(label: string, date: number, source: string);
 	}
 
-	export interface TimelimeAddEvent {
+	// export interface TimelimeAddEvent {
+	// 	/**
+	// 	 * An array of timeline items which have been added.
+	// 	 */
+	// 	readonly items: readonly TimelineItem[];
 
-		/**
-		 * An array of timeline items which have been added.
-		 */
-		readonly items: readonly TimelineItem[];
+	// 	/**
+	// 	 * The uri of the file to which the timeline items belong.
+	// 	 */
+	// 	readonly uri: Uri;
+	// }
 
-		/**
-		 * The uri of the file to which the timeline items belong.
-		 */
-		readonly uri: Uri;
-	}
+	// export interface TimelimeChangeEvent {
+	// 	/**
+	// 	 * The date after which the timeline has changed. If `undefined` the entire timeline will be reset.
+	// 	 */
+	// 	readonly since?: Date;
 
-	export interface TimelimeChangeEvent {
-
-		/**
-		 * The date after which the timeline has changed. If `undefined` the entire timeline will be reset.
-		 */
-		readonly since?: Date;
-
-		/**
-		 * The uri of the file to which the timeline changed.
-		 */
-		readonly uri: Uri;
-	}
+	// 	/**
+	// 	 * The uri of the file to which the timeline changed.
+	// 	 */
+	// 	readonly uri: Uri;
+	// }
 
 	export interface TimelineProvider {
 		// onDidAdd?: Event<TimelimeAddEvent>;
 		// onDidChange?: Event<TimelimeChangeEvent>;
-		id: string;
+
+		onDidChange?: Event<void>;
+
+		/**
+		 * An identifier of the source of the timeline items. This can be used for filtering and/or overriding existing sources.
+		 */
+		source: string;
+
+		/**
+		 * A human-readable string describing the source of the timeline items. This can be as the display label when filtering by sources.
+		 */
+		sourceDescription: string;
+
+		replaceable?: boolean;
 
 		/**
 		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri) after a particular date.
