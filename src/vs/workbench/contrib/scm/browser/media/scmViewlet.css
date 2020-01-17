@@ -195,8 +195,10 @@
 	display: none;
 }
 
-.scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
-	overflow-y: scroll;
+.scm-viewlet .scm-editor-container .monaco-editor-background,
+.scm-viewlet .scm-editor-container .monaco-editor,
+.scm-viewlet .scm-editor-container .mtk1 {
+	color: inherit;
 }
 
 .scm-viewlet .list-view-mode .monaco-tl-twistie:not(.force-twistie):not(.collapsible) {
