@@ -513,17 +513,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				await this.create(target, '');
 			}
 
-			// Carry over the mode if this is an untitled file and the mode was picked by the user
-			let mode: string | undefined;
-			if (sourceModel instanceof UntitledTextEditorModel) {
-				mode = sourceModel.getMode();
-				if (mode === PLAINTEXT_MODE_ID) {
-					mode = undefined; // never enforce plain text mode when moving as it is unspecific
-				}
-			}
-
 			try {
-				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding, mode });
+				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding });
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
 				// that we cannot load the target as text model if it is binary or too
@@ -574,10 +565,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// take over model value, encoding and mode (only if more specific) from source model
-		targetModel.updatePreferredEncoding(sourceModelEncoding);
 		if (sourceTextModel && targetTextModel) {
+
+			// encoding
+			targetModel.updatePreferredEncoding(sourceModelEncoding);
+
+			// content
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
+			// mode
 			const sourceMode = sourceTextModel.getLanguageIdentifier();
 			const targetMode = targetTextModel.getLanguageIdentifier();
 			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
