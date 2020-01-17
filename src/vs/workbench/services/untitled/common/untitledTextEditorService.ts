@@ -18,7 +18,7 @@ import type { IResolvedTextEditorModel } from 'vs/editor/common/services/resolve
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
-export interface IUntitledCreationOptions {
+export interface IUntitledTextEditorOptions {
 	resource?: URI;
 	mode?: string;
 	initialValue?: string;
@@ -54,20 +54,15 @@ export interface IUntitledTextEditorModelManager {
 	get(resource: URI): UntitledTextEditorInput | undefined;
 
 	/**
-	 * Creates a new untitled input with the optional resource URI to
-	 * be used as associated file path when saving.
+	 * Creates a new untitled input with the provided options.
 	 */
-	create(options?: IUntitledCreationOptions): UntitledTextEditorInput;
-	create(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+	create(options?: IUntitledTextEditorOptions): UntitledTextEditorInput;
 
 	/**
-	 * Creates a new untitled model with the optional resource URI or returns an existing one
-	 * if the provided resource exists already as untitled model.
-	 *
-	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
-	 * The use case is to be able to create a new file with a specific path with VSCode.
+	 * Resolves an untitled editor model from the provided options. This can either
+	 * return a new or existing model based on the options provided.
 	 */
-	resolve(options?: IUntitledCreationOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: IUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -112,14 +107,8 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.mapResourceToInput.get(resource);
 	}
 
-	create(options?: IUntitledCreationOptions): UntitledTextEditorInput;
-	create(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
-	create(resourceOrOptions?: URI | IUntitledCreationOptions, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
-		if (resourceOrOptions && !URI.isUri(resourceOrOptions)) {
-			return this.doCreateOrGet(resourceOrOptions.resource, resourceOrOptions.mode, resourceOrOptions.initialValue, resourceOrOptions.encoding, resourceOrOptions.useResourcePath);
-		}
-
-		return this.doCreateOrGet(resourceOrOptions, mode, initialValue, encoding, hasAssociatedFilePath);
+	create(options?: IUntitledTextEditorOptions): UntitledTextEditorInput {
+		return this.doCreateOrGet(options?.resource, options?.mode, options?.initialValue, options?.encoding, options?.useResourcePath);
 	}
 
 	private doCreateOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
@@ -189,7 +178,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return input;
 	}
 
-	resolve(options?: IUntitledCreationOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+	resolve(options?: IUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 		return this.doCreateOrGet(options?.resource, options?.mode, options?.initialValue, options?.encoding, options?.useResourcePath).resolve();
 	}
 

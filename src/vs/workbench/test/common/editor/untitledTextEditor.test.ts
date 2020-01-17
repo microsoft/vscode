@@ -46,7 +46,7 @@ suite('Workbench untitled text editors', () => {
 		const workingCopyService = accessor.workingCopyService;
 
 		const input1 = service.create();
-		assert.equal(input1, service.create(input1.getResource()));
+		assert.equal(input1, service.create({ resource: input1.getResource() }));
 		assert.equal(service.get(input1.getResource()), input1);
 
 		assert.ok(service.exists(input1.getResource()));
@@ -109,7 +109,7 @@ suite('Workbench untitled text editors', () => {
 	test('Untitled with associated resource is dirty', () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
-		const untitled = service.create(file);
+		const untitled = service.create({ resource: file });
 
 		assert.ok(service.hasAssociatedFilePath(untitled.getResource()));
 		assert.equal(untitled.isDirty(), true);
@@ -177,7 +177,7 @@ suite('Workbench untitled text editors', () => {
 	test('Untitled with associated path remains dirty when content gets empty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
-		const input = service.create(file);
+		const input = service.create({ resource: file });
 
 		// dirty
 		const model = await input.resolve();
@@ -193,7 +193,7 @@ suite('Workbench untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
-		const untitled = service.create(undefined, undefined, 'Hello World');
+		const untitled = service.create({ initialValue: 'Hello World' });
 		assert.equal(untitled.isDirty(), true);
 
 		let onDidChangeDirty: IWorkingCopy | undefined = undefined;
@@ -251,7 +251,7 @@ suite('Workbench untitled text editors', () => {
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.create(null!, mode);
+		const input = service.create({ mode });
 
 		assert.equal(input.getMode(), mode);
 
@@ -268,7 +268,7 @@ suite('Workbench untitled text editors', () => {
 		});
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.create(null!, mode);
+		const input = service.create({ mode });
 
 		assert.equal(input.getMode(), mode);
 

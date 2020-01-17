@@ -53,9 +53,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	readonly files = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
 	private _untitled: IUntitledTextEditorModelManager;
-	get untitled(): IUntitledTextEditorModelManager {
-		return this._untitled;
-	}
+	get untitled(): IUntitledTextEditorModelManager { return this._untitled; }
 
 	abstract get encoding(): IResourceEncodings;
 
@@ -179,7 +177,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
 
 		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
-		await this.doRevertAllFiles(dirtyFiles, { soft: true });
+		await this.doRevertFiles(dirtyFiles, { soft: true });
 
 		await this.fileService.del(resource, options);
 
@@ -245,7 +243,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// in order to move and copy, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.doRevertAllFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		await this.doRevertFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -341,20 +339,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
-	private getFileModels(arg1?: URI | URI[]): ITextFileEditorModel[] {
-		if (Array.isArray(arg1)) {
+	private getFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
+		if (Array.isArray(resources)) {
 			const models: ITextFileEditorModel[] = [];
-			arg1.forEach(resource => {
-				models.push(...this.getFileModels(resource));
-			});
+			resources.forEach(resource => models.push(...this.getFileModels(resource)));
 
 			return models;
 		}
 
-		return this.files.getAll(arg1);
+		return this.files.getAll(resources);
 	}
 
-	private getDirtyFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
+	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[] {
 		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
@@ -576,10 +572,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// File
-		return !(await this.doRevertAllFiles([resource], options)).results.some(result => result.error);
+		return !(await this.doRevertFiles([resource], options)).results.some(result => result.error);
 	}
 
-	private async doRevertAllFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
