@@ -318,21 +318,24 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations
-			let classNames: string[] = [];
+			const beforeClassNames: string[] = [];
+			const afterClassNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
 				if (lineDecoration.type === InlineDecorationType.Before) {
-					classNames.push(input.lineDecorations[i].className);
+					beforeClassNames.push(input.lineDecorations[i].className);
 					containsForeignElements |= ForeignElementType.Before;
 				}
 				if (lineDecoration.type === InlineDecorationType.After) {
-					classNames.push(input.lineDecorations[i].className);
+					afterClassNames.push(input.lineDecorations[i].className);
 					containsForeignElements |= ForeignElementType.After;
 				}
 			}
 
 			if (containsForeignElements !== ForeignElementType.None) {
-				content = `<span><span class="${classNames.join(' ')}"></span></span>`;
+				const beforeSpan = (beforeClassNames.length > 0 ? `<span class="${beforeClassNames.join(' ')}"></span>` : ``);
+				const afterSpan = (afterClassNames.length > 0 ? `<span class="${afterClassNames.join(' ')}"></span>` : ``);
+				content = `<span>${beforeSpan}${afterSpan}</span>`;
 			}
 		}
 
