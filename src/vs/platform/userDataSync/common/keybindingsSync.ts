@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -21,6 +20,7 @@ import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 
 interface ISyncContent {
 	mac?: string;
@@ -37,7 +37,7 @@ interface ISyncPreviewResult {
 	readonly hasConflicts: boolean;
 }
 
-export class KeybindingsSynchroniser extends Disposable implements ISynchroniser {
+export class KeybindingsSynchroniser extends AbstractSynchroniser implements ISynchroniser {
 
 	private static EXTERNAL_USER_DATA_KEYBINDINGS_KEY: string = 'keybindings';
 
@@ -57,11 +57,11 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
-		super();
+		super(SyncSource.Keybindings, fileService, environmentService);
 		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
 		this._register(this.fileService.watch(dirname(this.environmentService.keybindingsResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this._onDidChangeLocal.fire()));
@@ -380,6 +380,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 	private async updateLocalContent(newContent: string, oldContent: IFileContent | null): Promise<void> {
 		if (oldContent) {
 			// file exists already
+			await this.backupLocal(oldContent.value);
 			await this.fileService.writeFile(this.environmentService.keybindingsResource, VSBuffer.fromString(newContent), oldContent);
 		} else {
 			// file does not exist
