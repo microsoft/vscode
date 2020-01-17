@@ -23,15 +23,20 @@ export interface IUntitledTextEditorOptions {
 	/**
 	 * An optional resource to identify the untitled resource to create or return
 	 * if already existing.
+	 *
+	 * Note: the resource will not be used unless the scheme is `untitled`.
 	 */
 	untitledResource?: URI;
 
 	/**
-	 * An optional resource to associate with the untitled file. When saving
-	 * the untitled file, the associated resource will be used and the user
+	 * Optional resource components to associate with the untitled file. When saving
+	 * the untitled file, the associated components will be used and the user
 	 * is not being asked to provide a file path.
+	 *
+	 * Note: currently it is not possible to specify the `scheme` to use. The
+	 * untitled file will saved to the default local or remote resource.
 	 */
-	associatedResource?: URI;
+	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
 
 	/**
 	 * Initial value of the untitled file. An untitled file with initial
@@ -158,7 +163,13 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		// Figure out associated and untitled resource
 		if (options.associatedResource) {
-			massagedOptions.untitledResource = options.associatedResource.with({ scheme: Schemas.untitled });
+			massagedOptions.untitledResource = URI.from({
+				scheme: Schemas.untitled,
+				authority: options.associatedResource.authority,
+				fragment: options.associatedResource.fragment,
+				path: options.associatedResource.path,
+				query: options.associatedResource.query
+			});
 			massagedOptions.associatedResource = options.associatedResource;
 		} else {
 			if (options.untitledResource?.scheme === Schemas.untitled) {
@@ -188,7 +199,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		// Create a new untitled resource if none is provided
 		let untitledResource = options.untitledResource;
 		if (!untitledResource) {
-			let counter = this.mapResourceToInput.size + 1;
+			let counter = 1;
 			do {
 				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
 				counter++;
