@@ -31,6 +31,9 @@ import { IdleValue, raceCancellation } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, ConfigurationScope, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 class RenameSkeleton {
 
@@ -115,6 +118,7 @@ class RenameController implements IEditorContribution {
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorProgressService private readonly _progressService: IEditorProgressService,
 		@ILogService private readonly _logService: ILogService,
+		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 	) {
 		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
 	}
@@ -175,7 +179,8 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
-		const inputFieldResult = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd);
+		const supportPreview = this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
+		const inputFieldResult = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview);
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
@@ -299,7 +304,7 @@ registerEditorCommand(new RenameCommand({
 
 registerEditorCommand(new RenameCommand({
 	id: 'acceptRenameInputWithPreview',
-	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+	precondition: ContextKeyExpr.and(CONTEXT_RENAME_INPUT_VISIBLE, ContextKeyExpr.has('config.editor.rename.enablePreview')),
 	handler: x => x.acceptRenameInput(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
@@ -328,4 +333,18 @@ registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model
 		throw illegalArgument('newName');
 	}
 	return rename(model, position, newName);
+});
+
+
+//todo@joh use editor options world
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'editor',
+	properties: {
+		'editor.rename.enablePreview': {
+			scope: ConfigurationScope.RESOURCE_LANGUAGE,
+			description: nls.localize('enablePreview', "Enabe/disable the ability to preview changes before renaming"),
+			default: true,
+			type: 'boolean'
+		}
+	}
 });
