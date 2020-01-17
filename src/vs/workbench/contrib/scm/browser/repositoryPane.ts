@@ -907,12 +907,12 @@ export class RepositoryPane extends ViewPane {
 
 		if (this.repository.input.visible) {
 			removeClass(this.inputContainer, 'hidden');
+
 			const editorContentHeight = this.inputEditor.getContentHeight();
 			const editorHeight = Math.min(editorContentHeight + 3, 134);
+			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
 
-			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 /* - 8 */ }); // TODO@joao
-
-			const listHeight = height - (editorHeight + 5 + 2 /* + 3 + 3 */ + 5);
+			const listHeight = height - (editorHeight + 5 + 2 + 5);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
 		} else {
