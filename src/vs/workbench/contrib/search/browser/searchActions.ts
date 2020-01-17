@@ -125,6 +125,14 @@ export const toggleSearchEditorRegexCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleContextLines();
+	}
+};
+
 export class FocusNextInputAction extends Action {
 
 	static readonly ID = 'search.focus.nextInputBox';
