@@ -105,15 +105,9 @@ export class ChokidarWatcherService implements IWatcherService {
 	}
 
 	private _watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
-		if (this._verboseLogging) {
-			this.log(`Start watching: ${basePath}]`);
-		}
 
 		const pollingInterval = this._pollingInterval || 5000;
 		const usePolling = this._usePolling;
-		if (usePolling && this._verboseLogging) {
-			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
-		}
 
 		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
@@ -153,6 +147,10 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		if (realBasePathDiffers) {
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
+		}
+
+		if (this._verboseLogging) {
+			this.log(`Start watching with chockidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 		}
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
