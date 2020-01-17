@@ -773,7 +773,7 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
 		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidScrollChange, e => e.scrollHeightChanged);
+		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
 		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
@@ -899,7 +899,8 @@ export class RepositoryPane extends ViewPane {
 
 		if (this.repository.input.visible) {
 			removeClass(this.inputContainer, 'hidden');
-			const editorHeight = this.inputEditor.getScrollHeight();
+			const editorContentHeight = this.inputEditor.getContentHeight();
+			const editorHeight = Math.min(editorContentHeight + 3, 134);
 
 			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 /* - 8 */ }); // TODO@joao
 
