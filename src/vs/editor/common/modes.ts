@@ -1500,10 +1500,15 @@ export interface SemanticTokensEdits {
 	readonly edits: SemanticTokensEdit[];
 }
 
-export interface SemanticTokensProvider {
+export interface DocumentSemanticTokensProvider {
 	getLegend(): SemanticTokensLegend;
-	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-	releaseSemanticTokens(resultId: string | undefined): void;
+	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseDocumentSemanticTokens(resultId: string | undefined): void;
+}
+
+export interface DocumentRangeSemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
 
 // --- feature registries ------
@@ -1611,7 +1616,12 @@ export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingR
 /**
  * @internal
  */
-export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
+export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
+
+/**
+ * @internal
+ */
+export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
 
 /**
  * @internal

@@ -16,7 +16,7 @@ import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorCon
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, SemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/modes';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -411,11 +411,10 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private async _computeSemanticTokens(): Promise<SemanticTokensResult | null> {
-		const tokenProviders = SemanticTokensProviderRegistry.ordered(this._model);
+		const tokenProviders = DocumentSemanticTokensProviderRegistry.ordered(this._model);
 		if (tokenProviders.length) {
 			const provider = tokenProviders[0];
-			const range = this._model.getFullModelRange();
-			const tokens = await Promise.resolve(provider.provideSemanticTokens(this._model, null, [range], this._currentRequestCancellationTokenSource.token));
+			const tokens = await Promise.resolve(provider.provideDocumentSemanticTokens(this._model, null, this._currentRequestCancellationTokenSource.token));
 			if (this.isSemanticTokens(tokens)) {
 				return { tokens, legend: provider.getLegend() };
 			}

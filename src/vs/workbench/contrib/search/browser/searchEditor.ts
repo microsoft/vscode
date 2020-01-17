@@ -38,6 +38,7 @@ import { serializeSearchResultForEditor, SearchConfiguration, SearchEditorInput 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InSearchEditor, InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 
@@ -63,6 +64,8 @@ export class SearchEditor extends BaseEditor {
 	private showingIncludesExcludes: boolean = false;
 	private inSearchEditorContextKey: IContextKey<boolean>;
 	private inputFocusContextKey: IContextKey<boolean>;
+	private searchOperation: LongRunningOperation;
+	private searchHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -77,10 +80,13 @@ export class SearchEditor extends BaseEditor {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IEditorProgressService readonly progressService: IEditorProgressService,
 	) {
 		super(SearchEditor.ID, telemetryService, themeService, storageService);
 		this.inSearchEditorContextKey = InSearchEditor.bindTo(contextKeyService);
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(contextKeyService);
+		this.searchOperation = this._register(new LongRunningOperation(progressService));
+		this.searchHistoryDelayer = new Delayer<void>(2000);
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -168,8 +174,6 @@ export class SearchEditor extends BaseEditor {
 			}
 		});
 
-
-
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
 		this._register(this.searchResultEditor.onDidChangeModel(() => this.hideHeader()));
@@ -210,6 +214,25 @@ export class SearchEditor extends BaseEditor {
 		}
 	}
 
+	toggleWholeWords() {
+		this.queryEditorWidget.searchInput.setWholeWords(!this.queryEditorWidget.searchInput.getWholeWords());
+		this.runSearch();
+	}
+
+	toggleRegex() {
+		this.queryEditorWidget.searchInput.setRegex(!this.queryEditorWidget.searchInput.getRegex());
+		this.runSearch();
+	}
+
+	toggleCaseSensitive() {
+		this.queryEditorWidget.searchInput.setCaseSensitive(!this.queryEditorWidget.searchInput.getCaseSensitive());
+		this.runSearch();
+	}
+
+	toggleContextLines() {
+		this.queryEditorWidget.toggleContextLines();
+	}
+
 	private async runSearch(instant = false) {
 		if (!this.pauseSearching) {
 			this.runSearchDelayer.trigger(() => this.doRunSearch(), instant ? 0 : undefined);
@@ -218,6 +241,12 @@ export class SearchEditor extends BaseEditor {
 
 	private async doRunSearch() {
 		const startInput = this.input;
+
+		this.searchHistoryDelayer.trigger(() => {
+			this.queryEditorWidget.searchInput.onSearchSubmit();
+			this.inputPatternExcludes.onSearchSubmit();
+			this.inputPatternIncludes.onSearchSubmit();
+		});
 
 		const config: SearchConfiguration = {
 			caseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
@@ -268,7 +297,8 @@ export class SearchEditor extends BaseEditor {
 			return;
 		}
 		const searchModel = this.instantiationService.createInstance(SearchModel);
-		await searchModel.search(query);
+		this.searchOperation.start(500);
+		await searchModel.search(query).finally(() => this.searchOperation.stop());
 		if (this.input !== startInput) {
 			searchModel.dispose();
 			return;
@@ -371,6 +401,7 @@ export class SearchEditor extends BaseEditor {
 	}
 
 	clearInput() {
+		super.clearInput();
 		this.inSearchEditorContextKey.set(false);
 	}
 }

@@ -68,8 +68,6 @@ const _outlineDesc = <IViewDescriptor>{
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([_outlineDesc], VIEW_CONTAINER);
 
-let inPanel = false;
-
 export class ToggleOutlinePositionAction extends Action {
 
 	static ID = 'outline.view.togglePosition';
@@ -85,15 +83,13 @@ export class ToggleOutlinePositionAction extends Action {
 	}
 
 	async run(): Promise<void> {
+		const inPanel = this.viewDescriptorService.getViewContainer(_outlineDesc.id) === VIEW_CONTAINER_PANEL;
 		if (!inPanel) {
 			this.viewDescriptorService.moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
 			this.viewsService.openView(OutlineViewId, true);
-			inPanel = true;
 		} else {
 			this.viewDescriptorService.moveViews([_outlineDesc], VIEW_CONTAINER);
 			this.viewsService.openView(OutlineViewId, true);
-
-			inPanel = false;
 		}
 
 	}

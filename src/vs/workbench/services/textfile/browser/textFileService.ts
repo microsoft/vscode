@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
 import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,12 +21,9 @@ import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename, toLocalResource } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { isEqualOrParent, isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
+import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { coalesce } from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -68,7 +64,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IHistoryService private readonly historyService: IHistoryService,
@@ -311,7 +306,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.promptForPath(resource, this.suggestFileName(resource));
+					targetUri = await this.promptForPath(resource, this.suggestFilePath(resource));
 				}
 
 				// Save as if target provided
@@ -338,65 +333,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return false;
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
+	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
-		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
-	}
-
-	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: readonly string[]): ISaveDialogOptions {
-		const options: ISaveDialogOptions = {
-			defaultUri,
-			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems,
-		};
-
-		// Filters are only enabled on Windows where they work properly
-		if (!platform.isWindows) {
-			return options;
-		}
-
-		interface IFilter { name: string; extensions: string[]; }
-
-		// Build the file filter by using our known languages
-		const ext: string | undefined = defaultUri ? extname(defaultUri) : undefined;
-		let matchingFilter: IFilter | undefined;
-		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
-			const extensions = this.modeService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
-				return null;
-			}
-
-			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
-
-			if (ext && extensions.indexOf(ext) >= 0) {
-				matchingFilter = filter;
-
-				return null; // matching filter will be added last to the top
-			}
-
-			return filter;
-		}));
-
-		// Filters are a bit weird on Windows, based on having a match or not:
-		// Match: we put the matching filter first so that it shows up selected and the all files last
-		// No match: we put the all files filter first
-		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
-		if (matchingFilter) {
-			filters.unshift(matchingFilter);
-			filters.unshift(allFilesFilter);
-		} else {
-			filters.unshift(allFilesFilter);
-		}
-
-		// Allow to save file without extension
-		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
-
-		options.filters = filters;
-
-		return options;
+		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
 	private getFileModels(arg1?: URI | URI[]): ITextFileEditorModel[] {
@@ -422,7 +364,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (!target) {
 			let dialogPath = source;
 			if (source.scheme === Schemas.untitled) {
-				dialogPath = this.suggestFileName(source);
+				dialogPath = this.suggestFilePath(source);
 			}
 
 			target = await this.promptForPath(source, dialogPath, options ? options.availableFileSystems : undefined);
@@ -513,17 +455,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				await this.create(target, '');
 			}
 
-			// Carry over the mode if this is an untitled file and the mode was picked by the user
-			let mode: string | undefined;
-			if (sourceModel instanceof UntitledTextEditorModel) {
-				mode = sourceModel.getMode();
-				if (mode === PLAINTEXT_MODE_ID) {
-					mode = undefined; // never enforce plain text mode when moving as it is unspecific
-				}
-			}
-
 			try {
-				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding, mode });
+				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding });
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
 				// that we cannot load the target as text model if it is binary or too
@@ -574,10 +507,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// take over model value, encoding and mode (only if more specific) from source model
-		targetModel.updatePreferredEncoding(sourceModelEncoding);
 		if (sourceTextModel && targetTextModel) {
+
+			// encoding
+			targetModel.updatePreferredEncoding(sourceModelEncoding);
+
+			// content
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
+			// mode
 			const sourceMode = sourceTextModel.getLanguageIdentifier();
 			const targetMode = targetTextModel.getLanguageIdentifier();
 			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
@@ -602,7 +540,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
-	private suggestFileName(untitledResource: URI): URI {
+	private suggestFilePath(untitledResource: URI): URI {
 		const untitledFileName = this.untitled.get(untitledResource)?.suggestFileName() ?? basename(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;

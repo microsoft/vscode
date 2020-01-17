@@ -157,7 +157,7 @@ export class SearchEditorInput extends EditorInput {
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
 		if (this.resource.scheme === 'search-editor') {
-			const path = await this.promptForPath(this.resource, this.suggestFileName());
+			const path = await this.promptForPath(this.resource, this.suggestFileName(), options?.availableFileSystems);
 			if (path) {
 				if (await this.textFileService.saveAs(this.resource, path, options)) {
 					this.setDirty(false);
@@ -179,13 +179,10 @@ export class SearchEditorInput extends EditorInput {
 
 	// Brining this over from textFileService because it only suggests for untitled scheme.
 	// In the future I may just use the untitled scheme. I dont get particular benefit from using search-editor...
-	private async promptForPath(resource: URI, defaultUri: URI): Promise<URI | undefined> {
+	private async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
-		return this.fileDialogService.pickFileToSave({
-			defaultUri,
-			title: localize('saveAsTitle', "Save As"),
-		});
+		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
 	getTypeId(): string {

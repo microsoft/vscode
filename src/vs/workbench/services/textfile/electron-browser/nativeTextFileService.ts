@@ -30,7 +30,6 @@ import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadabl
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -47,7 +46,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IHistoryService historyService: IHistoryService,
@@ -59,7 +57,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService);
 	}
 
 	private _encoding: EncodingOracle | undefined;

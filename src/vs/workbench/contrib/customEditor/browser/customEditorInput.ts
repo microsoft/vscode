@@ -163,15 +163,12 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		return await super.resolve();
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
+	private async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
-		return this.fileDialogService.pickFileToSave({
-			availableFileSystems,
-			defaultUri
-		});
+		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
 	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
