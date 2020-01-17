@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMResourceGroup, ISCMResource } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -29,7 +29,7 @@ import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar 
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
@@ -66,6 +66,9 @@ import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegist
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -590,13 +593,13 @@ export class ToggleViewModeAction extends Action {
 	}
 }
 
-// function convertValidationType(type: InputValidationType): MessageType {
-// 	switch (type) {
-// 		case InputValidationType.Information: return MessageType.INFO;
-// 		case InputValidationType.Warning: return MessageType.WARNING;
-// 		case InputValidationType.Error: return MessageType.ERROR;
-// 	}
-// }
+function convertValidationType(type: InputValidationType): MarkerSeverity {
+	switch (type) {
+		case InputValidationType.Information: return MarkerSeverity.Info;
+		case InputValidationType.Warning: return MarkerSeverity.Warning;
+		case InputValidationType.Error: return MarkerSeverity.Error;
+	}
+}
 
 export class RepositoryPane extends ViewPane {
 
@@ -629,7 +632,8 @@ export class RepositoryPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
-		@IModelService private modelService: IModelService
+		@IModelService private modelService: IModelService,
+		@IMarkerService private markerService: IMarkerService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
@@ -681,27 +685,31 @@ export class RepositoryPane extends ViewPane {
 			placeholderTextContainer.textContent = placeholderText;
 		};
 
-		// const validationDelayer = new ThrottledDelayer<any>(200);
-		// const validate = () => {
+		const validationDelayer = new ThrottledDelayer<any>(200);
+		const validate = () => {
+			const position = this.inputEditor.getSelection()?.getStartPosition();
+			const offset = position && this.inputModel.getOffsetAt(position);
+			const value = this.inputModel.getValue();
 
-		// 	const position = this.inputEditor.getSelection()?.getStartPosition();
-		// 	const offset = position && this.inputModel.getOffsetAt(position);
-		// 	const value = this.inputModel.getValue();
+			return this.repository.input.validateInput(value, offset || 0).then(result => {
+				if (!result) {
+					this.markerService.changeOne('scm', uri, []);
+				} else {
+					const range = this.inputModel.getFullModelRange();
 
-		// 	return this.repository.input.validateInput(value, offset || 0).then(result => {
+					this.markerService.changeOne('scm', uri, [{
+						message: result.message,
+						severity: convertValidationType(result.type),
+						startLineNumber: range.startLineNumber,
+						startColumn: range.startColumn,
+						endLineNumber: range.endLineNumber,
+						endColumn: range.endColumn
+					}]);
+				}
+			});
+		};
 
-		// 		// TODO@joao
-		// 		if (!result) {
-		// 			// this.inputBox.inputElement.removeAttribute('aria-invalid');
-		// 			// this.inputBox.hideMessage();
-		// 		} else {
-		// 			// this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
-		// 			// this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
-		// 		}
-		// 	});
-		// };
-
-		// const triggerValidation = () => validationDelayer.trigger(validate);
+		const triggerValidation = () => validationDelayer.trigger(validate);
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
@@ -722,7 +730,9 @@ export class RepositoryPane extends ViewPane {
 				SnippetController2.ID,
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
-				ContextMenuController.ID
+				ContextMenuController.ID,
+				ColorDetector.ID,
+				ModesHoverController.ID
 			])
 		};
 
@@ -755,7 +765,8 @@ export class RepositoryPane extends ViewPane {
 			accessor.addZone({ afterLineNumber: 0, domNode: $('div'), heightInPx: 3 });
 		});
 
-		// this._register(this.inputBox.onDidChange(triggerValidation, null));
+		this._register(this.inputModel.onDidChangeContent(triggerValidation));
+		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
 		// const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		// const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
