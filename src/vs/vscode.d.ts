@@ -3360,7 +3360,7 @@ declare module 'vscode' {
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		label: string | CompletionItemLabel;
+		label: string;
 
 		/**
 		 * The kind of this completion item. Based on the kind

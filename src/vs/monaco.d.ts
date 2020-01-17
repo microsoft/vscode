@@ -5179,10 +5179,6 @@ declare namespace monaco.languages {
 		 */
 		name: string;
 		/**
-		 * A description of the completion item which is rendered
-		 * less prominent.
-		 */
-		/**
 		 * Details of the completion item that is rendered less
 		 * prominent to the right.
 		 */

@@ -376,11 +376,12 @@ export interface CompletionItemLabel {
 	 */
 	name: string;
 
-	/**
-	 * A description of the completion item which is rendered
-	 * less prominent.
-	 */
-	// description?: string;
+	// The signature, without the return type. is render directly after `name`
+	// signature?: string; // parameters
+	// The fully qualified name, like package name, file path etc
+	// qualifier?: string;
+	// The return-type of a function or type of a property, variable etc
+	// type?: string;
 
 	/**
 	 * Details of the completion item that is rendered less
