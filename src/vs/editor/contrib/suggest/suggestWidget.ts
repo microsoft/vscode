@@ -654,26 +654,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.editor.focus();
 	}
 
-	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
-		if (this.expandDocsSettingFromStorage()) {
-			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, this.details.getAriaLabel());
-		} else {
-			return textLabel;
-		}
-	}
-
-	private _lastAriaAlertLabel: string | null = null;
-	private _ariaAlert(newAriaAlertLabel: string | null): void {
-		if (this._lastAriaAlertLabel === newAriaAlertLabel) {
-			return;
-		}
-		this._lastAriaAlertLabel = newAriaAlertLabel;
-		if (this._lastAriaAlertLabel) {
-			alert(this._lastAriaAlertLabel, true);
-		}
-	}
-
 	private onThemeChange(theme: ITheme) {
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
