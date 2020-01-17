@@ -1240,31 +1240,41 @@ export class FoldingRangeKind {
 /**
  * @internal
  */
-export function isResourceFileEdit(thing: any): thing is ResourceFileEdit {
-	return isObject(thing) && (Boolean((<ResourceFileEdit>thing).newUri) || Boolean((<ResourceFileEdit>thing).oldUri));
+export namespace WorkspaceFileEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceFileEdit {
+		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
+	}
 }
 
 /**
  * @internal
  */
-export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
-	return isObject(thing) && (<ResourceTextEdit>thing).resource && Array.isArray((<ResourceTextEdit>thing).edits);
+export namespace WorkspaceTextEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceTextEdit {
+		return isObject(thing) && (<WorkspaceTextEdit>thing).resource && Array.isArray((<WorkspaceTextEdit>thing).edits);
+	}
 }
 
-export interface ResourceFileEdit {
+export interface WorkspaceFileEdit {
 	oldUri?: URI;
 	newUri?: URI;
 	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
 }
 
-export interface ResourceTextEdit {
+export interface WorkspaceTextEdit {
 	resource: URI;
 	modelVersionId?: number;
 	edits: TextEdit[];
 }
 
 export interface WorkspaceEdit {
-	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
 }
 
 export interface Rejection {

@@ -20,7 +20,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -141,7 +141,7 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit: ResourceTextEdit = {
+		let workspaceResourceEdit: WorkspaceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{
@@ -162,7 +162,7 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit1: ResourceTextEdit = {
+		let workspaceResourceEdit1: WorkspaceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{
@@ -170,7 +170,7 @@ suite('MainThreadEditors', () => {
 				range: new Range(1, 1, 1, 1)
 			}]
 		};
-		let workspaceResourceEdit2: ResourceTextEdit = {
+		let workspaceResourceEdit2: WorkspaceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{

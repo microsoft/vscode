@@ -5874,7 +5874,7 @@ declare namespace monaco.languages {
 		constructor(value: string);
 	}
 
-	export interface ResourceFileEdit {
+	export interface WorkspaceFileEdit {
 		oldUri?: Uri;
 		newUri?: Uri;
 		options?: {
@@ -5885,14 +5885,14 @@ declare namespace monaco.languages {
 		};
 	}
 
-	export interface ResourceTextEdit {
+	export interface WorkspaceTextEdit {
 		resource: Uri;
 		modelVersionId?: number;
 		edits: TextEdit[];
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+		edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
 	}
 
 	export interface Rejection {

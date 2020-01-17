@@ -20,7 +20,7 @@ import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
+import { TextEdit, WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -645,7 +645,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 
 		if (workspaceEdit.edits) {
 			for (let edit of workspaceEdit.edits) {
-				if (!isResourceTextEdit(edit)) {
+				if (!WorkspaceTextEdit.is(edit)) {
 					return Promise.reject(new Error('bad edit - only text edits are supported'));
 				}
 				let model = this._modelService.getModel(edit.resource);

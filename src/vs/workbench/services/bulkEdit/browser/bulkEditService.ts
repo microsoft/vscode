@@ -11,7 +11,7 @@ import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHa
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
+import { WorkspaceFileEdit, WorkspaceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
@@ -47,7 +47,7 @@ class ModelEditTask implements IDisposable {
 		this._modelReference.dispose();
 	}
 
-	addEdit(resourceEdit: ResourceTextEdit): void {
+	addEdit(resourceEdit: WorkspaceTextEdit): void {
 		this._expectedModelVersionId = resourceEdit.modelVersionId;
 		for (const edit of resourceEdit.edits) {
 			if (typeof edit.eol === 'number') {
@@ -124,13 +124,13 @@ class EditorEditTask extends ModelEditTask {
 
 class BulkEditModel implements IDisposable {
 
-	private _edits = new Map<string, ResourceTextEdit[]>();
+	private _edits = new Map<string, WorkspaceTextEdit[]>();
 	private _tasks: ModelEditTask[] | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<void>,
-		edits: ResourceTextEdit[],
+		edits: WorkspaceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 	) {
@@ -143,7 +143,7 @@ class BulkEditModel implements IDisposable {
 		}
 	}
 
-	private _addEdit(edit: ResourceTextEdit): void {
+	private _addEdit(edit: WorkspaceTextEdit): void {
 		let array = this._edits.get(edit.resource.toString());
 		if (!array) {
 			array = [];
@@ -217,7 +217,7 @@ class BulkEditModel implements IDisposable {
 	}
 }
 
-type Edit = ResourceFileEdit | ResourceTextEdit;
+type Edit = WorkspaceFileEdit | WorkspaceTextEdit;
 
 class BulkEdit {
 
@@ -243,7 +243,7 @@ class BulkEdit {
 	}
 
 	ariaMessage(): string {
-		const editCount = this._edits.reduce((prev, cur) => isResourceFileEdit(cur) ? prev : prev + cur.edits.length, 0);
+		const editCount = this._edits.reduce((prev, cur) => WorkspaceFileEdit.is(cur) ? prev : prev + cur.edits.length, 0);
 		const resourceCount = this._edits.length;
 		if (editCount === 0) {
 			return localize('summary.0', "Made no edits");
@@ -263,15 +263,15 @@ class BulkEdit {
 		let group: Edit[] | undefined;
 		for (const edit of this._edits) {
 			if (!group
-				|| (isResourceFileEdit(group[0]) && !isResourceFileEdit(edit))
-				|| (isResourceTextEdit(group[0]) && !isResourceTextEdit(edit))
+				|| (WorkspaceFileEdit.is(group[0]) && !WorkspaceFileEdit.is(edit))
+				|| (WorkspaceTextEdit.is(group[0]) && !WorkspaceTextEdit.is(edit))
 			) {
 				group = [];
 				groups.push(group);
 			}
 			group.push(edit);
 
-			if (isResourceFileEdit(edit)) {
+			if (WorkspaceFileEdit.is(edit)) {
 				total += 1;
 			} else if (!seen.has(edit.resource.toString())) {
 				seen.add(edit.resource.toString());
@@ -287,15 +287,15 @@ class BulkEdit {
 
 		// do it.
 		for (const group of groups) {
-			if (isResourceFileEdit(group[0])) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, progress);
+			if (WorkspaceFileEdit.is(group[0])) {
+				await this._performFileEdits(<WorkspaceFileEdit[]>group, progress);
 			} else {
-				await this._performTextEdits(<ResourceTextEdit[]>group, progress);
+				await this._performTextEdits(<WorkspaceTextEdit[]>group, progress);
 			}
 		}
 	}
 
-	private async _performFileEdits(edits: ResourceFileEdit[], progress: IProgress<void>) {
+	private async _performFileEdits(edits: WorkspaceFileEdit[], progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
 		for (const edit of edits) {
 			progress.report(undefined);
@@ -330,7 +330,7 @@ class BulkEdit {
 		}
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const recording = Recording.start(this._fileService);
@@ -402,7 +402,7 @@ export class BulkEditService implements IBulkEditService {
 
 		// First check if loaded models were not changed in the meantime
 		for (const edit of edits) {
-			if (!isResourceFileEdit(edit) && typeof edit.modelVersionId === 'number') {
+			if (!WorkspaceFileEdit.is(edit) && typeof edit.modelVersionId === 'number') {
 				let model = this._modelService.getModel(edit.resource);
 				if (model && model.getVersionId() !== edit.modelVersionId) {
 					// model changed in the meantime
