@@ -47,6 +47,15 @@ const expandSuggestionDocsByDefault = false;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
+
+	/**
+	 * Flexbox
+	 * < -- left -->                   <---   right   --->
+	 * <icon><label>                   <details><readmore>
+	 */
+	left: HTMLElement;
+	right: HTMLElement;
+
 	icon: HTMLElement;
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
@@ -96,7 +105,7 @@ function canExpandCompletionItem(item: CompletionItem | null) {
 	return (suggestion.detail && suggestion.detail !== suggestion.label);
 }
 
-class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
+class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	constructor(
 		private widget: SuggestWidget,
@@ -126,17 +135,23 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconContainer = append(main, $('.icon-label.codicon'));
+		/**
+		 * Flexbox
+		 * < -- left -->                   <---   right   --->
+		 * <icon><label>                   <details><readmore>
+		 */
+		data.left = append(main, $('span.left'));
+		data.right = append(main, $('span.right'));
 
-		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportCodicons: true });
+		data.iconContainer = append(data.left, $('.icon-label.codicon'));
+
+		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
-		data.detailsLabel = append(main, $('span.details-label'));
+		data.detailsLabel = append(data.right, $('span.details-label'));
 
-		data.readMore = append(main, $('span.readMore.codicon.codicon-info'));
+		data.readMore = append(data.right, $('span.readMore.codicon.codicon-info'));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
-
-		data.readMore.style.backgroundColor = this._themeService.getTheme().getColor('list.hoverBackground', true)!.toString();
 
 		const configureFont = () => {
 			const options = this.editor.getOptions();
@@ -220,14 +235,14 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
-			removeClass(data.detailsLabel, 'always-show');
+			removeClass(data.right, 'always-show-details');
 		} else {
 			data.detailsLabel.textContent = (suggestion.label.details || '').replace(/\n.*$/m, '');
-			addClass(data.detailsLabel, 'always-show');
+			addClass(data.right, 'always-show-details');
 		}
 
 		if (canExpandCompletionItem(element)) {
-			addClass(data.detailsLabel, 'can-expand');
+			addClass(data.right, 'can-expand-details');
 			show(data.readMore);
 			data.readMore.onmousedown = e => {
 				e.stopPropagation();
@@ -239,7 +254,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 				this.widget.toggleDetails();
 			};
 		} else {
-			removeClass(data.detailsLabel, 'can-expand');
+			removeClass(data.right, 'can-expand-details');
 			hide(data.readMore);
 			data.readMore.onmousedown = null;
 			data.readMore.onclick = null;
@@ -537,7 +552,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
-		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
+		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,

@@ -99,21 +99,25 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: pre;
+	justify-content: space-between;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
+	display: flex;
 }
 
 .monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
 	font-weight: bold;
 }
 
-/** Icon styles **/
+/** ReadMore Icon styles **/
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore::before {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore::before {
 	color: inherit;
 	opacity: 1;
 	font-size: 14px;
-	margin-left: 2px;
-	margin-right: 2px;
 	cursor: pointer;
 }
 
@@ -124,71 +128,82 @@
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close:hover,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore:hover {
 	opacity: 1;
 }
 
 /** Type Info and icon next to the label in the focused completion item **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
 	margin-left: 0.8em;
-	flex: 1;
-	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	white-space: nowrap;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label > .monaco-tokenized-source {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label > .monaco-tokenized-source {
 	display: inline;
 }
 
 /** Details: if using CompletionItem#details, show on focus **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .details-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .right > .details-label {
 	display: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .details-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .right > .details-label {
 	display: inline;
 }
 
 /** Details: if using CompletionItemLabel#details, always show **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label.always-show,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .details-label.always-show {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right.always-show-details > .details-label,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .right.always-show-details > .details-label {
 	display: inline;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .details-label {
-	opacity: 0.3;
-}
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row:hover > .contents > .main > .details-label,
-.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row:hover > .contents > .main > .details-label,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .details-label:not(.can-expand) {
-	opacity: 0.7;
+/** Ellipsis on hover **/
+.monaco-editor .suggest-widget:not(.docs-side) .monaco-list .monaco-list-row:hover > .contents > .main > .right.can-expand-details > .details-label {
+	width: calc(100% - 26px);
 }
 
-/** ReadMore: always layout, only shown on hover **/
-/** But if docs is side or bottom, hide still **/
+/** ReadMore: show on hover **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
+	overflow: hidden;
+}
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
-	display: inline;
-	visibility: hidden;
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {
+	display: inline-block;
 	position: absolute;
-	top: 0px;
-	right: 0px;
-	padding-right: 10px;
+	right: 10px;
+	width: 18px;
+	height: 18px;
+	visibility: hidden;
 }
 
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row > .contents > .main > .readMore,
-.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row > .contents > .main > .readMore {
+/** Do NOT display ReadMore when docs is side/below **/
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row > .contents > .main > .right > .readMore,
+.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {
+	display: none !important;
+}
+
+/** Do NOT display ReadMore when using plain CompletionItemLabel (details/documentation might not be resolved) **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right:not(.always-show-details) > .readMore {
+	display: none;
+}
+/** Focused item can show ReadMore, but can't when docs is side/below **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .right:not(.always-show-details) > .readMore {
+	display: inline-block;
+}
+
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row > .contents > .main > .right > .readMore,
+.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {
 	display: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .readMore {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover > .contents > .main > .right > .readMore {
 	visibility: visible;
 }
 
