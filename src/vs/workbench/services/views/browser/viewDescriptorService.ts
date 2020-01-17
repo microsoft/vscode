@@ -290,7 +290,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			}
 
 			// check if we should generate this container
-			if (containerInfo.sourceViewId && containerInfo.location) {
+			if (containerInfo.sourceViewId && containerInfo.location !== undefined) {
 				const sourceView = this.viewsRegistry.getView(containerInfo.sourceViewId);
 
 				if (sourceView) {
