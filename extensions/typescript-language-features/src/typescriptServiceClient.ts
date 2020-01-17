@@ -52,6 +52,7 @@ namespace ServerState {
 
 	export class Running {
 		readonly type = Type.Running;
+
 		constructor(
 			public readonly server: ITypeScriptServer,
 
@@ -68,6 +69,14 @@ namespace ServerState {
 		) { }
 
 		public readonly toCancelOnResourceChange = new Set<ToCancelOnResourceChanged>();
+
+		updateTsserverVersion(tsserverVersion: string) {
+			this.tsserverVersion = tsserverVersion;
+		}
+
+		updateLangaugeServiceEnabled(enabled: boolean) {
+			this.langaugeServiceEnabled = enabled;
+		}
 	}
 
 	export class Errored {
@@ -759,10 +768,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				{
 					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
 					if (this.serverState.type === ServerState.Type.Running) {
-						this.serverState = {
-							...this.serverState,
-							langaugeServiceEnabled: body.languageServiceEnabled,
-						};
+						this.serverState.updateLangaugeServiceEnabled(body.languageServiceEnabled);
 					}
 					this._onProjectLanguageServiceStateChanged.fire(body);
 					break;
@@ -831,10 +837,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState = {
-					...this.serverState,
-					tsserverVersion: properties['version']
-				};
+				this.serverState.updateTsserverVersion(properties['version']);
 			}
 		}
 
