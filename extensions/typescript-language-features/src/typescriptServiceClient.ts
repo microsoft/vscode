@@ -714,7 +714,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.bufferSyncSupport.interuptGetErr(f);
 	}
 
-	private fatalError(command: string, error: Error): void {
+	private fatalError(command: string, error: unknown): void {
+		if (!(error instanceof TypeScriptServerError)) {
+			console.log('fdasfasdf');
+		}
 		/* __GDPR__
 			"fatalError" : {
 				"${include}": [

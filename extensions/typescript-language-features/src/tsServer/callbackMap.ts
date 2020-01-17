@@ -9,7 +9,7 @@ import { ServerResponse } from '../typescriptService';
 export interface CallbackItem<R> {
 	readonly onSuccess: (value: R) => void;
 	readonly onError: (err: Error) => void;
-	readonly startTime: number;
+	readonly queuingStartTime: number;
 	readonly isAsync: boolean;
 }
 
