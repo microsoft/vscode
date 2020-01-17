@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ContributableViewsModel, ViewDescriptorService, IViewState } from 'vs/workbench/browser/parts/views/views';
+import { ContributableViewsModel, IViewState } from 'vs/workbench/browser/parts/views/views';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
@@ -15,6 +15,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import sinon = require('sinon');
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);

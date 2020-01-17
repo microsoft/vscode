@@ -190,6 +190,8 @@ export interface IViewDescriptor {
 
 	readonly canMoveView?: boolean;
 
+	readonly containerIcon?: string | URI;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
