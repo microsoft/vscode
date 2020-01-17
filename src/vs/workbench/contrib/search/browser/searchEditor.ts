@@ -65,6 +65,7 @@ export class SearchEditor extends BaseEditor {
 	private inSearchEditorContextKey: IContextKey<boolean>;
 	private inputFocusContextKey: IContextKey<boolean>;
 	private searchOperation: LongRunningOperation;
+	private searchHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -85,6 +86,7 @@ export class SearchEditor extends BaseEditor {
 		this.inSearchEditorContextKey = InSearchEditor.bindTo(contextKeyService);
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(contextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
+		this.searchHistoryDelayer = new Delayer<void>(2000);
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -239,6 +241,12 @@ export class SearchEditor extends BaseEditor {
 
 	private async doRunSearch() {
 		const startInput = this.input;
+
+		this.searchHistoryDelayer.trigger(() => {
+			this.queryEditorWidget.searchInput.onSearchSubmit();
+			this.inputPatternExcludes.onSearchSubmit();
+			this.inputPatternIncludes.onSearchSubmit();
+		});
 
 		const config: SearchConfiguration = {
 			caseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
