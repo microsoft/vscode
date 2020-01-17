@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 class ServiceAccessor {
 	constructor(
-		@IUntitledTextEditorService public readonly untitledTextEditorService: UntitledTextEditorService,
+		@IUntitledTextEditorService public readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService public readonly editorService: TestEditorService,
 		@IWorkingCopyService public readonly workingCopyService: IWorkingCopyService,
 		@IModeService public readonly modeService: ModeServiceImpl,
@@ -38,7 +38,7 @@ suite('Workbench untitled text editors', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledTextEditorService.dispose();
+		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
 	});
 
 	test('Untitled Text Editor Service', async (done) => {

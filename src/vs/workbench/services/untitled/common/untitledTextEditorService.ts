@@ -18,25 +18,7 @@ import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverServ
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
-export interface IUntitledTextEditorOptions {
-
-	/**
-	 * An optional resource to identify the untitled resource to create or return
-	 * if already existing.
-	 *
-	 * Note: the resource will not be used unless the scheme is `untitled`.
-	 */
-	untitledResource?: URI;
-
-	/**
-	 * Optional resource components to associate with the untitled file. When saving
-	 * the untitled file, the associated components will be used and the user
-	 * is not being asked to provide a file path.
-	 *
-	 * Note: currently it is not possible to specify the `scheme` to use. The
-	 * untitled file will saved to the default local or remote resource.
-	 */
-	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
+export interface INewUntitledTextEditorOptions {
 
 	/**
 	 * Initial value of the untitled file. An untitled file with initial
@@ -54,6 +36,32 @@ export interface IUntitledTextEditorOptions {
 	 */
 	encoding?: string;
 }
+
+export interface IExistingUntitledTextEditorOptions extends INewUntitledTextEditorOptions {
+
+	/**
+	 * A resource to identify the untitled resource to create or return
+	 * if already existing.
+	 *
+	 * Note: the resource will not be used unless the scheme is `untitled`.
+	 */
+	untitledResource?: URI;
+}
+
+export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INewUntitledTextEditorOptions {
+
+	/**
+	 * Resource components to associate with the untitled file. When saving
+	 * the untitled file, the associated components will be used and the user
+	 * is not being asked to provide a file path.
+	 *
+	 * Note: currently it is not possible to specify the `scheme` to use. The
+	 * untitled file will saved to the default local or remote resource.
+	 */
+	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
+}
+
+type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;
 
 export interface IUntitledTextEditorModelManager {
 
@@ -87,14 +95,18 @@ export interface IUntitledTextEditorModelManager {
 	 * property is provided and the untitled input exists, it will return that existing
 	 * instance instead of creating a new one.
 	 */
-	create(options?: IUntitledTextEditorOptions): UntitledTextEditorInput;
+	create(options?: INewUntitledTextEditorOptions): UntitledTextEditorInput;
+	create(options?: INewUntitledTextEditorWithAssociatedResourceOptions): UntitledTextEditorInput;
+	create(options?: IExistingUntitledTextEditorOptions): UntitledTextEditorInput;
 
 	/**
 	 * Resolves an untitled editor model from the provided options. If the `untitledResource`
 	 * property is provided and the untitled input exists, it will return that existing
 	 * instance instead of creating a new one.
 	 */
-	resolve(options?: IUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -138,15 +150,15 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.mapResourceToInput.get(resource);
 	}
 
-	resolve(options?: IUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+	resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 		return this.doCreateOrGet(options).resolve();
 	}
 
-	create(options?: IUntitledTextEditorOptions): UntitledTextEditorInput {
+	create(options?: IInternalUntitledTextEditorOptions): UntitledTextEditorInput {
 		return this.doCreateOrGet(options);
 	}
 
-	private doCreateOrGet(options: IUntitledTextEditorOptions = Object.create(null)): UntitledTextEditorInput {
+	private doCreateOrGet(options: IInternalUntitledTextEditorOptions = Object.create(null)): UntitledTextEditorInput {
 		const massagedOptions = this.massageOptions(options);
 
 		// Return existing instance if asked for it
@@ -158,8 +170,8 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.doCreate(massagedOptions);
 	}
 
-	private massageOptions(options: IUntitledTextEditorOptions): IUntitledTextEditorOptions {
-		const massagedOptions: IUntitledTextEditorOptions = Object.create(null);
+	private massageOptions(options: IInternalUntitledTextEditorOptions): IInternalUntitledTextEditorOptions {
+		const massagedOptions: IInternalUntitledTextEditorOptions = Object.create(null);
 
 		// Figure out associated and untitled resource
 		if (options.associatedResource) {
@@ -194,7 +206,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return massagedOptions;
 	}
 
-	private doCreate(options: IUntitledTextEditorOptions): UntitledTextEditorInput {
+	private doCreate(options: IInternalUntitledTextEditorOptions): UntitledTextEditorInput {
 
 		// Create a new untitled resource if none is provided
 		let untitledResource = options.untitledResource;

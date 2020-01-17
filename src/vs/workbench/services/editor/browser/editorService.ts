@@ -610,13 +610,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Untitled file support
 		const untitledInput = input as IUntitledTextResourceInput;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
-			return this.untitledTextEditorService.create({
-				untitledResource: untitledInput.resource?.scheme === Schemas.untitled ? untitledInput.resource : undefined,
-				associatedResource: untitledInput.resource?.scheme !== Schemas.untitled ? untitledInput.resource : undefined,
+			const untitledOptions = {
 				mode: untitledInput.mode,
 				initialValue: untitledInput.contents,
 				encoding: untitledInput.encoding
-			});
+			};
+
+			// Untitled resource: use as hint for an existing untitled editor
+			if (untitledInput.resource?.scheme === Schemas.untitled) {
+				return this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
+			}
+
+			// Other resource: use as hint for associated filepath
+			else {
+				return this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
+			}
 		}
 
 		// Resource Editor Support
