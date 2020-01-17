@@ -6,7 +6,7 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, WorkspaceFolder } from 'vscode';
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, WorkspaceFolder, languages, CompletionItemProvider, CompletionItem, TextDocument } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -21,6 +21,7 @@ import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as qs from 'querystring';
 import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
@@ -164,6 +165,20 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 
 	try {
 		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
+
+		languages.registerCompletionItemProvider({ scheme: 'vscode', pattern: 'scm/git/**/input' }, new class implements CompletionItemProvider {
+			provideCompletionItems(document: TextDocument): CompletionItem[] {
+				const uri = document.uri;
+				const query = qs.parse(uri.query);
+				const rootUri = Uri.parse(query.rootUri as string);
+				const repository = model.getRepository(rootUri);
+
+				console.log(rootUri, repository);
+
+				return [{ label: 'hello' }];
+			}
+		});
+
 		return new GitExtensionImpl(model);
 	} catch (err) {
 		if (!/Git installation not found/.test(err.message || '')) {
