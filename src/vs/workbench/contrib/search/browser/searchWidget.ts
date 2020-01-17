@@ -507,14 +507,14 @@ export class SearchWidget extends Widget {
 					try {
 						const regex = new RegExp(this.searchInput.getValue(), 'ug');
 						const matchienessHeuristic = `
-~!@#$%^&*()_+
-\`1234567890-=
-qwertyuiop[]\\
-QWERTYUIOP{}|
-asdfghjkl;'
-ASDFGHJKL:"
-zxcvbnm,./
-ZXCVBNM<>? 	`.match(regex)?.length ?? 0;
+								~!@#$%^&*()_+
+								\`1234567890-=
+								qwertyuiop[]\\
+								QWERTYUIOP{}|
+								asdfghjkl;'
+								ASDFGHJKL:"
+								zxcvbnm,./
+								ZXCVBNM<>? `.match(regex)?.length ?? 0;
 
 						const delayMultiplier =
 							matchienessHeuristic < 50 ? 1 :
