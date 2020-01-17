@@ -9,7 +9,7 @@ import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IScrollEvent } from 'vs/editor/common/editorCommon';
+import { IScrollEvent, IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -20,6 +20,7 @@ export interface EventCallback<T> {
 
 export class ViewOutgoingEvents extends Disposable {
 
+	public onDidContentSizeChange: EventCallback<IContentSizeChangedEvent> | null = null;
 	public onDidScroll: EventCallback<IScrollEvent> | null = null;
 	public onDidGainFocus: EventCallback<void> | null = null;
 	public onDidLoseFocus: EventCallback<void> | null = null;
@@ -39,6 +40,12 @@ export class ViewOutgoingEvents extends Disposable {
 	constructor(viewModel: IViewModel) {
 		super();
 		this._viewModel = viewModel;
+	}
+
+	public emitContentSizeChange(e: viewEvents.ViewContentSizeChangedEvent): void {
+		if (this.onDidContentSizeChange) {
+			this.onDidContentSizeChange(e);
+		}
 	}
 
 	public emitScrollChanged(e: viewEvents.ViewScrollChangedEvent): void {
