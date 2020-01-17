@@ -5897,21 +5897,31 @@ declare namespace monaco.languages {
 		constructor(value: string);
 	}
 
+	export interface WorkspaceEditMetadata {
+		needsConfirmation: boolean;
+		label: string;
+		description?: string;
+	}
+
+	export interface WorkspaceFileEditOptions {
+		overwrite?: boolean;
+		ignoreIfNotExists?: boolean;
+		ignoreIfExists?: boolean;
+		recursive?: boolean;
+	}
+
 	export interface WorkspaceFileEdit {
 		oldUri?: Uri;
 		newUri?: Uri;
-		options?: {
-			overwrite?: boolean;
-			ignoreIfNotExists?: boolean;
-			ignoreIfExists?: boolean;
-			recursive?: boolean;
-		};
+		options?: WorkspaceFileEditOptions;
+		metadata?: WorkspaceEditMetadata;
 	}
 
 	export interface WorkspaceTextEdit {
 		resource: Uri;
+		edit: TextEdit;
 		modelVersionId?: number;
-		edits: TextEdit[];
+		metadata?: WorkspaceEditMetadata;
 	}
 
 	export interface WorkspaceEdit {

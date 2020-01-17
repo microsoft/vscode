@@ -165,10 +165,10 @@ export class ReplaceService implements IReplaceService {
 		const resourceEdits = this.createEdits(fileMatch, replaceModel.uri);
 		const modelEdits: IIdentifiedSingleEditOperation[] = [];
 		for (const resourceEdit of resourceEdits) {
-			for (const edit of resourceEdit.edits) {
-				const range = Range.lift(edit.range);
-				modelEdits.push(EditOperation.replaceMove(range, edit.text));
-			}
+			modelEdits.push(EditOperation.replaceMove(
+				Range.lift(resourceEdit.edit.range),
+				resourceEdit.edit.text)
+			);
 		}
 		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
@@ -201,10 +201,10 @@ export class ReplaceService implements IReplaceService {
 		const fileMatch: FileMatch = match.parent();
 		const resourceEdit: WorkspaceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource,
-			edits: [{
+			edit: {
 				range: match.range(),
 				text: text
-			}]
+			}
 		};
 		return resourceEdit;
 	}

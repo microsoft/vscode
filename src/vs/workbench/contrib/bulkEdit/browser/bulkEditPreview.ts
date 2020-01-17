@@ -73,7 +73,7 @@ export class BulkFileOperation extends CheckedObject {
 		this.type += type;
 		this.originalEdits.set(index, edit);
 		if (WorkspaceTextEdit.is(edit)) {
-			this.textEdits = this.textEdits.concat(edit.edits.map(edit => new BulkTextEdit(this, edit, this._emitter)));
+			this.textEdits.push(new BulkTextEdit(this, edit.edit, this._emitter));
 
 		} else if (type === BulkFileOperationType.Rename) {
 			this.newUri = edit.newUri;
@@ -194,23 +194,13 @@ export class BulkFileOperations {
 
 			file.originalEdits.forEach((value, idx) => {
 
-				if (WorkspaceTextEdit.is(value)) {
-					let newValue: WorkspaceTextEdit = { ...value, edits: [] };
-					let allEditsAccepted = true;
-					for (let edit of value.edits) {
-						if (!checkedEdits.has(keyOfEdit(edit))) {
-							allEditsAccepted = false;
-						} else {
-							newValue.edits.push(edit);
-						}
-					}
-					if (!allEditsAccepted) {
-						value = newValue;
-						allAccepted = false;
-					}
+				if (WorkspaceTextEdit.is(value) && !checkedEdits.has(keyOfEdit(value.edit))) {
+					allAccepted = false;
+					return;
 				}
 
 				result.edits[idx] = value;
+
 			});
 		}
 		if (!allAccepted) {

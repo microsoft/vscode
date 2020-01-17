@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
+import { isObject } from 'vs/base/common/types';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -386,30 +387,30 @@ suite('ExtHostTypes', function () {
 		const all = edit._allEntries();
 		assert.equal(all.length, 4);
 
-		function isFileChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI?, URI?, { overwrite?: boolean }?] {
+		function isFileChange(thing: [URI, types.TextEdit] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI?, URI?, { overwrite?: boolean }?] {
 			const [f, s] = thing;
 			return URI.isUri(f) && URI.isUri(s);
 		}
 
-		function isTextChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI, types.TextEdit[]] {
+		function isTextChange(thing: [URI, types.TextEdit] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI, types.TextEdit] {
 			const [f, s] = thing;
-			return URI.isUri(f) && Array.isArray(s);
+			return URI.isUri(f) && isObject(s);
 		}
 
 		const [first, second, third, fourth] = all;
 		assert.equal(first[0]!.toString(), 'foo:a');
 		assert.ok(!isFileChange(first));
-		assert.ok(isTextChange(first) && first[1].length === 1);
+		assert.ok(isTextChange(first));
 
 		assert.equal(second[0]!.toString(), 'foo:a');
 		assert.ok(isFileChange(second));
 
 		assert.equal(third[0]!.toString(), 'foo:a');
-		assert.ok(isTextChange(third) && third[1].length === 1);
+		assert.ok(isTextChange(third));
 
 		assert.equal(fourth[0]!.toString(), 'foo:b');
 		assert.ok(!isFileChange(fourth));
-		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
+		assert.ok(isTextChange(fourth));
 	});
 
 	test('WorkspaceEdit - two edits for one resource', function () {
@@ -420,8 +421,8 @@ suite('ExtHostTypes', function () {
 
 		assert.equal(edit._allEntries().length, 2);
 		let [first, second] = edit._allEntries();
-		assert.equal((first as [URI, types.TextEdit[]])[1][0].newText, 'Hello');
-		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
+		assert.equal((first as [URI, types.TextEdit])[1].newText, 'Hello');
+		assert.equal((second as [URI, types.TextEdit])[1].newText, 'Foo');
 	});
 
 	test('DocumentLink', () => {

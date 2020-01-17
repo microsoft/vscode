@@ -485,13 +485,13 @@ export namespace WorkspaceEdit {
 		};
 		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
 			const [uri, uriOrEdits] = entry;
-			if (Array.isArray(uriOrEdits)) {
+			if (URI.isUri(uriOrEdits) || uriOrEdits === undefined) {
+				// resource edits
+				result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
+			} else {
 				// text edits
 				const doc = documents && uri ? documents.getDocument(uri) : undefined;
-				result.edits.push(<extHostProtocol.IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
-			} else {
-				// resource edits
-				result.edits.push(<extHostProtocol.IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
+				result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edit: TextEdit.from(uriOrEdits) });
 			}
 		}
 		return result;
@@ -500,16 +500,17 @@ export namespace WorkspaceEdit {
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if (Array.isArray((<extHostProtocol.IResourceTextEditDto>edit).edits)) {
-				result.set(
-					URI.revive((<extHostProtocol.IResourceTextEditDto>edit).resource),
-					<types.TextEdit[]>(<extHostProtocol.IResourceTextEditDto>edit).edits.map(TextEdit.to)
+			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).edit) {
+				result.replace(
+					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
+					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).edit.range),
+					(<extHostProtocol.IWorkspaceTextEditDto>edit).edit.text
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).oldUri!),
-					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).newUri!),
-					(<extHostProtocol.IResourceFileEditDto>edit).options
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldUri!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newUri!),
+					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}
 		}

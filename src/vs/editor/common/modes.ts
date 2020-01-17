@@ -1257,20 +1257,35 @@ export namespace WorkspaceTextEdit {
 	 * @internal
 	 */
 	export function is(thing: any): thing is WorkspaceTextEdit {
-		return isObject(thing) && (<WorkspaceTextEdit>thing).resource && Array.isArray((<WorkspaceTextEdit>thing).edits);
+		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
 	}
+}
+
+export interface WorkspaceEditMetadata {
+	needsConfirmation: boolean;
+	label: string;
+	description?: string;
+}
+
+export interface WorkspaceFileEditOptions {
+	overwrite?: boolean;
+	ignoreIfNotExists?: boolean;
+	ignoreIfExists?: boolean;
+	recursive?: boolean;
 }
 
 export interface WorkspaceFileEdit {
 	oldUri?: URI;
 	newUri?: URI;
-	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	options?: WorkspaceFileEditOptions;
+	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceTextEdit {
 	resource: URI;
+	edit: TextEdit;
 	modelVersionId?: number;
-	edits: TextEdit[];
+	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {

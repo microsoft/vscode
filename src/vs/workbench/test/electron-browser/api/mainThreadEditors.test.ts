@@ -10,7 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
@@ -20,7 +20,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -141,13 +140,13 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit: WorkspaceTextEdit = {
+		let workspaceResourceEdit: IWorkspaceTextEditDto = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
-			edits: [{
+			edit: {
 				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
-			}]
+			}
 		};
 
 		// Act as if the user edited the model
@@ -162,21 +161,21 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit1: WorkspaceTextEdit = {
+		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
-			edits: [{
+			edit: {
 				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
-			}]
+			}
 		};
-		let workspaceResourceEdit2: WorkspaceTextEdit = {
+		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
-			edits: [{
+			edit: {
 				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
-			}]
+			}
 		};
 
 		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {

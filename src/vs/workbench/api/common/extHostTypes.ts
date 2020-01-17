@@ -663,13 +663,13 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	_allEntries(): ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] {
-		const res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
+	_allEntries(): ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] {
+		const res: ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);
 			} else {
-				res.push([edit.uri, [edit.edit]]);
+				res.push([edit.uri, edit.edit]);
 			}
 		}
 		return res;
