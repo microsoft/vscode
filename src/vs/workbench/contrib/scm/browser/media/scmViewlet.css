@@ -175,6 +175,7 @@
 
 .scm-viewlet .scm-editor-container {
 	padding: 1px;
+	position: relative;
 }
 
 .scm-viewlet .scm-editor-placeholder {
@@ -183,6 +184,11 @@
 	z-index: 1;
 	margin: 1px;
 	padding: 3px 4px;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .scm-viewlet .scm-editor-placeholder.hidden {
