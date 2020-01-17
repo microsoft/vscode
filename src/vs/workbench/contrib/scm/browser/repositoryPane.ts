@@ -738,9 +738,6 @@ export class RepositoryPane extends ViewPane {
 
 		this.inputEditor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
 
-		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
-		// this.inputBox.setEnabled(this.isBodyVisible());
-		// this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputEditor);
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
@@ -920,8 +917,8 @@ export class RepositoryPane extends ViewPane {
 			this.tree.layout(listHeight, width);
 		} else {
 			addClass(this.inputContainer, 'hidden');
-			// TODO@joao: disable editor
 
+			this.inputEditor.onHide();
 			this.listContainer.style.height = `${height}px`;
 			this.tree.layout(height, width);
 		}
@@ -942,8 +939,13 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private _onDidChangeVisibility(visible: boolean): void {
-		// this.inputEditor.setEnabled(visible);
 		this.viewModel.setVisible(visible);
+
+		if (this.repository.input.visible && visible) {
+			this.inputEditor.onVisible();
+		} else {
+			this.inputEditor.onHide();
+		}
 	}
 
 	getActions(): IAction[] {
