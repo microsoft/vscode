@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, Extensions as ViewsExtensions, ViewContainerLocation, IViewsService, IViewsRegistry } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -307,7 +307,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IExtensionService protected extensionService: IExtensionService,
 		@IThemeService protected themeService: IThemeService,
 		@IStorageService protected storageService: IStorageService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService
 	) {
 
 		super(id, themeService, storageService);
@@ -389,14 +390,32 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
+
+		if (this.isViewMergedWithContainer()) {
+			const viewId = this.panes[0].id;
+			viewDescriptor = Registry.as<IViewsRegistry>(ViewsExtensions.ViewsRegistry).getView(viewId)!;
+		}
+
 		const result: IAction[] = [];
 		if (viewDescriptor) {
-			result.push(<IAction>{
-				id: `${viewDescriptor.id}.removeView`,
-				label: nls.localize('hideView', "Hide"),
-				enabled: viewDescriptor.canToggleVisibility,
-				run: () => this.toggleViewVisibility(viewDescriptor.id)
-			});
+
+			if (!this.isViewMergedWithContainer()) {
+				result.push(<IAction>{
+					id: `${viewDescriptor.id}.removeView`,
+					label: nls.localize('hideView', "Hide"),
+					enabled: viewDescriptor.canToggleVisibility,
+					run: () => this.toggleViewVisibility(viewDescriptor!.id)
+				});
+			}
+
+			if (viewDescriptor.canMoveView) {
+				result.push(<IAction>{
+					id: `${viewDescriptor.id}.removeView`,
+					label: this.isViewMergedWithContainer() ? nls.localize('toggleSpecificViewLocation', "Toggle {0} View Location", viewDescriptor.name) : nls.localize('toggleViewLocation', "Toggle View Location"),
+					enabled: true,
+					run: () => this.moveView(viewDescriptor!)
+				});
+			}
 		}
 
 		const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
@@ -653,6 +672,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.viewsModel.setVisible(viewId, visible);
 	}
 
+	protected moveView(viewDescriptor: IViewDescriptor): void {
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewsExtensions.ViewContainersRegistry);
+		const currentLocation = viewContainerRegistry.getViewContainerLocation(this.viewContainer);
+		this.viewDescriptorService.moveView(viewDescriptor, currentLocation === ViewContainerLocation.Sidebar ? ViewContainerLocation.Panel : ViewContainerLocation.Sidebar);
+
+		this.instantiationService.invokeFunction(accessor => {
+			const viewsService = accessor.get(IViewsService);
+			viewsService.openView(viewDescriptor.id, true);
+		});
+	}
 
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
 		const onDidFocus = pane.onDidFocus(() => this.lastFocusedPane = pane);
