@@ -363,7 +363,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				dialogPath = this.suggestFilePath(source);
 			}
 
-			target = await this.promptForPath(source, dialogPath, options ? options.availableFileSystems : undefined);
+			target = await this.promptForPath(source, dialogPath, options?.availableFileSystems);
 		}
 
 		if (!target) {
