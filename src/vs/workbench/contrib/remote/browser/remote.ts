@@ -411,6 +411,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
+	readonly group = 'help@50';
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
@@ -539,6 +540,11 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 
 				if (matches) {
 					return -500;
+				}
+
+				matches = /^help(@(\d+))?$/.exec(group);
+				if (matches) {
+					return -10;
 				}
 
 				return;
