@@ -762,19 +762,17 @@ export class RepositoryPane extends ViewPane {
 			accessor.addZone({ afterLineNumber: 0, domNode: $('div'), heightInPx: 3 });
 		});
 
-		this._register(this.inputModel.onDidChangeContent(triggerValidation));
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
-		// const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
-		// const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		// this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
+		// Keep model in sync with API
+		this.inputModel.setValue(this.repository.input.value);
+		this._register(this.repository.input.onDidChange(value => this.inputModel.setValue(value)));
 
-		// this.inputBox.value = this.repository.input.value;
-		// this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
-		// this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
-
+		// Keep API in sync with model and update placeholder and validation
 		this.inputModel.onDidChangeContent(() => {
+			this.repository.input.value = this.inputModel.getValue();
 			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+			triggerValidation();
 		});
 
 		updatePlaceholder();

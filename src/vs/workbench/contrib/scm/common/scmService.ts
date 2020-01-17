@@ -18,6 +18,10 @@ class SCMInput implements ISCMInput {
 	}
 
 	set value(value: string) {
+		if (value === this._value) {
+			return;
+		}
+
 		this._value = value;
 		this._onDidChange.fire(value);
 	}
