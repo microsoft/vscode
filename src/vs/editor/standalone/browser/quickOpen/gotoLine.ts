@@ -12,7 +12,7 @@ import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editor
 import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { BaseEditorQuickOpenAction, IDecorator } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
@@ -28,9 +28,9 @@ interface ParseResult {
 export class GotoLineEntry extends QuickOpenEntry {
 	private readonly parseResult: ParseResult;
 	private readonly decorator: IDecorator;
-	private readonly editor: editorCommon.IEditor;
+	private readonly editor: IEditor;
 
-	constructor(line: string, editor: editorCommon.IEditor, decorator: IDecorator) {
+	constructor(line: string, editor: IEditor, decorator: IDecorator) {
 		super();
 
 		this.editor = editor;
@@ -108,7 +108,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 		// Apply selection and focus
 		const range = this.toSelection();
 		(<ICodeEditor>this.editor).setSelection(range);
-		(<ICodeEditor>this.editor).revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
+		(<ICodeEditor>this.editor).revealRangeInCenter(range, ScrollType.Smooth);
 		this.editor.focus();
 
 		return true;
@@ -124,7 +124,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		// Select Line Position
 		const range = this.toSelection();
-		this.editor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
+		this.editor.revealRangeInCenter(range, ScrollType.Smooth);
 
 		// Decorate if possible
 		this.decorator.decorateLine(range, this.editor);

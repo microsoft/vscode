@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { systemPreferences, ipcMain as ipc } from 'electron';
+import { ipcMain as ipc, nativeTheme } from 'electron';
 import { IStateService } from 'vs/platform/state/node/state';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -42,14 +42,14 @@ export class ThemeMainService implements IThemeMainService {
 	}
 
 	getBackgroundColor(): string {
-		if (isWindows && systemPreferences.isInvertedColorScheme()) {
+		if (isWindows && nativeTheme.shouldUseInvertedColorScheme) {
 			return DEFAULT_BG_HC_BLACK;
 		}
 
 		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 		if (!background) {
 			let baseTheme: string;
-			if (isWindows && systemPreferences.isInvertedColorScheme()) {
+			if (isWindows && nativeTheme.shouldUseInvertedColorScheme) {
 				baseTheme = 'hc-black';
 			} else {
 				baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];

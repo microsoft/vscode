@@ -23,15 +23,13 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 class ServiceAccessor {
 	constructor(
 		@IEditorService public editorService: IEditorService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IFileService public fileService: TestFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
+		@IFileService public fileService: TestFileService
 	) {
 	}
 }
@@ -64,7 +62,7 @@ suite('Files - FileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.models.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 		assert.equal(snapshotToString(model.createSnapshot()!), 'Super Good');
@@ -79,11 +77,10 @@ suite('Files - FileEditorTracker', () => {
 		assert.equal(snapshotToString(model.createSnapshot()!), 'Hello Html');
 
 		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
-	test('dirty text file model opens as editor', async function () {
+	async function createTracker(): Promise<[EditorPart, ServiceAccessor, FileEditorTracker]> {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = instantiationService.createInstance(EditorPart);
@@ -97,50 +94,44 @@ suite('Files - FileEditorTracker', () => {
 
 		const accessor = instantiationService.createInstance(ServiceAccessor);
 
+		await part.whenRestored;
+
 		const tracker = instantiationService.createInstance(FileEditorTracker);
+
+		return [part, accessor, tracker];
+	}
+
+	test('dirty text file model opens as editor', async function () {
+		const [part, accessor, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		assert.ok(!editorService.isOpen({ resource }));
+		assert.ok(!accessor.editorService.isOpen({ resource }));
 
-		const model = await accessor.textFileService.models.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
-		await awaitEditorOpening(editorService);
-		assert.ok(editorService.isOpen({ resource }));
+		await awaitEditorOpening(accessor.editorService);
+		assert.ok(accessor.editorService.isOpen({ resource }));
 
 		part.dispose();
 		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('dirty untitled text file model opens as editor', async function () {
-		const instantiationService = workbenchInstantiationService();
+		const [part, accessor, tracker] = await createTracker();
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		instantiationService.stub(IEditorGroupsService, part);
-
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
-
-		const accessor = instantiationService.createInstance(ServiceAccessor);
-
-		const tracker = instantiationService.createInstance(FileEditorTracker);
-
-		const untitledEditor = accessor.untitledTextEditorService.createOrGet();
+		const untitledEditor = accessor.textFileService.untitled.create();
 		const model = await untitledEditor.resolve();
 
-		assert.ok(!editorService.isOpen(untitledEditor));
+		assert.ok(!accessor.editorService.isOpen(untitledEditor));
 
 		model.textEditorModel.setValue('Super Good');
 
-		await awaitEditorOpening(editorService);
-		assert.ok(editorService.isOpen(untitledEditor));
+		await awaitEditorOpening(accessor.editorService);
+		assert.ok(accessor.editorService.isOpen(untitledEditor));
 
 		part.dispose();
 		tracker.dispose();

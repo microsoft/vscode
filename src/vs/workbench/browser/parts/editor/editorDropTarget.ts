@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { find } from 'vs/base/common/arrays';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
@@ -48,7 +48,7 @@ class DropOverlay extends Themable {
 		private groupView: IEditorGroupView,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledTextEditorService private untitledTextEditorService: IUntitledTextEditorService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService
 	) {
 		super(themeService);
@@ -309,7 +309,7 @@ class DropOverlay extends Themable {
 
 								// Open as untitled file with the provided contents
 								const contents = VSBuffer.wrap(new Uint8Array(event.target.result)).toString();
-								const untitledEditor = this.untitledTextEditorService.createOrGet(proposedFilePath, undefined, contents);
+								const untitledEditor = this.textFileService.untitled.create({ associatedResource: proposedFilePath, initialValue: contents });
 
 								if (!targetGroup) {
 									targetGroup = ensureTargetGroup();

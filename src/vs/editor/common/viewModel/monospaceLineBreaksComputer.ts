@@ -8,6 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { ILineBreaksComputerFactory, LineBreakData, ILineBreaksComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -51,6 +52,9 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 	}
 }
 
+let arrPool1: number[] = [];
+let arrPool2: number[] = [];
+
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -66,10 +70,9 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
 	}
 
-	public createLineBreaksComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
+	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
 		tabSize = tabSize | 0; //@perf
 		wrappingColumn = +wrappingColumn; //@perf
-		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
 
 		let requests: string[] = [];
 		let previousBreakingData: (LineBreakData | null)[] = [];
@@ -79,6 +82,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
+				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth; //@perf
 				let result: (LineBreakData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const previousLineBreakData = previousBreakingData[i];
@@ -88,14 +92,14 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 						result[i] = createLineBreaks(this.classifier, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					}
 				}
+				arrPool1.length = 0;
+				arrPool2.length = 0;
 				return result;
 			}
 		};
 	}
 }
 
-let arrPool1: number[] = [];
-let arrPool2: number[] = [];
 function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
 	if (firstLineBreakColumn === -1) {
 		return null;

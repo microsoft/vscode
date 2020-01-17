@@ -14,8 +14,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
-	constructor(@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService) {
-	}
+	constructor(@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService) { }
 }
 
 class FileEditorInput extends EditorInput {
@@ -48,7 +47,6 @@ suite('Workbench editor', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledTextEditorService.revertAll();
 		accessor.untitledTextEditorService.dispose();
 	});
 
@@ -57,7 +55,7 @@ suite('Workbench editor', () => {
 
 		assert.ok(!toResource(null!));
 
-		const untitled = service.createOrGet();
+		const untitled = service.create();
 
 		assert.equal(toResource(untitled)!.toString(), untitled.getResource().toString());
 		assert.equal(toResource(untitled, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), untitled.getResource().toString());

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IViewState } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -30,7 +30,7 @@ const USE_IDENTITY_LINES_COLLECTION = true;
 export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
-	private readonly configuration: editorCommon.IConfiguration;
+	private readonly configuration: IConfiguration;
 	private readonly model: ITextModel;
 	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private hasFocus: boolean;
@@ -44,9 +44,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	constructor(
 		editorId: number,
-		configuration: editorCommon.IConfiguration,
+		configuration: IConfiguration,
 		model: ITextModel,
-		lineMapperFactory: ILineBreaksComputerFactory,
+		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
 	) {
 		super();
@@ -66,16 +67,19 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		} else {
 			const options = this.configuration.options;
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const fontInfo = options.get(EditorOption.fontInfo);
+			const wrappingAlgorithm = options.get(EditorOption.wrappingAlgorithm);
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			this.lines = new SplitLinesCollection(
 				this.model,
-				lineMapperFactory,
+				domLineBreaksComputerFactory,
+				monospaceLineBreaksComputerFactory,
+				fontInfo,
 				this.model.getOptions().tabSize,
+				wrappingAlgorithm,
 				wrappingInfo.wrappingColumn,
-				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 				wrappingIndent
 			);
 		}
@@ -91,6 +95,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			try {
 				const eventsCollector = this._beginEmit();
 				eventsCollector.emit(new viewEvents.ViewScrollChangedEvent(e));
+			} finally {
+				this._endEmit();
+			}
+		}));
+
+		this._register(this.viewLayout.onDidContentSizeChange((e) => {
+			try {
+				const eventsCollector = this._beginEmit();
+				eventsCollector.emit(new viewEvents.ViewContentSizeChangedEvent(e));
 			} finally {
 				this._endEmit();
 			}
@@ -151,11 +164,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let restorePreviousViewportStart = false;
 
 		const options = this.configuration.options;
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingAlgorithm = options.get(EditorOption.wrappingAlgorithm);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth)) {
+		if (this.lines.setWrappingSettings(fontInfo, wrappingAlgorithm, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -442,7 +456,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public saveState(): editorCommon.IViewState {
+	public saveState(): IViewState {
 		const compatViewState = this.viewLayout.saveState();
 
 		const scrollTop = compatViewState.scrollTop;
@@ -457,7 +471,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; } {
 		if (typeof state.firstPosition === 'undefined') {
 			// This is a view state serialized by an older version
 			return this._reduceRestoreStateCompatibility(state);
@@ -472,7 +486,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	private _reduceRestoreStateCompatibility(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number; } {
 		return {
 			scrollLeft: state.scrollLeft,
 			scrollTop: state.scrollTopWithoutViewZones!

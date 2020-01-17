@@ -24,7 +24,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { attachFindReplaceInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachFindReplaceInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
@@ -160,7 +160,6 @@ export class SearchWidget extends Widget {
 	private temporarilySkipSearchOnChange = false;
 	private showContextCheckbox!: Checkbox;
 	private contextLinesInput!: InputBox;
-	private _contextLineInputDelayer: Delayer<void>;
 
 	constructor(
 		container: HTMLElement,
@@ -179,7 +178,6 @@ export class SearchWidget extends Widget {
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
-		this._contextLineInputDelayer = new Delayer<void>(300);
 
 		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
@@ -373,23 +371,27 @@ export class SearchWidget extends Widget {
 
 
 		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), actionClassName: 'codicon-list-selection' });
-		this._register(this.showContextCheckbox.onChange(() => {
-			dom.toggleClass(parent, 'show-context', this.showContextCheckbox.checked);
-			this._onDidToggleContext.fire();
-		}));
+		this._register(this.showContextCheckbox.onChange(() => this.onContextLinesChanged()));
 
 		if (options.showContextToggle) {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
 			dom.addClass(this.contextLinesInput.element, 'context-lines-input');
 			this.contextLinesInput.value = '2';
-			this._register(this.contextLinesInput.onDidChange(() => {
-				if (this.contextLinesInput.value.includes('-')) {
-					this.contextLinesInput.value = '0';
-				}
-				this._contextLineInputDelayer.trigger(() => this._onDidToggleContext.fire());
-			}));
+			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
+			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
 			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
 		}
+	}
+
+	private onContextLinesChanged() {
+		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
+		this._onDidToggleContext.fire();
+
+		if (this.contextLinesInput.value.includes('-')) {
+			this.contextLinesInput.value = '0';
+		}
+
+		this._onDidToggleContext.fire();
 	}
 
 	public setContextLines(lines: number) {
@@ -400,6 +402,7 @@ export class SearchWidget extends Widget {
 			this.showContextCheckbox.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
+		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -453,8 +456,8 @@ export class SearchWidget extends Widget {
 	}
 
 	setValue(value: string, skipSearchOnChange: boolean) {
-		this.searchInput.setValue(value);
 		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
+		this.searchInput.setValue(value);
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
@@ -500,7 +503,31 @@ export class SearchWidget extends Widget {
 				this.temporarilySkipSearchOnChange = false;
 			} else {
 				this._onSearchCancel.fire({ focus: false });
-				this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				if (this.searchInput.getRegex()) {
+					try {
+						const regex = new RegExp(this.searchInput.getValue(), 'ug');
+						const matchienessHeuristic = `
+								~!@#$%^&*()_+
+								\`1234567890-=
+								qwertyuiop[]\\
+								QWERTYUIOP{}|
+								asdfghjkl;'
+								ASDFGHJKL:"
+								zxcvbnm,./
+								ZXCVBNM<>? `.match(regex)?.length ?? 0;
+
+						const delayMultiplier =
+							matchienessHeuristic < 50 ? 1 :
+								matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
+									10; // only things matching empty string
+
+						this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+					} catch {
+						// pass
+					}
+				} else {
+					this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				}
 			}
 		}
 	}
@@ -626,6 +653,11 @@ export class SearchWidget extends Widget {
 
 	contextLines() {
 		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+	}
+
+	toggleContextLines() {
+		this.showContextCheckbox.checked = !this.showContextCheckbox.checked;
+		this.onContextLinesChanged();
 	}
 
 	dispose(): void {

@@ -29,10 +29,11 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import type { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -86,11 +87,26 @@ export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleCaseSensitive();
+	}
+};
+
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 	if (searchView) {
-
 		searchView.toggleWholeWords();
+	}
+};
+
+export const toggleSearchEditorWholeWordCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleWholeWords();
 	}
 };
 
@@ -101,23 +117,45 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const toggleSearchEditorRegexCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleRegex();
+	}
+};
+
+export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleContextLines();
+	}
+};
+
 export class FocusNextInputAction extends Action {
 
 	static readonly ID = 'search.focus.nextInputBox';
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			(this.editorService.activeControl as SearchEditor).focusNextInput();
+		}
+
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.focusNextInputBox();
 		}
-		return Promise.resolve(null);
 	}
 }
 
@@ -127,17 +165,23 @@ export class FocusPreviousInputAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			(this.editorService.activeControl as SearchEditor).focusPrevInput();
+		}
+
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.focusPreviousInputBox();
 		}
-		return Promise.resolve(null);
 	}
 }
 

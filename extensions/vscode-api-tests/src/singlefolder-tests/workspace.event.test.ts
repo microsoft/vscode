@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile } from '../utils';
+import { createRandomFile, withLogDisabled } from '../utils';
 
 suite('workspace-event', () => {
 
@@ -66,7 +66,7 @@ suite('workspace-event', () => {
 		assert.equal(baseDoc.getText(), 'HALLO_NEW');
 	});
 
-	test('onWillCreate/onDidCreate, make changes, edit new file fails', async function () {
+	test('onWillCreate/onDidCreate, make changes, edit new file fails', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 
@@ -86,7 +86,7 @@ suite('workspace-event', () => {
 
 		assert.equal((await vscode.workspace.fs.readFile(newUri)).toString(), '');
 		assert.equal((await vscode.workspace.openTextDocument(newUri)).getText(), '');
-	});
+	}));
 
 	test('onWillDelete/onDidDelete', async function () {
 

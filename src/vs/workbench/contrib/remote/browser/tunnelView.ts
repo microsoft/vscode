@@ -38,6 +38,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -94,7 +95,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		}
 		if (this.model.detected.size > 0) {
 			groups.push({
-				label: nls.localize('remote.tunnelsView.detected', "Detected"),
+				label: nls.localize('remote.tunnelsView.detected', "Existing Tunnels"),
 				tunnelType: TunnelType.Detected,
 				items: this.detected
 			});
@@ -102,7 +103,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		const candidates = await this.candidates;
 		if (candidates.length > 0) {
 			groups.push({
-				label: nls.localize('remote.tunnelsView.candidates', "Candidates"),
+				label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
 				tunnelType: TunnelType.Candidate,
 				items: candidates
 			});
@@ -368,7 +369,7 @@ class TunnelItem implements ITunnelItem {
 		} else if (this.localAddress) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} \u2192 {1}", this.remotePort, this.localAddress);
 		} else if (this.remoteHost !== 'localhost') {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1} not forwarded", this.remoteHost, this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1}", this.remoteHost, this.remotePort);
 		} else {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0} not forwarded", this.remotePort);
 		}
@@ -414,7 +415,7 @@ export class TunnelPanel extends ViewPane {
 		@IThemeService private readonly themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 
@@ -574,7 +575,7 @@ export class TunnelPanel extends ViewPane {
 export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly id = TunnelPanel.ID;
 	readonly name = TunnelPanel.TITLE;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
@@ -582,7 +583,7 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly remoteAuthority?: string | string[];
 
 	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
-		this.ctorDescriptor = { ctor: TunnelPanel, arguments: [viewModel] };
+		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);
 		this.remoteAuthority = environmentService.configuration.remoteAuthority ? environmentService.configuration.remoteAuthority.split('+')[0] : undefined;
 	}
 }

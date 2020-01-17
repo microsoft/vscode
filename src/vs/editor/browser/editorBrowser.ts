@@ -320,6 +320,14 @@ export interface IOverviewRuler {
 }
 
 /**
+ * Editor aria options.
+ * @internal
+ */
+export interface IEditorAriaOptions {
+	activeDescendant: string | undefined;
+}
+
+/**
  * A rich code editor.
  */
 export interface ICodeEditor extends editorCommon.IEditor {
@@ -483,6 +491,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
 	/**
+	 * An event emitted when the content width or content height in the editor has changed.
+	 * @event
+	 */
+	onDidContentSizeChange(listener: (e: editorCommon.IContentSizeChangedEvent) => void): IDisposable;
+	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
 	 */
@@ -532,12 +545,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setModel(model: ITextModel | null): void;
 
 	/**
-	 * @internal
+	 * Gets all the editor computed options.
 	 */
 	getOptions(): IComputedEditorOptions;
 
 	/**
-	 * @internal
+	 * Gets a specific editor option.
 	 */
 	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 
@@ -559,6 +572,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setValue(newValue: string): void;
 
 	/**
+	 * Get the width of the editor's content.
+	 * This is information that is "erased" when computing `scrollWidth = Math.max(contentWidth, width)`
+	 */
+	getContentWidth(): number;
+	/**
 	 * Get the scrollWidth of the editor's viewport.
 	 */
 	getScrollWidth(): number;
@@ -567,6 +585,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getScrollLeft(): number;
 
+	/**
+	 * Get the height of the editor's content.
+	 * This is information that is "erased" when computing `scrollHeight = Math.max(contentHeight, height)`
+	 */
+	getContentHeight(): number;
 	/**
 	 * Get the scrollHeight of the editor's viewport.
 	 */
@@ -688,6 +711,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	setHiddenAreas(ranges: IRange[]): void;
+
+	/**
+	 * Sets the editor aria options, primarily the active descendent.
+	 * @internal
+	 */
+	setAriaOptions(options: IEditorAriaOptions): void;
 
 	/**
 	 * @internal

@@ -487,7 +487,7 @@ export class ConfigurationEditingService {
 				}
 
 				// Target cannot be dirty if not writing into buffer
-				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
+				if (checkDirty && operation.resource && this.textFileService.isDirty(operation.resource)) {
 					return this.reject<typeof reference>(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target, operation);
 				}
 				return reference;
