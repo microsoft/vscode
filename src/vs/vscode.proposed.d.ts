@@ -1181,7 +1181,7 @@ declare module 'vscode' {
 	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
 	 * editor events such as `undo` or `save`.
 	 *
-	 * @param EditType Type of edits. Edit objects must be json serializable.
+	 * @param EditType Type of edits.
 	 */
 	interface WebviewCustomEditorEditingDelegate<EditType> {
 		/**
