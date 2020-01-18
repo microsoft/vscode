@@ -287,7 +287,7 @@ export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -302,7 +302,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
