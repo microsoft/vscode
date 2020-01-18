@@ -10,7 +10,7 @@ import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
@@ -48,7 +48,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await editors.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
-		assert.equal((<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
+		assert.equal((<WorkspaceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
 	});
 
 	test('does not use version id if document is not available', async () => {
@@ -56,7 +56,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await editors.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
-		assert.ok(typeof (<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
+		assert.ok(typeof (<WorkspaceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
 	});
 
 });

@@ -71,8 +71,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 	}
 
 	private registerListeners(): void {
-		this._register(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
-		this._register(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
+		this._register(this.textFileService.files.onDidSave(e => this.onFileSavedOrReverted(e.model.resource)));
+		this._register(this.textFileService.files.onDidRevert(m => this.onFileSavedOrReverted(m.resource)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
@@ -180,7 +180,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		Event.once(handle.onDidClose)(() => { dispose(primaryActions), dispose(secondaryActions); });
+		Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
 		this.messages.set(model.resource, handle);
 	}
 

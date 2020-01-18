@@ -8,15 +8,22 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
-	pointer-events: none;
 }
 
 .monaco-workbench .terminal-message-widget {
 	font-size: 12px;
 	line-height: 19px;
-	padding: 4px 5px;
+	padding: 4px 8px;
 	animation: fadein 100ms linear;
 	white-space: nowrap;
 	/* Must be drawn on the top of the terminal's canvases */
 	z-index: 20;
+}
+
+.monaco-workbench .terminal-message-widget p {
+	margin: 0px;
+}
+
+.monaco-workbench .terminal-message-widget a {
+	color: #3794ff;
 }

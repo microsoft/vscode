@@ -11,7 +11,7 @@ import { IFileQuery, IRawFileQuery, ISearchCompleteStats, isSerializedFileMatch,
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';

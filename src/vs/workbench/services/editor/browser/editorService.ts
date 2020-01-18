@@ -61,7 +61,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	private lastActiveEditor: IEditorInput | undefined = undefined;
-	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 
 	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
 
@@ -110,10 +109,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return; // ignore if we still have no active editor
 		}
 
-		if (this.lastActiveGroupId === group.id && this.lastActiveEditor === group.activeEditor) {
-			return; // ignore if the editor actually did not change
-		}
-
 		this.doHandleActiveEditorChangeEvent();
 	}
 
@@ -121,7 +116,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		this.lastActiveGroupId = activeGroup.id;
 		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
 
 		// Fire event to outside parties
@@ -184,6 +178,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return undefined;
+	}
+
+	get activeTextEditorMode(): string | undefined {
+		let activeCodeEditor: ICodeEditor | undefined = undefined;
+
+		const activeTextEditorWidget = this.activeTextEditorWidget;
+		if (isDiffEditor(activeTextEditorWidget)) {
+			activeCodeEditor = activeTextEditorWidget.getModifiedEditor();
+		} else {
+			activeCodeEditor = activeTextEditorWidget;
+		}
+
+		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
 	}
 
 	get count(): number {
@@ -603,7 +610,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Untitled file support
 		const untitledInput = input as IUntitledTextResourceInput;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
-			return this.untitledTextEditorService.createOrGet(untitledInput.resource, untitledInput.mode, untitledInput.contents, untitledInput.encoding);
+			const untitledOptions = {
+				mode: untitledInput.mode,
+				initialValue: untitledInput.contents,
+				encoding: untitledInput.encoding
+			};
+
+			// Untitled resource: use as hint for an existing untitled editor
+			if (untitledInput.resource?.scheme === Schemas.untitled) {
+				return this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
+			}
+
+			// Other resource: use as hint for associated filepath
+			else {
+				return this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
+			}
 		}
 
 		// Resource Editor Support
@@ -839,6 +860,7 @@ export class DelegatingEditorService implements IEditorService {
 	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
 	get activeControl(): IVisibleEditor | undefined { return this.editorService.activeControl; }
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorWidget; }
+	get activeTextEditorMode(): string | undefined { return this.editorService.activeTextEditorMode; }
 	get visibleEditors(): ReadonlyArray<IEditorInput> { return this.editorService.visibleEditors; }
 	get visibleControls(): ReadonlyArray<IVisibleEditor> { return this.editorService.visibleControls; }
 	get visibleTextEditorWidgets(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorWidgets; }

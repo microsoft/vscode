@@ -260,8 +260,8 @@ export class EditorsObserver extends Disposable {
 
 		// Extract least recently used editors that can be closed
 		const leastRecentlyClosableEditors = mostRecentEditors.reverse().filter(({ editor, groupId }) => {
-			if (editor.isDirty()) {
-				return false; // not dirty editors
+			if (editor.isDirty() && !editor.isSaving()) {
+				return false; // not dirty editors (unless in the process of saving)
 			}
 
 			if (exclude && editor === exclude.editor && groupId === exclude.groupId) {

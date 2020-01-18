@@ -10,6 +10,7 @@ import { escape } from 'vs/base/common/strings';
 export interface IHighlight {
 	start: number;
 	end: number;
+	extraClasses?: string;
 }
 
 export class HighlightedLabel {
@@ -69,7 +70,11 @@ export class HighlightedLabel {
 				htmlContent += '</span>';
 				pos = highlight.end;
 			}
-			htmlContent += '<span class="highlight">';
+			if (highlight.extraClasses) {
+				htmlContent += `<span class="highlight ${highlight.extraClasses}">`;
+			} else {
+				htmlContent += `<span class="highlight">`;
+			}
 			const substring = this.text.substring(highlight.start, highlight.end);
 			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
 			htmlContent += '</span>';

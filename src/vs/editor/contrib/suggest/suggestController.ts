@@ -121,7 +121,7 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = new SuggestModel(this.editor, editorWorker);
 
-		this.widget = new IdleValue(() => {
+		this.widget = this._toDispose.add(new IdleValue(() => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -165,14 +165,27 @@ export class SuggestController implements IEditorContribution {
 			}));
 			this._toDispose.add(toDisposable(() => makesTextEdit.reset()));
 
+			this._toDispose.add(widget.onDetailsKeyDown(e => {
+				// cmd + c on macOS, ctrl + c on Win / Linux
+				if (
+					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
+					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+				) {
+					e.stopPropagation();
+					return;
+				}
 
+				if (!e.toKeybinding().isModifierKey()) {
+					this.editor.focus();
+				}
+			}));
 
 			return widget;
-		});
+		}));
 
-		this._alternatives = new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new IdleValue(() => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
-		});
+		}));
 
 		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
 
@@ -195,21 +208,6 @@ export class SuggestController implements IEditorContribution {
 			if (!_sticky) {
 				this.model.cancel();
 				this.model.clear();
-			}
-		}));
-
-		this._toDispose.add(this.widget.getValue().onDetailsKeyDown(e => {
-			// cmd + c on macOS, ctrl + c on Win / Linux
-			if (
-				e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
-				(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
-			) {
-				e.stopPropagation();
-				return;
-			}
-
-			if (!e.toKeybinding().isModifierKey()) {
-				this.editor.focus();
 			}
 		}));
 

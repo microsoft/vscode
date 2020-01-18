@@ -22,7 +22,6 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext, CompletionItem } from './suggest';
 import { CompletionModel } from './completionModel';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -89,6 +88,10 @@ function canExpandCompletionItem(item: CompletionItem | null) {
 	return (suggestion.detail && suggestion.detail !== suggestion.label);
 }
 
+function getAriaId(index: number): string {
+	return `suggest-aria-id:${index}`;
+}
+
 class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	constructor(
@@ -133,6 +136,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			const options = this.editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
 			const fontFamily = fontInfo.fontFamily;
+			const fontFeatureSettings = fontInfo.fontFeatureSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
@@ -142,6 +146,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			data.root.style.fontSize = fontSizePx;
 			data.root.style.fontWeight = fontWeight;
 			main.style.fontFamily = fontFamily;
+			main.style.fontFeatureSettings = fontFeatureSettings;
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;
@@ -158,10 +163,11 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		return data;
 	}
 
-	renderElement(element: CompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
+	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).completion;
 
+		data.root.id = getAriaId(index);
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
@@ -250,7 +256,6 @@ class SuggestionDetails {
 	private header: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
-	private ariaLabel: string | null;
 	private readonly disposables: DisposableStore;
 	private renderDisposeable?: IDisposable;
 	private borderWidth: number = 1;
@@ -279,7 +284,6 @@ class SuggestionDetails {
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
-		this.ariaLabel = null;
 
 		this.configureFont();
 
@@ -318,7 +322,6 @@ class SuggestionDetails {
 			this.type.textContent = '';
 			this.docs.textContent = '';
 			addClass(this.el, 'no-docs');
-			this.ariaLabel = null;
 			return;
 		}
 		removeClass(this.el, 'no-docs');
@@ -358,15 +361,6 @@ class SuggestionDetails {
 
 		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
-
-		this.ariaLabel = strings.format(
-			'{0}{1}',
-			detail || '',
-			documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
-	}
-
-	getAriaLabel() {
-		return this.ariaLabel;
 	}
 
 	scrollDown(much = 8): void {
@@ -409,6 +403,7 @@ class SuggestionDetails {
 
 		this.el.style.fontSize = fontSizePx;
 		this.el.style.fontWeight = fontWeight;
+		this.el.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
@@ -521,7 +516,22 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
 			openController: { shouldOpen: () => false },
-			mouseSupport: false
+			mouseSupport: false,
+			accessibilityProvider: {
+				getAriaLabel: (item: CompletionItem) => {
+					if (item.isResolved && this.expandDocsSettingFromStorage()) {
+						const { documentation, detail } = item.completion;
+						const docs = strings.format(
+							'{0}{1}',
+							detail || '',
+							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, docs);
+					} else {
+						return item.completion.label;
+					}
+				}
+			}
 		});
 
 		this.toDispose.add(attachListStyler(this.list, themeService, {
@@ -610,25 +620,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.editor.focus();
 	}
 
-	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		if (this.expandDocsSettingFromStorage()) {
-			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
-		} else {
-			return item.completion.label;
-		}
-	}
-
-	private _lastAriaAlertLabel: string | null = null;
-	private _ariaAlert(newAriaAlertLabel: string | null): void {
-		if (this._lastAriaAlertLabel === newAriaAlertLabel) {
-			return;
-		}
-		this._lastAriaAlertLabel = newAriaAlertLabel;
-		if (this._lastAriaAlertLabel) {
-			alert(this._lastAriaAlertLabel, true);
-		}
-	}
-
 	private onThemeChange(theme: ITheme) {
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
@@ -662,7 +653,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.focusedItem = null;
 			}
 
-			this._ariaAlert(null);
+			this.editor.setAriaOptions({ activeDescendant: undefined });
 			return;
 		}
 
@@ -711,7 +702,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					removeClass(this.element, 'docs-side');
 				}
 
-				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
+				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
 			}).catch(onUnexpectedError);
 		}
 
@@ -769,7 +760,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				hide(this.messageElement);
 				show(this.details.element, this.listElement);
 				this.show();
-				this._ariaAlert(this.details.getAriaLabel());
 				break;
 		}
 	}
@@ -989,7 +979,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
-			this._ariaAlert(this.details.getAriaLabel());
 			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}

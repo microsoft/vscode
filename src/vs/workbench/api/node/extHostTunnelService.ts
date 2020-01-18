@@ -5,7 +5,7 @@
 
 import { MainThreadTunnelServiceShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { URI } from 'vs/base/common/uri';
@@ -128,7 +128,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childStat = fs.statSync(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8').replace(/\0/g, ' ');
+					const rawCmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const nullIndex = rawCmd.indexOf('\0');
+					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length).trim();
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
@@ -181,17 +183,26 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 							ip: this.parseIpAddress(address[0]),
 							port: parseInt(address[1], 16)
 						};
-					}).map(port => [port.port, port])
+					}).map(port => [port.ip + ':' + port.port, port])
 			).values()
 		];
 	}
 
 	private parseIpAddress(hex: string): string {
 		let result = '';
-		for (let i = hex.length - 2; (i >= 0); i -= 2) {
-			result += parseInt(hex.substr(i, 2), 16);
-			if (i !== 0) {
-				result += '.';
+		if (hex.length === 8) {
+			for (let i = hex.length - 2; i >= 0; i -= 2) {
+				result += parseInt(hex.substr(i, 2), 16);
+				if (i !== 0) {
+					result += '.';
+				}
+			}
+		} else {
+			for (let i = hex.length - 4; i >= 0; i -= 4) {
+				result += parseInt(hex.substr(i, 4), 16).toString(16);
+				if (i !== 0) {
+					result += ':';
+				}
 			}
 		}
 		return result;

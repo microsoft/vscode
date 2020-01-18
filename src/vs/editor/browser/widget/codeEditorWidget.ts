@@ -50,6 +50,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 
 let EDITOR_ID = 0;
 
@@ -192,6 +194,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
 	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
 	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
@@ -757,6 +762,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.cursor.setSelections(source, ranges);
 	}
 
+	public getContentWidth(): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getContentWidth();
+	}
+
 	public getScrollWidth(): number {
 		if (!this._modelData) {
 			return -1;
@@ -768,6 +780,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.viewModel.viewLayout.getCurrentScrollLeft();
+	}
+
+	public getContentHeight(): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getContentHeight();
 	}
 
 	public getScrollHeight(): number {
@@ -1311,6 +1330,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.render(true, forceRedraw);
 	}
 
+	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.setAriaOptions(options);
+	}
+
 	public applyFontInfo(target: HTMLElement): void {
 		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
@@ -1329,7 +1355,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		model.onBeforeAttached();
 
-		const viewModel = new ViewModel(this._id, this._configuration, model, (callback) => dom.scheduleAtNextAnimationFrame(callback));
+		const viewModel = new ViewModel(
+			this._id,
+			this._configuration,
+			model,
+			DOMLineBreaksComputerFactory.create(),
+			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
+			(callback) => dom.scheduleAtNextAnimationFrame(callback)
+		);
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 		listenersToRemove.push(model.onDidChangeLanguage((e) => {
@@ -1463,6 +1496,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
+		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
 		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
 		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);

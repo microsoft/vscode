@@ -1193,7 +1193,6 @@ declare module 'vscode' {
 	 * A complex edit that will be applied in one transaction on a TextEditor.
 	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
 	 * they can be applied on a [document](#TextDocument) associated with a [text editor](#TextEditor).
-	 *
 	 */
 	export interface TextEditorEdit {
 		/**
@@ -1584,12 +1583,12 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in the same line.
 		 */
 		description?: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in a separate line.
 		 */
 		detail?: string;
 
@@ -1622,7 +1621,7 @@ declare module 'vscode' {
 		matchOnDetail?: boolean;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 
@@ -1648,7 +1647,7 @@ declare module 'vscode' {
 	export interface WorkspaceFolderPickOptions {
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 
@@ -1796,7 +1795,7 @@ declare module 'vscode' {
 		prompt?: string;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to type.
+		 * An optional string to show as placeholder in the input box to guide the user what to type.
 		 */
 		placeHolder?: string;
 
@@ -3414,15 +3413,17 @@ declare module 'vscode' {
 		insertText?: string | SnippetString;
 
 		/**
-		 * A range of text that should be replaced by this completion item.
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
 		 *
-		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position.
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
 		 *
-		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range?: Range;
+		range?: Range | { inserting: Range; replacing: Range; };
 
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
@@ -4853,6 +4854,13 @@ declare module 'vscode' {
 		 * The process ID of the shell process.
 		 */
 		readonly processId: Thenable<number | undefined>;
+
+		/**
+		 * The object used to initialize the terminal, this is useful for example to detecting the
+		 * shell type of when the terminal was not launched by this extension or for detecting what
+		 * folder the shell was launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -9179,7 +9187,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * A string to show as place holder in the input box to guide the user.
+		 * A string to show as placeholder in the input box to guide the user.
 		 */
 		placeholder: string;
 	}
@@ -9511,6 +9519,21 @@ declare module 'vscode' {
 		 * @return The resolved debug configuration or undefined or null.
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
+
+		/**
+		 * This hook is directly called after 'resolveDebugConfiguration' but with all variables substituted.
+		 * It can be used to resolve or verify a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the 'resolveDebugConfigurationWithSubstitutedVariables' calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 * Returning the value 'undefined' prevents the debug session from starting.
+		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration or undefined or null.
+		 */
+		resolveDebugConfigurationWithSubstitutedVariables?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
 
 	/**

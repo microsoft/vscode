@@ -1,0 +1,16 @@
+**/vs/nls.build.js
+**/vs/nls.js
+**/vs/css.build.js
+**/vs/css.js
+**/vs/loader.js
+**/promise-polyfill/**
+**/insane/**
+**/marked/**
+**/test/**/*.js
+**/node_modules/**
+**/vscode-api-tests/testWorkspace/**
+**/vscode-api-tests/testWorkspace2/**
+**/extensions/**/out/**
+**/extensions/**/build/**
+**/extensions/markdown-language-features/media/**
+**/extensions/typescript-basics/test/colorize-fixtures/**

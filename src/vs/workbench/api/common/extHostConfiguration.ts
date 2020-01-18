@@ -5,7 +5,7 @@
 
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
@@ -45,12 +45,24 @@ type ConfigurationInspect<T> = {
 	userLanguageValue?: T;
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
+
+	languages?: string[];
 };
 
-function isTextDocument(thing: any): thing is vscode.TextDocument {
+function isUri(thing: any): thing is vscode.Uri {
+	return thing instanceof URI;
+}
+
+function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
 	return thing
 		&& thing.uri instanceof URI
-		&& (!thing.languageId || typeof thing.languageId === 'string');
+		&& (thing.languageId && typeof thing.languageId === 'string');
+}
+
+function isLanguage(thing: any): thing is { languageId: string } {
+	return thing
+		&& !thing.uri
+		&& (thing.languageId && typeof thing.languageId === 'string');
 }
 
 function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
@@ -60,28 +72,18 @@ function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
 		&& (!thing.index || typeof thing.index === 'number');
 }
 
-function isUri(thing: any): thing is vscode.Uri {
-	return thing instanceof URI;
-}
-
-function isResourceLanguage(thing: any): thing is { resource: URI, languageId: string } {
-	return thing
-		&& thing.resource instanceof URI
-		&& (!thing.languageId || typeof thing.languageId === 'string');
-}
-
 function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): IConfigurationOverrides | undefined {
 	if (isUri(scope)) {
 		return { resource: scope };
 	}
-	if (isWorkspaceFolder(scope)) {
-		return { resource: scope.uri };
-	}
-	if (isTextDocument(scope)) {
+	if (isResourceLanguage(scope)) {
 		return { resource: scope.uri, overrideIdentifier: scope.languageId };
 	}
-	if (isResourceLanguage(scope)) {
-		return scope;
+	if (isLanguage(scope)) {
+		return { overrideIdentifier: scope.languageId };
+	}
+	if (isWorkspaceFolder(scope)) {
+		return { resource: scope.uri };
 	}
 	return undefined;
 }
@@ -264,6 +266,8 @@ export class ExtHostConfigProvider {
 						userLanguageValue: config.user?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
+
+						languages: config.overrideIdentifiers
 					};
 				}
 				return undefined;

@@ -37,7 +37,7 @@ export class EmptyView extends ViewPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -46,7 +46,7 @@ export class EmptyView extends ViewPane {
 		@ILabelService private labelService: ILabelService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
 	}
@@ -130,7 +130,7 @@ export class EmptyView extends ViewPane {
 		}
 	}
 
-	layoutBody(size: number): void {
+	layoutBody(_size: number): void {
 		// no-op
 	}
 

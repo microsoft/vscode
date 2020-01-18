@@ -36,7 +36,7 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { IDialogService, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -55,6 +55,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -642,7 +643,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IHostService private hostService: IHostService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IWorkingCopyService private workingCopyService: IWorkingCopyService
 	) {
 		this.toDispose = [];
 
@@ -946,8 +948,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 					// of the target file would replace the contents of the added file. since we already
 					// confirmed the overwrite before, this is OK.
-					if (this.textFileService.isDirty(targetFile)) {
-						await this.textFileService.revertAll([targetFile], { soft: true });
+					if (this.workingCopyService.isDirty(targetFile)) {
+						await Promise.all(this.workingCopyService.getWorkingCopies(targetFile).map(workingCopy => workingCopy.revert({ soft: true })));
 					}
 
 					const copyTarget = joinPath(target.resource, basename(sourceFile));
@@ -971,11 +973,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
+			const message = items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+				: items.length > 1 ? localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name)
+					: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
+						: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name);
+			const detail = items.length > 1 && !items.every(s => s.isRoot) ? getFileNamesMessage(items.map(i => i.resource)) : undefined;
+
 			const confirmation = await this.dialogService.confirm({
-				message: items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name), items.map(s => s.resource))
-						: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
-							: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name),
+				message,
+				detail,
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},

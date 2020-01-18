@@ -5,11 +5,11 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -24,6 +24,7 @@ import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/te
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
+import { IRange } from 'vs/editor/common/core/range';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -220,7 +221,9 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * Otherwise the untitled text editor will have an associated path and use that when saving.
+	 * If the used scheme for the resource is not `untitled://`, `forceUntitled: true` must be configured to
+	 * force use the provided resource as associated path. As such, the resource will be used when saving
+	 * the untitled editor.
 	 */
 	resource?: URI;
 
@@ -317,7 +320,7 @@ export interface ISaveOptions {
 	context?: SaveContext;
 
 	/**
-	 * Forces to load the contents of the working copy
+	 * Forces to save the contents of the working copy
 	 * again even if the working copy is not dirty.
 	 */
 	force?: boolean;
@@ -402,6 +405,14 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;
+
+	/**
+	 * Returns if this input is currently being saved or soon to be
+	 * saved. Based on this assumption the editor may for example
+	 * decide to not signal the dirty state to the user assuming that
+	 * the save is scheduled to happen anyway.
+	 */
+	isSaving(): boolean;
 
 	/**
 	 * Saves the editor. The provided groupId helps
@@ -508,16 +519,20 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return false;
 	}
 
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return Promise.resolve(true);
+	isSaving(): boolean {
+		return false;
 	}
 
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return Promise.resolve(true);
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		return true;
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
-		return Promise.resolve(true);
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		return true;
+	}
+
+	async revert(options?: IRevertOptions): Promise<boolean> {
+		return true;
 	}
 
 	/**
@@ -559,10 +574,6 @@ export abstract class TextEditorInput extends EditorInput {
 	}
 
 	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		if (this.isReadonly()) {
-			return false; // return early if editor is readonly
-		}
-
 		return this.textFileService.save(this.resource, options);
 	}
 
@@ -701,6 +712,10 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isDirty();
 	}
 
+	isSaving(): boolean {
+		return this.master.isSaving();
+	}
+
 	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		return this.master.save(groupId, options);
 	}
@@ -741,8 +756,8 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	resolve(): Promise<EditorModel | null> {
-		return Promise.resolve(null);
+	async resolve(): Promise<EditorModel | null> {
+		return null;
 	}
 
 	getTypeId(): string {
@@ -791,8 +806,8 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): Promise<IEditorModel> {
-		return Promise.resolve(this);
+	async load(): Promise<IEditorModel> {
+		return this;
 	}
 
 	/**
@@ -971,14 +986,22 @@ export class EditorOptions implements IEditorOptions {
 /**
  * Base Text Editor Options.
  */
-export class TextEditorOptions extends EditorOptions {
-	private startLineNumber: number | undefined;
-	private startColumn: number | undefined;
-	private endLineNumber: number | undefined;
-	private endColumn: number | undefined;
+export class TextEditorOptions extends EditorOptions implements ITextEditorOptions {
 
-	private revealInCenterIfOutsideViewport: boolean | undefined;
-	private editorViewState: IEditorViewState | undefined;
+	/**
+	 * Text editor selection.
+	 */
+	selection: ITextEditorSelection | undefined;
+
+	/**
+	 * Text editor view state.
+	 */
+	editorViewState: IEditorViewState | undefined;
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	revealInCenterIfOutsideViewport: boolean | undefined;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
@@ -1005,8 +1028,12 @@ export class TextEditorOptions extends EditorOptions {
 		super.overwrite(options);
 
 		if (options.selection) {
-			const selection = options.selection;
-			this.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			this.selection = {
+				startLineNumber: options.selection.startLineNumber,
+				startColumn: options.selection.startColumn,
+				endLineNumber: options.selection.endLineNumber ?? options.selection.startLineNumber,
+				endColumn: options.selection.endColumn ?? options.selection.startColumn
+			};
 		}
 
 		if (options.viewState) {
@@ -1024,19 +1051,7 @@ export class TextEditorOptions extends EditorOptions {
 	 * Returns if this options object has objects defined for the editor.
 	 */
 	hasOptionsDefined(): boolean {
-		return !!this.editorViewState || (!isUndefinedOrNull(this.startLineNumber) && !isUndefinedOrNull(this.startColumn));
-	}
-
-	/**
-	 * Tells the editor to set show the given selection when the editor is being opened.
-	 */
-	selection(startLineNumber: number, startColumn: number, endLineNumber: number = startLineNumber, endColumn: number = startColumn): EditorOptions {
-		this.startLineNumber = startLineNumber;
-		this.startColumn = startColumn;
-		this.endLineNumber = endLineNumber;
-		this.endColumn = endColumn;
-
-		return this;
+		return !!this.editorViewState || !!this.revealInCenterIfOutsideViewport || !!this.selection;
 	}
 
 	/**
@@ -1057,12 +1072,6 @@ export class TextEditorOptions extends EditorOptions {
 	 * @return if something was applied
 	 */
 	apply(editor: ICodeEditor, scrollType: ScrollType): boolean {
-
-		// View state
-		return this.applyViewState(editor, scrollType);
-	}
-
-	private applyViewState(editor: ICodeEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
@@ -1072,36 +1081,20 @@ export class TextEditorOptions extends EditorOptions {
 		}
 
 		// Otherwise check for selection
-		else if (!isUndefinedOrNull(this.startLineNumber) && !isUndefinedOrNull(this.startColumn)) {
+		else if (this.selection) {
+			const range: IRange = {
+				startLineNumber: this.selection.startLineNumber,
+				startColumn: this.selection.startColumn,
+				endLineNumber: this.selection.endLineNumber ?? this.selection.startLineNumber,
+				endColumn: this.selection.endColumn ?? this.selection.startColumn
+			};
 
-			// Select
-			if (!isUndefinedOrNull(this.endLineNumber) && !isUndefinedOrNull(this.endColumn)) {
-				const range = {
-					startLineNumber: this.startLineNumber,
-					startColumn: this.startColumn,
-					endLineNumber: this.endLineNumber,
-					endColumn: this.endColumn
-				};
-				editor.setSelection(range);
-				if (this.revealInCenterIfOutsideViewport) {
-					editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
-				} else {
-					editor.revealRangeInCenter(range, scrollType);
-				}
-			}
+			editor.setSelection(range);
 
-			// Reveal
-			else {
-				const pos = {
-					lineNumber: this.startLineNumber,
-					column: this.startColumn
-				};
-				editor.setPosition(pos);
-				if (this.revealInCenterIfOutsideViewport) {
-					editor.revealPositionInCenterIfOutsideViewport(pos, scrollType);
-				} else {
-					editor.revealPositionInCenter(pos, scrollType);
-				}
+			if (this.revealInCenterIfOutsideViewport) {
+				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
+			} else {
+				editor.revealRangeInCenter(range, scrollType);
 			}
 
 			gotApplied = true;
@@ -1307,13 +1300,13 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
 
-		const options: ITextEditorOptions = { pinned: true };
-		if (exists && typeof path.lineNumber === 'number') {
-			options.selection = {
+		const options: ITextEditorOptions = (exists && typeof path.lineNumber === 'number') ? {
+			selection: {
 				startLineNumber: path.lineNumber,
 				startColumn: path.columnNumber || 1
-			};
-		}
+			},
+			pinned: true
+		} : { pinned: true };
 
 		let input: IResourceInput | IUntitledTextResourceInput;
 		if (!exists) {

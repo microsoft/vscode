@@ -22,6 +22,7 @@ import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -194,22 +195,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	): Promise<ITerminalChildProcess> {
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		if (!shellLaunchConfig.executable) {
 			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs(false);
 			shellLaunchConfig.executable = defaultConfig.shell;
 			shellLaunchConfig.args = defaultConfig.args;
 		} else {
-			shellLaunchConfig.executable = this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, shellLaunchConfig.executable);
+			shellLaunchConfig.executable = this._configurationResolverService.resolve(lastActiveWorkspace, shellLaunchConfig.executable);
 			if (shellLaunchConfig.args) {
 				if (Array.isArray(shellLaunchConfig.args)) {
 					const resolvedArgs: string[] = [];
 					for (const arg of shellLaunchConfig.args) {
-						resolvedArgs.push(this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, arg));
+						resolvedArgs.push(this._configurationResolverService.resolve(lastActiveWorkspace, arg));
 					}
 					shellLaunchConfig.args = resolvedArgs;
 				} else {
-					shellLaunchConfig.args = this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, shellLaunchConfig.args);
+					shellLaunchConfig.args = this._configurationResolverService.resolve(lastActiveWorkspace, shellLaunchConfig.args);
 				}
 			}
 		}
@@ -217,7 +218,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const initialCwd = terminalEnvironment.getCwd(
 			shellLaunchConfig,
 			this._environmentService.userHome,
-			lastActiveWorkspace ? lastActiveWorkspace : undefined,
+			lastActiveWorkspace,
 			this._configurationResolverService,
 			activeWorkspaceRootUri,
 			this._configHelper.config.cwd,
