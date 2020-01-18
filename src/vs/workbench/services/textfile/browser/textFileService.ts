@@ -32,6 +32,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -70,7 +71,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -516,6 +518,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			const targetMode = targetTextModel.getLanguageIdentifier();
 			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
 				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
+			}
+
+			// transient properties
+			const sourceTransientProperties = this.codeEditorService.getTransientModelProperties(sourceTextModel);
+			if (sourceTransientProperties) {
+				for (const [key, value] of sourceTransientProperties) {
+					this.codeEditorService.setTransientModelProperty(targetTextModel, key, value);
+				}
 			}
 		}
 
