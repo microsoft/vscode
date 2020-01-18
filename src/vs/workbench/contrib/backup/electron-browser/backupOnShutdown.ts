@@ -17,7 +17,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import type { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
 export class BackupOnShutdown extends Disposable implements IWorkbenchContribution {
 

@@ -32,6 +32,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INewUntitledTextEditorOptions } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -118,16 +119,17 @@ suite('BackupTracker', () => {
 		return [accessor, part, tracker];
 	}
 
-	test('Track backups (untitled)', async function () {
-		this.timeout(20000);
-
+	async function untitledBackupTest(options?: INewUntitledTextEditorOptions): Promise<void> {
 		const [accessor, part, tracker] = await createTracker();
 
-		const untitledEditor = accessor.textFileService.untitled.create();
+		const untitledEditor = accessor.textFileService.untitled.create(options);
 		await accessor.editorService.openEditor(untitledEditor, { pinned: true });
 
 		const untitledModel = await untitledEditor.resolve();
-		untitledModel.textEditorModel.setValue('Super Good');
+
+		if (!options?.initialValue) {
+			untitledModel.textEditorModel.setValue('Super Good');
+		}
 
 		await accessor.backupFileService.joinBackupResource();
 
@@ -141,6 +143,18 @@ suite('BackupTracker', () => {
 
 		part.dispose();
 		tracker.dispose();
+	}
+
+	test('Track backups (untitled)', function () {
+		this.timeout(20000);
+
+		return untitledBackupTest();
+	});
+
+	test('Track backups (untitled with initial contents)', function () {
+		this.timeout(20000);
+
+		return untitledBackupTest({ initialValue: 'Foo Bar' });
 	});
 
 	test('Track backups (file)', async function () {

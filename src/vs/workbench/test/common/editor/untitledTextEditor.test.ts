@@ -16,6 +16,8 @@ import { snapshotToString } from 'vs/workbench/services/textfile/common/textfile
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 
 class ServiceAccessor {
 	constructor(
@@ -325,6 +327,62 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(counter, 4, 'Dirty model should trigger event');
 
 		input.dispose();
+		model.dispose();
+	});
+
+	test('onDidChangeFirstLine event and input name', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		let model = await input.resolve();
+		model.onDidChangeFirstLine(() => counter++);
+
+		model.textEditorModel.setValue('foo');
+		assert.equal(input.getName(), 'foo');
+
+		assert.equal(counter, 1);
+		model.textEditorModel.setValue('bar');
+		assert.equal(input.getName(), 'bar');
+
+		assert.equal(counter, 2);
+		model.textEditorModel.setValue('');
+		assert.equal(input.getName(), 'Untitled-1');
+
+		assert.equal(counter, 3);
+
+		model.textEditorModel.setValue('Hello\nWorld');
+		assert.equal(counter, 4);
+
+		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+			let range = new Range(
+				selectionLineNumber,
+				selectionColumn,
+				positionLineNumber,
+				positionColumn
+			);
+
+			return {
+				identifier: null,
+				range,
+				text,
+				forceMoveMarkers: false
+			};
+		}
+
+		model.textEditorModel.applyEdits([createSingleEditOp('hello', 2, 2)]);
+		assert.equal(counter, 4); // change was not on first line
+
+		input.dispose();
+		model.dispose();
+
+		const inputWithContents = service.create({ initialValue: 'Foo' });
+		model = await inputWithContents.resolve();
+
+		assert.equal(inputWithContents.getName(), 'Foo');
+
+		inputWithContents.dispose();
 		model.dispose();
 	});
 

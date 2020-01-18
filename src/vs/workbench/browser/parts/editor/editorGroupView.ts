@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, toResource, SideBySideEditor, SaveReason, SaveContext, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, SaveReason, SaveContext, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -1306,8 +1306,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Switch to editor that we want to handle and confirm to save/revert
 		await this.openEditor(editor);
 
-		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : [editor.getName()]);
+		let name: string;
+		if (editor instanceof SideBySideEditorInput) {
+			name = editor.master.getName(); // prefer shorter names by using master's name in this case
+		} else {
+			name = editor.getName();
+		}
+
+		const res = await this.fileDialogService.showSaveConfirm([name]);
 
 		// It could be that the editor saved meanwhile or is saving, so we check
 		// again to see if anything needs to happen before closing for good.
