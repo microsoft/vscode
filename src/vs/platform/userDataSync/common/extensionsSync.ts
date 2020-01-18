@@ -160,7 +160,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			throw e;
 		}
 
-		this.logService.trace('Extensions: Finised synchronizing extensions.');
+		this.logService.trace('Extensions: Finished synchronizing extensions.');
 		this.setStatus(SyncStatus.Idle);
 		return true;
 	}
