@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Constants } from 'vs/base/common/uint';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -112,9 +111,9 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: IPosition | null, range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
+	public setWidgetPosition(widget: IContentWidget, range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
 		const myWidget = this._widgets[widget.getId()];
-		myWidget.setPosition(position, range, preference);
+		myWidget.setPosition(range, preference);
 
 		this.setShouldRender();
 	}
@@ -187,8 +186,6 @@ class Widget {
 	private _contentLeft: number;
 	private _lineHeight: number;
 
-	private _position: IPosition | null;
-	private _viewPosition: Position | null;
 	private _range: IRange | null;
 	private _viewRange: Range | null;
 	private _preference: ContentWidgetPositionPreference[] | null;
@@ -217,9 +214,7 @@ class Widget {
 		this._contentLeft = layoutInfo.contentLeft;
 		this._lineHeight = options.get(EditorOption.lineHeight);
 
-		this._position = null;
 		this._range = null;
-		this._viewPosition = null;
 		this._viewRange = null;
 		this._preference = [];
 		this._cachedDomNodeClientWidth = -1;
@@ -246,22 +241,13 @@ class Widget {
 	}
 
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): void {
-		this._setPosition(this._position, this._range);
+		this._setPosition(this._range);
 	}
 
-	private _setPosition(position: IPosition | null, range: IRange | null): void {
-		this._position = position;
+	private _setPosition(range: IRange | null): void {
 		this._range = range;
-		this._viewPosition = null;
 		this._viewRange = null;
 
-		if (this._position) {
-			// Do not trust that widgets give a valid position
-			const validModelPosition = this._context.model.validateModelPosition(this._position);
-			if (this._context.model.coordinatesConverter.modelPositionIsVisible(validModelPosition)) {
-				this._viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(validModelPosition);
-			}
-		}
 		if (this._range) {
 			// Do not trust that widgets give a valid position
 			const validModelRange = this._context.model.validateModelRange(this._range);
@@ -277,8 +263,8 @@ class Widget {
 		);
 	}
 
-	public setPosition(position: IPosition | null, range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
-		this._setPosition(position, range);
+	public setPosition(range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
+		this._setPosition(range);
 		this._preference = preference;
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
@@ -391,45 +377,45 @@ class Widget {
 	 * Compute `this._topLeft`
 	 */
 	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate, Coordinate] | [null, null] {
-		if (!this._viewPosition) {
+		if (!this._viewRange) {
 			return [null, null];
 		}
 
-		const visibleRangeForPosition = ctx.visibleRangeForPosition(this._viewPosition);
-		if (!visibleRangeForPosition) {
+		const visibleRangesForRange = ctx.linesVisibleRangesForRange(this._viewRange, false);
+		if (!visibleRangesForRange || visibleRangesForRange.length === 0) {
 			return [null, null];
 		}
 
-		const topForPosition = ctx.getVerticalOffsetForLineNumber(this._viewPosition.lineNumber) - ctx.scrollTop;
-		const topLeft = new Coordinate(topForPosition, visibleRangeForPosition.left);
-
-		let largestLineNumber = this._viewPosition.lineNumber;
-		let smallestLeft = visibleRangeForPosition.left;
-
-		if (this._viewRange) {
-			const visibleRangesForRange = ctx.linesVisibleRangesForRange(this._viewRange, false);
-			if (visibleRangesForRange && visibleRangesForRange.length > 0) {
-				for (let i = visibleRangesForRange.length - 1; i >= 0; i--) {
-					const visibleRangesForLine = visibleRangesForRange[i];
-					if (visibleRangesForLine.lineNumber >= largestLineNumber) {
-						if (visibleRangesForLine.lineNumber > largestLineNumber) {
-							largestLineNumber = visibleRangesForLine.lineNumber;
-							smallestLeft = Constants.MAX_SAFE_SMALL_INTEGER;
-						}
-						for (let j = 0, lenJ = visibleRangesForLine.ranges.length; j < lenJ; j++) {
-							const visibleRange = visibleRangesForLine.ranges[j];
-
-							if (visibleRange.left < smallestLeft) {
-								smallestLeft = visibleRange.left;
-							}
-						}
-					}
-				}
+		let firstLine = visibleRangesForRange[0];
+		let lastLine = visibleRangesForRange[0];
+		for (const visibleRangesForLine of visibleRangesForRange) {
+			if (visibleRangesForLine.lineNumber < firstLine.lineNumber) {
+				firstLine = visibleRangesForLine;
+			}
+			if (visibleRangesForLine.lineNumber > lastLine.lineNumber) {
+				lastLine = visibleRangesForLine;
 			}
 		}
 
-		const topForBottomLine = ctx.getVerticalOffsetForLineNumber(largestLineNumber) - ctx.scrollTop;
-		const bottomLeft = new Coordinate(topForBottomLine, smallestLeft);
+		let firstLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//firstLine.Constants.MAX_SAFE_SMALL_INTEGER;
+		for (const visibleRange of firstLine.ranges) {
+			if (visibleRange.left < firstLineMinLeft) {
+				firstLineMinLeft = visibleRange.left;
+			}
+		}
+
+		let lastLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//lastLine.Constants.MAX_SAFE_SMALL_INTEGER;
+		for (const visibleRange of lastLine.ranges) {
+			if (visibleRange.left < lastLineMinLeft) {
+				lastLineMinLeft = visibleRange.left;
+			}
+		}
+
+		const topForPosition = ctx.getVerticalOffsetForLineNumber(firstLine.lineNumber) - ctx.scrollTop;
+		const topLeft = new Coordinate(topForPosition, firstLineMinLeft);
+
+		const topForBottomLine = ctx.getVerticalOffsetForLineNumber(lastLine.lineNumber) - ctx.scrollTop;
+		const bottomLeft = new Coordinate(topForBottomLine, lastLineMinLeft);
 
 		return [topLeft, bottomLeft];
 	}
@@ -491,11 +477,11 @@ class Widget {
 	 * On this first pass, we ensure that the content widget (if it is in the viewport) has the max width set correctly.
 	 */
 	public onBeforeRender(viewportData: ViewportData): void {
-		if (!this._viewPosition || !this._preference) {
+		if (!this._viewRange || !this._preference) {
 			return;
 		}
 
-		if (this._viewPosition.lineNumber < viewportData.startLineNumber || this._viewPosition.lineNumber > viewportData.endLineNumber) {
+		if (this._viewRange.endLineNumber < viewportData.startLineNumber || this._viewRange.startLineNumber > viewportData.endLineNumber) {
 			// Outside of viewport
 			return;
 		}
