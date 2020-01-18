@@ -313,60 +313,65 @@ class Widget {
 		};
 	}
 
-	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
-		const aboveLeft0 = topLeft.left - ctx.scrollLeft;
-		const belowLeft0 = bottomLeft.left - ctx.scrollLeft;
+	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
+		const MIN_LIMIT = (width <= domNodePosition.width - 20 ? domNodePosition.left : 0);
+		const MAX_LIMIT = (width <= domNodePosition.width - 20 ? domNodePosition.left + domNodePosition.width - 20 : windowSize.width - 20);
 
-		let aboveTop = topLeft.top - height;
-		let belowTop = bottomLeft.top + this._lineHeight;
-		let aboveLeft = aboveLeft0 + this._contentLeft;
-		let belowLeft = belowLeft0 + this._contentLeft;
+		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
+
+		if (absoluteLeft + width > MAX_LIMIT) {
+			const delta = absoluteLeft - (MAX_LIMIT - width);
+			absoluteLeft -= delta;
+			left -= delta;
+		}
+
+		if (absoluteLeft < MIN_LIMIT) {
+			const delta = absoluteLeft - MIN_LIMIT;
+			absoluteLeft -= delta;
+			left -= delta;
+		}
+
+		return [left, absoluteLeft];
+	}
+
+	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
+		const aboveTop = topLeft.top - height;
+		const belowTop = bottomLeft.top + this._lineHeight;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		const absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
 		const absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
-		let absoluteAboveLeft = domNodePosition.left + aboveLeft - dom.StandardWindow.scrollX;
-		let absoluteBelowLeft = domNodePosition.left + belowLeft - dom.StandardWindow.scrollX;
 
-		const INNER_WIDTH = window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth;
-		const INNER_HEIGHT = window.innerHeight || document.documentElement!.clientHeight || document.body.clientHeight;
+		const windowSize = dom.getClientArea(document.body);
+		const [aboveLeft, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, topLeft.left - ctx.scrollLeft + this._contentLeft, width);
+		const [belowLeft, absoluteBelowLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, bottomLeft.left - ctx.scrollLeft + this._contentLeft, width);
 
-		// Leave some clearance to the bottom
+		// Leave some clearance to the top/bottom
 		const TOP_PADDING = 22;
 		const BOTTOM_PADDING = 22;
 
-		const fitsAbove = (absoluteAboveTop >= TOP_PADDING),
-			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
-
-		if (absoluteAboveLeft + width + 20 > INNER_WIDTH) {
-			const delta = absoluteAboveLeft - (INNER_WIDTH - width - 20);
-			absoluteAboveLeft -= delta;
-			aboveLeft -= delta;
-		}
-		if (absoluteBelowLeft + width + 20 > INNER_WIDTH) {
-			const delta = absoluteBelowLeft - (INNER_WIDTH - width - 20);
-			absoluteBelowLeft -= delta;
-			belowLeft -= delta;
-		}
-		if (absoluteAboveLeft < 0) {
-			const delta = absoluteAboveLeft;
-			absoluteAboveLeft -= delta;
-			aboveLeft -= delta;
-		}
-		if (absoluteBelowLeft < 0) {
-			const delta = absoluteBelowLeft;
-			absoluteBelowLeft -= delta;
-			belowLeft -= delta;
-		}
+		const fitsAbove = (absoluteAboveTop >= TOP_PADDING);
+		const fitsBelow = (absoluteBelowTop + height <= windowSize.height - BOTTOM_PADDING);
 
 		if (this._fixedOverflowWidgets) {
-			aboveTop = absoluteAboveTop;
-			belowTop = absoluteBelowTop;
-			aboveLeft = absoluteAboveLeft;
-			belowLeft = absoluteBelowLeft;
+			return {
+				fitsAbove,
+				aboveTop: Math.max(absoluteAboveTop, TOP_PADDING),
+				aboveLeft: absoluteAboveLeft,
+				fitsBelow,
+				belowTop: absoluteBelowTop,
+				belowLeft: absoluteBelowLeft
+			};
 		}
 
-		return { fitsAbove, aboveTop: Math.max(aboveTop, TOP_PADDING), aboveLeft, fitsBelow, belowTop, belowLeft };
+		return {
+			fitsAbove,
+			aboveTop: Math.max(aboveTop, TOP_PADDING),
+			aboveLeft,
+			fitsBelow,
+			belowTop,
+			belowLeft
+		};
 	}
 
 	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): Coordinate {
