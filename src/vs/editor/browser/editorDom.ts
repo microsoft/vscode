@@ -206,7 +206,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 	}
 }
 
-export function caretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
+export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
 	const range = document.createRange();
 
 	// Get the element under the point
@@ -262,12 +262,6 @@ export function caretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number
 	}
 
 	return range;
-}
-
-if (typeof ShadowRoot.prototype.caretRangeFromPoint === 'undefined') {
-	ShadowRoot.prototype.caretRangeFromPoint = function (x, y) {
-		return caretRangeFromPoint(this, x, y);
-	};
 }
 
 class CharWidthReader {

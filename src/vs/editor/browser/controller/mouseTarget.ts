@@ -6,7 +6,7 @@
 import * as browser from 'vs/base/browser/browser';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates } from 'vs/editor/browser/editorDom';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, shadowCaretRangeFromPoint } from 'vs/editor/browser/editorDom';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
@@ -839,7 +839,11 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
-			range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+			if (typeof shadowRoot.caretRangeFromPoint === 'undefined') {
+				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
+			} else {
+				range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+			}
 		} else {
 			range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
