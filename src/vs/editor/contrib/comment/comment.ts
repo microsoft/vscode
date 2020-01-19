@@ -128,10 +128,11 @@ class BlockCommentAction extends EditorAction {
 			return;
 		}
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		const commentsOptions = editor.getOption(EditorOption.comments);
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
 		for (const selection of selections) {
-			commands.push(new BlockCommentCommand(selection));
+			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace));
 		}
 
 		editor.pushUndoStop();

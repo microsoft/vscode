@@ -291,11 +291,17 @@ export class LineCommentCommand implements ICommand {
 					firstNonWhitespaceIndex = lineContent.length;
 				}
 				ops = BlockCommentCommand._createAddBlockCommentOperations(
-					new Range(s.startLineNumber, firstNonWhitespaceIndex + 1, s.startLineNumber, lineContent.length + 1), startToken, endToken
+					new Range(s.startLineNumber, firstNonWhitespaceIndex + 1, s.startLineNumber, lineContent.length + 1),
+					startToken,
+					endToken,
+					this._insertSpace
 				);
 			} else {
 				ops = BlockCommentCommand._createAddBlockCommentOperations(
-					new Range(s.startLineNumber, model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), startToken, endToken
+					new Range(s.startLineNumber, model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)),
+					startToken,
+					endToken,
+					this._insertSpace
 				);
 			}
 
