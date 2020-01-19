@@ -13,7 +13,6 @@ import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/ed
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Constants } from 'vs/base/common/uint';
 
 export interface IInsertionPoint {
@@ -51,19 +50,19 @@ export const enum Type {
 export class LineCommentCommand implements ICommand {
 
 	private readonly _selection: Selection;
+	private readonly _tabSize: number;
+	private readonly _type: Type;
+	private readonly _insertSpace: boolean;
 	private _selectionId: string | null;
 	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
-	private readonly _tabSize: number;
-	private readonly _type: Type;
 
-	constructor(selection: Selection, tabSize: number, type: Type,
-		@IConfigurationService private _configurationService: IConfigurationService,
-	) {
+	constructor(selection: Selection, tabSize: number, type: Type, insertSpace: boolean) {
 		this._selection = selection;
-		this._selectionId = null;
 		this._tabSize = tabSize;
 		this._type = type;
+		this._insertSpace = insertSpace;
+		this._selectionId = null;
 		this._deltaColumn = 0;
 		this._moveEndPositionDown = false;
 	}
@@ -370,7 +369,7 @@ export class LineCommentCommand implements ICommand {
 	 */
 	private _createAddLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): IIdentifiedSingleEditOperation[] {
 		let res: IIdentifiedSingleEditOperation[] = [];
-		const afterCommentStr = this._configurationService.getValue('editor.insertSpaceAfterComment') ? ' ' : '';
+		const afterCommentStr = this._insertSpace ? ' ' : '';
 
 
 		for (let i = 0, len = lines.length; i < len; i++) {

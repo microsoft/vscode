@@ -14,22 +14,18 @@ import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, T
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { CommentMode } from 'vs/editor/test/common/commentMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-
-var mockConfigService = new TestConfigurationService();
-mockConfigService.setUserConfiguration('editor', { 'insertSpaceAfterComment': true });
 
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, mockConfigService), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
 	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd, mockConfigService), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
@@ -51,7 +47,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('case insensitive', function () {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: 'rem' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, mockConfigService), expectedLines, expectedSelection);
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -637,7 +633,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, mockConfigService), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
@@ -748,7 +744,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, mockConfigService), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
@@ -989,7 +985,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			lines,
 			outerMode.getLanguageIdentifier(),
 			selection,
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, mockConfigService),
+			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true),
 			expectedLines,
 			expectedSelection,
 			true

@@ -499,11 +499,6 @@ const editorConfiguration: IConfigurationNode = {
 			default: 5000,
 			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
 		},
-		'editor.insertSpaceAfterComment': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('insertSpaceAfterComment', "Whether to insert space after comment character.")
-		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',
 			default: true,
