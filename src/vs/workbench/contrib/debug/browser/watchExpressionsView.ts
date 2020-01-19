@@ -47,11 +47,11 @@ export class WatchExpressionsView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
@@ -69,7 +69,16 @@ export class WatchExpressionsView extends ViewPane {
 			ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e },
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: (e: IExpression) => {
+					if (e === this.debugService.getViewModel().getSelectedExpression()) {
+						// Don't filter input box
+						return undefined;
+					}
+
+					return e;
+				}
+			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND

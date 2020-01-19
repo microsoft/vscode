@@ -12,17 +12,14 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
-export function computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
+export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
-		const remote = parse(remoteContent);
-		const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
+		const source = parse(sourceContent);
 		for (const key of ignoredSettings) {
-			if (ignored.has(key)) {
-				localContent = contentUtil.edit(localContent, [key], remote[key], formattingOptions);
-			}
+			targetContent = contentUtil.edit(targetContent, [key], source[key], formattingOptions);
 		}
 	}
-	return localContent;
+	return targetContent;
 }
 
 export function merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string, value: any | undefined }[], formattingOptions: FormattingOptions): { mergeContent: string, hasChanges: boolean, conflicts: IConflictSetting[] } {

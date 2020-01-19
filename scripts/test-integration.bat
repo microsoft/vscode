@@ -23,6 +23,11 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp compile-extension:html-language-features-server
 	call yarn gulp compile-extension:json-language-features-server
 
+	:: Configuration for more verbose output
+	set VSCODE_CLI=1
+	set ELECTRON_ENABLE_LOGGING=1
+	set ELECTRON_ENABLE_STACK_DUMPING=1
+
 	echo "Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build."
 )
 

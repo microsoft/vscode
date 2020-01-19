@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, values } from 'vs/base/common/map';
-import { ISaveOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
 export const enum WorkingCopyCapabilities {
 
@@ -28,18 +28,31 @@ export interface IWorkingCopy {
 	readonly capabilities: WorkingCopyCapabilities;
 
 
-	//#region Dirty Tracking
+	//#region Events
 
 	readonly onDidChangeDirty: Event<void>;
+
+	readonly onDidChangeContent: Event<void>;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	isDirty(): boolean;
 
 	//#endregion
 
 
-	//#region Save
+	//#region Save / Backup
 
 	save(options?: ISaveOptions): Promise<boolean>;
+
+	revert(options?: IRevertOptions): Promise<boolean>;
+
+	hasBackup(): boolean;
+
+	backup(): Promise<void>;
 
 	//#endregion
 }
@@ -51,11 +64,24 @@ export interface IWorkingCopyService {
 	_serviceBrand: undefined;
 
 
-	//#region Dirty Tracking
+	//#region Events
+
+	readonly onDidRegister: Event<IWorkingCopy>;
+
+	readonly onDidUnregister: Event<IWorkingCopy>;
 
 	readonly onDidChangeDirty: Event<IWorkingCopy>;
 
+	readonly onDidChangeContent: Event<IWorkingCopy>;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
+
 	readonly dirtyCount: number;
+
+	readonly dirtyWorkingCopies: IWorkingCopy[];
 
 	readonly hasDirty: boolean;
 
@@ -68,6 +94,8 @@ export interface IWorkingCopyService {
 
 	readonly workingCopies: IWorkingCopy[];
 
+	getWorkingCopies(resource: URI): IWorkingCopy[];
+
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
 
 	//#endregion
@@ -77,23 +105,90 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	_serviceBrand: undefined;
 
-	//#region Dirty Tracking
+	//#region Events
+
+	private readonly _onDidRegister = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidRegister = this._onDidRegister.event;
+
+	private readonly _onDidUnregister = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidUnregister = this._onDidUnregister.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	isDirty(resource: URI): boolean {
+	private readonly _onDidChangeContent = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
+	//#endregion
+
+
+	//#region Registry
+
+	private mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
+
+	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
+	private _workingCopies = new Set<IWorkingCopy>();
+
+	getWorkingCopies(resource: URI): IWorkingCopy[] {
 		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
-		if (workingCopies) {
-			for (const workingCopy of workingCopies) {
-				if (workingCopy.isDirty()) {
-					return true;
-				}
-			}
+
+		return workingCopies ? values(workingCopies) : [];
+	}
+
+	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Registry
+		let workingCopiesForResource = this.mapResourceToWorkingCopy.get(workingCopy.resource.toString());
+		if (!workingCopiesForResource) {
+			workingCopiesForResource = new Set<IWorkingCopy>();
+			this.mapResourceToWorkingCopy.set(workingCopy.resource.toString(), workingCopiesForResource);
 		}
 
-		return false;
+		workingCopiesForResource.add(workingCopy);
+
+		this._workingCopies.add(workingCopy);
+
+		// Wire in Events
+		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
+		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+
+		// Send some initial events
+		this._onDidRegister.fire(workingCopy);
+		if (workingCopy.isDirty()) {
+			this._onDidChangeDirty.fire(workingCopy);
+		}
+
+		return toDisposable(() => {
+			this.unregisterWorkingCopy(workingCopy);
+			dispose(disposables);
+
+			// Signal as event
+			this._onDidUnregister.fire(workingCopy);
+		});
 	}
+
+	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+
+		// Remove from registry
+		const workingCopiesForResource = this.mapResourceToWorkingCopy.get(workingCopy.resource.toString());
+		if (workingCopiesForResource && workingCopiesForResource.delete(workingCopy) && workingCopiesForResource.size === 0) {
+			this.mapResourceToWorkingCopy.delete(workingCopy.resource.toString());
+		}
+
+		this._workingCopies.delete(workingCopy);
+
+		// If copy is dirty, ensure to fire an event to signal the dirty change
+		// (a disposed working copy cannot account for being dirty in our model)
+		if (workingCopy.isDirty()) {
+			this._onDidChangeDirty.fire(workingCopy);
+		}
+	}
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	get hasDirty(): boolean {
 		for (const workingCopy of this._workingCopies) {
@@ -117,57 +212,21 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		return totalDirtyCount;
 	}
 
-	//#endregion
-
-
-	//#region Registry
-
-	private mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
-
-	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
-	private _workingCopies = new Set<IWorkingCopy>();
-
-	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Registry
-		let workingCopiesForResource = this.mapResourceToWorkingCopy.get(workingCopy.resource.toString());
-		if (!workingCopiesForResource) {
-			workingCopiesForResource = new Set<IWorkingCopy>();
-			this.mapResourceToWorkingCopy.set(workingCopy.resource.toString(), workingCopiesForResource);
-		}
-
-		workingCopiesForResource.add(workingCopy);
-
-		this._workingCopies.add(workingCopy);
-
-		// Dirty Events
-		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
-		if (workingCopy.isDirty()) {
-			this._onDidChangeDirty.fire(workingCopy);
-		}
-
-		return toDisposable(() => {
-			this.unregisterWorkingCopy(workingCopy);
-			dispose(disposables);
-		});
+	get dirtyWorkingCopies(): IWorkingCopy[] {
+		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
 	}
 
-	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
-
-		// Remove from registry
-		const workingCopiesForResource = this.mapResourceToWorkingCopy.get(workingCopy.resource.toString());
-		if (workingCopiesForResource && workingCopiesForResource.delete(workingCopy) && workingCopiesForResource.size === 0) {
-			this.mapResourceToWorkingCopy.delete(workingCopy.resource.toString());
+	isDirty(resource: URI): boolean {
+		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
+		if (workingCopies) {
+			for (const workingCopy of workingCopies) {
+				if (workingCopy.isDirty()) {
+					return true;
+				}
+			}
 		}
 
-		this._workingCopies.delete(workingCopy);
-
-		// If copy is dirty, ensure to fire an event to signal the dirty change
-		// (a disposed working copy cannot account for being dirty in our model)
-		if (workingCopy.isDirty()) {
-			this._onDidChangeDirty.fire(workingCopy);
-		}
+		return false;
 	}
 
 	//#endregion

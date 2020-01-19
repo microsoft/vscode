@@ -12,6 +12,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {
@@ -28,13 +29,14 @@ abstract class CommentLineAction extends EditorAction {
 			return;
 		}
 
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
-		let opts = model.getOptions();
+		const model = editor.getModel();
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
+		const modelOptions = model.getOptions();
+		const commentsOptions = editor.getOption(EditorOption.comments);
 
 		for (const selection of selections) {
-			commands.push(new LineCommentCommand(selection, opts.tabSize, this._type));
+			commands.push(new LineCommentCommand(selection, modelOptions.tabSize, this._type, commentsOptions.insertSpace));
 		}
 
 		editor.pushUndoStop();
@@ -126,10 +128,11 @@ class BlockCommentAction extends EditorAction {
 			return;
 		}
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		const commentsOptions = editor.getOption(EditorOption.comments);
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
 		for (const selection of selections) {
-			commands.push(new BlockCommentCommand(selection));
+			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace));
 		}
 
 		editor.pushUndoStop();

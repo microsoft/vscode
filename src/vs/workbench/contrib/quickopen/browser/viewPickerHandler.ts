@@ -16,7 +16,7 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { IViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+import { IViewsRegistry, ViewContainer, IViewDescriptorService, IViewContainersRegistry, Extensions as ViewExtensions, IViewsService } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -70,6 +70,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
@@ -197,8 +198,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	private hasToShowViewlet(viewlet: ViewletDescriptor): boolean {
 		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
 		if (viewContainer?.hideIfEmpty) {
-			const viewsCollection = this.viewsService.getViewDescriptors(viewContainer);
-			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
+			const viewsCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
+			return viewsCollection.activeViewDescriptors.length > 0;
 		}
 		return true;
 	}

@@ -1583,12 +1583,12 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in the same line.
 		 */
 		description?: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in a separate line.
 		 */
 		detail?: string;
 
@@ -1621,7 +1621,7 @@ declare module 'vscode' {
 		matchOnDetail?: boolean;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 
@@ -1647,7 +1647,7 @@ declare module 'vscode' {
 	export interface WorkspaceFolderPickOptions {
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 
@@ -1795,7 +1795,7 @@ declare module 'vscode' {
 		prompt?: string;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to type.
+		 * An optional string to show as placeholder in the input box to guide the user what to type.
 		 */
 		placeHolder?: string;
 
@@ -3413,15 +3413,17 @@ declare module 'vscode' {
 		insertText?: string | SnippetString;
 
 		/**
-		 * A range of text that should be replaced by this completion item.
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
 		 *
-		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position.
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
 		 *
-		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range?: Range;
+		range?: Range | { inserting: Range; replacing: Range; };
 
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
@@ -9185,7 +9187,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * A string to show as place holder in the input box to guide the user.
+		 * A string to show as placeholder in the input box to guide the user.
 		 */
 		placeholder: string;
 	}
@@ -10012,7 +10014,7 @@ declare module 'vscode' {
 		export function getExtension(extensionId: string): Extension<any> | undefined;
 
 		/**
-		 * Get an extension its full identifier in the form of: `publisher.name`.
+		 * Get an extension by its full identifier in the form of: `publisher.name`.
 		 *
 		 * @param extensionId An extension identifier.
 		 * @return An extension or `undefined`.

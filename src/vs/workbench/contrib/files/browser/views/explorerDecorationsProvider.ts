@@ -12,6 +12,25 @@ import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistr
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
+import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+
+export function provideDecorations(fileStat: ExplorerItem | null): IDecorationData | undefined {
+	if (fileStat && fileStat.isRoot && fileStat.isError) {
+		return {
+			tooltip: localize('canNotResolve', "Can not resolve workspace folder"),
+			letter: '!',
+			color: listInvalidItemForeground,
+		};
+	}
+	if (fileStat && fileStat.isSymbolicLink) {
+		return {
+			tooltip: localize('symbolicLlink', "Symbolic Link"),
+			letter: '\u2937'
+		};
+	}
+
+	return undefined;
+}
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Explorer");
@@ -42,21 +61,7 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
 		const fileStat = this.explorerService.findClosest(resource);
-		if (fileStat && fileStat.isRoot && fileStat.isError) {
-			return {
-				tooltip: localize('canNotResolve', "Can not resolve workspace folder"),
-				letter: '!',
-				color: listInvalidItemForeground,
-			};
-		}
-		if (fileStat && fileStat.isSymbolicLink) {
-			return {
-				tooltip: localize('symbolicLlink', "Symbolic Link"),
-				letter: '\u2937'
-			};
-		}
-
-		return undefined;
+		return provideDecorations(fileStat);
 	}
 
 	dispose(): void {

@@ -207,7 +207,7 @@
         quick-pick: [ chrmarti ],
         release-notes: [],
         remote: {
-            assignees: [ jrieken ],
+            assignees: [  ],
             assignLabel: false
         },
         rename: [],

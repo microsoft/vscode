@@ -16,7 +16,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { localize } from 'vs/nls';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -587,11 +586,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
 			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, forceFile: resourceSideBySideInput.forceFile });
 			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, forceFile: resourceSideBySideInput.forceFile });
-			const label = resourceSideBySideInput.label || masterInput.getName() || localize('sideBySideLabels', "{0} - {1}", this.toDiffLabel(masterInput), this.toDiffLabel(detailInput));
 
 			return new SideBySideEditorInput(
-				label,
-				typeof resourceSideBySideInput.description === 'string' ? resourceSideBySideInput.description : masterInput.getDescription(),
+				resourceSideBySideInput.label || this.toSideBySideLabel(detailInput, masterInput, '-'),
+				resourceSideBySideInput.description,
 				detailInput,
 				masterInput
 			);
@@ -602,15 +600,33 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
-			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
-			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
+			return new DiffEditorInput(
+				resourceDiffInput.label || this.toSideBySideLabel(leftInput, rightInput, '↔'),
+				resourceDiffInput.description,
+				leftInput,
+				rightInput
+			);
 		}
 
 		// Untitled file support
 		const untitledInput = input as IUntitledTextResourceInput;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
-			return this.untitledTextEditorService.createOrGet(untitledInput.resource, untitledInput.mode, untitledInput.contents, untitledInput.encoding);
+			const untitledOptions = {
+				mode: untitledInput.mode,
+				initialValue: untitledInput.contents,
+				encoding: untitledInput.encoding
+			};
+
+			// Untitled resource: use as hint for an existing untitled editor
+			if (untitledInput.resource?.scheme === Schemas.untitled) {
+				return this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
+			}
+
+			// Other resource: use as hint for associated filepath
+			else {
+				return this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
+			}
 		}
 
 		// Resource Editor Support
@@ -673,19 +689,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return input;
 	}
 
-	private toDiffLabel(input: EditorInput): string | undefined {
-		const res = input.getResource();
-		if (!res) {
+	private toSideBySideLabel(leftInput: EditorInput, rightInput: EditorInput, divider: string): string | undefined {
+		const leftResource = leftInput.getResource();
+		const rightResource = rightInput.getResource();
+
+		// Without any resource, do not try to compute a label
+		if (!leftResource || !rightResource) {
 			return undefined;
 		}
 
-		// Do not try to extract any paths from simple untitled text editors
-		if (res.scheme === Schemas.untitled && !this.untitledTextEditorService.hasAssociatedFilePath(res)) {
-			return input.getName();
+		// If both editors are file inputs, we produce an optimized label
+		// by adding the relative path of both inputs to the label. This
+		// makes it easier to understand a file-based comparison.
+		if (this.fileInputFactory.isFileInput(leftInput) && this.fileInputFactory.isFileInput(rightInput)) {
+			return `${this.labelService.getUriLabel(leftResource, { relative: true })} ${divider} ${this.labelService.getUriLabel(rightResource, { relative: true })}`;
 		}
 
-		// Otherwise: for diff labels prefer to see the path as part of the label
-		return this.labelService.getUriLabel(res, { relative: true });
+		// Signal back that the label should be computed from within the editor
+		return undefined;
 	}
 
 	//#endregion

@@ -10,7 +10,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { basename } from 'vs/base/common/resources';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import type { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**

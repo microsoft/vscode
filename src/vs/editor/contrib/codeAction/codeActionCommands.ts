@@ -15,22 +15,21 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { codeActionCommandId, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionCommandArgs } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -83,10 +82,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorProgressService progressService: IEditorProgressService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -102,7 +97,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 						await this._applyCodeAction(action);
 					} finally {
 						if (retrigger) {
-							this._trigger({ type: 'auto', filter: {} });
+							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
 						}
 					}
 				}
@@ -114,8 +109,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._ui.getValue().update(newState);
 	}
 
-	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(actions, at, { includeDisabledActions: false });
+	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
+		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false });
 	}
 
 	public manualTriggerAtCurrentPosition(
@@ -129,7 +124,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor).closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: 'manual', filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Manual, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
@@ -137,21 +132,41 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	private _applyCodeAction(action: CodeAction): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, this._bulkEditService, this._commandService, this._editor);
+		return this._instantiationService.invokeFunction(applyCodeAction, action, this._editor);
 	}
 }
 
 export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	action: CodeAction,
-	bulkEditService: IBulkEditService,
-	commandService: ICommandService,
 	editor?: ICodeEditor,
 ): Promise<void> {
+	const bulkEditService = accessor.get(IBulkEditService);
+	const commandService = accessor.get(ICommandService);
+	const telemetryService = accessor.get(ITelemetryService);
 	const notificationService = accessor.get(INotificationService);
+
+	type ApplyCodeActionEvent = {
+		codeActionTitle: string;
+		codeActionKind: string | undefined;
+		codeActionIsPreferred: boolean;
+	};
+	type ApplyCodeEventClassification = {
+		codeActionTitle: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		codeActionKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		codeActionIsPreferred: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	};
+
+	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+		codeActionTitle: action.title,
+		codeActionKind: action.kind,
+		codeActionIsPreferred: !!action.isPreferred,
+	});
+
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });
 	}
+
 	if (action.command) {
 		try {
 			await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
@@ -161,7 +176,6 @@ export async function applyCodeAction(
 				typeof message === 'string'
 					? message
 					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
-
 		}
 	}
 }

@@ -555,6 +555,7 @@ export class Minimap extends ViewPart {
 				this._slider.toggleClassName('active', true);
 
 				this._sliderMouseMoveMonitor.startMonitoring(
+					e.buttons,
 					standardMouseMoveMerger,
 					(mouseMoveData: IStandardMouseMoveEventData) => {
 						const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);

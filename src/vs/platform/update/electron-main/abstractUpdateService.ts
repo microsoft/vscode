@@ -50,6 +50,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 	) {
+		if (!this.environmentService.isBuilt) {
+			return; // updates are never enabled when running out of sources
+		}
+
 		if (this.environmentService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;

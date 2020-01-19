@@ -54,7 +54,6 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 
 let EDITOR_ID = 0;
-const useDOMLineBreaksComputerFactory = false;
 
 export interface ICodeEditorWidgetOptions {
 	/**
@@ -195,6 +194,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
 	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
 	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
@@ -760,6 +762,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.cursor.setSelections(source, ranges);
 	}
 
+	public getContentWidth(): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getContentWidth();
+	}
+
 	public getScrollWidth(): number {
 		if (!this._modelData) {
 			return -1;
@@ -771,6 +780,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.viewModel.viewLayout.getCurrentScrollLeft();
+	}
+
+	public getContentHeight(): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getContentHeight();
 	}
 
 	public getScrollHeight(): number {
@@ -1343,11 +1359,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			(
-				useDOMLineBreaksComputerFactory
-					? DOMLineBreaksComputerFactory.create(this._configuration.options)
-					: MonospaceLineBreaksComputerFactory.create(this._configuration.options)
-			),
+			DOMLineBreaksComputerFactory.create(),
+			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(callback)
 		);
 
@@ -1483,6 +1496,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
+		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
 		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
 		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);

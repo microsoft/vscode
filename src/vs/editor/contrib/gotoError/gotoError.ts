@@ -12,7 +12,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -189,7 +189,7 @@ class MarkerModel {
 	}
 }
 
-export class MarkerController implements editorCommon.IEditorContribution {
+export class MarkerController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.markerController';
 

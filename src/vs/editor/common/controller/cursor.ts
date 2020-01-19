@@ -545,7 +545,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		// Let the view get the event first.
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections));
+			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections, selections));
 		} finally {
 			this._endEmit();
 		}
@@ -727,7 +727,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				case H.Paste:
 					cursorChangeReason = CursorChangeReason.Paste;
-					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText);
+					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText || []);
 					break;
 
 				case H.Cut:
@@ -1000,7 +1000,7 @@ class CommandExecutor {
 		let operations: IIdentifiedSingleEditOperation[] = [];
 		let operationMinor = 0;
 
-		const addEditOperation = (selection: Range, text: string | null) => {
+		const addEditOperation = (selection: Range, text: string | null, forceMoveMarkers: boolean = false) => {
 			if (selection.isEmpty() && text === '') {
 				// This command wants to add a no-op => no thank you
 				return;
@@ -1012,15 +1012,15 @@ class CommandExecutor {
 				},
 				range: selection,
 				text: text,
-				forceMoveMarkers: false,
+				forceMoveMarkers: forceMoveMarkers,
 				isAutoWhitespaceEdit: command.insertsAutoWhitespace
 			});
 		};
 
 		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: Range, text: string | null) => {
+		const addTrackedEditOperation = (selection: Range, text: string | null, forceMoveMarkers?: boolean) => {
 			hadTrackedEditOperation = true;
-			addEditOperation(selection, text);
+			addEditOperation(selection, text, forceMoveMarkers);
 		};
 
 		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {

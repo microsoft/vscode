@@ -51,9 +51,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.pickWorkspaceAndOpenSimplified(schema, options);
 	}
 
-	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema(options);
-		return this.pickFileToSaveSimplified(schema, options);
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
+		return this.pickFileToSaveSimplified(schema, this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems));
 	}
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
