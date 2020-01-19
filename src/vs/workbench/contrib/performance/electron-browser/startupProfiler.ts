@@ -11,7 +11,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -19,11 +18,11 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
-		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
@@ -31,7 +30,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IElectronService private readonly _electronService: IElectronService
+		@IElectronService private readonly _electronService: IElectronService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		// wait for everything to be ready
 		Promise.all([
@@ -90,18 +90,18 @@ export class StartupProfiler implements IWorkbenchContribution {
 						return this._dialogService.confirm({
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
-							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
+							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
 							primaryButton: localize('prof.restart', "Restart"),
 							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
-							this._windowsService.relaunch({ removeArgs });
+							this._electronService.relaunch({ removeArgs });
 						});
 					});
 
 				} else {
 					// simply restart
-					this._windowsService.relaunch({ removeArgs });
+					this._electronService.relaunch({ removeArgs });
 				}
 			});
 		});

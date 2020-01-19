@@ -26,11 +26,11 @@ export interface ICodeEditorService {
 
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;
-	listCodeEditors(): ICodeEditor[];
+	listCodeEditors(): readonly ICodeEditor[];
 
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
-	listDiffEditors(): IDiffEditor[];
+	listDiffEditors(): readonly IDiffEditor[];
 
 	/**
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
@@ -43,6 +43,7 @@ export interface ICodeEditorService {
 
 	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
 	getTransientModelProperty(model: ITextModel, key: string): any;
+	getTransientModelProperties(model: ITextModel): [string, any][] | undefined;
 
 	getActiveCodeEditor(): ICodeEditor | null;
 	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;

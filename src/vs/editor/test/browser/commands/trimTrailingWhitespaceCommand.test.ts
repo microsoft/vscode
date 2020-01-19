@@ -28,7 +28,8 @@ function createInsertDeleteSingleEditOp(text: string | null, positionLineNumber:
 export function createSingleEditOp(text: string | null, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text
+		text: text,
+		forceMoveMarkers: false
 	};
 }
 

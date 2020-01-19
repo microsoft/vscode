@@ -18,7 +18,12 @@ export class ExternalUriResolverContribution extends Disposable implements IWork
 		if (_workbenchEnvironmentService.options && _workbenchEnvironmentService.options.resolveExternalUri) {
 			this._register(_openerService.registerExternalUriResolver({
 				resolveExternalUri: async (resource) => {
-					return _workbenchEnvironmentService.options!.resolveExternalUri!(resource);
+					return {
+						resolved: await _workbenchEnvironmentService.options!.resolveExternalUri!(resource),
+						dispose: () => {
+							// TODO
+						}
+					};
 				}
 			}));
 		}

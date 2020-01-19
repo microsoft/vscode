@@ -38,7 +38,7 @@ export interface IQuickNavigateConfiguration {
 export interface IPickOptions<T extends IQuickPickItem> {
 
 	/**
-	 * an optional string to show as place holder in the input box to guide the user what she picks on
+	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
 
@@ -110,7 +110,7 @@ export interface IInputOptions {
 	prompt?: string;
 
 	/**
-	 * an optional string to show as place holder in the input box to guide the user what to type
+	 * an optional string to show as placeholder in the input box to guide the user what to type
 	 */
 	placeHolder?: string;
 
@@ -130,6 +130,8 @@ export interface IInputOptions {
 export interface IQuickInput {
 
 	title: string | undefined;
+
+	description: string | undefined;
 
 	step: number | undefined;
 
@@ -168,9 +170,9 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	customButton: boolean;
 
-	customLabel: string;
+	customLabel: string | undefined;
 
-	customHover: string;
+	customHover: string | undefined;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -187,6 +189,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	matchOnDetail: boolean;
 
 	matchOnLabel: boolean;
+
+	sortByLabel: boolean;
 
 	autoFocusOnList: boolean;
 

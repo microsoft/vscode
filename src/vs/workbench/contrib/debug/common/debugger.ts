@@ -17,11 +17,12 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 
 export class Debugger implements IDebugger {
 
@@ -29,7 +30,10 @@ export class Debugger implements IDebugger {
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
-	constructor(private configurationManager: IConfigurationManager, dbgContribution: IDebuggerContribution, extensionDescription: IExtensionDescription,
+	constructor(
+		private configurationManager: IConfigurationManager,
+		dbgContribution: IDebuggerContribution,
+		extensionDescription: IExtensionDescription,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
@@ -40,7 +44,7 @@ export class Debugger implements IDebugger {
 		this.merge(dbgContribution, extensionDescription);
 	}
 
-	public merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
+	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
 		/**
 		 * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
@@ -91,7 +95,7 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	public createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
+	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
 		return this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
 			const da = this.configurationManager.createDebugAdapter(session);
 			if (da) {
@@ -171,7 +175,7 @@ export class Debugger implements IDebugger {
 		return Promise.resolve(content);
 	}
 
-	public getMainExtensionDescriptor(): IExtensionDescription {
+	getMainExtensionDescriptor(): IExtensionDescription {
 		return this.mainExtensionDescription || this.mergedExtensionDescriptions[0];
 	}
 
@@ -222,7 +226,7 @@ export class Debugger implements IDebugger {
 			};
 			properties['name'] = {
 				type: 'string',
-				description: nls.localize('debugName', "Name of configuration; appears in the launch configuration drop down menu."),
+				description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
 				default: 'Launch'
 			};
 			properties['request'] = {
@@ -250,6 +254,7 @@ export class Debugger implements IDebugger {
 				defaultSnippets: [{ body: { task: '', type: '' } }],
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};
+			properties['presentation'] = presentationSchema;
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 			// Clear out windows, linux and osx fields to not have cycles inside the properties object
 			delete properties['windows'];

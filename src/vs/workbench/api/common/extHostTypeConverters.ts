@@ -10,12 +10,12 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
@@ -30,7 +30,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 
 export interface PositionLike {
 	line: number;
@@ -68,9 +68,9 @@ export namespace Selection {
 export namespace Range {
 
 	export function from(range: undefined): undefined;
-	export function from(range: RangeLike): IRange;
-	export function from(range: RangeLike | undefined): IRange | undefined;
-	export function from(range: RangeLike | undefined): IRange | undefined {
+	export function from(range: RangeLike): editorRange.IRange;
+	export function from(range: RangeLike | undefined): editorRange.IRange | undefined;
+	export function from(range: RangeLike | undefined): editorRange.IRange | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -84,9 +84,9 @@ export namespace Range {
 	}
 
 	export function to(range: undefined): types.Range;
-	export function to(range: IRange): types.Range;
-	export function to(range: IRange | undefined): types.Range | undefined;
-	export function to(range: IRange | undefined): types.Range | undefined {
+	export function to(range: editorRange.IRange): types.Range;
+	export function to(range: editorRange.IRange | undefined): types.Range | undefined;
+	export function to(range: editorRange.IRange | undefined): types.Range | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -255,7 +255,7 @@ export namespace MarkdownString {
 		}
 
 		// extract uris into a separate object
-		const resUris: { [href: string]: UriComponents } = Object.create(null);
+		const resUris: { [href: string]: UriComponents; } = Object.create(null);
 		res.uris = resUris;
 
 		const collectUri = (href: string): string => {
@@ -277,35 +277,40 @@ export namespace MarkdownString {
 		return res;
 	}
 
-	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {
+	function _uriMassage(part: string, bucket: { [n: string]: UriComponents; }): string {
 		if (!part) {
 			return part;
 		}
 		let data: any;
 		try {
-			data = parse(decodeURIComponent(part));
+			data = parse(part);
 		} catch (e) {
 			// ignore
 		}
 		if (!data) {
 			return part;
 		}
+		let changed = false;
 		data = cloneAndChange(data, value => {
-			if (value instanceof URI) {
+			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
+				changed = true;
 				return key;
 			} else {
 				return undefined;
 			}
 		});
-		return encodeURIComponent(JSON.stringify(data));
+
+		if (!changed) {
+			return part;
+		}
+
+		return JSON.stringify(data);
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		const ret = new htmlContent.MarkdownString(value.value);
-		ret.isTrusted = value.isTrusted;
-		return ret;
+		return new htmlContent.MarkdownString(value.value, { isTrusted: value.isTrusted, supportThemeIcons: value.supportThemeIcons });
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
@@ -515,7 +520,7 @@ export namespace WorkspaceEdit {
 
 export namespace SymbolKind {
 
-	const _fromMapping: { [kind: number]: modes.SymbolKind } = Object.create(null);
+	const _fromMapping: { [kind: number]: modes.SymbolKind; } = Object.create(null);
 	_fromMapping[types.SymbolKind.File] = modes.SymbolKind.File;
 	_fromMapping[types.SymbolKind.Module] = modes.SymbolKind.Module;
 	_fromMapping[types.SymbolKind.Namespace] = modes.SymbolKind.Namespace;
@@ -629,25 +634,39 @@ export namespace DocumentSymbol {
 
 export namespace CallHierarchyItem {
 
-	export function from(item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		return {
-			name: item.name,
-			detail: item.detail,
-			kind: SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: Range.from(item.range),
-			selectionRange: Range.from(item.selectionRange),
-		};
-	}
-
-	export function to(item: extHostProtocol.ICallHierarchyItemDto): vscode.CallHierarchyItem {
-		return new types.CallHierarchyItem(
+	export function to(item: extHostProtocol.ICallHierarchyItemDto): types.CallHierarchyItem {
+		const result = new types.CallHierarchyItem(
 			SymbolKind.to(item.kind),
 			item.name,
 			item.detail || '',
 			URI.revive(item.uri),
 			Range.to(item.range),
 			Range.to(item.selectionRange)
+		);
+
+		result._sessionId = item._sessionId;
+		result._itemId = item._itemId;
+
+		return result;
+	}
+}
+
+export namespace CallHierarchyIncomingCall {
+
+	export function to(item: extHostProtocol.IIncomingCallDto): types.CallHierarchyIncomingCall {
+		return new types.CallHierarchyIncomingCall(
+			CallHierarchyItem.to(item.from),
+			item.fromRanges.map(r => Range.to(r))
+		);
+	}
+}
+
+export namespace CallHierarchyOutgoingCall {
+
+	export function to(item: extHostProtocol.IOutgoingCallDto): types.CallHierarchyOutgoingCall {
+		return new types.CallHierarchyOutgoingCall(
+			CallHierarchyItem.to(item.to),
+			item.fromRanges.map(r => Range.to(r))
 		);
 	}
 }
@@ -812,7 +831,7 @@ export namespace CompletionItemKind {
 
 export namespace CompletionItem {
 
-	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
+	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
@@ -823,16 +842,26 @@ export namespace CompletionItem {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-		result.range = Range.to(suggestion.range);
+
+		// range
+		if (editorRange.Range.isIRange(suggestion.range)) {
+			result.range = Range.to(suggestion.range);
+		} else if (typeof suggestion.range === 'object') {
+			result.range = { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
+		}
+
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
-		// 'inserText'-logic
+		// 'insertText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
-			result.textEdit = new types.TextEdit(result.range, result.insertText);
+			result.textEdit = result.range instanceof types.Range ? new types.TextEdit(result.range, result.insertText) : undefined;
 		}
-		// TODO additionalEdits, command
+		if (suggestion.additionalTextEdits && suggestion.additionalTextEdits.length > 0) {
+			result.additionalTextEdits = suggestion.additionalTextEdits.map(e => TextEdit.to(e as modes.TextEdit));
+		}
+		result.command = converter && suggestion.command ? converter.fromInternal(suggestion.command) : undefined;
 
 		return result;
 	}
@@ -859,7 +888,7 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
-			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : []
 		};
 	}
 
@@ -867,7 +896,7 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
-			parameters: info.parameters && info.parameters.map(ParameterInformation.to)
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : []
 		};
 	}
 }
@@ -878,7 +907,7 @@ export namespace SignatureHelp {
 		return {
 			activeSignature: help.activeSignature,
 			activeParameter: help.activeParameter,
-			signatures: help.signatures && help.signatures.map(SignatureInformation.from)
+			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.from) : [],
 		};
 	}
 
@@ -886,7 +915,7 @@ export namespace SignatureHelp {
 		return {
 			activeSignature: help.activeSignature,
 			activeParameter: help.activeParameter,
-			signatures: help.signatures && help.signatures.map(SignatureInformation.to)
+			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.to) : [],
 		};
 	}
 }
@@ -1161,15 +1190,5 @@ export namespace LogLevel {
 		}
 
 		return types.LogLevel.Info;
-	}
-}
-export namespace WebviewEditorState {
-	export function from(state: vscode.WebviewEditorState): modes.WebviewEditorState {
-		switch (state) {
-			case types.WebviewEditorState.Readonly: return modes.WebviewEditorState.Readonly;
-			case types.WebviewEditorState.Unchanged: return modes.WebviewEditorState.Unchanged;
-			case types.WebviewEditorState.Dirty: return modes.WebviewEditorState.Dirty;
-			default: throw new Error('Unknown vscode.WebviewEditorState');
-		}
 	}
 }

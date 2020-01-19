@@ -12,7 +12,7 @@ The JSON Language server provides language-specific smarts for editing, validati
 
 The JSON language server supports requests on documents of language id `json` and `jsonc`.
 - `json` documents are parsed and validated following the [JSON specification](https://tools.ietf.org/html/rfc7159).
-- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`) and accepts trailing commas. JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
+- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
 
 The server implements the following capabilities of the language server protocol:
 
@@ -40,6 +40,13 @@ The JSON language server has the following dependencies on the client's capabili
 
 ## Configuration
 
+### Initialization options
+
+The client can send the following initialization options to the server:
+
+- `provideFormatter: boolean | undefined`. If defined, the value defines whether the server provides the `documentRangeFormattingProvider` capability on initialization. If undefined, the setting `json.format.enable` is used to determine whether formatting is provided. The formatter will then be registered through dynamic registration. If the client does not support dynamic registration, no formatter will be available.
+- `handledSchemaProtocols`: The URI schemas handles by the server. See section `Schema configuration` below.
+
 ### Settings
 
 Clients may send a `workspace/didChangeConfiguration` notification to notify the server of settings changes.
@@ -51,11 +58,12 @@ The server supports the following settings:
 
 - json
   - `format`
-    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting*
+    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
     - `schema`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
-	  - `fileMatch`: an array or file names or paths (separated by `/`). `*` can be used as a wildcard.
+	  - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard.
 	  - `url`: The URL of the schema, optional when also a schema is provided.
 	  - `schema`: The schema content.
+    - `resultLimit`: The max number foldig ranges and otline symbols to be computed (for performance reasons)
 
 ```json
 	{
@@ -92,9 +100,9 @@ To find the schema for a given JSON document, the server uses the following mech
 - The settings define a schema association based on the documents URL. Settings can either associate a schema URL to a file or path pattern, and they can directly provide a schema.
 - Additionally, schema associations can also be provided by a custom 'schemaAssociations' configuration call.
 
-Schemas are identified by URLs. To load the content of a schema, the JSON language server either tries to load from that URI or path itself, or delegates to the client.
+Schemas are identified by URLs. To load the content of a schema, the JSON language server either tries to load from that URI or path itself or delegates to the client.
 
-The `initializationOptions.handledSchemaProtocols` initialization option defines which URLs are handled by the server. Requests for all other URIs are send to the client.
+The `initializationOptions.handledSchemaProtocols` initialization option defines which URLs are handled by the server. Requests for all other URIs are sent to the client.
 
 `handledSchemaProtocols` is part of the initialization options and can't be changed while the server is running.
 
@@ -114,7 +122,7 @@ If `handledSchemaProtocols` is not set, the JSON language server will load the f
 
 #### Schema content request
 
-Requests for schemas with URLs not handled by the server are forwarded to the client through an LSP request. This request is a JSON language server specific, non-standardized, extension to the LSP.
+Requests for schemas with URLs not handled by the server are forwarded to the client through an LSP request. This request is a JSON language server-specific, non-standardized, extension to the LSP.
 
 Request:
 - method: 'vscode/content'
@@ -123,12 +131,12 @@ Request:
 
 #### Schema content change notification
 
-When the client is aware that a schema content has changed, it will notify the server through a notification. This notification is a JSON language server specific, non-standardized, extension to the LSP.
+When the client is aware that a schema content has changed, it will notify the server through a notification. This notification is a JSON language server-specific, non-standardized, extension to the LSP.
 The server will, as a response, clear the schema content from the cache and reload the schema content when required again.
 
 #### Schema associations notification
 
-In addition to the settings, schemas associations can also be provided through a notification from the client to the server. This notification is a JSON language server specific, non-standardized, extension to the LSP.
+In addition to the settings, schemas associations can also be provided through a notification from the client to the server. This notification is a JSON language server-specific, non-standardized, extension to the LSP.
 
 Notification:
 - method: 'json/schemaAssociations'
@@ -145,6 +153,16 @@ interface ISchemaAssociations {
 Notification:
 - method: 'json/schemaContent'
 - params: `string` the URL of the schema that has changed.
+
+### Item Limit
+
+If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
+When the limit is reached, a notification `json/resultLimitReached` is sent that can be shown that camn be shown to the user.
+
+Notification:
+- method: 'json/resultLimitReached'
+- params: a human readable string to show to the user.
+
 
 ## Try
 

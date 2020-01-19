@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { ReviewController } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
+import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -27,13 +27,13 @@ import { CommentsList, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbe
 
 
 export class CommentsPanel extends Panel {
-	private treeLabels: ResourceLabels;
-	private tree: CommentsList;
-	private treeContainer: HTMLElement;
-	private messageBoxContainer: HTMLElement;
-	private messageBox: HTMLElement;
-	private commentsModel: CommentsModel;
-	private collapseAllAction: IAction;
+	private treeLabels!: ResourceLabels;
+	private tree!: CommentsList;
+	private treeContainer!: HTMLElement;
+	private messageBoxContainer!: HTMLElement;
+	private messageBox!: HTMLElement;
+	private commentsModel!: CommentsModel;
+	private collapseAllAction?: IAction;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -163,7 +163,7 @@ export class CommentsPanel extends Panel {
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
-				const controller = ReviewController.get(control);
+				const controller = CommentController.get(control);
 				controller.revealCommentThread(threadToReveal, commentToReveal, false);
 			}
 
@@ -184,7 +184,7 @@ export class CommentsPanel extends Panel {
 			if (editor) {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
-					const controller = ReviewController.get(control);
+					const controller = CommentController.get(control);
 					controller.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
 				}
 			}
@@ -195,7 +195,9 @@ export class CommentsPanel extends Panel {
 
 	private refresh(): void {
 		if (this.isVisible()) {
-			this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
+			if (this.collapseAllAction) {
+				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
+			}
 
 			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
 			this.tree.updateChildren().then(() => {

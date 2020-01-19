@@ -69,11 +69,11 @@ function validateString(value: string, name: string) {
 	}
 }
 
-function isPathSeparator(code: number) {
+function isPathSeparator(code: number | undefined) {
 	return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 }
 
-function isPosixPathSeparator(code: number) {
+function isPosixPathSeparator(code: number | undefined) {
 	return code === CHAR_FORWARD_SLASH;
 }
 
@@ -169,7 +169,7 @@ function _format(sep: string, pathObject: ParsedPath) {
 	return dir + sep + base;
 }
 
-interface ParsedPath {
+export interface ParsedPath {
 	root: string;
 	dir: string;
 	base: string;
@@ -177,7 +177,7 @@ interface ParsedPath {
 	name: string;
 }
 
-interface IPath {
+export interface IPath {
 	normalize(path: string): string;
 	isAbsolute(path: string): boolean;
 	join(...paths: string[]): string;

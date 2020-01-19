@@ -21,7 +21,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 	private _state: State = State.Uninitialized;
 
-	private _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {

@@ -20,13 +20,15 @@ import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 suite('MainThreadEditors', () => {
 
@@ -36,15 +38,17 @@ suite('MainThreadEditors', () => {
 	let editors: MainThreadTextEditors;
 
 	const movedResources = new Map<URI, URI>();
+	const copiedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
 	const deletedResources = new Set<URI>();
 
 	setup(() => {
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
+		copiedResources.clear();
 		createdResources.clear();
 		deletedResources.clear();
 
@@ -64,10 +68,14 @@ suite('MainThreadEditors', () => {
 				movedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+			copy(source: URI, target: URI) {
+				copiedResources.set(source, target);
+				return Promise.resolve(Object.create(null));
+			}
+			files = <any>{
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();
@@ -82,7 +90,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
+		const editorWorkerService = new class extends mock<IEditorWorkerService>() {
+
+		};
+
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), editorWorkerService, textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -100,9 +112,7 @@ suite('MainThreadEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null!,
 			fileService,
-			null!,
 			null!,
 			editorGroupService,
 			bulkEditService,
@@ -111,7 +121,7 @@ suite('MainThreadEditors', () => {
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
-					return null;
+					return undefined;
 				}
 			},
 			TestEnvironmentService
@@ -131,7 +141,7 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit: ResourceTextEdit = {
+		let workspaceResourceEdit: WorkspaceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{
@@ -152,7 +162,7 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit1: ResourceTextEdit = {
+		let workspaceResourceEdit1: WorkspaceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{
@@ -160,7 +170,7 @@ suite('MainThreadEditors', () => {
 				range: new Range(1, 1, 1, 1)
 			}]
 		};
-		let workspaceResourceEdit2: ResourceTextEdit = {
+		let workspaceResourceEdit2: WorkspaceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{

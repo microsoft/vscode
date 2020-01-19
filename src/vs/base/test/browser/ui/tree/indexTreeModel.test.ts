@@ -690,4 +690,69 @@ suite('IndexTreeModel', function () {
 			assert.deepEqual(model.getNodeLocation(list[3]), [0, 5]);
 		});
 	});
+
+	test('refilter with filtered out nodes', function () {
+		const list: ITreeNode<string>[] = [];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): boolean {
+				return query.test(element);
+			}
+		};
+
+		const model = new IndexTreeModel<string>('test', toSpliceable(list), 'root', { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{ element: 'silver' },
+			{ element: 'gold' },
+			{ element: 'platinum' }
+		]));
+
+		assert.deepEqual(toArray(list), ['silver', 'gold', 'platinum']);
+
+		query = /platinum/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['platinum']);
+
+		model.splice([0], Number.POSITIVE_INFINITY, Iterator.fromArray([
+			{ element: 'silver' },
+			{ element: 'gold' },
+			{ element: 'platinum' }
+		]));
+		assert.deepEqual(toArray(list), ['platinum']);
+
+		model.refilter();
+		assert.deepEqual(toArray(list), ['platinum']);
+	});
+
+	test('explicit hidden nodes should have renderNodeCount == 0, issue #83211', function () {
+		const list: ITreeNode<string>[] = [];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): boolean {
+				return query.test(element);
+			}
+		};
+
+		const model = new IndexTreeModel<string>('test', toSpliceable(list), 'root', { filter });
+
+		model.splice([0], 0, [
+			{ element: 'a', children: [{ element: 'aa' }] },
+			{ element: 'b', children: [{ element: 'bb' }] }
+		]);
+
+		assert.deepEqual(toArray(list), ['a', 'aa', 'b', 'bb']);
+		assert.deepEqual(model.getListIndex([0]), 0);
+		assert.deepEqual(model.getListIndex([0, 0]), 1);
+		assert.deepEqual(model.getListIndex([1]), 2);
+		assert.deepEqual(model.getListIndex([1, 0]), 3);
+
+		query = /b/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['b', 'bb']);
+		assert.deepEqual(model.getListIndex([0]), -1);
+		assert.deepEqual(model.getListIndex([0, 0]), -1);
+		assert.deepEqual(model.getListIndex([1]), 0);
+		assert.deepEqual(model.getListIndex([1, 0]), 1);
+	});
 });

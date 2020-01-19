@@ -18,7 +18,7 @@ import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
@@ -26,9 +26,13 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
+import { ExtHostTunnelService } from 'vs/workbench/api/node/extHostTunnelService';
+import { IExtHostApiDeprecationService, ExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 // register singleton services
 registerSingleton(ILogService, ExtHostLogService);
+registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostDecorations, ExtHostDecorations);
@@ -38,7 +42,8 @@ registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService);
 registerSingleton(IExtHostTask, ExtHostTask);
 registerSingleton(IExtHostDebugService, ExtHostDebugService);
-registerSingleton(IExtHostSearch, ExtHostSearch);
+registerSingleton(IExtHostSearch, NativeExtHostSearch);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
 registerSingleton(IExtHostStorage, ExtHostStorage);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService);

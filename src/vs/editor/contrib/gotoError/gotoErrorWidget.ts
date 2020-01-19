@@ -20,11 +20,10 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
-import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
 import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -173,7 +172,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
-	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+	private readonly _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -229,7 +228,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget!.push(this.actions, { label: false, icon: true });
+		this._actionbarWidget!.push(this.actions, { label: false, icon: true, index: 0 });
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {
@@ -238,7 +237,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 
@@ -283,7 +282,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
-		this._icon.className = SeverityIcon.className(MarkerSeverity.toSeverity(this._severity));
+		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 	}

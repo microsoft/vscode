@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -117,6 +117,32 @@ steps:
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    yarn gulp "vscode-linux-x64-build-deb"
+    yarn gulp "vscode-linux-x64-build-rpm"
+    yarn gulp "vscode-linux-x64-prepare-snap"
+  displayName: Build packages
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '.build/linux/rpm/x86_64'
+    Pattern: '*.rpm'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-450779-Pgp",
+          "operationSetCode": "LinuxSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+  displayName: Codesign rpm
 
 - script: |
     set -e

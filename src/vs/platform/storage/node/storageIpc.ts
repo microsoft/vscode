@@ -29,7 +29,7 @@ interface ISerializableItemsChangeEvent {
 
 export class GlobalStorageDatabaseChannel extends Disposable implements IServerChannel {
 
-	private static STORAGE_CHANGE_DEBOUNCE_TIME = 100;
+	private static readonly STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
 	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	readonly onDidChangeItems: Event<ISerializableItemsChangeEvent> = this._onDidChangeItems.event;
@@ -83,7 +83,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 		// Listen for changes in global storage to send to listeners
 		// that are listening. Use a debouncer to reduce IPC traffic.
-		this._register(Event.debounce(this.storageMainService.onDidChangeStorage, (prev: IStorageChangeEvent[], cur: IStorageChangeEvent) => {
+		this._register(Event.debounce(this.storageMainService.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
 			if (!prev) {
 				prev = [cur];
 			} else {
@@ -100,7 +100,12 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
 		const items = new Map<Key, Value>();
-		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
+		events.forEach(event => {
+			const existing = this.storageMainService.get(event.key);
+			if (typeof existing === 'string') {
+				items.set(event.key, existing);
+			}
+		});
 
 		return { items: mapToSerializable(items) };
 	}
@@ -161,7 +166,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	private registerListeners(): void {
-		this.onDidChangeItemsOnMainListener = this.channel.listen('onDidChangeItems')((e: ISerializableItemsChangeEvent) => this.onDidChangeItemsOnMain(e));
+		this.onDidChangeItemsOnMainListener = this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeItems')((e: ISerializableItemsChangeEvent) => this.onDidChangeItemsOnMain(e));
 	}
 
 	private onDidChangeItemsOnMain(e: ISerializableItemsChangeEvent): void {

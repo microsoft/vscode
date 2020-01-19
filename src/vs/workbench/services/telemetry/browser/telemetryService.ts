@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, combinedAppender, LogAppender, ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, combinedAppender, LogAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -15,52 +15,19 @@ import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/pla
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/browser/workbenchCommonProperties';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ApplicationInsights } from '@microsoft/applicationinsights-web';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class WebTelemetryAppender implements ITelemetryAppender {
-	private _aiClient?: ApplicationInsights;
 
-	constructor(aiKey: string, private _logService: ILogService) {
-		const initConfig = {
-			config: {
-				instrumentationKey: aiKey,
-				endpointUrl: 'https://vortex.data.microsoft.com/collect/v1',
-				emitLineDelimitedJson: true,
-				autoTrackPageVisitTime: false,
-				disableExceptionTracking: true,
-				disableAjaxTracking: true
-			}
-		};
-
-		this._aiClient = new ApplicationInsights(initConfig);
-		this._aiClient.loadAppInsights();
-	}
+	constructor(private _logService: ILogService, private _appender: IRemoteAgentService) { }
 
 	log(eventName: string, data: any): void {
-		if (!this._aiClient) {
-			return;
-		}
-
-		data = validateTelemetryData(data);
 		this._logService.trace(`telemetry/${eventName}`, data);
-
-		this._aiClient.trackEvent({
-			name: 'monacoworkbench/' + eventName,
-			properties: data.properties,
-			measurements: data.measurements
-		});
+		this._appender.logTelemetry(eventName, data);
 	}
 
 	flush(): Promise<void> {
-		if (this._aiClient) {
-			return new Promise(resolve => {
-				this._aiClient!.flush();
-				this._aiClient = undefined;
-				resolve(undefined);
-			});
-		}
-
-		return Promise.resolve();
+		return this._appender.flushTelemetry();
 	}
 }
 
@@ -75,16 +42,15 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
-		const aiKey = productService.aiConfig && productService.aiConfig.asimovKey;
-		if (!environmentService.isExtensionDevelopment && !environmentService.args['disable-telemetry'] && !!productService.enableTelemetry && !!aiKey) {
+		if (!!productService.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(aiKey, logService), new LogAppender(logService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority),
-				piiPaths: [environmentService.appRoot]
+				appender: combinedAppender(new WebTelemetryAppender(logService, remoteAgentService), new LogAppender(logService)),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties)
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));

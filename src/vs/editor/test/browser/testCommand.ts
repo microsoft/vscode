@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, Handler, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
@@ -16,7 +16,7 @@ export function testCommand(
 	lines: string[],
 	languageIdentifier: LanguageIdentifier | null,
 	selection: Selection,
-	commandFactory: (selection: Selection) => editorCommon.ICommand,
+	commandFactory: (selection: Selection) => ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection,
 	forceTokenization?: boolean
@@ -33,7 +33,7 @@ export function testCommand(
 
 		cursor.setSelections('tests', [selection]);
 
-		cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
+		cursor.trigger('tests', Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
 
 		assert.deepEqual(model.getLinesContent(), expectedLines);
 
@@ -47,20 +47,22 @@ export function testCommand(
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: ITextModel, command: editorCommon.ICommand): IIdentifiedSingleEditOperation[] {
+export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
 	let operations: IIdentifiedSingleEditOperation[] = [];
-	let editOperationBuilder: editorCommon.IEditOperationBuilder = {
-		addEditOperation: (range: Range, text: string) => {
+	let editOperationBuilder: IEditOperationBuilder = {
+		addEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 
-		addTrackedEditOperation: (range: Range, text: string) => {
+		addTrackedEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 

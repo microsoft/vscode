@@ -8,6 +8,7 @@ import { Repository as BaseRepository, Resource } from '../repository';
 import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
+import { toGitUri } from '../uri';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -232,6 +233,10 @@ export class ApiImpl implements API {
 
 	get repositories(): Repository[] {
 		return this._model.repositories.map(r => new ApiRepository(r));
+	}
+
+	toGitUri(uri: Uri, ref: string): Uri {
+		return toGitUri(uri, ref);
 	}
 
 	constructor(private _model: Model) { }

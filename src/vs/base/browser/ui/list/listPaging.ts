@@ -127,7 +127,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onPin(): Event<IListEvent<T>> {
-		return Event.map(this.list.onPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onDidPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
@@ -153,6 +153,14 @@ export class PagedList<T> implements IDisposable {
 
 	set scrollTop(scrollTop: number) {
 		this.list.scrollTop = scrollTop;
+	}
+
+	get scrollLeft(): number {
+		return this.list.scrollLeft;
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.list.scrollLeft = scrollLeft;
 	}
 
 	open(indexes: number[], browserEvent?: UIEvent): void {

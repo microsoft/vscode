@@ -15,7 +15,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/common/externalUriResolver';
-import { configureTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
+import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/common/trustedDomainsFileSystemProvider';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
 
@@ -35,13 +35,13 @@ export class OpenUrlAction extends Action {
 	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
 			const uri = URI.parse(input);
-			this.urlService.open(uri);
+			this.urlService.open(uri, { trusted: true });
 		});
 	}
 }
 
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
+	SyncActionDescriptor.create(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
 	'Open URL',
 	localize('developer', 'Developer')
 );
@@ -50,11 +50,14 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
  * Trusted Domains Contribution
  */
 
-CommandsRegistry.registerCommand(configureTrustedDomainSettingsCommand);
+CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: configureTrustedDomainSettingsCommand.id,
-		title: configureTrustedDomainSettingsCommand.description.description
+		id: manageTrustedDomainSettingsCommand.id,
+		title: {
+			value: manageTrustedDomainSettingsCommand.description.description,
+			original: 'Manage Trusted Domains'
+		}
 	}
 });
 

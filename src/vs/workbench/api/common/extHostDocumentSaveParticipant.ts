@@ -11,8 +11,8 @@ import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, IResou
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import * as vscode from 'vscode';
+import { SaveReason } from 'vs/workbench/common/editor';
+import type * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';

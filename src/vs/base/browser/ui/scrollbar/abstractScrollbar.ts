@@ -20,6 +20,7 @@ import { INewScrollPosition, Scrollable, ScrollbarVisibility } from 'vs/base/com
 const MOUSE_DRAG_RESET_DISTANCE = 140;
 
 export interface ISimplifiedMouseEvent {
+	buttons: number;
 	posx: number;
 	posy: number;
 }
@@ -99,6 +100,7 @@ export abstract class AbstractScrollbar extends Widget {
 			this.slider.setHeight(height);
 		}
 		this.slider.setLayerHinting(true);
+		this.slider.setContain('strict');
 
 		this.domNode.domNode.appendChild(this.slider.domNode);
 
@@ -221,6 +223,7 @@ export abstract class AbstractScrollbar extends Widget {
 		this.slider.toggleClassName('active', true);
 
 		this._mouseMoveMonitor.startMonitoring(
+			e.buttons,
 			standardMouseMoveMerger,
 			(mouseMoveData: IStandardMouseMoveEventData) => {
 				const mouseOrthogonalPosition = this._sliderOrthogonalMousePosition(mouseMoveData);

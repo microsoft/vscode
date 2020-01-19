@@ -14,7 +14,7 @@ export interface ITextMateService {
 
 	onDidEncounterLanguage: Event<LanguageId>;
 
-	createGrammar(modeId: string): Promise<IGrammar>;
+	createGrammar(modeId: string): Promise<IGrammar | null>;
 }
 
 // -------------- Types "liberated" from vscode-textmate due to usage in /common/

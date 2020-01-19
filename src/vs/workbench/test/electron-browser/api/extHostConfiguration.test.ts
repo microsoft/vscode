@@ -12,7 +12,7 @@ import { ConfigurationModel } from 'vs/platform/configuration/common/configurati
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assign } from 'vs/base/common/objects';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -20,7 +20,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends mock<MainThreadConfigurationShape>() {
-		lastArgs: [ConfigurationTarget, string, any];
+		lastArgs!: [ConfigurationTarget, string, any];
 		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
 			return Promise.resolve(undefined);
@@ -35,7 +35,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents));
+		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents), new NullLogService());
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -283,7 +283,8 @@ suite('ExtHostConfiguration', function () {
 				workspace: new ConfigurationModel({}, []),
 				folders: [],
 				configurationScopes: []
-			}
+			},
+			new NullLogService()
 		);
 
 		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
@@ -331,7 +332,8 @@ suite('ExtHostConfiguration', function () {
 				workspace,
 				folders,
 				configurationScopes: []
-			}
+			},
+			new NullLogService()
 		);
 
 		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
@@ -407,7 +409,8 @@ suite('ExtHostConfiguration', function () {
 				workspace,
 				folders,
 				configurationScopes: []
-			}
+			},
+			new NullLogService()
 		);
 
 		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
@@ -605,37 +608,25 @@ suite('ExtHostConfiguration', function () {
 			createConfigurationData({
 				'farboo': {
 					'config': false,
-					'updatedconfig': false
+					'updatedConfig': false
 				}
-			})
+			}),
+			new NullLogService()
 		);
 
 		const newConfigData = createConfigurationData({
 			'farboo': {
 				'config': false,
-				'updatedconfig': true,
+				'updatedConfig': true,
 				'newConfig': true,
 			}
 		});
-		const changedConfigurationByResource = Object.create({});
-		changedConfigurationByResource[workspaceFolder.uri.toString()] = new ConfigurationModel({
-			'farboo': {
-				'newConfig': true,
-			}
-		}, ['farboo.newConfig']);
-		const configEventData = {
-			changedConfiguration: new ConfigurationModel({
-				'farboo': {
-					'updatedConfig': true,
-				}
-			}, ['farboo.updatedConfig']),
-			changedConfigurationByResource
-		};
+		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig', 'farboo.newConfig'], overrides: [] };
 		testObject.onDidChangeConfiguration(e => {
 
 			assert.deepEqual(testObject.getConfiguration().get('farboo'), {
 				'config': false,
-				'updatedconfig': true,
+				'updatedConfig': true,
 				'newConfig': true,
 			});
 
@@ -649,7 +640,7 @@ suite('ExtHostConfiguration', function () {
 
 			assert.ok(e.affectsConfiguration('farboo.newConfig'));
 			assert.ok(e.affectsConfiguration('farboo.newConfig', workspaceFolder.uri));
-			assert.ok(!e.affectsConfiguration('farboo.newConfig', URI.file('any')));
+			assert.ok(e.affectsConfiguration('farboo.newConfig', URI.file('any')));
 
 			assert.ok(!e.affectsConfiguration('farboo.config'));
 			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));

@@ -16,16 +16,20 @@ import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { findFreePort } from 'vs/base/node/ports';
+import { AbstractTunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 
-export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<RemoteTunnel> {
-	const tunnel = new NodeRemoteTunnel(options, tunnelRemotePort);
+export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
+	const tunnel = new NodeRemoteTunnel(options, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
 	return tunnel.waitForReady();
 }
 
 class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public readonly tunnelRemotePort: number;
-	public readonly tunnelLocalPort: number;
+	public tunnelLocalPort!: number;
+	public tunnelRemoteHost: string;
+	public localAddress!: string;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -34,7 +38,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	private readonly _listeningListener: () => void;
 	private readonly _connectionListener: (socket: net.Socket) => void;
 
-	constructor(options: IConnectionOptions, tunnelRemotePort: number) {
+	constructor(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, private readonly suggestedLocalPort?: number) {
 		super();
 		this._options = options;
 		this._server = net.createServer();
@@ -47,7 +51,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this._server.on('connection', this._connectionListener);
 
 		this.tunnelRemotePort = tunnelRemotePort;
-		this.tunnelLocalPort = (<net.AddressInfo>this._server.listen(0).address()).port;
+		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
 
 	public dispose(): void {
@@ -58,7 +62,16 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 
 	public async waitForReady(): Promise<this> {
+
+		// try to get the same port number as the remote port number...
+		const localPort = await findFreePort(this.suggestedLocalPort ?? this.tunnelRemotePort, 1, 1000);
+
+		// if that fails, the method above returns 0, which works out fine below...
+		const address = (<net.AddressInfo>this._server.listen(localPort).address());
+		this.tunnelLocalPort = address.port;
+
 		await this._barrier.wait();
+		this.localAddress = 'localhost:' + address.port;
 		return this;
 	}
 
@@ -85,36 +98,48 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 }
 
-export class TunnelService implements ITunnelService {
-	_serviceBrand: undefined;
-
+export class TunnelService extends AbstractTunnelService {
 	public constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ILogService logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService private readonly signService: ISignService,
-		@ILogService private readonly logService: ILogService
 	) {
+		super(environmentService, logService);
 	}
 
-	openTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (!remoteAuthority) {
-			return undefined;
+	protected retainOrCreateTunnel(remoteAuthority: string, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
+		const portMap = this._tunnels.get(remoteHost);
+		const existing = portMap ? portMap.get(remotePort) : undefined;
+		if (existing) {
+			++existing.refcount;
+			return existing.value;
 		}
 
-		const options: IConnectionOptions = {
-			commit: product.commit,
-			socketFactory: nodeSocketFactory,
-			addressProvider: {
-				getAddress: async () => {
-					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
-					return { host: authority.host, port: authority.port };
-				}
-			},
-			signService: this.signService,
-			logService: this.logService
-		};
-		return createRemoteTunnel(options, remotePort);
+		if (this._tunnelProvider) {
+			const tunnel = this._tunnelProvider.forwardPort({ remoteAddress: { host: remoteHost, port: remotePort } });
+			if (tunnel) {
+				this.addTunnelToMap(remoteHost, remotePort, tunnel);
+			}
+			return tunnel;
+		} else {
+			const options: IConnectionOptions = {
+				commit: product.commit,
+				socketFactory: nodeSocketFactory,
+				addressProvider: {
+					getAddress: async () => {
+						const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+						return { host: authority.host, port: authority.port };
+					}
+				},
+				signService: this.signService,
+				logService: this.logService
+			};
+
+			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);
+			this.addTunnelToMap(remoteHost, remotePort, tunnel);
+			return tunnel;
+		}
 	}
 }
 

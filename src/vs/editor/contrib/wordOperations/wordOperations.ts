@@ -172,6 +172,7 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 	}
 }
 
+// Accessibility navigation commands should only be enabled on windows since they are tuned to what NVDA expects
 export class CursorWordAccessibilityLeft extends WordLeftCommand {
 	constructor() {
 		super({
@@ -181,8 +182,7 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				win: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
 		});
@@ -202,8 +202,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
+				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
 		});
@@ -301,8 +300,7 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
-				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				win: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
 		});
@@ -322,8 +320,7 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow },
+				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
 		});

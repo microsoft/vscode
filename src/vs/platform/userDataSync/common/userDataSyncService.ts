@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { timeout } from 'vs/base/common/async';
+import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
+import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
+import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -27,29 +30,189 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _conflictsSource: SyncSource | null = null;
 	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
 
+	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
+	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
+	private readonly globalStateSynchroniser: GlobalStateSynchroniser;
+
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISettingsSyncService private readonly settingsSynchroniser: ISettingsSyncService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 	) {
 		super();
-		this.synchronisers = [
-			this.instantiationService.createInstance(SettingsSynchroniser)
-		];
+		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
+		this.globalStateSynchroniser = this._register(this.instantiationService.createInstance(GlobalStateSynchroniser));
+		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
+		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
-		this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+
+		if (this.userDataSyncStoreService.userDataSyncStore) {
+			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+			this._register(this.userDataAuthTokenService.onDidChangeToken(e => this.onDidChangeAuthTokenStatus(e)));
+		}
+
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
 	}
 
-	async sync(_continue?: boolean): Promise<boolean> {
-		if (!this.userDataSyncStoreService.enabled) {
+	async pull(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
 		for (const synchroniser of this.synchronisers) {
-			if (!await synchroniser.sync(_continue)) {
-				return false;
+			try {
+				await synchroniser.pull();
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+			}
+		}
+	}
+
+	async push(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			try {
+				await synchroniser.push();
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+			}
+		}
+	}
+
+	async sync(_continue?: boolean): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			try {
+				if (!await synchroniser.sync(_continue)) {
+					return false;
+				}
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
 			}
 		}
 		return true;
+	}
+
+	stop(): void {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		for (const synchroniser of this.synchronisers) {
+			synchroniser.stop();
+		}
+	}
+
+	async hasPreviouslySynced(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async hasRemoteData(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasRemoteData()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasLocalData()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async isFirstTimeSyncAndHasUserData(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		if (await this.hasPreviouslySynced()) {
+			return false;
+		}
+		return await this.hasLocalData();
+	}
+
+	async reset(): Promise<void> {
+		await this.resetRemote();
+		await this.resetLocal();
+	}
+
+	private async resetRemote(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		try {
+			await this.userDataSyncStoreService.clear();
+			this.logService.info('Completed clearing remote data');
+		} catch (e) {
+			this.logService.error(e);
+		}
+	}
+
+	async resetLocal(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			try {
+				await synchroniser.resetLocal();
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+			}
+		}
+		this.logService.info('Completed resetting local cache');
+	}
+
+	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
+		return this.extensionsSynchroniser.removeExtension(identifier);
 	}
 
 	private updateStatus(): void {
@@ -65,7 +228,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeStatus(): SyncStatus {
-		if (!this.userDataSyncStoreService.enabled) {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			return SyncStatus.Uninitialized;
 		}
 		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {
@@ -78,51 +241,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeConflictsSource(): SyncSource | null {
-		const source = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		if (source) {
-			if (source instanceof SettingsSynchroniser) {
-				return SyncSource.Settings;
-			}
-		}
-		return null;
+		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
+		return synchroniser ? this.getSyncSource(synchroniser) : null;
 	}
 
-}
+	private getSyncSource(synchroniser: ISynchroniser): SyncSource {
+		if (synchroniser instanceof SettingsSynchroniser) {
+			return SyncSource.Settings;
+		}
+		if (synchroniser instanceof KeybindingsSynchroniser) {
+			return SyncSource.Keybindings;
+		}
+		if (synchroniser instanceof ExtensionsSynchroniser) {
+			return SyncSource.Extensions;
+		}
+		return SyncSource.UIState;
+	}
 
-export class UserDataAutoSync extends Disposable {
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-	) {
-		super();
-		if (userDataSyncStoreService.enabled) {
-			this.sync(true);
-			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync'))(() => this.sync(true)));
-
-			// Sync immediately if there is a local change.
-			this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
+	private onDidChangeAuthTokenStatus(token: string | undefined): void {
+		if (!token) {
+			this.stop();
 		}
 	}
-
-	private async sync(loop: boolean): Promise<void> {
-		if (this.isSyncEnabled()) {
-			try {
-				await this.userDataSyncService.sync();
-			} catch (e) {
-				// Ignore errors
-			}
-			if (loop) {
-				await timeout(1000 * 5); // Loop sync for every 5s.
-				this.sync(loop);
-			}
-		}
-	}
-
-	private isSyncEnabled(): boolean {
-		const { user: userLocal } = this.configurationService.inspect<boolean>('userConfiguration.enableSync');
-		return userLocal === undefined || userLocal;
-	}
-
 }

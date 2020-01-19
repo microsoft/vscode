@@ -95,17 +95,12 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get userDataPath(): string {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
-
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'user-data');
 		}
 
 		return parseUserDataDir(this._args, process);
 	}
-
-	get appNameLong(): string { return product.nameLong; }
-
-	get appQuality(): string | undefined { return product.quality; }
 
 	@memoize
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
@@ -118,6 +113,12 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userRoamingDataHome, '.settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return resources.joinPath(this.userRoamingDataHome, '.keybindings.json'); }
+
+	@memoize
+	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
 	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
@@ -138,7 +139,14 @@ export class EnvironmentService implements IEnvironmentService {
 	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
-	get localeResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'locale.json'); }
+	get argvResource(): URI {
+		const vscodePortable = process.env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return URI.file(path.join(vscodePortable, 'argv.json'));
+		}
+
+		return URI.file(path.join(this.userHome, product.dataFolderName, 'argv.json'));
+	}
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
@@ -179,7 +187,6 @@ export class EnvironmentService implements IEnvironmentService {
 		}
 
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
-
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'extensions');
 		}
@@ -231,6 +238,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }

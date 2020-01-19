@@ -118,49 +118,57 @@ export class ViewCursor {
 
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {
 		let textContent = '';
-		let textContentClassName = '';
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(this._position);
-			if (!visibleRange) {
+			if (!visibleRange || visibleRange.outsideRenderedLine) {
 				// Outside viewport
 				return null;
 			}
+
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
 				width = dom.computeScreenAwareSize(this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
 				if (width > 2) {
 					const lineContent = this._context.model.getLineContent(this._position.lineNumber);
-					textContent = lineContent.charAt(this._position.column - 1);
+					const nextCharLength = strings.nextCharLength(lineContent, this._position.column - 1);
+					textContent = lineContent.substr(this._position.column - 1, nextCharLength);
 				}
 			} else {
 				width = dom.computeScreenAwareSize(1);
 			}
+
 			let left = visibleRange.left;
 			if (width >= 2 && left >= 1) {
 				// try to center cursor
 				left -= 1;
 			}
+
 			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, left, width, this._lineHeight, textContent, textContentClassName);
+			return new ViewCursorRenderData(top, left, width, this._lineHeight, textContent, '');
 		}
 
-		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);
-
-		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0 || visibleRangeForCharacter[0].ranges.length === 0) {
+		const lineContent = this._context.model.getLineContent(this._position.lineNumber);
+		const nextCharLength = strings.nextCharLength(lineContent, this._position.column - 1);
+		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + nextCharLength), false);
+		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0) {
 			// Outside viewport
 			return null;
 		}
 
-		const range = visibleRangeForCharacter[0].ranges[0];
+		const firstVisibleRangeForCharacter = visibleRangeForCharacter[0];
+		if (firstVisibleRangeForCharacter.outsideRenderedLine || firstVisibleRangeForCharacter.ranges.length === 0) {
+			// Outside viewport
+			return null;
+		}
+
+		const range = firstVisibleRangeForCharacter.ranges[0];
 		const width = range.width < 1 ? this._typicalHalfwidthCharacterWidth : range.width;
 
+		let textContentClassName = '';
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
 			const lineData = this._context.model.getViewLineData(this._position.lineNumber);
-			textContent = lineData.content.charAt(this._position.column - 1);
-			if (strings.isHighSurrogate(lineData.content.charCodeAt(this._position.column - 1))) {
-				textContent += lineData.content.charAt(this._position.column);
-			}
+			textContent = lineContent.substr(this._position.column - 1, nextCharLength);
 			const tokenIndex = lineData.tokens.findTokenIndexAtOffset(this._position.column - 1);
 			textContentClassName = lineData.tokens.getClassName(tokenIndex);
 		}

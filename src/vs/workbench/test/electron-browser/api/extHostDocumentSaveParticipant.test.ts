@@ -10,11 +10,11 @@ import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbe
 import { MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import * as vscode from 'vscode';
+import { SaveReason } from 'vs/workbench/common/editor';
+import type * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
@@ -37,7 +37,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	};
 
 	setup(() => {
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -279,8 +279,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.equal(dto.edits.length, 1);
-			assert.ok(isResourceTextEdit(dto.edits[0]));
-			assert.equal((<ResourceTextEdit>dto.edits[0]).edits.length, 2);
+			assert.ok(WorkspaceTextEdit.is(dto.edits[0]));
+			assert.equal((<WorkspaceTextEdit>dto.edits[0]).edits.length, 2);
 		});
 	});
 
@@ -326,7 +326,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto) {
 
 				for (const edit of dto.edits) {
-					if (!isResourceTextEdit(edit)) {
+					if (!WorkspaceTextEdit.is(edit)) {
 						continue;
 					}
 					const { resource, edits } = edit;

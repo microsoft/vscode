@@ -11,6 +11,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionStoragePaths implements IExtensionStoragePaths {
 
@@ -22,7 +23,10 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 	readonly whenReady: Promise<string | undefined>;
 	private _value?: string;
 
-	constructor(@IExtHostInitDataService initData: IExtHostInitDataService) {
+	constructor(
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		this._workspace = withNullAsUndefined(initData.workspace);
 		this._environment = initData.environment;
 		this.whenReady = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
@@ -69,7 +73,7 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 			return storagePath;
 
 		} catch (e) {
-			console.error(e);
+			this._logService.error(e);
 			return undefined;
 		}
 	}

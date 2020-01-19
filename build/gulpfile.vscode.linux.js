@@ -23,7 +23,7 @@ const commit = util.getVersion(root);
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
 function getDebPackageArch(arch) {
-	return { x64: 'amd64', arm: 'armhf', arm64: "arm64" }[arch];
+	return { x64: 'amd64', arm: 'armhf', arm64: 'arm64' }[arch];
 }
 
 function prepareDebPackage(arch) {
@@ -43,7 +43,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
-			.pipe(replace('@@ICON@@', product.linuxIconName))
+			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.linuxIconName}.png`))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -117,7 +117,7 @@ function getRpmBuildPath(rpmArch) {
 }
 
 function getRpmPackageArch(arch) {
-	return { x64: 'x86_64', arm: 'armhf', arm64: "arm64" }[arch];
+	return { x64: 'x86_64', arm: 'armhf', arm64: 'arm64' }[arch];
 }
 
 function prepareRpmPackage(arch) {

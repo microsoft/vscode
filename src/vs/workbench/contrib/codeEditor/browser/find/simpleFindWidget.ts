@@ -15,7 +15,7 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
@@ -54,7 +54,6 @@ export abstract class SimpleFindWidget extends Widget {
 					return null;
 				}
 				try {
-					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
 					return null;
 				} catch (e) {
@@ -278,6 +277,11 @@ registerThemingParticipant((theme, collector) => {
 	const findWidgetBGColor = theme.getColor(editorWidgetBackground);
 	if (findWidgetBGColor) {
 		collector.addRule(`.monaco-workbench .simple-find-part { background-color: ${findWidgetBGColor} !important; }`);
+	}
+
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetForeground) {
+		collector.addRule(`.monaco-workbench .simple-find-part { color: ${widgetForeground}; }`);
 	}
 
 	const widgetShadowColor = theme.getColor(widgetShadow);

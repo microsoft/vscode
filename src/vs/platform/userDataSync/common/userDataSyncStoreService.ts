@@ -4,55 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IHeaders } from 'vs/base/parts/request/common/request';
+import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
 	_serviceBrand: any;
 
-	get enabled(): boolean { return !!this.productService.settingsSyncStoreUrl; }
-
-	private _loggedIn: boolean = false;
-	get loggedIn(): boolean { return this._loggedIn; }
-	private readonly _onDidChangeLoggedIn: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeLoggedIn: Event<boolean> = this._onDidChangeLoggedIn.event;
+	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 
 	constructor(
-		@IProductService private readonly productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
 	) {
 		super();
-	}
-
-	async login(): Promise<void> {
-	}
-
-	async logout(): Promise<void> {
+		this.userDataSyncStore = getUserDataSyncStore(configurationService);
 	}
 
 	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
-		if (!this.enabled) {
-			return Promise.reject(new Error('No settings sync store url configured.'));
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', key, 'latest').toString();
 		const headers: IHeaders = {};
+		// Disable caching as they are cached by synchronisers
+		headers['Cache-Control'] = 'no-cache';
 		if (oldValue) {
 			headers['If-None-Match'] = oldValue.ref;
 		}
 
-		const context = await this.requestService.request({ type: 'GET', url, headers }, CancellationToken.None);
+		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
 
 		if (context.res.statusCode === 304) {
 			// There is no new value. Hence return the old value.
 			return oldValue!;
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
 		}
 
 		const ref = context.res.headers['etag'];
@@ -64,21 +60,25 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async write(key: string, data: string, ref: string | null): Promise<string> {
-		if (!this.enabled) {
-			return Promise.reject(new Error('No settings sync store url configured.'));
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', key).toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
 
-		const context = await this.requestService.request({ type: 'POST', url, data, headers }, CancellationToken.None);
+		const context = await this.request({ type: 'POST', url, data, headers }, CancellationToken.None);
 
 		if (context.res.statusCode === 412) {
 			// There is a new value. Throw Rejected Error
 			throw new UserDataSyncStoreError('New data exists', UserDataSyncStoreErrorCode.Rejected);
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
 		}
 
 		const newRef = context.res.headers['etag'];
@@ -86,6 +86,40 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('Server did not return the ref');
 		}
 		return newRef;
+	}
+
+	async clear(): Promise<void> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource').toString();
+		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+
+		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
+		}
+	}
+
+	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		const authToken = await this.authTokenService.getToken();
+		if (!authToken) {
+			throw new Error('No Auth Token Available.');
+		}
+		options.headers = options.headers || {};
+		options.headers['authorization'] = `Bearer ${authToken}`;
+
+		const context = await this.requestService.request(options, token);
+
+		if (context.res.statusCode === 401) {
+			// Throw Unauthorized Error
+			throw new UserDataSyncStoreError('Unauthorized', UserDataSyncStoreErrorCode.Unauthroized);
+		}
+
+		return context;
+
 	}
 
 }

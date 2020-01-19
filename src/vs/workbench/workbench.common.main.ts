@@ -15,6 +15,7 @@ import 'vs/workbench/browser/workbench.contribution';
 
 //#region --- workbench actions
 
+import 'vs/workbench/browser/actions/textInputActions';
 import 'vs/workbench/browser/actions/developerActions';
 import 'vs/workbench/browser/actions/helpActions';
 import 'vs/workbench/browser/actions/layoutActions';
@@ -56,7 +57,7 @@ import 'vs/workbench/browser/parts/views/views';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/extensions/common/extensionUrlHandler';
+import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -65,13 +66,12 @@ import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
-import 'vs/workbench/services/untitled/common/untitledEditorService';
-import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
+import 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
@@ -79,9 +79,11 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
-import 'vs/workbench/services/userDataSync/common/settingsMergeService';
-import 'vs/workbench/services/workspace/browser/workspaceEditingService';
-import 'vs/workbench/services/host/browser/browserHostService';
+import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
+import 'vs/workbench/services/path/common/remotePathService';
+import 'vs/workbench/services/remote/common/remoteExplorerService';
+import 'vs/workbench/services/workingCopy/common/workingCopyService';
+import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -99,8 +101,8 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -126,9 +128,6 @@ registerSingleton(IOpenerService, OpenerService, true);
 
 //#region --- workbench contributions
 
-// Workspace File Watching
-import 'vs/workbench/services/files/common/workspaceWatcher';
-
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
@@ -151,6 +150,9 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 // Backup
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
+// bulkEdit
+import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
+
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
@@ -165,6 +167,7 @@ import 'vs/workbench/contrib/debug/browser/debug.contribution';
 import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
@@ -196,7 +199,7 @@ import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
-import 'vs/workbench/contrib/relauncher/common/relauncher.contribution';
+import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/task.contribution';
@@ -241,7 +244,6 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
@@ -257,5 +259,8 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
+
+// Code Actions
+import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
 
 //#endregion

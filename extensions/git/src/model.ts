@@ -6,7 +6,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -190,7 +190,7 @@ export class Model {
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
-	private async onDidChangeVisibleTextEditors(editors: TextEditor[]): Promise<void> {
+	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 
@@ -240,10 +240,7 @@ export class Model {
 				return;
 			}
 
-			const config = workspace.getConfiguration('git');
-			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
-
-			if (ignoredRepos.has(rawRoot)) {
+			if (this.shouldRepositoryBeIgnored(rawRoot)) {
 				return;
 			}
 
@@ -259,6 +256,27 @@ export class Model {
 
 			// console.error('Failed to find repository:', err);
 		}
+	}
+
+	private shouldRepositoryBeIgnored(repositoryRoot: string): boolean {
+		const config = workspace.getConfiguration('git');
+		const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
+
+		for (const ignoredRepo of ignoredRepos) {
+			if (path.isAbsolute(ignoredRepo)) {
+				if (pathEquals(ignoredRepo, repositoryRoot)) {
+					return true;
+				}
+			} else {
+				for (const folder of workspace.workspaceFolders || []) {
+					if (pathEquals(path.join(folder.uri.fsPath, ignoredRepo), repositoryRoot)) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private open(repository: Repository): void {
@@ -374,7 +392,7 @@ export class Model {
 		if (hint instanceof Uri) {
 			let resourcePath: string;
 
-			if (hint.scheme === 'git') {
+			if (hint.scheme === 'git' || hint.scheme === 'gitfs') {
 				resourcePath = fromGitUri(hint).path;
 			} else {
 				resourcePath = hint.fsPath;

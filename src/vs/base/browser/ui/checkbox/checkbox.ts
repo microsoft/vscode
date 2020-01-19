@@ -38,7 +38,7 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox!: Checkbox;
+	private checkbox: Checkbox | undefined;
 	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
@@ -51,7 +51,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 			title: this._action.label
 		});
 		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox!.checked, this));
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -112,6 +112,8 @@ export class Checkbox extends Widget {
 			this._onChange.fire(false);
 			ev.preventDefault();
 		});
+
+		this.ignoreGesture(this.domNode);
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
@@ -190,7 +192,7 @@ export class SimpleCheckbox extends Widget {
 	constructor(private title: string, private isChecked: boolean) {
 		super();
 
-		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox' });
+		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox codicon-check' });
 
 		this.domNode = this.checkbox.domNode;
 
@@ -218,8 +220,8 @@ export class SimpleCheckbox extends Widget {
 	}
 
 	protected applyStyles(): void {
-		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : null;
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : null;
-		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : null;
+		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : '';
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : '';
+		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : '';
 	}
 }

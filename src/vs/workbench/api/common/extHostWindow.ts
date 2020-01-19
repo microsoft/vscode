@@ -9,7 +9,6 @@ import { WindowState } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { once } from 'vs/base/common/functional';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -19,7 +18,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 	private _proxy: MainThreadWindowShape;
 
-	private _onDidChangeWindowState = new Emitter<WindowState>();
+	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
 	private _state = ExtHostWindow.InitialState;
@@ -40,7 +39,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	}
 
 	openUri(stringOrUri: string | URI, options: IOpenUriOptions): Promise<boolean> {
+		let uriAsString: string | undefined;
 		if (typeof stringOrUri === 'string') {
+			uriAsString = stringOrUri;
 			try {
 				stringOrUri = URI.parse(stringOrUri);
 			} catch (e) {
@@ -52,22 +53,17 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		} else if (stringOrUri.scheme === Schemas.command) {
 			return Promise.reject(`Invalid scheme '${stringOrUri.scheme}'`);
 		}
-		return this._proxy.$openUri(stringOrUri, options);
+		return this._proxy.$openUri(stringOrUri, uriAsString, options);
 	}
 
-	async resolveExternalUri(uri: URI, options: IOpenUriOptions): Promise<{ resolved: URI, dispose(): void }> {
+	async asExternalUri(uri: URI, options: IOpenUriOptions): Promise<URI> {
 		if (isFalsyOrWhitespace(uri.scheme)) {
 			return Promise.reject('Invalid scheme - cannot be empty');
 		} else if (!new Set([Schemas.http, Schemas.https]).has(uri.scheme)) {
 			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
 		}
 
-		const resolved = await this._proxy.$resolveExternalUri(uri, options);
-		return {
-			resolved: URI.from(resolved),
-			dispose: once(() => {
-				this._proxy.$releaseResolvedExternalUri(uri);
-			}),
-		};
+		const result = await this._proxy.$asExternalUri(uri, options);
+		return URI.from(result);
 	}
 }
