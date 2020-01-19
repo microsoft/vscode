@@ -192,7 +192,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 							border: 'solid 0.1em #eee'
 						}
 					}
-				});
+				}, undefined, this._editor);
 			}
 
 			newDecorationsTypes[key] = true;
