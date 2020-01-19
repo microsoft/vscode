@@ -86,7 +86,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('_analyzeLines', () => {
 		let r: IPreflightData;
 
-		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
+		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
 			'\t\t',
 			'    ',
 			'    c',
@@ -117,7 +117,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		assert.equal(r.lines[3].commentStrOffset, 2);
 
 
-		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
+		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
 			'\t\t',
 			'    rem ',
 			'    !@# c',
@@ -625,6 +625,44 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'    !@# Another line'
 			],
 			new Selection(2, 11, 1, 1)
+		);
+	});
+
+	test('insertSpace false', () => {
+		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+			let mode = new CommentMode({ lineComment: '!@#' });
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false), expectedLines, expectedSelection);
+			mode.dispose();
+		}
+
+		testLineCommentCommand(
+			[
+				'some text'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'!@#some text'
+			],
+			new Selection(1, 4, 1, 4)
+		);
+	});
+
+	test('insertSpace false does not remove space', () => {
+		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+			let mode = new CommentMode({ lineComment: '!@#' });
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false), expectedLines, expectedSelection);
+			mode.dispose();
+		}
+
+		testLineCommentCommand(
+			[
+				'!@#    some text'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'    some text'
+			],
+			new Selection(1, 1, 1, 1)
 		);
 	});
 });

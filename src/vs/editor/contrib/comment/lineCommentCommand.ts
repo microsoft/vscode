@@ -100,7 +100,7 @@ export class LineCommentCommand implements ICommand {
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
 	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
-	public static _analyzeLines(type: Type, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number): IPreflightData {
+	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number): IPreflightData {
 		let onlyWhitespaceLines = true;
 
 		let shouldRemoveComments: boolean;
@@ -147,7 +147,8 @@ export class LineCommentCommand implements ICommand {
 				}
 			}
 
-			if (shouldRemoveComments) {
+			if (shouldRemoveComments && insertSpace) {
+				// Remove a following space if present
 				const commentStrEndOffset = lineContentStartOffset + lineData.commentStrLength;
 				if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === CharCode.Space) {
 					lineData.commentStrLength += 1;
@@ -175,7 +176,7 @@ export class LineCommentCommand implements ICommand {
 	/**
 	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
 	 */
-	public static _gatherPreflightData(type: Type, model: ITextModel, startLineNumber: number, endLineNumber: number): IPreflightData {
+	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number): IPreflightData {
 		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
 		if (lines === null) {
 			return {
@@ -183,7 +184,7 @@ export class LineCommentCommand implements ICommand {
 			};
 		}
 
-		return LineCommentCommand._analyzeLines(type, model, lines, startLineNumber);
+		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber);
 	}
 
 	/**
@@ -319,7 +320,7 @@ export class LineCommentCommand implements ICommand {
 			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
 		}
 
-		const data = LineCommentCommand._gatherPreflightData(this._type, model, s.startLineNumber, s.endLineNumber);
+		const data = LineCommentCommand._gatherPreflightData(this._type, this._insertSpace, model, s.startLineNumber, s.endLineNumber);
 		if (data.supported) {
 			return this._executeLineComments(model, builder, data, s);
 		}
