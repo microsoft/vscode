@@ -545,7 +545,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		// Let the view get the event first.
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections));
+			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections, selections));
 		} finally {
 			this._endEmit();
 		}
