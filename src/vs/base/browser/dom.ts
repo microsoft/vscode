@@ -837,20 +837,11 @@ export function isInShadowDOM(domNode: Node): boolean {
 	return isShadowRoot(domNode);
 }
 
-export function createStyleSheet(container: HTMLElement | null = null): HTMLStyleElement {
-	if (!container) {
-		if ((window as any).monacoShadowRoot) {
-			container = (window as any).monacoShadowRoot.querySelector('head');
-		}
-		else {
-			container = document.getElementsByTagName('head')[0];
-		}
-	}
-
+export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
-	(container as HTMLElement).appendChild(style);
+	container.appendChild(style);
 	return style;
 }
 
