@@ -24,7 +24,7 @@ suite('Multicursor', () => {
 			let addCursorUpAction = new InsertCursorAbove();
 
 			editor.setSelection(new Selection(2, 1, 2, 1));
-			addCursorUpAction.run(null, editor, {});
+			addCursorUpAction.run(null!, editor, {});
 			assert.equal(cursor.getSelections().length, 2);
 
 			editor.trigger('test', Handler.Paste, {
@@ -35,8 +35,8 @@ suite('Multicursor', () => {
 				]
 			});
 			// cursorCommand(cursor, H.Paste, { text: '1\n2' });
-			assert.equal(editor.getModel().getLineContent(1), '1abc');
-			assert.equal(editor.getModel().getLineContent(2), '2def');
+			assert.equal(editor.getModel()!.getLineContent(1), '1abc');
+			assert.equal(editor.getModel()!.getLineContent(2), '2def');
 		});
 	});
 
@@ -45,7 +45,7 @@ suite('Multicursor', () => {
 			'abc'
 		], {}, (editor, cursor) => {
 			let addCursorDownAction = new InsertCursorBelow();
-			addCursorDownAction.run(null, editor, {});
+			addCursorDownAction.run(null!, editor, {});
 			assert.equal(cursor.getSelections().length, 1);
 		});
 	});
@@ -65,9 +65,12 @@ suite('Multicursor selection', () => {
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getInteger: (key: string) => undefined,
+		getNumber: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => void 0
+		remove: (key) => undefined,
+		logStorage: () => undefined,
+		migrate: (toWorkspace) => Promise.resolve(undefined),
+		flush: () => undefined
 	} as IStorageService);
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
@@ -77,14 +80,14 @@ suite('Multicursor selection', () => {
 			'var z = (3 * 5)',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController.ID, CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(2, 9, 2, 16));
 
-			selectHighlightsAction.run(null, editor);
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			selectHighlightsAction.run(null!, editor);
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[2, 9, 2, 16],
 				[1, 9, 1, 16],
 				[3, 9, 3, 16],
@@ -92,7 +95,7 @@ suite('Multicursor selection', () => {
 
 			editor.trigger('test', 'removeSecondaryCursors', null);
 
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 16]);
+			assert.deepEqual(fromRange(editor.getSelection()!), [2, 9, 2, 16]);
 
 			multiCursorSelectController.dispose();
 			findController.dispose();
@@ -107,15 +110,15 @@ suite('Multicursor selection', () => {
 			'nothing'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController.ID, CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 1));
 			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
 
-			selectHighlightsAction.run(null, editor);
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			selectHighlightsAction.run(null!, editor);
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[1, 1, 1, 10],
 				[2, 1, 2, 11],
 				[3, 1, 3, 12],
@@ -141,21 +144,21 @@ suite('Multicursor selection', () => {
 			'rty'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController.ID, CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(2, 1, 3, 4));
 
-			addSelectionToNextFindMatch.run(null, editor);
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			addSelectionToNextFindMatch.run(null!, editor);
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[2, 1, 3, 4],
 				[8, 1, 9, 4]
 			]);
 
 			editor.trigger('test', 'removeSecondaryCursors', null);
 
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+			assert.deepEqual(fromRange(editor.getSelection()!), [2, 1, 3, 4]);
 
 			multiCursorSelectController.dispose();
 			findController.dispose();
@@ -169,22 +172,22 @@ suite('Multicursor selection', () => {
 			'abcabc',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController.ID, CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 4));
 
-			addSelectionToNextFindMatch.run(null, editor);
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			addSelectionToNextFindMatch.run(null!, editor);
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[1, 1, 1, 4],
 				[1, 4, 1, 7]
 			]);
 
-			addSelectionToNextFindMatch.run(null, editor);
-			addSelectionToNextFindMatch.run(null, editor);
-			addSelectionToNextFindMatch.run(null, editor);
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[1, 1, 1, 4],
 				[1, 4, 1, 7],
 				[2, 1, 2, 4],
@@ -193,7 +196,7 @@ suite('Multicursor selection', () => {
 			]);
 
 			editor.trigger('test', Handler.Type, { text: 'z' });
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[1, 2, 1, 2],
 				[1, 3, 1, 3],
 				[2, 2, 2, 2],
@@ -224,23 +227,23 @@ suite('Multicursor selection', () => {
 			'rty'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			editor.getModel().setEOL(EndOfLineSequence.CRLF);
+			editor.getModel()!.setEOL(EndOfLineSequence.CRLF);
 
-			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController.ID, CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(2, 1, 3, 4));
 
-			addSelectionToNextFindMatch.run(null, editor);
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			addSelectionToNextFindMatch.run(null!, editor);
+			assert.deepEqual(editor.getSelections()!.map(fromRange), [
 				[2, 1, 3, 4],
 				[8, 1, 9, 4]
 			]);
 
 			editor.trigger('test', 'removeSecondaryCursors', null);
 
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+			assert.deepEqual(fromRange(editor.getSelection()!), [2, 1, 3, 4]);
 
 			multiCursorSelectController.dispose();
 			findController.dispose();
@@ -249,8 +252,8 @@ suite('Multicursor selection', () => {
 
 	function testMulticursor(text: string[], callback: (editor: TestCodeEditor, findController: CommonFindController) => void): void {
 		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
-			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController.ID, CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 
 			callback(editor, findController);
 
@@ -277,25 +280,25 @@ suite('Multicursor selection', () => {
 				new Selection(1, 2, 1, 2),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 				new Selection(3, 1, 3, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
@@ -316,20 +319,20 @@ suite('Multicursor selection', () => {
 				new Selection(2, 2, 2, 2),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 				new Selection(3, 1, 3, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
@@ -350,20 +353,20 @@ suite('Multicursor selection', () => {
 				new Selection(2, 1, 2, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 				new Selection(3, 1, 3, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
@@ -385,14 +388,14 @@ suite('Multicursor selection', () => {
 				new Selection(3, 1, 3, 1),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 				new Selection(3, 1, 3, 4),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
@@ -414,14 +417,14 @@ suite('Multicursor selection', () => {
 				new Selection(3, 6, 3, 6),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 5, 1, 10),
 				new Selection(2, 5, 2, 10),
 				new Selection(3, 5, 3, 8),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 5, 1, 10),
 				new Selection(2, 5, 2, 10),
@@ -443,20 +446,20 @@ suite('Multicursor selection', () => {
 				new Selection(1, 1, 1, 5),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
 				new Selection(3, 1, 3, 5),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
@@ -464,7 +467,7 @@ suite('Multicursor selection', () => {
 				new Selection(4, 1, 4, 5),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
@@ -473,7 +476,7 @@ suite('Multicursor selection', () => {
 				new Selection(5, 1, 5, 5),
 			]);
 
-			action.run(null, editor);
+			action.run(null!, editor);
 			assert.deepEqual(editor.getSelections(), [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
@@ -501,18 +504,18 @@ suite('Multicursor selection', () => {
 					new Selection(1, 2, 1, 2),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(4, 1, 4, 4),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(4, 1, 4, 4),
@@ -527,12 +530,12 @@ suite('Multicursor selection', () => {
 					new Selection(1, 2, 1, 2),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(4, 1, 4, 4),
@@ -543,7 +546,7 @@ suite('Multicursor selection', () => {
 					new Selection(1, 1, 1, 4),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(2, 1, 2, 4),
@@ -558,14 +561,14 @@ suite('Multicursor selection', () => {
 					new Selection(1, 2, 1, 2),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(4, 1, 4, 4),
 					new Selection(6, 2, 6, 5),
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(4, 1, 4, 4),

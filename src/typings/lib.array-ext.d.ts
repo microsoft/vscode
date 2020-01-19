@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface ArrayConstructor {
+	isArray<T>(arg: ReadonlyArray<T> | null | undefined): arg is ReadonlyArray<T>;
+	isArray<T>(arg: Array<T> | null | undefined): arg is Array<T>;
 	isArray(arg: any): arg is Array<any>;
 	isArray<T>(arg: any): arg is Array<T>;
 }

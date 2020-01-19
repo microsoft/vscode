@@ -11,15 +11,17 @@ import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
+import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
-import { createGitExtension } from './api/extension';
+import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -32,10 +34,26 @@ export async function deactivate(): Promise<any> {
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
-	const askpass = new Askpass();
-	disposables.push(askpass);
 
-	const env = await askpass.getEnv();
+	let env: any = {};
+	let ipc: IIPCServer | undefined;
+
+	try {
+		ipc = await createIPCServer();
+		disposables.push(ipc);
+		env = { ...env, ...ipc.getEnv() };
+	} catch {
+		// noop
+	}
+
+	if (ipc) {
+		const askpass = new Askpass(ipc);
+		disposables.push(askpass);
+		env = { ...env, ...askpass.getEnv() };
+	} else {
+		env = { ...env, ...Askpass.getDisabledEnv() };
+	}
+
 	const git = new Git({ gitPath: info.path, version: info.version, env });
 	const model = new Model(git, context.globalState, outputChannel);
 	disposables.push(model);
@@ -62,6 +80,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	disposables.push(
 		new CommandCenter(git, model, outputChannel, telemetryReporter),
 		new GitContentProvider(model),
+		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitProtocolHandler()
 	);
@@ -137,12 +156,15 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 	if (!enabled) {
 		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
 		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
-		await eventToPromise(onEnabled);
+		const result = new GitExtensionImpl();
+
+		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, outputChannel, telemetryReporter, disposables));
+		return result;
 	}
 
 	try {
 		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
-		return createGitExtension(model);
+		return new GitExtensionImpl(model);
 	} catch (err) {
 		if (!/Git installation not found/.test(err.message || '')) {
 			throw err;
@@ -151,9 +173,9 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 		console.warn(err.message);
 		outputChannel.appendLine(err.message);
 
-		await warnAboutMissingGit();
+		warnAboutMissingGit();
 
-		return createGitExtension();
+		return new GitExtensionImpl();
 	}
 }
 

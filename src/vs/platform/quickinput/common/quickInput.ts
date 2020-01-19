@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
@@ -39,7 +38,7 @@ export interface IQuickNavigateConfiguration {
 export interface IPickOptions<T extends IQuickPickItem> {
 
 	/**
-	 * an optional string to show as place holder in the input box to guide the user what she picks on
+	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
 
@@ -52,6 +51,16 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to include the detail when filtering the picks
 	 */
 	matchOnDetail?: boolean;
+
+	/**
+	 * an optional flag to filter the picks based on label. Defaults to true.
+	 */
+	matchOnLabel?: boolean;
+
+	/**
+	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
+	 */
+	autoFocusOnList?: boolean;
 
 	/**
 	 * an optional flag to not close the picker on focus lost
@@ -76,7 +85,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	/**
 	 * an optional property for the item to focus initially.
 	 */
-	activeItem?: TPromise<T> | T;
+	activeItem?: Promise<T> | T;
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -101,7 +110,7 @@ export interface IInputOptions {
 	prompt?: string;
 
 	/**
-	 * an optional string to show as place holder in the input box to guide the user what to type
+	 * an optional string to show as placeholder in the input box to guide the user what to type
 	 */
 	placeHolder?: string;
 
@@ -115,12 +124,14 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Thenable<string>;
+	validateInput?: (input: string) => Promise<string | null | undefined>;
 }
 
 export interface IQuickInput {
 
 	title: string | undefined;
+
+	description: string | undefined;
 
 	step: number | undefined;
 
@@ -151,7 +162,17 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<string>;
+	readonly onDidAccept: Event<void>;
+
+	ok: boolean;
+
+	readonly onDidCustom: Event<void>;
+
+	customButton: boolean;
+
+	customLabel: string | undefined;
+
+	customHover: string | undefined;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -167,6 +188,12 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnDetail: boolean;
 
+	matchOnLabel: boolean;
+
+	sortByLabel: boolean;
+
+	autoFocusOnList: boolean;
+
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
@@ -178,13 +205,19 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	readonly onDidChangeSelection: Event<T[]>;
 
 	readonly keyMods: IKeyMods;
+
+	valueSelection: Readonly<[number, number]> | undefined;
+
+	validationMessage: string | undefined;
+
+	inputHasFocus(): boolean;
 }
 
 export interface IInputBox extends IQuickInput {
 
 	value: string;
 
-	valueSelection: Readonly<[number, number]>;
+	valueSelection: Readonly<[number, number]> | undefined;
 
 	placeholder: string | undefined;
 
@@ -192,7 +225,7 @@ export interface IInputBox extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<string>;
+	readonly onDidAccept: Event<void>;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -204,7 +237,9 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
+	/** iconPath or iconClass required */
 	iconPath?: { dark: URI; light?: URI; };
+	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
 }
@@ -226,19 +261,19 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export interface IQuickInputService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): TPromise<T[]>;
-	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): TPromise<T>;
-	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): TPromise<T>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
 	 */
-	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
+	input(options?: IInputOptions, token?: CancellationToken): Promise<string>;
 
 	backButton: IQuickInputButton;
 
@@ -251,9 +286,9 @@ export interface IQuickInputService {
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
-	accept(): TPromise<void>;
+	accept(): Promise<void>;
 
-	back(): TPromise<void>;
+	back(): Promise<void>;
 
-	cancel(): TPromise<void>;
+	cancel(): Promise<void>;
 }

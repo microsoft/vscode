@@ -11,25 +11,17 @@ const bom = require("gulp-bom");
 const sourcemaps = require("gulp-sourcemaps");
 const tsb = require("gulp-tsb");
 const path = require("path");
-const ts = require("typescript");
-const _ = require("underscore");
 const monacodts = require("../monaco/api");
 const nls = require("./nls");
 const reporter_1 = require("./reporter");
 const util = require("./util");
-const util2 = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const watch = require('./watch');
 const reporter = reporter_1.createReporter();
 function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
-    const tsconfig = require(`../../${src}/tsconfig.json`);
-    let options;
-    if (tsconfig.extends) {
-        options = Object.assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
-    }
-    else {
-        options = tsconfig.compilerOptions;
-    }
+    let options = {};
     options.verbose = false;
     options.sourceMap = true;
     if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
@@ -38,49 +30,46 @@ function getTypeScriptCompilerOptions(src) {
     options.rootDir = rootDir;
     options.baseUrl = rootDir;
     options.sourceRoot = util.toFileUri(rootDir);
-    options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
+    options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
     return options;
 }
 function createCompile(src, build, emitError) {
-    const opts = _.clone(getTypeScriptCompilerOptions(src));
-    opts.inlineSources = !!build;
-    opts.noFilesystemLookup = true;
-    const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
-    return function (token) {
+    const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
+    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
+    const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
+    function pipeline(token) {
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
         const input = es.through();
         const output = input
             .pipe(utf8Filter)
-            .pipe(bom())
+            .pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(utf8Filter.restore)
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
-            .pipe(ts(token))
+            .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
             .pipe(sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
-            sourceRoot: opts.sourceRoot
+            sourceRoot: overrideOptions.sourceRoot
         }))
             .pipe(tsFilter.restore)
             .pipe(reporter.end(!!emitError));
         return es.duplex(input, output);
+    }
+    pipeline.tsProjectSrc = () => {
+        return compilation.src({ base: src });
     };
+    return pipeline;
 }
-const typesDts = [
-    'node_modules/typescript/lib/*.d.ts',
-    'node_modules/@types/**/*.d.ts',
-    '!node_modules/@types/webpack/**/*',
-    '!node_modules/@types/uglify-js/**/*',
-];
 function compileTask(src, out, build) {
     return function () {
         const compile = createCompile(src, build, true);
-        const srcPipe = es.merge(gulp.src(`${src}/**`, { base: `${src}` }), gulp.src(typesDts));
+        const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         let generator = new MonacoGenerator(false);
         if (src === 'src') {
             generator.execute();
@@ -95,8 +84,8 @@ exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
         const compile = createCompile('src', build);
-        const src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(typesDts));
-        const watchSrc = watch('src/**', { base: 'src' });
+        const src = gulp.src('src/**', { base: 'src' });
+        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
         let generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc
@@ -109,101 +98,65 @@ exports.watchTask = watchTask;
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
 class MonacoGenerator {
     constructor(isWatch) {
+        this._executeSoonTimer = null;
         this._isWatch = isWatch;
         this.stream = es.through();
-        this._inputFiles = monacodts.getIncludesInRecipe().map((moduleId) => {
-            if (/\.d\.ts$/.test(moduleId)) {
-                // This source file is already in .d.ts form
-                return path.join(REPO_SRC_FOLDER, moduleId);
+        this._watchedFiles = {};
+        let onWillReadFile = (moduleId, filePath) => {
+            if (!this._isWatch) {
+                return;
             }
-            else {
-                return path.join(REPO_SRC_FOLDER, `${moduleId}.ts`);
+            if (this._watchedFiles[filePath]) {
+                return;
             }
-        });
-        // Install watchers
-        this._watchers = [];
+            this._watchedFiles[filePath] = true;
+            fs.watchFile(filePath, () => {
+                this._declarationResolver.invalidateCache(moduleId);
+                this._executeSoon();
+            });
+        };
+        this._fsProvider = new class extends monacodts.FSProvider {
+            readFileSync(moduleId, filePath) {
+                onWillReadFile(moduleId, filePath);
+                return super.readFileSync(moduleId, filePath);
+            }
+        };
+        this._declarationResolver = new monacodts.DeclarationResolver(this._fsProvider);
         if (this._isWatch) {
-            this._inputFiles.forEach((filePath) => {
-                const watcher = fs.watch(filePath);
-                watcher.addListener('change', () => {
-                    this._inputFileChanged[filePath] = true;
-                    // Avoid hitting empty files... :/
-                    setTimeout(() => this.execute(), 10);
-                });
-                this._watchers.push(watcher);
+            fs.watchFile(monacodts.RECIPE_PATH, () => {
+                this._executeSoon();
             });
-            const recipeWatcher = fs.watch(monacodts.RECIPE_PATH);
-            recipeWatcher.addListener('change', () => {
-                this._recipeFileChanged = true;
-                // Avoid hitting empty files... :/
-                setTimeout(() => this.execute(), 10);
-            });
-            this._watchers.push(recipeWatcher);
         }
-        this._inputFileChanged = {};
-        this._inputFiles.forEach(file => this._inputFileChanged[file] = true);
-        this._recipeFileChanged = true;
-        this._dtsFilesContents = {};
-        this._dtsFilesContents2 = {};
     }
-    dispose() {
-        this._watchers.forEach(watcher => watcher.close());
+    _executeSoon() {
+        if (this._executeSoonTimer !== null) {
+            clearTimeout(this._executeSoonTimer);
+            this._executeSoonTimer = null;
+        }
+        this._executeSoonTimer = setTimeout(() => {
+            this._executeSoonTimer = null;
+            this.execute();
+        }, 20);
     }
     _run() {
-        let somethingChanged = false;
-        const setDTSFileContent = (file, contents) => {
-            if (this._dtsFilesContents[file] === contents) {
-                return;
-            }
-            this._dtsFilesContents[file] = contents;
-            this._dtsFilesContents2[file] = ts.createSourceFile(file, contents, ts.ScriptTarget.ES5);
-            somethingChanged = true;
-        };
-        const fileMap = {};
-        this._inputFiles.forEach((inputFile) => {
-            if (!this._inputFileChanged[inputFile]) {
-                return;
-            }
-            this._inputFileChanged[inputFile] = false;
-            const inputFileContents = fs.readFileSync(inputFile).toString();
-            if (/\.d\.ts$/.test(inputFile)) {
-                // This is a .d.ts file
-                setDTSFileContent(inputFile, inputFileContents);
-                return;
-            }
-            fileMap[inputFile] = inputFileContents;
-        });
-        if (Object.keys(fileMap).length > 0) {
-            const service = ts.createLanguageService(new monacodts.TypeScriptLanguageServiceHost({}, fileMap, {}));
-            Object.keys(fileMap).forEach((fileName) => {
-                const output = service.getEmitOutput(fileName, true).outputFiles[0].text;
-                const destFileName = fileName.replace(/\.ts$/, '.d.ts');
-                setDTSFileContent(destFileName, output);
-            });
+        let r = monacodts.run3(this._declarationResolver);
+        if (!r && !this._isWatch) {
+            // The build must always be able to generate the monaco.d.ts
+            throw new Error(`monaco.d.ts generation error - Cannot continue`);
         }
-        if (this._recipeFileChanged) {
-            this._recipeFileChanged = false;
-            somethingChanged = true;
-        }
-        if (!somethingChanged) {
-            // Nothing changed
-            return null;
-        }
-        return monacodts.run2('src', this._dtsFilesContents2);
+        return r;
     }
     _log(message, ...rest) {
-        util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+        fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
     }
     execute() {
         const startTime = Date.now();
         const result = this._run();
         if (!result) {
             // nothing really changed
-            this._log(`monaco.d.ts is unchanged - total time took ${Date.now() - startTime} ms`);
             return;
         }
         if (result.isTheSame) {
-            this._log(`monaco.d.ts is unchanged - total time took ${Date.now() - startTime} ms`);
             return;
         }
         fs.writeFileSync(result.filePath, result.content);

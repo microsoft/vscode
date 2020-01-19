@@ -3,40 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { canceled } from 'vs/base/common/errors';
+import { isWindows } from 'vs/base/common/platform';
 
-export class DeferredTPromise<T> extends TPromise<T> {
+export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
-	private completeCallback: TValueCallback<T>;
-	private errorCallback: (err: any) => void;
+export class DeferredPromise<T> {
+
+	private completeCallback!: ValueCallback<T>;
+	private errorCallback!: (err: any) => void;
+
+	public p: Promise<any>;
 
 	constructor() {
-		let captured: any;
-		super((c, e) => {
-			captured = { c, e };
+		this.p = new Promise<any>((c, e) => {
+			this.completeCallback = c;
+			this.errorCallback = e;
 		});
-		this.completeCallback = captured.c;
-		this.errorCallback = captured.e;
 	}
 
 	public complete(value: T) {
-		this.completeCallback(value);
+		return new Promise(resolve => {
+			process.nextTick(() => {
+				this.completeCallback(value);
+				resolve();
+			});
+		});
 	}
 
 	public error(err: any) {
-		this.errorCallback(err);
+		return new Promise(resolve => {
+			process.nextTick(() => {
+				this.errorCallback(err);
+				resolve();
+			});
+		});
 	}
 
 	public cancel() {
-		this.errorCallback(canceled());
+		process.nextTick(() => {
+			this.errorCallback(canceled());
+		});
 	}
 }
 
 export function toResource(this: any, path: string) {
-	return URI.file(paths.join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	if (isWindows) {
+		return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	}
+
+	return URI.file(join('/', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {

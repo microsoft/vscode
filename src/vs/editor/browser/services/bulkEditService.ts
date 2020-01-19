@@ -6,23 +6,29 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
 
-
 export interface IBulkEditOptions {
 	editor?: ICodeEditor;
-	progress?: IProgressRunner;
+	progress?: IProgress<IProgressStep>;
+	showPreview?: boolean;
+	label?: string;
 }
 
 export interface IBulkEditResult {
 	ariaSummary: string;
 }
 
-export interface IBulkEditService {
-	_serviceBrand: any;
+export type IBulkEditPreviewHandler = (edit: WorkspaceEdit, options?: IBulkEditOptions) => Promise<WorkspaceEdit>;
 
-	apply(edit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult>;
+export interface IBulkEditService {
+	_serviceBrand: undefined;
+
+	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
+
+	apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }
 

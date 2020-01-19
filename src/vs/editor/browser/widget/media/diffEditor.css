@@ -37,39 +37,16 @@
 .monaco-diff-editor .insert-sign,
 .monaco-editor .delete-sign,
 .monaco-diff-editor .delete-sign {
-	background-size: 60%;
-	opacity: 0.7;
-	background-repeat: no-repeat;
-	background-position: 50% 50%;
-	background-position: center;
-	background-size: 11px 11px;
+	font-size: 11px !important;
+	opacity: 0.7 !important;
+	display: flex !important;
+	align-items: center;
 }
 .monaco-editor.hc-black .insert-sign,
 .monaco-diff-editor.hc-black .insert-sign,
 .monaco-editor.hc-black .delete-sign,
 .monaco-diff-editor.hc-black .delete-sign {
 	opacity: 1;
-}
-.monaco-editor .insert-sign,
-.monaco-diff-editor .insert-sign {
-	background-image: url('addition.svg');
-}
-.monaco-editor .delete-sign,
-.monaco-diff-editor .delete-sign {
-	background-image: url('deletion.svg');
-}
-
-.monaco-editor.vs-dark .insert-sign,
-.monaco-diff-editor.vs-dark .insert-sign,
-.monaco-editor.hc-black .insert-sign,
-.monaco-diff-editor.hc-black .insert-sign {
-	background-image: url('addition-inverse.svg');
-}
-.monaco-editor.vs-dark .delete-sign,
-.monaco-diff-editor.vs-dark .delete-sign,
-.monaco-editor.hc-black .delete-sign,
-.monaco-diff-editor.hc-black .delete-sign {
-	background-image: url('deletion-inverse.svg');
 }
 
 .monaco-editor .inline-deleted-margin-view-zone {
@@ -93,4 +70,8 @@
 
 .monaco-editor .view-zones .view-lines .view-line span {
 	display: inline-block;
+}
+
+.monaco-editor .margin-view-zones .lightbulb-glyph:hover {
+	cursor: pointer;
 }

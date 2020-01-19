@@ -3,32 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import { MainContext, MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
-import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
-import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 
 	const resource = URI.parse('foo:bar');
 	let editors: ExtHostEditors;
-	let workspaceResourceEdits: WorkspaceEditDto;
+	let workspaceResourceEdits: IWorkspaceEditDto;
 
 	setup(() => {
-		workspaceResourceEdits = null;
+		workspaceResourceEdits = null!;
 
 		let rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadTextEditors, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_workspaceResourceEdits: WorkspaceEditDto): Promise<boolean> {
+			$tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
 				return Promise.resolve(true);
 			}
 		});
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -47,7 +48,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await editors.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
-		assert.equal((<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
+		assert.equal((<WorkspaceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
 	});
 
 	test('does not use version id if document is not available', async () => {
@@ -55,7 +56,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await editors.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
-		assert.ok(typeof (<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
+		assert.ok(typeof (<WorkspaceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
 	});
 
 });

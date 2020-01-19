@@ -17,4 +17,4 @@ yarn.lock
 server/extension.webpack.config.js
 extension.webpack.config.js
 CONTRIBUTING.md
-OSSREADME.json
+cgmanifest.json

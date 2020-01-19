@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel, EditorInput, SideBySideEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
+import { localize } from 'vs/nls';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -17,63 +17,76 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	static readonly ID = 'workbench.editors.diffEditorInput';
 
-	private cachedModel: DiffEditorModel;
+	private cachedModel: DiffEditorModel | null = null;
 
-	constructor(name: string, description: string, original: EditorInput, modified: EditorInput, private forceOpenAsBinary?: boolean) {
-		super(name, description, original, modified);
+	constructor(
+		protected name: string | undefined,
+		description: string | undefined,
+		public readonly originalInput: EditorInput,
+		public readonly modifiedInput: EditorInput,
+		private readonly forceOpenAsBinary?: boolean
+	) {
+		super(name, description, originalInput, modifiedInput);
 	}
 
 	getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
 
-	get originalInput(): EditorInput {
-		return this.details;
+	getName(): string {
+		if (!this.name) {
+			return localize('sideBySideLabels', "{0} ↔ {1}", this.originalInput.getName(), this.modifiedInput.getName());
+		}
+
+		return this.name;
 	}
 
-	get modifiedInput(): EditorInput {
-		return this.master;
-	}
-
-	resolve(): TPromise<EditorModel> {
+	async resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be
 		// inputs that need to be loaded again and thus we always recreate the model and dispose
 		// the previous one - if any.
-		return this.createModel().then(resolvedModel => {
-			if (this.cachedModel) {
-				this.cachedModel.dispose();
-			}
+		const resolvedModel = await this.createModel();
+		if (this.cachedModel) {
+			this.cachedModel.dispose();
+		}
 
-			this.cachedModel = resolvedModel;
+		this.cachedModel = resolvedModel;
 
-			return this.cachedModel;
-		});
+		return this.cachedModel;
 	}
 
 	getPreferredEditorId(candidates: string[]): string {
 		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
-	private createModel(refresh?: boolean): TPromise<DiffEditorModel> {
+	private async createModel(): Promise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
-		return TPromise.join([
+		const models = await Promise.all([
 			this.originalInput.resolve(),
 			this.modifiedInput.resolve()
-		]).then(models => {
-			const originalEditorModel = models[0];
-			const modifiedEditorModel = models[1];
+		]);
 
-			// If both are text models, return textdiffeditor model
-			if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
-				return new TextDiffEditorModel(<BaseTextEditorModel>originalEditorModel, <BaseTextEditorModel>modifiedEditorModel);
-			}
+		const originalEditorModel = models[0];
+		const modifiedEditorModel = models[1];
 
-			// Otherwise return normal diff model
-			return new DiffEditorModel(originalEditorModel, modifiedEditorModel);
-		});
+		// If both are text models, return textdiffeditor model
+		if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
+			return new TextDiffEditorModel(originalEditorModel, modifiedEditorModel);
+		}
+
+		// Otherwise return normal diff model
+		return new DiffEditorModel(originalEditorModel, modifiedEditorModel);
+	}
+
+	matches(otherInput: unknown): boolean {
+		if (!super.matches(otherInput)) {
+			return false;
+		}
+
+		return otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
 	}
 
 	dispose(): void {

@@ -12,9 +12,9 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -27,23 +27,44 @@ export enum OverviewRulerLane {
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Position in the minimap to render the decoration.
  */
-export interface IModelDecorationOverviewRulerOptions {
+export enum MinimapPosition {
+	Inline = 1,
+	Gutter = 2
+}
+
+export interface IDecorationOptions {
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	color: string | ThemeColor | undefined;
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	darkColor?: string | ThemeColor;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 	/**
 	 * The position in the overview ruler.
 	 */
 	position: OverviewRulerLane;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+	/**
+	 * The position in the overview ruler.
+	 */
+	position: MinimapPosition;
 }
 
 /**
@@ -90,6 +111,10 @@ export interface IModelDecorationOptions {
 	 * If set, render this decoration in the overview ruler.
 	 */
 	overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+	/**
+	 * If set, render this decoration in the minimap.
+	 */
+	minimap?: IModelDecorationMinimapOptions | null;
 	/**
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
@@ -145,7 +170,7 @@ export interface IModelDecoration {
 	 */
 	readonly id: string;
 	/**
-	 * Identifier for a decoration's owener.
+	 * Identifier for a decoration's owner.
 	 */
 	readonly ownerId: number;
 	/**
@@ -188,7 +213,7 @@ export interface IModelDecorationsChangeAccessor {
 	 */
 	removeDecoration(id: string): void;
 	/**
-	 * Perform a minimum ammount of operations, in order to transform the decorations
+	 * Perform a minimum amount of operations, in order to transform the decorations
 	 * identified by `oldDecorations` to the decorations described by `newDecorations`
 	 * and returns the new identifiers associated with the resulting decorations.
 	 *
@@ -289,7 +314,7 @@ export interface ISingleEditOperation {
 	/**
 	 * The text to replace with. This can be null to emulate a simple delete.
 	 */
-	text: string;
+	text: string | null;
 	/**
 	 * This indicates that this operation has "insert" semantics.
 	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
@@ -346,6 +371,7 @@ export class TextModelResolvedOptions {
 	_textModelResolvedOptionsBrand: void;
 
 	readonly tabSize: number;
+	readonly indentSize: number;
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
@@ -355,11 +381,13 @@ export class TextModelResolvedOptions {
 	 */
 	constructor(src: {
 		tabSize: number;
+		indentSize: number;
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 	}) {
-		this.tabSize = src.tabSize | 0;
+		this.tabSize = Math.max(1, src.tabSize | 0);
+		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
@@ -371,6 +399,7 @@ export class TextModelResolvedOptions {
 	public equals(other: TextModelResolvedOptions): boolean {
 		return (
 			this.tabSize === other.tabSize
+			&& this.indentSize === other.indentSize
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
@@ -383,6 +412,7 @@ export class TextModelResolvedOptions {
 	public createChangeEvent(newOpts: TextModelResolvedOptions): IModelOptionsChangedEvent {
 		return {
 			tabSize: this.tabSize !== newOpts.tabSize,
+			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
 		};
@@ -394,6 +424,7 @@ export class TextModelResolvedOptions {
  */
 export interface ITextModelCreationOptions {
 	tabSize: number;
+	indentSize: number;
 	insertSpaces: boolean;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
@@ -404,6 +435,7 @@ export interface ITextModelCreationOptions {
 
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
+	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
 }
@@ -428,8 +460,8 @@ export class FindMatch {
  */
 export interface IFoundBracket {
 	range: Range;
-	open: string;
-	close: string;
+	open: string[];
+	close: string[];
 	isOpen: boolean;
 }
 
@@ -451,6 +483,17 @@ export interface IActiveIndentGuideInfo {
 	startLineNumber: number;
 	endLineNumber: number;
 	indent: number;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ *
+ * @internal
+ */
+export interface ITextSnapshot {
+	read(): string | null;
 }
 
 /**
@@ -492,6 +535,12 @@ export interface ITextModel {
 	 * Get the resolved options for this model.
 	 */
 	getOptions(): TextModelResolvedOptions;
+
+	/**
+	 * Get the formatting options for this model.
+	 * @internal
+	 */
+	getFormattingOptions(): FormattingOptions;
 
 	/**
 	 * Get the current version id of the model.
@@ -561,6 +610,12 @@ export interface ITextModel {
 	getValueLengthInRange(range: IRange): number;
 
 	/**
+	 * Get the character count of text in a certain range.
+	 * @param range The range describing what text length to get.
+	 */
+	getCharacterCountInRange(range: IRange): number;
+
+	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
 	 * sit in lines with length < `LONG_LINE_BOUNDARY`. Second bucket (B) is of
 	 * characters that sit in lines with length >= `LONG_LINE_BOUNDARY`.
@@ -623,13 +678,13 @@ export interface ITextModel {
 	validatePosition(position: IPosition): Position;
 
 	/**
-	 * Advances the given position by the given offest (negative offsets are also accepted)
+	 * Advances the given position by the given offset (negative offsets are also accepted)
 	 * and returns it as a new valid position.
 	 *
 	 * If the offset and position are such that their combination goes beyond the beginning or
 	 * end of the model, throws an exception.
 	 *
-	 * If the ofsset is such that the new position would be in the middle of a multi-byte
+	 * If the offset is such that the new position would be in the middle of a multi-byte
 	 * line terminator, throws an exception.
 	 */
 	modifyPosition(position: IPosition, offset: number): Position;
@@ -733,6 +788,22 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
 	/**
+	 * @internal
+	 */
+	setTokens(tokens: MultilineTokens[]): void;
+
+	/**
+	 * @internal
+	 */
+	setSemanticTokens(tokens: MultilineTokens2[] | null): void;
+
+	/**
+	 * Flush all tokenization state.
+	 * @internal
+	 */
+	resetTokenization(): void;
+
+	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
 	 * @internal
 	 */
@@ -823,6 +894,13 @@ export interface ITextModel {
 	findNextBracket(position: IPosition): IFoundBracket | null;
 
 	/**
+	 * Find the enclosing brackets that contain `position`.
+	 * @param position The position at which to start the search.
+	 * @internal
+	 */
+	findEnclosingBrackets(position: IPosition, maxDuration?: number): [Range, Range] | null;
+
+	/**
 	 * Given a `position`, if the position is on top or near a bracket,
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.
@@ -851,7 +929,7 @@ export interface ITextModel {
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T, ownerId?: number): T | null;
 
 	/**
-	 * Perform a minimum ammount of operations, in order to transform the decorations
+	 * Perform a minimum amount of operations, in order to transform the decorations
 	 * identified by `oldDecorations` to the decorations described by `newDecorations`
 	 * and returns the new identifiers associated with the resulting decorations.
 	 *
@@ -903,7 +981,7 @@ export interface ITextModel {
 	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
 	/**
-	 * Gets all the deocorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
+	 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
 	 * So for now it returns all the decorations on the same line as `range`.
 	 * @param range The range to search in
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -946,11 +1024,6 @@ export interface ITextModel {
 	normalizeIndentation(str: string): string;
 
 	/**
-	 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
-	 */
-	getOneIndent(): string;
-
-	/**
 	 * Change the options of this model.
 	 */
 	updateOptions(newOpts: ITextModelUpdateOptions): void;
@@ -970,7 +1043,7 @@ export interface ITextModel {
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
 	 * of editing the model. The edit operations will land on the undo stack.
-	 * @param beforeCursorState The cursor state before the edit operaions. This cursor state will be returned when `undo` or `redo` are invoked.
+	 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
 	 * @param editOperations The edit operations.
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
@@ -1069,6 +1142,12 @@ export interface ITextModel {
 	 */
 	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
 	/**
+	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeAttached(listener: () => void): IDisposable;
+	/**
 	 * An event emitted right before disposing the model.
 	 * @event
 	 */
@@ -1122,6 +1201,13 @@ export interface ITextBufferFactory {
 /**
  * @internal
  */
+export const enum ModelConstants {
+	FIRST_LINE_DETECTION_LENGTH_LIMIT = 1000
+}
+
+/**
+ * @internal
+ */
 export interface ITextBuffer {
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
@@ -1136,6 +1222,7 @@ export interface ITextBuffer {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];

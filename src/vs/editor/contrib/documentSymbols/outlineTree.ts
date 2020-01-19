@@ -4,178 +4,148 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { values } from 'vs/base/common/collections';
-import { createMatches } from 'vs/base/common/filters';
-import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IdleValue } from 'vs/base/common/async';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { URI } from 'vs/base/common/uri';
 
-export const enum OutlineItemCompareType {
-	ByPosition,
-	ByName,
-	ByKind
+export type OutlineItem = OutlineGroup | OutlineElement;
+
+export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
+
+	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
+		if (element instanceof OutlineGroup) {
+			return element.provider.displayName || element.id;
+		} else {
+			return element.symbol.name;
+		}
+	}
 }
 
-export class OutlineItemComparator implements ISorter {
 
+export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
+	getId(element: OutlineItem): { toString(): string; } {
+		return element.id;
+	}
+}
+
+export class OutlineGroupTemplate {
+	static readonly id = 'OutlineGroupTemplate';
 	constructor(
-		public type: OutlineItemCompareType = OutlineItemCompareType.ByPosition
+		readonly labelContainer: HTMLElement,
+		readonly label: HighlightedLabel,
 	) { }
-
-	compare(tree: ITree, a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): number {
-
-		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
-			return a.providerIndex - b.providerIndex;
-		}
-
-		if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			switch (this.type) {
-				case OutlineItemCompareType.ByKind:
-					return a.symbol.kind - b.symbol.kind;
-				case OutlineItemCompareType.ByName:
-					return a.symbol.name.localeCompare(b.symbol.name);
-				case OutlineItemCompareType.ByPosition:
-				default:
-					return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
-			}
-		}
-
-		return 0;
-	}
 }
 
-export class OutlineItemFilter implements IFilter {
-
-	enabled: boolean = true;
-
-	isVisible(tree: ITree, element: OutlineElement | any): boolean {
-		if (!this.enabled) {
-			return true;
-		}
-		return !(element instanceof OutlineElement) || Boolean(element.score);
-	}
-}
-
-export class OutlineDataSource implements IDataSource {
-
-	// this is a workaround for the tree showing twisties for items
-	// with only filtered children
-	filterOnScore: boolean = true;
-
-	getId(tree: ITree, element: TreeElement): string {
-		return element ? element.id : 'empty';
-	}
-
-	hasChildren(tree: ITree, element: OutlineModel | OutlineGroup | OutlineElement): boolean {
-		if (!element) {
-			return false;
-		}
-		if (element instanceof OutlineModel) {
-			return true;
-		}
-		if (element instanceof OutlineElement && (this.filterOnScore && !element.score)) {
-			return false;
-		}
-		for (const id in element.children) {
-			if (!this.filterOnScore || element.children[id].score) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	getChildren(tree: ITree, element: TreeElement): Promise<TreeElement[]> {
-		let res = values(element.children);
-		// console.log(element.id + ' with children ' + res.length);
-		return Promise.resolve(res);
-	}
-
-	getParent(tree: ITree, element: TreeElement | any): Promise<TreeElement> {
-		return Promise.resolve(element && element.parent);
-	}
-
-	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
-		return element && (element instanceof OutlineModel || element.parent instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup);
-	}
-}
-
-export interface OutlineTemplate {
-	labelContainer: HTMLElement;
-	label: HighlightedLabel;
-	icon?: HTMLElement;
-	detail?: HTMLElement;
-	decoration?: HTMLElement;
-}
-
-export class OutlineRenderer implements IRenderer {
-
-	renderProblemColors = true;
-	renderProblemBadges = true;
-
+export class OutlineElementTemplate {
+	static readonly id = 'OutlineElementTemplate';
 	constructor(
-		@IThemeService readonly _themeService: IThemeService,
-		@IConfigurationService readonly _configurationService: IConfigurationService
-	) {
-		//
-	}
+		readonly container: HTMLElement,
+		readonly iconLabel: IconLabel,
+		readonly iconClass: HTMLElement,
+		readonly decoration: HTMLElement,
+	) { }
+}
 
-	getHeight(tree: ITree, element: any): number {
+export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
+
+	getHeight(_element: OutlineItem): number {
 		return 22;
 	}
 
-	getTemplateId(tree: ITree, element: OutlineGroup | OutlineElement): string {
-		return element instanceof OutlineGroup ? 'outline-group' : 'outline-element';
-	}
-
-	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): OutlineTemplate {
-		if (templateId === 'outline-element') {
-			const icon = dom.$('.outline-element-icon symbol-icon');
-			const labelContainer = dom.$('.outline-element-label');
-			const detail = dom.$('.outline-element-detail');
-			const decoration = dom.$('.outline-element-decoration');
-			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer, detail, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
-		}
-		if (templateId === 'outline-group') {
-			const labelContainer = dom.$('.outline-element-label');
-			dom.addClass(container, 'outline-element');
-			dom.append(container, labelContainer);
-			return { labelContainer, label: new HighlightedLabel(labelContainer) };
-		}
-
-		throw new Error(templateId);
-	}
-
-	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
-		if (element instanceof OutlineElement) {
-			template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
-			template.detail.innerText = element.symbol.detail || '';
-			this._renderMarkerInfo(element, template);
-
-		}
+	getTemplateId(element: OutlineItem): string {
 		if (element instanceof OutlineGroup) {
-			template.label.set(element.provider.displayName || localize('provider', "Outline Provider"));
+			return OutlineGroupTemplate.id;
+		} else {
+			return OutlineElementTemplate.id;
 		}
 	}
+}
 
-	private _renderMarkerInfo(element: OutlineElement, template: OutlineTemplate): void {
+export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, OutlineGroupTemplate> {
+
+	readonly templateId: string = OutlineGroupTemplate.id;
+
+	renderTemplate(container: HTMLElement): OutlineGroupTemplate {
+		const labelContainer = dom.$('.outline-element-label');
+		dom.addClass(container, 'outline-element');
+		dom.append(container, labelContainer);
+		return new OutlineGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
+	}
+
+	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
+		template.label.set(
+			node.element.provider.displayName || localize('provider', "Outline Provider"),
+			createMatches(node.filterData)
+		);
+	}
+
+	disposeTemplate(_template: OutlineGroupTemplate): void {
+		// nothing
+	}
+}
+
+export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, OutlineElementTemplate> {
+
+	readonly templateId: string = OutlineElementTemplate.id;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService,
+	) { }
+
+	renderTemplate(container: HTMLElement): OutlineElementTemplate {
+		dom.addClass(container, 'outline-element');
+		const iconLabel = new IconLabel(container, { supportHighlights: true });
+		const iconClass = dom.$('.outline-element-icon');
+		const decoration = dom.$('.outline-element-decoration');
+		container.prepend(iconClass);
+		container.appendChild(decoration);
+		return new OutlineElementTemplate(container, iconLabel, iconClass, decoration);
+	}
+
+	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
+		const { element } = node;
+		const options = {
+			matches: createMatches(node.filterData),
+			labelEscapeNewLines: true,
+			extraClasses: <string[]>[],
+			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
+		};
+		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
+			// add styles for the icons
+			template.iconClass.className = '';
+			dom.addClasses(template.iconClass, `outline-element-icon ${SymbolKinds.toCssClassName(element.symbol.kind, true)}`);
+		}
+		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
+			options.extraClasses.push(`deprecated`);
+			options.matches = [];
+		}
+		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
+		this._renderMarkerInfo(element, template);
+	}
+
+	private _renderMarkerInfo(element: OutlineElement, template: OutlineElementTemplate): void {
 
 		if (!element.marker) {
 			dom.hide(template.decoration);
-			template.labelContainer.style.removeProperty('--outline-element-color');
+			template.container.style.removeProperty('--outline-element-color');
 			return;
 		}
 
@@ -184,14 +154,14 @@ export class OutlineRenderer implements IRenderer {
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		if (this.renderProblemColors) {
-			template.labelContainer.style.setProperty('--outline-element-color', cssColor);
+		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+			template.container.style.setProperty('--outline-element-color', cssColor);
 		} else {
-			template.labelContainer.style.removeProperty('--outline-element-color');
+			template.container.style.removeProperty('--outline-element-color');
 		}
 
 		// badge with color/rollup
-		if (!this.renderProblemBadges) {
+		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
 			dom.hide(template.decoration);
 
 		} else if (count > 0) {
@@ -204,7 +174,7 @@ export class OutlineRenderer implements IRenderer {
 		} else {
 			dom.show(template.decoration);
 			dom.addClass(template.decoration, 'bubble');
-			template.decoration.innerText = '\uf052';
+			template.decoration.innerText = '\uea71';
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
@@ -239,78 +209,499 @@ export class OutlineRenderer implements IRenderer {
 		[SymbolKind.Variable]: localize('Variable', "variable"),
 	};
 
-	disposeTemplate(tree: ITree, templateId: string, template: OutlineTemplate): void {
-		template.label.dispose();
+	disposeTemplate(_template: OutlineElementTemplate): void {
+		_template.iconLabel.dispose();
 	}
-
 }
 
-export class OutlineTreeState {
+export const enum OutlineSortOrder {
+	ByPosition,
+	ByName,
+	ByKind
+}
 
-	readonly selected: string;
-	readonly focused: string;
-	readonly expanded: string[];
+export class OutlineFilter implements ITreeFilter<OutlineItem> {
 
-	static capture(tree: ITree): OutlineTreeState {
-		// selection
-		let selected: string;
-		let element = tree.getSelection()[0];
-		if (element instanceof TreeElement) {
-			selected = element.id;
+	static readonly configNameToKind = Object.freeze({
+		['showFiles']: SymbolKind.File,
+		['showModules']: SymbolKind.Module,
+		['showNamespaces']: SymbolKind.Namespace,
+		['showPackages']: SymbolKind.Package,
+		['showClasses']: SymbolKind.Class,
+		['showMethods']: SymbolKind.Method,
+		['showProperties']: SymbolKind.Property,
+		['showFields']: SymbolKind.Field,
+		['showConstructors']: SymbolKind.Constructor,
+		['showEnums']: SymbolKind.Enum,
+		['showInterfaces']: SymbolKind.Interface,
+		['showFunctions']: SymbolKind.Function,
+		['showVariables']: SymbolKind.Variable,
+		['showConstants']: SymbolKind.Constant,
+		['showStrings']: SymbolKind.String,
+		['showNumbers']: SymbolKind.Number,
+		['showBooleans']: SymbolKind.Boolean,
+		['showArrays']: SymbolKind.Array,
+		['showObjects']: SymbolKind.Object,
+		['showKeys']: SymbolKind.Key,
+		['showNull']: SymbolKind.Null,
+		['showEnumMembers']: SymbolKind.EnumMember,
+		['showStructs']: SymbolKind.Struct,
+		['showEvents']: SymbolKind.Event,
+		['showOperators']: SymbolKind.Operator,
+		['showTypeParameters']: SymbolKind.TypeParameter,
+	});
+
+	static readonly kindToConfigName = Object.freeze({
+		[SymbolKind.File]: 'showFiles',
+		[SymbolKind.Module]: 'showModules',
+		[SymbolKind.Namespace]: 'showNamespaces',
+		[SymbolKind.Package]: 'showPackages',
+		[SymbolKind.Class]: 'showClasses',
+		[SymbolKind.Method]: 'showMethods',
+		[SymbolKind.Property]: 'showProperties',
+		[SymbolKind.Field]: 'showFields',
+		[SymbolKind.Constructor]: 'showConstructors',
+		[SymbolKind.Enum]: 'showEnums',
+		[SymbolKind.Interface]: 'showInterfaces',
+		[SymbolKind.Function]: 'showFunctions',
+		[SymbolKind.Variable]: 'showVariables',
+		[SymbolKind.Constant]: 'showConstants',
+		[SymbolKind.String]: 'showStrings',
+		[SymbolKind.Number]: 'showNumbers',
+		[SymbolKind.Boolean]: 'showBooleans',
+		[SymbolKind.Array]: 'showArrays',
+		[SymbolKind.Object]: 'showObjects',
+		[SymbolKind.Key]: 'showKeys',
+		[SymbolKind.Null]: 'showNull',
+		[SymbolKind.EnumMember]: 'showEnumMembers',
+		[SymbolKind.Struct]: 'showStructs',
+		[SymbolKind.Event]: 'showEvents',
+		[SymbolKind.Operator]: 'showOperators',
+		[SymbolKind.TypeParameter]: 'showTypeParameters',
+	});
+
+	constructor(
+		private readonly _prefix: string,
+		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
+	) { }
+
+	filter(element: OutlineItem): boolean {
+		const outline = OutlineModel.get(element);
+		let uri: URI | undefined;
+
+		if (outline) {
+			uri = outline.textModel.uri;
 		}
 
-		// focus
-		let focused: string;
-		element = tree.getFocus(true);
-		if (element instanceof TreeElement) {
-			focused = element.id;
+		if (!(element instanceof OutlineElement)) {
+			return true;
 		}
 
-		// expansion
-		let expanded = new Array<string>();
-		let nav = tree.getNavigator();
-		while (nav.next()) {
-			let element = nav.current();
-			if (element instanceof TreeElement) {
-				if (tree.isExpanded(element)) {
-					expanded.push(element.id);
-				}
+		const configName = OutlineFilter.kindToConfigName[element.symbol.kind];
+		const configKey = `${this._prefix}.${configName}`;
+		return this._textResourceConfigService.getValue(uri, configKey);
+	}
+}
+
+export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
+
+	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+
+	constructor(
+		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
+	) { }
+
+	compare(a: OutlineItem, b: OutlineItem): number {
+		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
+			return a.providerIndex - b.providerIndex;
+
+		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
+			if (this.type === OutlineSortOrder.ByKind) {
+				return a.symbol.kind - b.symbol.kind || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
+			} else if (this.type === OutlineSortOrder.ByName) {
+				return this._collator.getValue().compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+			} else if (this.type === OutlineSortOrder.ByPosition) {
+				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			}
 		}
-		return { selected, focused, expanded };
-	}
-
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
-		let model = <OutlineModel>tree.getInput();
-		if (!state || !(model instanceof OutlineModel)) {
-			return Promise.resolve(undefined);
-		}
-
-		// expansion
-		let items: TreeElement[] = [];
-		for (const id of state.expanded) {
-			let item = model.getItemById(id);
-			if (item) {
-				items.push(item);
-			}
-		}
-		await tree.collapseAll(undefined);
-		await tree.expandAll(items);
-
-		// selection & focus
-		let selected = model.getItemById(state.selected);
-		let focused = model.getItemById(state.focused);
-		tree.setSelection([selected], eventPayload);
-		tree.setFocus(focused, eventPayload);
+		return 0;
 	}
 }
 
-export class OutlineController extends WorkbenchTreeController {
-	protected shouldToggleExpansion(element: any, event: IMouseEvent, origin: string): boolean {
-		if (element instanceof OutlineElement) {
-			return this.isClickOnTwistie(event);
-		} else {
-			return super.shouldToggleExpansion(element, event, origin);
+export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem> {
+
+	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement): OutlineItem[] {
+		if (!element) {
+			return [];
 		}
+		return values(element.children);
 	}
 }
+
+export const SYMBOL_ICON_ARRAY_FOREGROUND = registerColor('symbolIcon.arrayForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.arrayForeground', 'The foreground color for array symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_BOOLEAN_FOREGROUND = registerColor('symbolIcon.booleanForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.booleanForeground', 'The foreground color for boolean symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_CLASS_FOREGROUND = registerColor('symbolIcon.classForeground', {
+	dark: '#EE9D28',
+	light: '#D67E00',
+	hc: '#EE9D28'
+}, localize('symbolIcon.classForeground', 'The foreground color for class symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_COLOR_FOREGROUND = registerColor('symbolIcon.colorForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.colorForeground', 'The foreground color for color symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.constantForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.constantForeground', 'The foreground color for constant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_CONSTRUCTOR_FOREGROUND = registerColor('symbolIcon.constructorForeground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('symbolIcon.constructorForeground', 'The foreground color for constructor symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_ENUMERATOR_FOREGROUND = registerColor('symbolIcon.enumeratorForeground', {
+	dark: '#EE9D28',
+	light: '#D67E00',
+	hc: '#EE9D28'
+}, localize('symbolIcon.enumeratorForeground', 'The foreground color for enumerator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND = registerColor('symbolIcon.enumeratorMemberForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('symbolIcon.enumeratorMemberForeground', 'The foreground color for enumerator member symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_EVENT_FOREGROUND = registerColor('symbolIcon.eventForeground', {
+	dark: '#EE9D28',
+	light: '#D67E00',
+	hc: '#EE9D28'
+}, localize('symbolIcon.eventForeground', 'The foreground color for event symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_FIELD_FOREGROUND = registerColor('symbolIcon.fieldForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('symbolIcon.fieldForeground', 'The foreground color for field symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_FILE_FOREGROUND = registerColor('symbolIcon.fileForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.fileForeground', 'The foreground color for file symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_FOLDER_FOREGROUND = registerColor('symbolIcon.folderForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.folderForeground', 'The foreground color for folder symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_FUNCTION_FOREGROUND = registerColor('symbolIcon.functionForeground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('symbolIcon.functionForeground', 'The foreground color for function symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_INTERFACE_FOREGROUND = registerColor('symbolIcon.interfaceForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('symbolIcon.interfaceForeground', 'The foreground color for interface symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_KEY_FOREGROUND = registerColor('symbolIcon.keyForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.keyForeground', 'The foreground color for key symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_KEYWORD_FOREGROUND = registerColor('symbolIcon.keywordForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.keywordForeground', 'The foreground color for keyword symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_METHOD_FOREGROUND = registerColor('symbolIcon.methodForeground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('symbolIcon.methodForeground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_MODULE_FOREGROUND = registerColor('symbolIcon.moduleForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.moduleForeground', 'The foreground color for module symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_NAMESPACE_FOREGROUND = registerColor('symbolIcon.namespaceForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.namespaceForeground', 'The foreground color for namespace symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_NULL_FOREGROUND = registerColor('symbolIcon.nullForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.nullForeground', 'The foreground color for null symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_NUMBER_FOREGROUND = registerColor('symbolIcon.numberForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.numberForeground', 'The foreground color for number symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_OBJECT_FOREGROUND = registerColor('symbolIcon.objectForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.objectForeground', 'The foreground color for object symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_OPERATOR_FOREGROUND = registerColor('symbolIcon.operatorForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.operatorForeground', 'The foreground color for operator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_PACKAGE_FOREGROUND = registerColor('symbolIcon.packageForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.packageForeground', 'The foreground color for package symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_PROPERTY_FOREGROUND = registerColor('symbolIcon.propertyForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.propertyForeground', 'The foreground color for property symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_REFERENCE_FOREGROUND = registerColor('symbolIcon.referenceForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.referenceForeground', 'The foreground color for reference symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_SNIPPET_FOREGROUND = registerColor('symbolIcon.snippetForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.snippetForeground', 'The foreground color for snippet symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_STRING_FOREGROUND = registerColor('symbolIcon.stringForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.stringForeground', 'The foreground color for string symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_STRUCT_FOREGROUND = registerColor('symbolIcon.structForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.structForeground', 'The foreground color for struct symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_TEXT_FOREGROUND = registerColor('symbolIcon.textForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.textForeground', 'The foreground color for text symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_TYPEPARAMETER_FOREGROUND = registerColor('symbolIcon.typeParameterForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.typeParameterForeground', 'The foreground color for type parameter symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_UNIT_FOREGROUND = registerColor('symbolIcon.unitForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('symbolIcon.unitForeground', 'The foreground color for unit symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_VARIABLE_FOREGROUND = registerColor('symbolIcon.variableForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('symbolIcon.variableForeground', 'The foreground color for variable symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	const symbolIconArrayColor = theme.getColor(SYMBOL_ICON_ARRAY_FOREGROUND);
+	if (symbolIconArrayColor) {
+		collector.addRule(`.codicon-symbol-array { color: ${symbolIconArrayColor} !important; }`);
+	}
+
+	const symbolIconBooleanColor = theme.getColor(SYMBOL_ICON_BOOLEAN_FOREGROUND);
+	if (symbolIconBooleanColor) {
+		collector.addRule(`.codicon-symbol-boolean { color: ${symbolIconBooleanColor} !important; }`);
+	}
+
+	const symbolIconClassColor = theme.getColor(SYMBOL_ICON_CLASS_FOREGROUND);
+	if (symbolIconClassColor) {
+		collector.addRule(`.codicon-symbol-class { color: ${symbolIconClassColor} !important; }`);
+	}
+
+	const symbolIconMethodColor = theme.getColor(SYMBOL_ICON_METHOD_FOREGROUND);
+	if (symbolIconMethodColor) {
+		collector.addRule(`.codicon-symbol-method { color: ${symbolIconMethodColor} !important; }`);
+	}
+
+	const symbolIconColorColor = theme.getColor(SYMBOL_ICON_COLOR_FOREGROUND);
+	if (symbolIconColorColor) {
+		collector.addRule(`.codicon-symbol-color { color: ${symbolIconColorColor} !important; }`);
+	}
+
+	const symbolIconConstantColor = theme.getColor(SYMBOL_ICON_CONSTANT_FOREGROUND);
+	if (symbolIconConstantColor) {
+		collector.addRule(`.codicon-symbol-constant { color: ${symbolIconConstantColor} !important; }`);
+	}
+
+	const symbolIconConstructorColor = theme.getColor(SYMBOL_ICON_CONSTRUCTOR_FOREGROUND);
+	if (symbolIconConstructorColor) {
+		collector.addRule(`.codicon-symbol-constructor { color: ${symbolIconConstructorColor} !important; }`);
+	}
+
+	const symbolIconEnumeratorColor = theme.getColor(SYMBOL_ICON_ENUMERATOR_FOREGROUND);
+	if (symbolIconEnumeratorColor) {
+		collector.addRule(`
+			.codicon-symbol-value,.codicon-symbol-enum { color: ${symbolIconEnumeratorColor} !important; }`);
+	}
+
+	const symbolIconEnumeratorMemberColor = theme.getColor(SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND);
+	if (symbolIconEnumeratorMemberColor) {
+		collector.addRule(`.codicon-symbol-enum-member { color: ${symbolIconEnumeratorMemberColor} !important; }`);
+	}
+
+	const symbolIconEventColor = theme.getColor(SYMBOL_ICON_EVENT_FOREGROUND);
+	if (symbolIconEventColor) {
+		collector.addRule(`.codicon-symbol-event { color: ${symbolIconEventColor} !important; }`);
+	}
+
+	const symbolIconFieldColor = theme.getColor(SYMBOL_ICON_FIELD_FOREGROUND);
+	if (symbolIconFieldColor) {
+		collector.addRule(`.codicon-symbol-field { color: ${symbolIconFieldColor} !important; }`);
+	}
+
+	const symbolIconFileColor = theme.getColor(SYMBOL_ICON_FILE_FOREGROUND);
+	if (symbolIconFileColor) {
+		collector.addRule(`.codicon-symbol-file { color: ${symbolIconFileColor} !important; }`);
+	}
+
+	const symbolIconFolderColor = theme.getColor(SYMBOL_ICON_FOLDER_FOREGROUND);
+	if (symbolIconFolderColor) {
+		collector.addRule(`.codicon-symbol-folder { color: ${symbolIconFolderColor} !important; }`);
+	}
+
+	const symbolIconFunctionColor = theme.getColor(SYMBOL_ICON_FUNCTION_FOREGROUND);
+	if (symbolIconFunctionColor) {
+		collector.addRule(`.codicon-symbol-function { color: ${symbolIconFunctionColor} !important; }`);
+	}
+
+	const symbolIconInterfaceColor = theme.getColor(SYMBOL_ICON_INTERFACE_FOREGROUND);
+	if (symbolIconInterfaceColor) {
+		collector.addRule(`.codicon-symbol-interface { color: ${symbolIconInterfaceColor} !important; }`);
+	}
+
+	const symbolIconKeyColor = theme.getColor(SYMBOL_ICON_KEY_FOREGROUND);
+	if (symbolIconKeyColor) {
+		collector.addRule(`.codicon-symbol-key { color: ${symbolIconKeyColor} !important; }`);
+	}
+
+	const symbolIconKeywordColor = theme.getColor(SYMBOL_ICON_KEYWORD_FOREGROUND);
+	if (symbolIconKeywordColor) {
+		collector.addRule(`.codicon-symbol-keyword { color: ${symbolIconKeywordColor} !important; }`);
+	}
+
+	const symbolIconModuleColor = theme.getColor(SYMBOL_ICON_MODULE_FOREGROUND);
+	if (symbolIconModuleColor) {
+		collector.addRule(`.codicon-symbol-module { color: ${symbolIconModuleColor} !important; }`);
+	}
+
+	const outlineNamespaceColor = theme.getColor(SYMBOL_ICON_NAMESPACE_FOREGROUND);
+	if (outlineNamespaceColor) {
+		collector.addRule(`.codicon-symbol-namespace { color: ${outlineNamespaceColor} !important; }`);
+	}
+
+	const symbolIconNullColor = theme.getColor(SYMBOL_ICON_NULL_FOREGROUND);
+	if (symbolIconNullColor) {
+		collector.addRule(`.codicon-symbol-null { color: ${symbolIconNullColor} !important; }`);
+	}
+
+	const symbolIconNumberColor = theme.getColor(SYMBOL_ICON_NUMBER_FOREGROUND);
+	if (symbolIconNumberColor) {
+		collector.addRule(`.codicon-symbol-number { color: ${symbolIconNumberColor} !important; }`);
+	}
+
+	const symbolIconObjectColor = theme.getColor(SYMBOL_ICON_OBJECT_FOREGROUND);
+	if (symbolIconObjectColor) {
+		collector.addRule(`.codicon-symbol-object { color: ${symbolIconObjectColor} !important; }`);
+	}
+
+	const symbolIconOperatorColor = theme.getColor(SYMBOL_ICON_OPERATOR_FOREGROUND);
+	if (symbolIconOperatorColor) {
+		collector.addRule(`.codicon-symbol-operator { color: ${symbolIconOperatorColor} !important; }`);
+	}
+
+	const symbolIconPackageColor = theme.getColor(SYMBOL_ICON_PACKAGE_FOREGROUND);
+	if (symbolIconPackageColor) {
+		collector.addRule(`.codicon-symbol-package { color: ${symbolIconPackageColor} !important; }`);
+	}
+
+	const symbolIconPropertyColor = theme.getColor(SYMBOL_ICON_PROPERTY_FOREGROUND);
+	if (symbolIconPropertyColor) {
+		collector.addRule(`.codicon-symbol-property { color: ${symbolIconPropertyColor} !important; }`);
+	}
+
+	const symbolIconReferenceColor = theme.getColor(SYMBOL_ICON_REFERENCE_FOREGROUND);
+	if (symbolIconReferenceColor) {
+		collector.addRule(`.codicon-symbol-reference { color: ${symbolIconReferenceColor} !important; }`);
+	}
+
+	const symbolIconSnippetColor = theme.getColor(SYMBOL_ICON_SNIPPET_FOREGROUND);
+	if (symbolIconSnippetColor) {
+		collector.addRule(`.codicon-symbol-snippet { color: ${symbolIconSnippetColor} !important; }`);
+	}
+
+	const symbolIconStringColor = theme.getColor(SYMBOL_ICON_STRING_FOREGROUND);
+	if (symbolIconStringColor) {
+		collector.addRule(`.codicon-symbol-string { color: ${symbolIconStringColor} !important; }`);
+	}
+
+	const symbolIconStructColor = theme.getColor(SYMBOL_ICON_STRUCT_FOREGROUND);
+	if (symbolIconStructColor) {
+		collector.addRule(`.codicon-symbol-struct { color: ${symbolIconStructColor} !important; }`);
+	}
+
+	const symbolIconTextColor = theme.getColor(SYMBOL_ICON_TEXT_FOREGROUND);
+	if (symbolIconTextColor) {
+		collector.addRule(`.codicon-symbol-text { color: ${symbolIconTextColor} !important; }`);
+	}
+
+	const symbolIconTypeParameterColor = theme.getColor(SYMBOL_ICON_TYPEPARAMETER_FOREGROUND);
+	if (symbolIconTypeParameterColor) {
+		collector.addRule(`.codicon-symbol-type-parameter { color: ${symbolIconTypeParameterColor} !important; }`);
+	}
+
+	const symbolIconUnitColor = theme.getColor(SYMBOL_ICON_UNIT_FOREGROUND);
+	if (symbolIconUnitColor) {
+		collector.addRule(`.codicon-symbol-unit { color: ${symbolIconUnitColor} !important; }`);
+	}
+
+	const symbolIconVariableColor = theme.getColor(SYMBOL_ICON_VARIABLE_FOREGROUND);
+	if (symbolIconVariableColor) {
+		collector.addRule(`.codicon-symbol-variable { color: ${symbolIconVariableColor} !important; }`);
+	}
+
+});

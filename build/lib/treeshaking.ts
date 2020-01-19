@@ -17,6 +17,17 @@ export const enum ShakeLevel {
 	ClassMembers = 2
 }
 
+export function toStringShakeLevel(shakeLevel: ShakeLevel): string {
+	switch(shakeLevel) {
+		case ShakeLevel.Files:
+			return 'Files (0)';
+		case ShakeLevel.InnerFile:
+			return 'InnerFile (1)';
+		case ShakeLevel.ClassMembers:
+			return 'ClassMembers (2)';
+	}
+}
+
 export interface ITreeShakingOptions {
 	/**
 	 * The full path to the root where sources are.
@@ -60,18 +71,17 @@ export interface ITreeShakingResult {
 	[file: string]: string;
 }
 
-function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
-	for (let i = 0; i < diagnostics.length; i++) {
-		const diag = diagnostics[i];
+function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArray<ts.Diagnostic>): void {
+	for (const diag of diagnostics) {
 		let result = '';
 		if (diag.file) {
-			result += `${diag.file.fileName}: `;
+			result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
 		}
 		if (diag.file && diag.start) {
 			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-			result += `- ${location.line + 1},${location.character} - `
+			result += `:${location.line + 1}:${location.character}`;
 		}
-		result += JSON.stringify(diag.messageText);
+		result += ` - ` + JSON.stringify(diag.messageText);
 		console.log(result);
 	}
 }
@@ -82,19 +92,19 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 
 	const globalDiagnostics = program.getGlobalDiagnostics();
 	if (globalDiagnostics.length > 0) {
-		printDiagnostics(globalDiagnostics);
+		printDiagnostics(options, globalDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
 	const syntacticDiagnostics = program.getSyntacticDiagnostics();
 	if (syntacticDiagnostics.length > 0) {
-		printDiagnostics(syntacticDiagnostics);
+		printDiagnostics(options, syntacticDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
 	const semanticDiagnostics = program.getSemanticDiagnostics();
 	if (semanticDiagnostics.length > 0) {
-		printDiagnostics(semanticDiagnostics);
+		printDiagnostics(options, semanticDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
@@ -110,7 +120,7 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
+		FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
 	});
 
 	// Add additional typings
@@ -126,7 +136,9 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 		RESOLVED_LIBS[`defaultLib:${filename}`] = fs.readFileSync(filepath).toString();
 	});
 
-	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, ts.convertCompilerOptionsFromJson(options.compilerOptions, ``).options);
+	const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
+
+	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
 	return ts.createLanguageService(host);
 }
 
@@ -155,6 +167,12 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
 			FILES[`${moduleId}.d.ts`] = dts_filecontents;
+			continue;
+		}
+
+		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+		if (fs.existsSync(js_filename)) {
+			// This is an import for a .js file, so ignore it...
 			continue;
 		}
 
@@ -443,7 +461,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 
 	options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
 	// Add fake usage files
-	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint:${index}.ts`));
+	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
 
 	let step = 0;
 
@@ -453,11 +471,11 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		let node: ts.Node;
 
 		if (step % 100 === 0) {
-			console.log(`${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+			console.log(`Treeshaking - ${Math.floor(100 * step / (step + black_queue.length + gray_queue.length))}% - ${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
 		}
 
 		if (black_queue.length === 0) {
-			for (let i = 0; i < gray_queue.length; i++) {
+			for (let i = 0; i< gray_queue.length; i++) {
 				const node = gray_queue[i];
 				const nodeParent = node.parent;
 				if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {
@@ -506,6 +524,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 								|| memberName === 'toJSON'
 								|| memberName === 'toString'
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
+								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
 							) {
 								enqueue_black(member);
 							}
@@ -602,8 +621,7 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 						}
 					} else {
 						let survivingImports: string[] = [];
-						for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-							const importNode = node.importClause.namedBindings.elements[i];
+						for (const importNode of node.importClause.namedBindings.elements) {
 							if (getColor(importNode) === NodeColor.Black) {
 								survivingImports.push(importNode.getFullText(sourceFile));
 							}
@@ -634,10 +652,6 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 					const member = node.members[i];
 					if (getColor(member) === NodeColor.Black || !member.name) {
 						// keep method
-						continue;
-					}
-					if (/^_(.*)Brand$/.test(member.name.getText())) {
-						// TODO: keep all members ending with `Brand`...
 						continue;
 					}
 

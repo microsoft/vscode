@@ -5,12 +5,18 @@
 
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { Emitter } from 'vs/base/common/event';
 
 export class TestConfigurationService implements IConfigurationService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private configuration = Object.create(null);
+	private configuration: any;
+	readonly onDidChangeConfiguration = new Emitter<any>().event;
+
+	constructor(configuration?: any) {
+		this.configuration = configuration || Object.create(null);
+	}
 
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
@@ -20,7 +26,7 @@ export class TestConfigurationService implements IConfigurationService {
 
 	public getValue(arg1?: any, arg2?: any): any {
 		let configuration;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : undefined;
 		if (overrides) {
 			if (overrides.resource) {
 				configuration = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
@@ -33,11 +39,11 @@ export class TestConfigurationService implements IConfigurationService {
 		return configuration;
 	}
 
-	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
-		return Promise.resolve(null);
+	public updateValue(key: string, value: any): Promise<void> {
+		return Promise.resolve(undefined);
 	}
 
-	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {
+	public setUserConfiguration(key: any, value: any, root?: URI): Promise<void> {
 		if (root) {
 			const configForRoot = this.configurationByRoot.get(root.fsPath) || Object.create(null);
 			configForRoot[key] = value;
@@ -46,28 +52,16 @@ export class TestConfigurationService implements IConfigurationService {
 			this.configuration[key] = value;
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
-	public onDidChangeConfiguration() {
-		return { dispose() { } };
-	}
-
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		workspace: T,
-		workspaceFolder: T
-		value: T,
-	} {
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),
-			default: getConfigurationValue<T>(config, key),
-			user: getConfigurationValue<T>(config, key),
-			workspace: null,
-			workspaceFolder: null
+			defaultValue: getConfigurationValue<T>(config, key),
+			userValue: getConfigurationValue<T>(config, key)
 		};
 	}
 

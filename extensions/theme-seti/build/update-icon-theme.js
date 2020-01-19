@@ -10,7 +10,7 @@ let fs = require('fs');
 let https = require('https');
 let url = require('url');
 
-// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a langauge association
+// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a language association
 let nonBuiltInLanguages = { // { fileNames, extensions }
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
@@ -32,19 +32,36 @@ let nonBuiltInLanguages = { // { fileNames, extensions }
 	"haml": { extensions: ['haml'] },
 	"stylus": { extensions: ['styl'] },
 	"vala": { extensions: ['vala'] },
-	"todo": { fileNames: ['todo'] }
+	"todo": { fileNames: ['todo'] },
+	"jsonc": { extensions: ['json'] }
+};
+
+let FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
+
+let font, fontMappingsFile, fileAssociationFile, colorsFile;
+if (!FROM_DISK) {
+	font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
+	fontMappingsFile = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+	fileAssociationFile = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
+	colorsFile = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+} else {
+	font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
+	fontMappingsFile = '../../../seti-ui/styles/_fonts/seti.less';
+	fileAssociationFile = '../../../seti-ui/styles/components/icons/mapping.less';
+	colorsFile = '../../../seti-ui/styles/ui-variables.less';
 }
 
-function getCommitSha(repoId, repoPath) {
-	let commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;
+function getCommitSha(repoId) {
+	let commitInfo = 'https://api.github.com/repos/' + repoId + '/commits/master';
 	return download(commitInfo).then(function (content) {
 		try {
-			let lastCommit = JSON.parse(content)[0];
+			let lastCommit = JSON.parse(content);
 			return Promise.resolve({
 				commitSha: lastCommit.sha,
 				commitDate: lastCommit.commit.author.date
 			});
 		} catch (e) {
+			console.error('Failed parsing ' + content);
 			return Promise.resolve(null);
 		}
 	}, function () {
@@ -93,7 +110,7 @@ function downloadBinary(source, dest) {
 	return new Promise((c, e) => {
 		https.get(source, function (response) {
 			switch (response.statusCode) {
-				case 200:
+				case 200: {
 					let file = fs.createWriteStream(dest);
 					response.on('data', function (chunk) {
 						file.write(chunk);
@@ -105,6 +122,7 @@ function downloadBinary(source, dest) {
 						e(err.message);
 					});
 					break;
+				}
 				case 301:
 				case 302:
 				case 303:
@@ -147,7 +165,7 @@ function darkenColor(color) {
 	for (let i = 1; i < 7; i += 2) {
 		let newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
 		let hex = newVal.toString(16);
-		if (hex.length == 1) {
+		if (hex.length === 1) {
 			res += '0';
 		}
 		res += hex;
@@ -189,20 +207,9 @@ function getLanguageMappings() {
 	return langMappings;
 }
 
-//let font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
-let font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
-
 exports.copyFont = function () {
 	return downloadBinary(font, './icons/seti.woff');
 };
-
-//let fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
-//let mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
-//let colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
-
-let fontMappingsFile = '../../../seti-ui/styles/_fonts/seti.less';
-let fileAssociationFile = '../../../seti-ui/styles/components/icons/mapping.less';
-let colorsFile = '../../../seti-ui/styles/ui-variables.less';
 
 exports.update = function () {
 
@@ -358,12 +365,18 @@ exports.update = function () {
 				while ((match = regex3.exec(content)) !== null) {
 					colorId2Value[match[1]] = match[2];
 				}
-				return getCommitSha('jesseweed/seti-ui', 'styles/_fonts/seti.less').then(function (info) {
+				return getCommitSha('jesseweed/seti-ui').then(function (info) {
 					try {
 						writeFileIconContent(info);
-						if (info) {
-							console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
-						}
+
+						let cgmanifestPath = './cgmanifest.json';
+						let cgmanifest = fs.readFileSync(cgmanifestPath).toString();
+						let cgmanifestContent = JSON.parse(cgmanifest);
+						cgmanifestContent['registrations'][0]['component']['git']['commitHash'] = info.commitSha;
+						fs.writeFileSync(cgmanifestPath, JSON.stringify(cgmanifestContent, null, '\t'));
+						console.log('updated ' + cgmanifestPath);
+
+						console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 
 					} catch (e) {
 						console.error(e);

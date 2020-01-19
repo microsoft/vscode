@@ -15,7 +15,6 @@
 .monaco-menu .monaco-action-bar.vertical .action-item {
 	padding: 0;
 	transform: none;
-	display: -ms-flexbox;
 	display: flex;
 }
 
@@ -24,16 +23,14 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
-	display: -ms-flexbox;
 	display: flex;
 	height: 2em;
 	align-items: center;
+	position: relative;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {
-	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
 	text-decoration: none;
 	padding: 0 1em;
@@ -45,7 +42,6 @@
 .monaco-menu .monaco-action-bar.vertical .keybinding,
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	display: inline-block;
-	-ms-flex: 2 1 auto;
 	flex: 2 1 auto;
 	padding: 0 1em;
 	text-align: right;
@@ -55,8 +51,17 @@
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
-	mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
+}
+
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon {
+	font-size: 16px !important;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon::before {
+	margin-left: auto;
+	margin-right: -20px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
@@ -66,12 +71,17 @@
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator) {
 	display: inline-block;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing: border-box;
 	margin: 0;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item {
+	position: static;
+	overflow: visible;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item .monaco-submenu {
+	position: absolute;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
@@ -93,26 +103,22 @@
 .monaco-menu .monaco-action-bar.vertical .menu-item-check {
 	position: absolute;
 	visibility: hidden;
-	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
-	mask: url('check.svg') no-repeat 50% 56%/15px 15px;
 	width: 1em;
 	height: 100%;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
 	visibility: visible;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 /* Context Menu */
 
 .context-view.monaco-menu-container {
-	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	outline: 0;
 	border: none;
-	-webkit-animation: fadeIn 0.083s linear;
-	-o-animation: fadeIn 0.083s linear;
-	-moz-animation: fadeIn 0.083s linear;
-	-ms-animation: fadeIn 0.083s linear;
 	animation: fadeIn 0.083s linear;
 }
 
@@ -123,7 +129,7 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
-	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
+	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
 
@@ -134,4 +140,82 @@
 
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
+}
+
+/* Menubar styles */
+
+.menubar {
+	display: flex;
+	flex-shrink: 1;
+	box-sizing: border-box;
+	height: 30px;
+	overflow: hidden;
+	flex-wrap: wrap;
+}
+
+.fullscreen .menubar:not(.compact) {
+	margin: 0px;
+	padding: 0px 5px;
+}
+
+.menubar > .menubar-menu-button {
+	align-items: center;
+	box-sizing: border-box;
+	padding: 0px 8px;
+	cursor: default;
+	-webkit-app-region: no-drag;
+	zoom: 1;
+	white-space: nowrap;
+	outline: 0;
+}
+
+.menubar.compact {
+	flex-shrink: 0;
+}
+
+.menubar.compact > .menubar-menu-button {
+	width: 100%;
+	height: 100%;
+	padding: 0px;
+}
+
+.menubar .menubar-menu-items-holder {
+	position: absolute;
+	left: 0px;
+	opacity: 1;
+	z-index: 2000;
+}
+
+.menubar .menubar-menu-items-holder.monaco-menu-container {
+	outline: 0;
+	border: none;
+}
+
+.menubar .menubar-menu-items-holder.monaco-menu-container :focus {
+	outline: 0;
+}
+
+.menubar .toolbar-toggle-more {
+	width: 20px;
+	height: 100%;
+}
+
+.menubar.compact .toolbar-toggle-more {
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	cursor: pointer;
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.menubar .toolbar-toggle-more {
+	padding: 0;
+	vertical-align: sub;
+}
+
+.menubar.compact .toolbar-toggle-more::before {
+	content: "\eb94" !important;
 }

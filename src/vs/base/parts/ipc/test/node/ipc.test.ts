@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Emitter, toNativePromise, Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel, IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 class QueueProtocol implements IMessagePassingProtocol {
 
 	private buffering = true;
-	private buffers: Buffer[] = [];
+	private buffers: VSBuffer[] = [];
 
-	private _onMessage = new Emitter<Buffer>({
+	private readonly _onMessage = new Emitter<VSBuffer>({
 		onFirstListenerDidAdd: () => {
 			for (const buffer of this.buffers) {
 				this._onMessage.fire(buffer);
@@ -30,13 +34,13 @@ class QueueProtocol implements IMessagePassingProtocol {
 	});
 
 	readonly onMessage = this._onMessage.event;
-	other: QueueProtocol;
+	other!: QueueProtocol;
 
-	send(buffer: Buffer): void {
+	send(buffer: VSBuffer): void {
 		this.other.receive(buffer);
 	}
 
-	protected receive(buffer: Buffer): void {
+	protected receive(buffer: VSBuffer): void {
 		if (this.buffering) {
 			this.buffers.push(buffer);
 		} else {
@@ -54,9 +58,9 @@ function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol
 	return [one, other];
 }
 
-class TestIPCClient extends IPCClient {
+class TestIPCClient extends IPCClient<string> {
 
-	private _onDidDisconnect = new Emitter<void>();
+	private readonly _onDidDisconnect = new Emitter<void>();
 	readonly onDidDisconnect = this._onDidDisconnect.event;
 
 	constructor(protocol: IMessagePassingProtocol, id: string) {
@@ -69,9 +73,9 @@ class TestIPCClient extends IPCClient {
 	}
 }
 
-class TestIPCServer extends IPCServer {
+class TestIPCServer extends IPCServer<string> {
 
-	private onDidClientConnect: Emitter<ClientConnectionEvent>;
+	private readonly onDidClientConnect: Emitter<ClientConnectionEvent>;
 
 	constructor() {
 		const onDidClientConnect = new Emitter<ClientConnectionEvent>();
@@ -79,7 +83,7 @@ class TestIPCServer extends IPCServer {
 		this.onDidClientConnect = onDidClientConnect;
 	}
 
-	createConnection(id: string): IPCClient {
+	createConnection(id: string): IPCClient<string> {
 		const [pc, ps] = createProtocolPair();
 		const client = new TestIPCClient(pc, id);
 
@@ -95,32 +99,35 @@ class TestIPCServer extends IPCServer {
 const TestChannelId = 'testchannel';
 
 interface ITestService {
-	marco(): Thenable<string>;
-	error(message: string): Thenable<void>;
-	neverComplete(): Thenable<void>;
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void>;
+	marco(): Promise<string>;
+	error(message: string): Promise<void>;
+	neverComplete(): Promise<void>;
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
+	buffersLength(buffers: Buffer[]): Promise<number>;
+	marshall(uri: URI): Promise<URI>;
+	context(): Promise<unknown>;
 
-	pong: Event<string>;
+	onPong: Event<string>;
 }
 
 class TestService implements ITestService {
 
-	private _pong = new Emitter<string>();
-	readonly pong = this._pong.event;
+	private readonly _onPong = new Emitter<string>();
+	readonly onPong = this._onPong.event;
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return Promise.resolve('polo');
 	}
 
-	error(message: string): Thenable<void> {
+	error(message: string): Promise<void> {
 		return Promise.reject(new Error(message));
 	}
 
-	neverComplete(): Thenable<void> {
+	neverComplete(): Promise<void> {
 		return new Promise(_ => { });
 	}
 
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void> {
 		if (cancellationToken.isCancellationRequested) {
 			return Promise.reject(canceled());
 		}
@@ -128,39 +135,41 @@ class TestService implements ITestService {
 		return new Promise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
 	}
 
+	buffersLength(buffers: Buffer[]): Promise<number> {
+		return Promise.resolve(buffers.reduce((r, b) => r + b.length, 0));
+	}
+
 	ping(msg: string): void {
-		this._pong.fire(msg);
+		this._onPong.fire(msg);
+	}
+
+	marshall(uri: URI): Promise<URI> {
+		return Promise.resolve(uri);
+	}
+
+	context(context?: unknown): Promise<unknown> {
+		return Promise.resolve(context);
 	}
 }
 
-interface ITestChannel extends IChannel {
-	call(command: 'marco'): Thenable<string>;
-	call(command: 'error'): Thenable<void>;
-	call(command: 'neverComplete'): Thenable<void>;
-	call(command: 'neverCompleteCT', arg: undefined, cancellationToken: CancellationToken): Thenable<void>;
-	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
-
-	listen(event: 'pong'): Event<string>;
-	listen<T>(event: string, arg?: any): Event<T>;
-}
-
-class TestChannel implements ITestChannel {
+class TestChannel implements IServerChannel {
 
 	constructor(private service: ITestService) { }
 
-	call(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<any> {
+	call(_: unknown, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
 			case 'neverComplete': return this.service.neverComplete();
 			case 'neverCompleteCT': return this.service.neverCompleteCT(cancellationToken);
+			case 'buffersLength': return this.service.buffersLength(arg);
 			default: return Promise.reject(new Error('not implemented'));
 		}
 	}
 
-	listen(event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'pong': return this.service.pong;
+			case 'onPong': return this.service.onPong;
 			default: throw new Error('not implemented');
 		}
 	}
@@ -168,26 +177,38 @@ class TestChannel implements ITestChannel {
 
 class TestChannelClient implements ITestService {
 
-	get pong(): Event<string> {
-		return this.channel.listen('pong');
+	get onPong(): Event<string> {
+		return this.channel.listen('onPong');
 	}
 
-	constructor(private channel: ITestChannel) { }
+	constructor(private channel: IChannel) { }
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return this.channel.call('marco');
 	}
 
-	error(message: string): Thenable<void> {
+	error(message: string): Promise<void> {
 		return this.channel.call('error', message);
 	}
 
-	neverComplete(): Thenable<void> {
+	neverComplete(): Promise<void> {
 		return this.channel.call('neverComplete');
 	}
 
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void> {
 		return this.channel.call('neverCompleteCT', undefined, cancellationToken);
+	}
+
+	buffersLength(buffers: Buffer[]): Promise<number> {
+		return this.channel.call('buffersLength', buffers);
+	}
+
+	marshall(uri: URI): Promise<URI> {
+		return this.channel.call('marshall', uri);
+	}
+
+	context(): Promise<unknown> {
+		return this.channel.call('context');
 	}
 }
 
@@ -196,14 +217,14 @@ suite('Base IPC', function () {
 	test('createProtocolPair', async function () {
 		const [clientProtocol, serverProtocol] = createProtocolPair();
 
-		const b1 = Buffer.alloc(0);
+		const b1 = VSBuffer.alloc(0);
 		clientProtocol.send(b1);
 
-		const b3 = Buffer.alloc(0);
+		const b3 = VSBuffer.alloc(0);
 		serverProtocol.send(b3);
 
-		const b2 = await toNativePromise(serverProtocol.onMessage);
-		const b4 = await toNativePromise(clientProtocol.onMessage);
+		const b2 = await Event.toPromise(serverProtocol.onMessage);
+		const b4 = await Event.toPromise(clientProtocol.onMessage);
 
 		assert.strictEqual(b1, b2);
 		assert.strictEqual(b3, b4);
@@ -281,7 +302,7 @@ suite('Base IPC', function () {
 		test('listen to events', async function () {
 			const messages: string[] = [];
 
-			ipcService.pong(msg => messages.push(msg));
+			ipcService.onPong(msg => messages.push(msg));
 			await timeout(0);
 
 			assert.deepEqual(messages, []);
@@ -293,6 +314,105 @@ suite('Base IPC', function () {
 			await timeout(0);
 
 			assert.deepEqual(messages, ['hello', 'world']);
+		});
+
+		test('buffers in arrays', async function () {
+			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			return assert.equal(r, 5);
+		});
+	});
+
+	suite('one to one (proxy)', function () {
+		let server: IPCServer;
+		let client: IPCClient;
+		let service: TestService;
+		let ipcService: ITestService;
+
+		setup(function () {
+			service = new TestService();
+			const testServer = new TestIPCServer();
+			server = testServer;
+
+			server.registerChannel(TestChannelId, createChannelReceiver(service));
+
+			client = testServer.createConnection('client1');
+			ipcService = createChannelSender(client.getChannel(TestChannelId));
+		});
+
+		teardown(function () {
+			client.dispose();
+			server.dispose();
+		});
+
+		test('call success', async function () {
+			const r = await ipcService.marco();
+			return assert.equal(r, 'polo');
+		});
+
+		test('call error', async function () {
+			try {
+				await ipcService.error('nice error');
+				return assert.fail('should not reach here');
+			} catch (err) {
+				return assert.equal(err.message, 'nice error');
+			}
+		});
+
+		test('listen to events', async function () {
+			const messages: string[] = [];
+
+			ipcService.onPong(msg => messages.push(msg));
+			await timeout(0);
+
+			assert.deepEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+
+			assert.deepEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+
+			assert.deepEqual(messages, ['hello', 'world']);
+		});
+
+		test('marshalling uri', async function () {
+			const uri = URI.file('foobar');
+			const r = await ipcService.marshall(uri);
+			assert.ok(r instanceof URI);
+			return assert.ok(isEqual(r, uri));
+		});
+
+		test('buffers in arrays', async function () {
+			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			return assert.equal(r, 5);
+		});
+	});
+
+	suite('one to one (proxy, extra context)', function () {
+		let server: IPCServer;
+		let client: IPCClient;
+		let service: TestService;
+		let ipcService: ITestService;
+
+		setup(function () {
+			service = new TestService();
+			const testServer = new TestIPCServer();
+			server = testServer;
+
+			server.registerChannel(TestChannelId, createChannelReceiver(service));
+
+			client = testServer.createConnection('client1');
+			ipcService = createChannelSender(client.getChannel(TestChannelId), { context: 'Super Context' });
+		});
+
+		teardown(function () {
+			client.dispose();
+			server.dispose();
+		});
+
+		test('call extra context', async function () {
+			const r = await ipcService.context();
+			return assert.equal(r, 'Super Context');
 		});
 	});
 });

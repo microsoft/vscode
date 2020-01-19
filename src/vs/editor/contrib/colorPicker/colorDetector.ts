@@ -7,7 +7,7 @@ import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/bas
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -19,17 +19,17 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ColorProviderRegistry } from 'vs/editor/common/modes';
 import { IColorData, getColors } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const MAX_DECORATORS = 500;
 
-export class ColorDetector implements IEditorContribution {
+export class ColorDetector extends Disposable implements IEditorContribution {
 
-	private static readonly ID: string = 'editor.contrib.colorDetector';
+	public static readonly ID: string = 'editor.contrib.colorDetector';
 
-	static RECOMPUTE_TIME = 1000; // ms
+	static readonly RECOMPUTE_TIME = 1000; // ms
 
-	private _globalToDispose: IDisposable[] = [];
-	private _localToDispose: IDisposable[] = [];
+	private readonly _localToDispose = this._register(new DisposableStore());
 	private _computePromise: CancelablePromise<IColorData[]> | null;
 	private _timeoutTimer: TimeoutTimer | null;
 
@@ -37,21 +37,22 @@ export class ColorDetector implements IEditorContribution {
 	private _colorDatas = new Map<string, IColorData>();
 
 	private _colorDecoratorIds: string[] = [];
-	private _decorationsTypes: { [key: string]: boolean } = {};
+	private readonly _decorationsTypes = new Set<string>();
 
 	private _isEnabled: boolean;
 
-	constructor(private _editor: ICodeEditor,
+	constructor(private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		this._globalToDispose.push(_editor.onDidChangeModel((e) => {
+		super();
+		this._register(_editor.onDidChangeModel((e) => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
 		}));
-		this._globalToDispose.push(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
-		this._globalToDispose.push(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
-		this._globalToDispose.push(_editor.onDidChangeConfiguration((e) => {
+		this._register(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
+		this._register(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
+		this._register(_editor.onDidChangeConfiguration((e) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
@@ -76,19 +77,15 @@ export class ColorDetector implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		let deprecatedConfig = this._configurationService.getValue(languageId.language);
+		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
 		if (deprecatedConfig) {
-			let colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
+			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
 			}
 		}
 
-		return this._editor.getConfiguration().contribInfo.colorDecorators;
-	}
-
-	getId(): string {
-		return ColorDetector.ID;
+		return this._editor.getOption(EditorOption.colorDecorators);
 	}
 
 	static get(editor: ICodeEditor): ColorDetector {
@@ -98,7 +95,7 @@ export class ColorDetector implements IEditorContribution {
 	dispose(): void {
 		this.stop();
 		this.removeAllDecorations();
-		this._globalToDispose = dispose(this._globalToDispose);
+		super.dispose();
 	}
 
 	private onModelChanged(): void {
@@ -113,7 +110,7 @@ export class ColorDetector implements IEditorContribution {
 			return;
 		}
 
-		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
+		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
 				this._timeoutTimer.cancelAndSet(() => {
@@ -149,7 +146,7 @@ export class ColorDetector implements IEditorContribution {
 			this._computePromise.cancel();
 			this._computePromise = null;
 		}
-		this._localToDispose = dispose(this._localToDispose);
+		this._localToDispose.clear();
 	}
 
 	private updateDecorations(colorDatas: IColorData[]): void {
@@ -180,7 +177,7 @@ export class ColorDetector implements IEditorContribution {
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 			let key = 'colorBox-' + subKey;
 
-			if (!this._decorationsTypes[key] && !newDecorationsTypes[key]) {
+			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 				this._codeEditorService.registerDecorationType(key, {
 					before: {
 						contentText: ' ',
@@ -210,11 +207,11 @@ export class ColorDetector implements IEditorContribution {
 			});
 		}
 
-		for (let subType in this._decorationsTypes) {
+		this._decorationsTypes.forEach(subType => {
 			if (!newDecorationsTypes[subType]) {
 				this._codeEditorService.removeDecorationType(subType);
 			}
-		}
+		});
 
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, decorations);
 	}
@@ -223,9 +220,9 @@ export class ColorDetector implements IEditorContribution {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
 
-		for (let subType in this._decorationsTypes) {
+		this._decorationsTypes.forEach(subType => {
 			this._codeEditorService.removeDecorationType(subType);
-		}
+		});
 	}
 
 	getColorData(position: Position): IColorData | null {
@@ -242,8 +239,8 @@ export class ColorDetector implements IEditorContribution {
 			return null;
 		}
 
-		return this._colorDatas.get(decorations[0].id);
+		return this._colorDatas.get(decorations[0].id)!;
 	}
 }
 
-registerEditorContribution(ColorDetector);
+registerEditorContribution(ColorDetector.ID, ColorDetector);

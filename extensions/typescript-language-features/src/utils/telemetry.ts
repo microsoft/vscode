@@ -7,21 +7,24 @@ import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
 import { memoize } from './memoize';
 
-interface IPackageInfo {
+interface PackageInfo {
 	readonly name: string;
 	readonly version: string;
 	readonly aiKey: string;
 }
 
-export default class TelemetryReporter {
-	private _reporter: VsCodeTelemetryReporter | null = null;
+export interface TelemetryProperties {
+	readonly [prop: string]: string | number | undefined;
+}
 
-	dispose() {
-		if (this._reporter) {
-			this._reporter.dispose();
-			this._reporter = null;
-		}
-	}
+export interface TelemetryReporter {
+	logTelemetry(eventName: string, properties?: TelemetryProperties): void;
+
+	dispose(): void;
+}
+
+export class VSCodeTelemetryReporter implements TelemetryReporter {
+	private _reporter: VsCodeTelemetryReporter | null = null;
 
 	constructor(
 		private readonly clientVersionDelegate: () => string
@@ -45,6 +48,13 @@ export default class TelemetryReporter {
 		}
 	}
 
+	public dispose() {
+		if (this._reporter) {
+			this._reporter.dispose();
+			this._reporter = null;
+		}
+	}
+
 	@memoize
 	private get reporter(): VsCodeTelemetryReporter | null {
 		if (this.packageInfo && this.packageInfo.aiKey) {
@@ -58,7 +68,7 @@ export default class TelemetryReporter {
 	}
 
 	@memoize
-	private get packageInfo(): IPackageInfo | null {
+	private get packageInfo(): PackageInfo | null {
 		const { packageJSON } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
 		if (packageJSON) {
 			return {

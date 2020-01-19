@@ -6,14 +6,16 @@
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
+import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { invalidateTasksCache, NpmTaskProvider } from './tasks';
+import { invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
-import { runSelectedScript } from './commands';
+
+let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerTaskProvider(context);
-	const treeDataProvider = registerExplorer(context);
+	treeDataProvider = registerExplorer(context);
 	registerHoverProvider(context);
 
 	configureHttpRequest();
@@ -39,6 +41,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(d);
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
+
+	if (await hasPackageJson()) {
+		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
+	}
+
+	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
@@ -46,6 +54,9 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 	function invalidateScriptCaches() {
 		invalidateHoverScriptsCache();
 		invalidateTasksCache();
+		if (treeDataProvider) {
+			treeDataProvider.refresh();
+		}
 	}
 
 	if (vscode.workspace.workspaceFolders) {
@@ -69,8 +80,8 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let treeDataProvider = new NpmScriptsTreeDataProvider(context);
-		let disposable = vscode.window.registerTreeDataProvider('npm', treeDataProvider);
-		context.subscriptions.push(disposable);
+		const view = vscode.window.createTreeView('npm', { treeDataProvider: treeDataProvider, showCollapseAll: true });
+		context.subscriptions.push(view);
 		return treeDataProvider;
 	}
 	return undefined;

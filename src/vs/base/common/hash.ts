@@ -36,7 +36,7 @@ function booleanHash(b: boolean, initialHashVal: number): number {
 	return numberHash(b ? 433 : 863, initialHashVal);
 }
 
-function stringHash(s: string, hashVal: number) {
+export function stringHash(s: string, hashVal: number) {
 	hashVal = numberHash(149417, hashVal);
 	for (let i = 0, length = s.length; i < length; i++) {
 		hashVal = numberHash(s.charCodeAt(i), hashVal);
@@ -55,4 +55,18 @@ function objectHash(obj: any, initialHashVal: number): number {
 		hashVal = stringHash(key, hashVal);
 		return hash(obj[key], hashVal);
 	}, initialHashVal);
+}
+
+export class Hasher {
+
+	private _value = 0;
+
+	get value(): number {
+		return this._value;
+	}
+
+	hash(obj: any): number {
+		this._value = hash(obj, this._value);
+		return this._value;
+	}
 }

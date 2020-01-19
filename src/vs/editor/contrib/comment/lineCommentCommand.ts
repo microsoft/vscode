@@ -9,11 +9,12 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Constants } from 'vs/base/common/uint';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -47,22 +48,24 @@ export const enum Type {
 	ForceRemove = 2
 }
 
-export class LineCommentCommand implements editorCommon.ICommand {
+export class LineCommentCommand implements ICommand {
 
-	private _selection: Selection;
-	private _selectionId: string;
+	private readonly _selection: Selection;
+	private _selectionId: string | null;
 	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
-	private _tabSize: number;
-	private _type: Type;
+	private readonly _tabSize: number;
+	private readonly _type: Type;
 
 	constructor(selection: Selection, tabSize: number, type: Type,
 		@IConfigurationService private _configurationService: IConfigurationService,
 	) {
 		this._selection = selection;
+		this._selectionId = null;
 		this._tabSize = tabSize;
 		this._type = type;
 		this._deltaColumn = 0;
+		this._moveEndPositionDown = false;
 	}
 
 	/**
@@ -187,7 +190,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
-	private _executeLineComments(model: ISimpleModel, builder: editorCommon.IEditOperationBuilder, data: IPreflightDataSupported, s: Selection): void {
+	private _executeLineComments(model: ISimpleModel, builder: IEditOperationBuilder, data: IPreflightDataSupported, s: Selection): void {
 
 		let ops: IIdentifiedSingleEditOperation[];
 
@@ -266,7 +269,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
-	private _executeBlockComment(model: ITextModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
+	private _executeBlockComment(model: ITextModel, builder: IEditOperationBuilder, s: Selection): void {
 		model.tokenizeIfCheap(s.startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
@@ -302,12 +305,12 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			}
 		}
 		this._selectionId = builder.trackSelection(s);
-		for (let i = 0; i < ops.length; i++) {
-			builder.addEditOperation(ops[i].range, ops[i].text);
+		for (const op of ops) {
+			builder.addEditOperation(op.range, op.text);
 		}
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 
 		let s = this._selection;
 		this._moveEndPositionDown = false;
@@ -325,8 +328,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		return this._executeBlockComment(model, builder, s);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
@@ -383,7 +386,6 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	// TODO@Alex -> duplicated in characterHardWrappingLineMapper
 	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
 		if (isTab) {
 			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
@@ -395,7 +397,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Adjust insertion points to have them vertically aligned in the add line comment case
 	 */
 	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
-		let minVisibleColumn = Number.MAX_VALUE;
+		let minVisibleColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let j: number;
 		let lenJ: number;
 

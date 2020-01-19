@@ -7,8 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import * as assert from 'assert';
-import { getLanguageModes } from '../modes/languageModes';
-import { TextDocument, Range, FormattingOptions } from 'vscode-languageserver-types';
+import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
 
 import { format } from '../modes/formatting';
 
@@ -19,7 +18,7 @@ suite('HTML Embedded Formatting', () => {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
-		var languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
+		let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -38,15 +37,15 @@ suite('HTML Embedded Formatting', () => {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		let result = format(languageModes, document, range, formatOptions, void 0, { css: true, javascript: true });
+		let result = format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
 
 		let actual = TextDocument.applyEdits(document, result);
 		assert.equal(actual, expected, message);
 	}
 
 	function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): void {
-		let input = fs.readFileSync(path.join(__dirname, 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
-		let expected = fs.readFileSync(path.join(__dirname, 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
+		let input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
+		let expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 
@@ -67,8 +66,8 @@ suite('HTML Embedded Formatting', () => {
 
 	test('HTLM & Scripts - Fixtures', function () {
 		assertFormatWithFixture('19813.html', '19813.html');
-		assertFormatWithFixture('19813.html', '19813-4spaces.html', void 0, FormattingOptions.create(4, true));
-		assertFormatWithFixture('19813.html', '19813-tab.html', void 0, FormattingOptions.create(1, false));
+		assertFormatWithFixture('19813.html', '19813-4spaces.html', undefined, FormattingOptions.create(4, true));
+		assertFormatWithFixture('19813.html', '19813-tab.html', undefined, FormattingOptions.create(1, false));
 		assertFormatWithFixture('21634.html', '21634.html');
 	});
 
@@ -168,7 +167,7 @@ suite('HTML Embedded Formatting', () => {
 			}
 		};
 
-		var content = [
+		const content = [
 			'<html>',
 			'',
 			'<body>',
@@ -179,7 +178,7 @@ suite('HTML Embedded Formatting', () => {
 			'</html>',
 		].join('\n');
 
-		var expected = [
+		const expected = [
 			'<html>',
 			'',
 			'<body>',

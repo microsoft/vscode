@@ -10,9 +10,9 @@ interface Map<K, V> {
 	clear(): void;
 	delete(key: K): boolean;
 	forEach(callbackfn: (value: V, index: K, map: Map<K, V>) => void, thisArg?: any): void;
-	get(key: K): V;
+	get(key: K): V | undefined;
 	has(key: K): boolean;
-	set(key: K, value?: V): Map<K, V>;
+	set(key: K, value: V): Map<K, V>;
 	readonly size: number;
 
 	// not supported on IE11:
@@ -25,7 +25,7 @@ interface Map<K, V> {
 
 interface MapConstructor {
 	new <K, V>(): Map<K, V>;
-	prototype: Map<any, any>;
+	readonly prototype: Map<any, any>;
 
 	// not supported on IE11:
 	// new <K, V>(iterable: Iterable<[K, V]>): Map<K, V>;
@@ -51,7 +51,7 @@ interface Set<T> {
 
 interface SetConstructor {
 	new <T>(): Set<T>;
-	prototype: Set<any>;
+	readonly prototype: Set<any>;
 
 	// not supported on IE11:
 	// new <T>(iterable: Iterable<T>): Set<T>;
@@ -59,7 +59,7 @@ interface SetConstructor {
 declare var Set: SetConstructor;
 
 
-interface WeakMap<K, V> {
+interface WeakMap<K extends object, V> {
 	delete(key: K): boolean;
 	get(key: K): V | undefined;
 	has(key: K): boolean;
@@ -70,9 +70,9 @@ interface WeakMap<K, V> {
 
 interface WeakMapConstructor {
 	new(): WeakMap<any, any>;
-	new <K, V>(): WeakMap<K, V>;
+	new <K extends object, V>(): WeakMap<K, V>;
 	// new <K, V>(entries?: [K, V][]): WeakMap<K, V>;
-	readonly prototype: WeakMap<any, any>;
+	readonly prototype: WeakMap<object, any>;
 }
 declare var WeakMap: WeakMapConstructor;
 

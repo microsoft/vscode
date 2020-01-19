@@ -160,11 +160,11 @@ suite('Marker Service', () => {
 		let data = randomMarkerData();
 		let service = new markerService.MarkerService();
 
-		data.message = undefined;
+		data.message = undefined!;
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 
-		data.message = null;
+		data.message = null!;
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 

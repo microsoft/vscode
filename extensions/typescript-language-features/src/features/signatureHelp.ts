@@ -22,18 +22,18 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken,
-		context?: vscode.SignatureHelpContext,
+		context: vscode.SignatureHelpContext,
 	): Promise<vscode.SignatureHelp | undefined> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
 
 		const args: Proto.SignatureHelpRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
-			triggerReason: toTsTriggerReason(context!)
+			triggerReason: toTsTriggerReason(context)
 		};
-		const response = await this.client.execute('signatureHelp', args, token);
+		const response = await this.client.interruptGetErr(() => this.client.execute('signatureHelp', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -60,30 +60,48 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 			Previewer.plain(item.prefixDisplayParts),
 			Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param')));
 
-		signature.parameters = item.parameters.map(p =>
-			new vscode.ParameterInformation(
-				Previewer.plain(p.displayParts),
-				Previewer.markdownDocumentation(p.documentation, [])));
+		let textIndex = signature.label.length;
+		const separatorLabel = Previewer.plain(item.separatorDisplayParts);
+		for (let i = 0; i < item.parameters.length; ++i) {
+			const parameter = item.parameters[i];
+			const label = Previewer.plain(parameter.displayParts);
 
-		signature.label += signature.parameters.map(parameter => parameter.label).join(Previewer.plain(item.separatorDisplayParts));
+			signature.parameters.push(
+				new vscode.ParameterInformation(
+					[textIndex, textIndex + label.length],
+					Previewer.markdownDocumentation(parameter.documentation, [])));
+
+			textIndex += label.length;
+			signature.label += label;
+
+			if (i !== item.parameters.length - 1) {
+				signature.label += separatorLabel;
+				textIndex += separatorLabel.length;
+			}
+		}
+
 		signature.label += Previewer.plain(item.suffixDisplayParts);
 		return signature;
 	}
 }
 
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
-	switch (context.triggerReason) {
-		case vscode.SignatureHelpTriggerReason.Retrigger:
-			return { kind: 'retrigger' };
-
-		case vscode.SignatureHelpTriggerReason.TriggerCharacter:
+	switch (context.triggerKind) {
+		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
 			if (context.triggerCharacter) {
-				return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+				if (context.isRetrigger) {
+					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
+				} else {
+					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+				}
 			} else {
 				return { kind: 'invoked' };
 			}
 
-		case vscode.SignatureHelpTriggerReason.Invoke:
+		case vscode.SignatureHelpTriggerKind.ContentChange:
+			return context.isRetrigger ? { kind: 'retrigger' } : { kind: 'invoked' };
+
+		case vscode.SignatureHelpTriggerKind.Invoke:
 		default:
 			return { kind: 'invoked' };
 	}
@@ -94,7 +112,7 @@ export function register(
 ) {
 	return vscode.languages.registerSignatureHelpProvider(selector,
 		new TypeScriptSignatureHelpProvider(client), {
-			triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
-			retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
-		});
+		triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
+		retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
+	});
 }

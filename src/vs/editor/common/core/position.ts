@@ -36,7 +36,7 @@ export class Position {
 	}
 
 	/**
-	 * Create a new postion from this position.
+	 * Create a new position from this position.
 	 *
 	 * @param newLineNumber new line number
 	 * @param newColumn new column
@@ -69,7 +69,7 @@ export class Position {
 	/**
 	 * Test if position `a` equals position `b`
 	 */
-	public static equals(a: IPosition, b: IPosition): boolean {
+	public static equals(a: IPosition | null, b: IPosition | null): boolean {
 		if (!a && !b) {
 			return true;
 		}

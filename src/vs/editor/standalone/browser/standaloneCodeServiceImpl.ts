@@ -19,7 +19,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		if (!source) {
 			return Promise.resolve(null);
 		}

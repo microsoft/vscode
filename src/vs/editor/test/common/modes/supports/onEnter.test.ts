@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 suite('OnEnter', () => {
 
@@ -18,11 +19,11 @@ suite('OnEnter', () => {
 			brackets: brackets
 		});
 		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
-			let actual = support.onEnter('', beforeText, afterText);
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
 			} else {
-				assert.equal(actual.indentAction, expected);
+				assert.equal(actual!.indentAction, expected);
 			}
 		};
 
@@ -48,20 +49,20 @@ suite('OnEnter', () => {
 
 	test('uses regExpRules', () => {
 		let support = new OnEnterSupport({
-			regExpRules: javascriptOnEnterRules
+			onEnterRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
-			let actual = support.onEnter(oneLineAboveText, beforeText, afterText);
+		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, oneLineAboveText, beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.equal(actual, null, 'isNull:' + beforeText);
 			} else {
 				assert.equal(actual !== null, true, 'isNotNull:' + beforeText);
-				assert.equal(actual.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
+				assert.equal(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
 				if (expectedAppendText !== null) {
-					assert.equal(actual.appendText, expectedAppendText, 'appendText:' + beforeText);
+					assert.equal(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
 				}
 				if (removeText !== 0) {
-					assert.equal(actual.removeText, removeText, 'removeText:' + beforeText);
+					assert.equal(actual!.removeText, removeText, 'removeText:' + beforeText);
 				}
 			}
 		};

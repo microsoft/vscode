@@ -782,7 +782,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.style.end.html punctuation.definition.tag.begin.html source.css",
+		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.style.end.html punctuation.definition.tag.begin.html source.css-ignored-vscode",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1200,7 +1200,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html source.js",
+		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html source.js-ignored-vscode",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1354,7 +1354,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html source.js",
+		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html source.js-ignored-vscode",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -2212,7 +2212,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html source.js",
+		"t": "text.html.derivative meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html source.js-ignored-vscode",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -2431,7 +2431,7 @@
 		}
 	},
 	{
-		"c": "octicon",
+		"c": "codicon",
 		"t": "text.html.derivative meta.tag.inline.span.start.html meta.attribute.class.html string.unquoted.html",
 		"r": {
 			"dark_plus": "string: #CE9178",

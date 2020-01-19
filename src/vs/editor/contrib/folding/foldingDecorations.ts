@@ -10,30 +10,40 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
-	private static COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
-		linesDecorationsClassName: 'folding collapsed'
+		linesDecorationsClassName: 'codicon codicon-chevron-right'
 	});
 
-	private static EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding'
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		isWholeLine: true,
+		linesDecorationsClassName: 'codicon codicon-chevron-right'
 	});
 
-	private static EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding alwaysShowFoldIcons'
+		linesDecorationsClassName: 'codicon codicon-chevron-down'
+	});
+
+	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: 'codicon codicon-chevron-down alwaysShowFoldIcons'
 	});
 
 	public autoHideFoldingControls: boolean = true;
 
-	constructor(private editor: ICodeEditor) {
+	public showFoldingHighlights: boolean = true;
+
+	constructor(private readonly editor: ICodeEditor) {
 	}
 
 	getDecorationOption(isCollapsed: boolean): ModelDecorationOptions {
 		if (isCollapsed) {
-			return FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
+			return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
 		} else if (this.autoHideFoldingControls) {
 			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {

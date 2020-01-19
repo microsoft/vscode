@@ -4,25 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { toValuesTree, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IConfigurationChange, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
+import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
+import { WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
 	private _folders: IStoredWorkspaceFolder[] = [];
-	private _settingsModelParser: FolderSettingsModelParser;
+	private _settingsModelParser: ConfigurationModelParser;
 	private _launchModel: ConfigurationModel;
+	private _tasksModel: ConfigurationModel;
 
 	constructor(name: string) {
 		super(name);
-		this._settingsModelParser = new FolderSettingsModelParser(name, [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
+		this._settingsModelParser = new ConfigurationModelParser(name, WORKSPACE_SCOPES);
 		this._launchModel = new ConfigurationModel();
+		this._tasksModel = new ConfigurationModel();
 	}
 
 	get folders(): IStoredWorkspaceFolder[] {
@@ -37,15 +39,20 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		return this._launchModel;
 	}
 
-	reprocessWorkspaceSettings(): void {
-		this._settingsModelParser.reprocess();
+	get tasksModel(): ConfigurationModel {
+		return this._tasksModel;
 	}
 
-	protected parseRaw(raw: any): IConfigurationModel {
+	reprocessWorkspaceSettings(): void {
+		this._settingsModelParser.parse();
+	}
+
+	protected doParseRaw(raw: any): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
-		this._settingsModelParser.parse(raw['settings']);
+		this._settingsModelParser.parseRaw(raw['settings']);
 		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
-		return super.parseRaw(raw);
+		this._tasksModel = this.createConfigurationModelFrom(raw, 'tasks');
+		return super.doParseRaw(raw);
 	}
 
 	private createConfigurationModelFrom(raw: any, key: string): ConfigurationModel {
@@ -67,7 +74,7 @@ export class StandaloneConfigurationModelParser extends ConfigurationModelParser
 		super(name);
 	}
 
-	protected parseRaw(raw: any): IConfigurationModel {
+	protected doParseRaw(raw: any): IConfigurationModel {
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const scopedContents = Object.create(null);
 		scopedContents[this.scope] = contents;
@@ -77,81 +84,25 @@ export class StandaloneConfigurationModelParser extends ConfigurationModelParser
 
 }
 
-export class FolderSettingsModelParser extends ConfigurationModelParser {
-
-	private _raw: any;
-	private _settingsModel: ConfigurationModel;
-
-	constructor(name: string, private scopes: ConfigurationScope[]) {
-		super(name);
-	}
-
-	parse(content: string | any): void {
-		this._raw = typeof content === 'string' ? this.parseContent(content) : content;
-		this.parseWorkspaceSettings(this._raw);
-	}
-
-	get configurationModel(): ConfigurationModel {
-		return this._settingsModel || new ConfigurationModel();
-	}
-
-	reprocess(): void {
-		this.parse(this._raw);
-	}
-
-	private parseWorkspaceSettings(rawSettings: any): void {
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const rawWorkspaceSettings = this.filterByScope(rawSettings, configurationProperties, true);
-		const configurationModel = this.parseRaw(rawWorkspaceSettings);
-		this._settingsModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
-	}
-
-	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean): {} {
-		const result = {};
-		for (let key in properties) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
-				result[key] = this.filterByScope(properties[key], configurationProperties, false);
-			} else {
-				const scope = this.getScope(key, configurationProperties);
-				if (this.scopes.indexOf(scope) !== -1) {
-					result[key] = properties[key];
-				}
-			}
-		}
-		return result;
-	}
-
-	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
-		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
-	}
-}
-
 export class Configuration extends BaseConfiguration {
 
 	constructor(
 		defaults: ConfigurationModel,
-		user: ConfigurationModel,
+		localUser: ConfigurationModel,
+		remoteUser: ConfigurationModel,
 		workspaceConfiguration: ConfigurationModel,
 		folders: ResourceMap<ConfigurationModel>,
 		memoryConfiguration: ConfigurationModel,
 		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
-		private readonly _workspace: Workspace) {
-		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
+		private readonly _workspace?: Workspace) {
+		super(defaults, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
 
-	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
+	getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
 		return super.getValue(key, overrides, this._workspace);
 	}
 
-	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
-		default: C,
-		user: C,
-		workspace?: C,
-		workspaceFolder?: C
-		memory?: C
-		value: C,
-	} {
+	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): IConfigurationValue<C> {
 		return super.inspect(key, overrides, this._workspace);
 	}
 
@@ -164,128 +115,42 @@ export class Configuration extends BaseConfiguration {
 		return super.keys(this._workspace);
 	}
 
-	compareAndUpdateUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.user, user);
-		let changedKeys = [...added, ...updated, ...removed];
-		if (changedKeys.length) {
-			super.updateUserConfiguration(user);
-		}
-		return new ConfigurationChangeEvent().change(changedKeys);
-	}
-
-	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
-		let changedKeys = [...added, ...updated, ...removed];
-		if (changedKeys.length) {
-			super.updateWorkspaceConfiguration(workspaceConfiguration);
-		}
-		return new ConfigurationChangeEvent().change(changedKeys);
-	}
-
-	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): ConfigurationChangeEvent {
-		const currentFolderConfiguration = this.folders.get(resource);
-		if (currentFolderConfiguration) {
-			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
-			let changedKeys = [...added, ...updated, ...removed];
-			if (changedKeys.length) {
-				super.updateFolderConfiguration(resource, folderConfiguration);
-			}
-			return new ConfigurationChangeEvent().change(changedKeys, resource);
-		} else {
-			super.updateFolderConfiguration(resource, folderConfiguration);
-			return new ConfigurationChangeEvent().change(folderConfiguration.keys, resource);
-		}
-	}
-
-	compareAndDeleteFolderConfiguration(folder: URI): ConfigurationChangeEvent {
+	compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
 		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
 			// Do not remove workspace configuration
-			return new ConfigurationChangeEvent();
+			return { keys: [], overrides: [] };
 		}
-		const keys = this.folders.get(folder).keys;
-		super.deleteFolderConfiguration(folder);
-		return new ConfigurationChangeEvent().change(keys, folder);
+		return super.compareAndDeleteFolderConfiguration(folder);
 	}
 
-	compare(other: Configuration): string[] {
-		const result: string[] = [];
-		for (const key of this.allKeys()) {
-			if (!equals(this.getValue(key), other.getValue(key))
-				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {
-				result.push(key);
+	compare(other: Configuration): IConfigurationChange {
+		const compare = (fromKeys: string[], toKeys: string[], overrideIdentifier?: string): string[] => {
+			const keys: string[] = [];
+			keys.push(...toKeys.filter(key => fromKeys.indexOf(key) === -1));
+			keys.push(...fromKeys.filter(key => toKeys.indexOf(key) === -1));
+			keys.push(...fromKeys.filter(key => {
+				// Ignore if the key does not exist in both models
+				if (toKeys.indexOf(key) === -1) {
+					return false;
+				}
+				// Compare workspace value
+				if (!equals(this.getValue(key, { overrideIdentifier }), other.getValue(key, { overrideIdentifier }))) {
+					return true;
+				}
+				// Compare workspace folder value
+				return this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri, overrideIdentifier }), other.getValue(key, { resource: folder.uri, overrideIdentifier })));
+			}));
+			return keys;
+		};
+		const keys = compare(this.allKeys(), other.allKeys());
+		const overrides: [string, string[]][] = [];
+		for (const key of keys) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				const overrideIdentifier = overrideIdentifierFromKey(key);
+				overrides.push([overrideIdentifier, compare(this.getAllKeysForOverrideIdentifier(overrideIdentifier), other.getAllKeysForOverrideIdentifier(overrideIdentifier), overrideIdentifier)]);
 			}
 		}
-		return result;
+		return { keys, overrides };
 	}
 
-	allKeys(): string[] {
-		return super.allKeys(this._workspace);
-	}
-}
-
-export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
-
-	private _changedConfiguration: ConfigurationModel | null = null;
-
-	constructor(private _configuration: Configuration, readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
-
-	get changedConfiguration(): ConfigurationModel {
-		if (!this._changedConfiguration) {
-			this._changedConfiguration = new ConfigurationModel();
-			this.updateKeys(this._changedConfiguration, this.affectedKeys);
-		}
-		return this._changedConfiguration;
-	}
-
-	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
-		return new ResourceMap();
-	}
-
-	get affectedKeys(): string[] {
-		return this._configuration.allKeys();
-	}
-
-	affectsConfiguration(config: string, resource?: URI): boolean {
-		return this.doesConfigurationContains(this.changedConfiguration, config);
-	}
-}
-
-export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
-
-	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
-
-	get changedConfiguration(): IConfigurationModel {
-		return this.configurationChangeEvent.changedConfiguration;
-	}
-
-	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
-		return this.configurationChangeEvent.changedConfigurationByResource;
-	}
-
-	get affectedKeys(): string[] {
-		return this.configurationChangeEvent.affectedKeys;
-	}
-
-	get source(): ConfigurationTarget {
-		return this.configurationChangeEvent.source;
-	}
-
-	get sourceConfig(): any {
-		return this.configurationChangeEvent.sourceConfig;
-	}
-
-	affectsConfiguration(config: string, resource?: URI): boolean {
-		if (this.configurationChangeEvent.affectsConfiguration(config, resource)) {
-			return true;
-		}
-
-		if (resource && this.workspace) {
-			let workspaceFolder = this.workspace.getFolder(resource);
-			if (workspaceFolder) {
-				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);
-			}
-		}
-
-		return false;
-	}
 }

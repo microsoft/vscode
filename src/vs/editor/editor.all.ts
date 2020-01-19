@@ -22,8 +22,8 @@ import 'vs/editor/contrib/find/findController';
 import 'vs/editor/contrib/folding/folding';
 import 'vs/editor/contrib/fontZoom/fontZoom';
 import 'vs/editor/contrib/format/formatActions';
-import 'vs/editor/contrib/goToDefinition/goToDefinitionCommands';
-import 'vs/editor/contrib/goToDefinition/goToDefinitionMouse';
+import 'vs/editor/contrib/gotoSymbol/goToCommands';
+import 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/gotoError';
 import 'vs/editor/contrib/hover/hover';
 import 'vs/editor/contrib/inPlaceReplace/inPlaceReplace';
@@ -31,12 +31,16 @@ import 'vs/editor/contrib/linesOperations/linesOperations';
 import 'vs/editor/contrib/links/links';
 import 'vs/editor/contrib/multicursor/multicursor';
 import 'vs/editor/contrib/parameterHints/parameterHints';
-import 'vs/editor/contrib/referenceSearch/referenceSearch';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/snippet/snippetController2';
 import 'vs/editor/contrib/suggest/suggestController';
+import 'vs/editor/contrib/tokenization/tokenization';
 import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+
+// Load up these strings even in VSCode, even if they are not used
+// in order to get them translated
+import 'vs/editor/common/standaloneStrings';

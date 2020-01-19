@@ -17,7 +17,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 abstract class CommentLineAction extends EditorAction {
 
-	private _type: Type;
+	private readonly _type: Type;
 
 	constructor(type: Type, opts: IActionOptions) {
 		super(opts);
@@ -34,8 +34,8 @@ abstract class CommentLineAction extends EditorAction {
 		let selections = editor.getSelections();
 		let opts = model.getOptions();
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type, accessor.get(IConfigurationService)));
+		for (const selection of selections) {
+			commands.push(new LineCommentCommand(selection, opts.tabSize, this._type, accessor.get(IConfigurationService)));
 		}
 
 		editor.pushUndoStop();
@@ -57,7 +57,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
 				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
@@ -113,7 +113,7 @@ class BlockCommentAction extends EditorAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
 				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
@@ -129,8 +129,8 @@ class BlockCommentAction extends EditorAction {
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new BlockCommentCommand(selections[i]));
+		for (const selection of selections) {
+			commands.push(new BlockCommentCommand(selection));
 		}
 
 		editor.pushUndoStop();

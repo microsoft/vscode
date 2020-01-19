@@ -195,4 +195,18 @@ suite('Editor Modes - Link Computer', () => {
 			'                                                                                                                                                 https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx                                  '
 		);
 	});
+
+	test('issue #62278: "Ctrl + click to follow link" for IPv6 URLs', () => {
+		assertLink(
+			'let x = "http://[::1]:5000/connect/token"',
+			'         http://[::1]:5000/connect/token  '
+		);
+	});
+
+	test('issue #70254: bold links dont open in markdown file using editor mode with ctrl + click', () => {
+		assertLink(
+			'2. Navigate to **https://portal.azure.com**',
+			'                 https://portal.azure.com  '
+		);
+	});
 });

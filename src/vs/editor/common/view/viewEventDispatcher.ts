@@ -8,8 +8,8 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export class ViewEventDispatcher {
 
-	private _eventHandlerGateKeeper: (callback: () => void) => void;
-	private _eventHandlers: ViewEventHandler[];
+	private readonly _eventHandlerGateKeeper: (callback: () => void) => void;
+	private readonly _eventHandlers: ViewEventHandler[];
 	private _eventQueue: ViewEvent[] | null;
 	private _isConsumingQueue: boolean;
 

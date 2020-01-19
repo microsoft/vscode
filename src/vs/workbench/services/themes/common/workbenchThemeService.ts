@@ -18,20 +18,19 @@ export const VS_HC_THEME = 'hc-black';
 export const HC_THEME_ID = 'Default High Contrast';
 
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
-export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
-export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
+export const CUSTOM_EDITOR_TOKENSTYLES_SETTING = 'editor.tokenColorCustomizationsExperimental';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
-	readonly tokenColors: ITokenColorizationRule[];
+	readonly tokenColors: ITextMateThemingRule[];
 }
 
 export interface IColorMap {
@@ -41,9 +40,9 @@ export interface IColorMap {
 export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId: string;
+	readonly settingsId: string | null;
 	readonly description?: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 
 	readonly isLoaded: boolean;
 	readonly hasFileIcons: boolean;
@@ -52,20 +51,25 @@ export interface IFileIconTheme extends IIconTheme {
 }
 
 export interface IWorkbenchThemeService extends IThemeService {
-	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme>;
+	_serviceBrand: undefined;
+	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): Thenable<IColorTheme[]>;
+	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
-	restoreColorTheme();
+	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): Thenable<IFileIconTheme[]>;
+	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
+}
+
 export interface ITokenColorCustomizations {
+	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITextMateThemingRule[];
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -73,10 +77,14 @@ export interface ITokenColorCustomizations {
 	types?: string | ITokenColorizationSetting;
 	functions?: string | ITokenColorizationSetting;
 	variables?: string | ITokenColorizationSetting;
-	textMateRules?: ITokenColorizationRule[];
+	textMateRules?: ITextMateThemingRule[];
 }
 
-export interface ITokenColorizationRule {
+export interface IExperimentalTokenStyleCustomizations {
+	[styleRuleOrThemeSettingsId: string]: string | ITokenColorizationSetting | IExperimentalTokenStyleCustomizations | undefined;
+}
+
+export interface ITextMateThemingRule {
 	name?: string;
 	scope?: string | string[];
 	settings: ITokenColorizationSetting;
@@ -85,7 +93,7 @@ export interface ITokenColorizationRule {
 export interface ITokenColorizationSetting {
 	foreground?: string;
 	background?: string;
-	fontStyle?: string;  // italic, underline, bold
+	fontStyle?: string; /* [italic|underline|bold] */
 }
 
 export interface ExtensionData {
@@ -100,4 +108,6 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
+	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
+	_watch: boolean; // unsupported options to watch location
 }

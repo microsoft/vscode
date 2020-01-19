@@ -6,9 +6,8 @@
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { flatten } from '../utils/arrays';
 import * as typeConverters from '../utils/typeConverters';
-
-
 
 class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
 	public constructor(
@@ -16,31 +15,36 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 	) { }
 
 	public async provideDocumentHighlights(
-		resource: vscode.TextDocument,
+		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentHighlight[]> {
-		const file = this.client.toPath(resource.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		const response = await this.client.execute('occurrences', args, token);
+		const args = {
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
+			filesToSearch: [file]
+		};
+		const response = await this.client.execute('documentHighlights', args, token);
 		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
 
-		return response.body
-			.filter(x => !x.isInString)
-			.map(documentHighlightFromOccurance);
+		return flatten(
+			response.body
+				.filter(highlight => highlight.file === file)
+				.map(convertDocumentHighlight));
 	}
 }
 
-function documentHighlightFromOccurance(occurrence: Proto.OccurrencesResponseItem): vscode.DocumentHighlight {
-	return new vscode.DocumentHighlight(
-		typeConverters.Range.fromTextSpan(occurrence),
-		occurrence.isWriteAccess ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read);
+function convertDocumentHighlight(highlight: Proto.DocumentHighlightsItem): ReadonlyArray<vscode.DocumentHighlight> {
+	return highlight.highlightSpans.map(span =>
+		new vscode.DocumentHighlight(
+			typeConverters.Range.fromTextSpan(span),
+			span.kind === 'writtenReference' ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read));
 }
 
 export function register(

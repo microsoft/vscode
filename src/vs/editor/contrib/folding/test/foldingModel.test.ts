@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
 import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { TrackedRangeStickiness, IModelDeltaDecoration, ITextModel, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
@@ -96,7 +96,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -135,7 +135,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -181,7 +181,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -193,7 +193,7 @@ suite('Folding Model', () => {
 
 			textModel.applyEdits([EditOperation.insert(new Position(4, 1), '//hello\n')]);
 
-			foldingModel.update(computeRanges(textModel, false, void 0));
+			foldingModel.update(computeRanges(textModel, false, undefined));
 
 			assertRanges(foldingModel, [r(1, 3, true), r(5, 8, false), r(6, 7, true)]);
 		} finally {
@@ -221,7 +221,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 12, false);
@@ -235,7 +235,7 @@ suite('Folding Model', () => {
 
 			textModel.applyEdits([EditOperation.delete(new Range(6, 11, 9, 0))]);
 
-			foldingModel.update(computeRanges(textModel, false, void 0));
+			foldingModel.update(computeRanges(textModel, false, undefined));
 
 			assertRanges(foldingModel, [r(1, 9, false), r(2, 8, false), r(3, 5, false), r(6, 8, false)]);
 		} finally {
@@ -258,7 +258,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -581,6 +581,50 @@ suite('Folding Model', () => {
 
 			setCollapseStateLevelsUp(foldingModel, true, 2, [10]);
 			assertFoldedRanges(foldingModel, [r3, r5], '4');
+		} finally {
+			textModel.dispose();
+		}
+
+	});
+
+	test('setCollapseStateUp', () => {
+		let lines = [
+		/* 1*/	'//#region',
+		/* 2*/	'//#endregion',
+		/* 3*/	'class A {',
+		/* 4*/	'  void foo() {',
+		/* 5*/	'    if (true) {',
+		/* 6*/	'        return;',
+		/* 7*/	'    }',
+		/* 8*/	'',
+		/* 9*/	'    if (true) {',
+		/* 10*/	'      return;',
+		/* 11*/	'    }',
+		/* 12*/	'  }',
+		/* 13*/	'}'];
+
+		let textModel = TextModel.createFromString(lines.join('\n'));
+		try {
+			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
+			foldingModel.update(ranges);
+
+			let r1 = r(1, 2, false);
+			let r2 = r(3, 12, false);
+			let r3 = r(4, 11, false);
+			let r4 = r(5, 6, false);
+			let r5 = r(9, 10, false);
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+
+			setCollapseStateUp(foldingModel, true, [5]);
+			assertFoldedRanges(foldingModel, [r4], '1');
+
+			setCollapseStateUp(foldingModel, true, [5]);
+			assertFoldedRanges(foldingModel, [r3, r4], '2');
+
+			setCollapseStateUp(foldingModel, true, [4]);
+			assertFoldedRanges(foldingModel, [r2, r3, r4], '2');
 		} finally {
 			textModel.dispose();
 		}

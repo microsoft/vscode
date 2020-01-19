@@ -1,9 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-[{
-	"name": "atom/language-java",
-	"version": "0.0.0",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/language-java",
-	"description": "The file syntaxes/java.tmLanguage.json was derived from the Atom package https://github.com/atom/language-java which was originally converted from the TextMate bundle https://github.com/textmate/java.tmbundle."
-
-}]

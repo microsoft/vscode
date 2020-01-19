@@ -105,7 +105,7 @@ export interface IExpandedMonarchLanguageAction {
 	 */
 	bracket?: string;
 	/**
-	 * switch to embedded language (useing the mimetype) or get out using "@pop"
+	 * switch to embedded language (using the mimetype) or get out using "@pop"
 	 */
 	nextEmbedded?: string;
 	/**
@@ -128,7 +128,7 @@ export interface IMonarchLanguageBracket {
 	 */
 	open: string;
 	/**
-	 * closeing bracket
+	 * closing bracket
 	 */
 	close: string;
 	/**
