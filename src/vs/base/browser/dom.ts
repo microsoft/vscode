@@ -820,6 +820,23 @@ export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazz
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
+export function isShadowRoot(node: Node): node is ShadowRoot {
+	return (
+		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+	);
+}
+
+export function isInShadowDOM(domNode: Node): boolean {
+	while (domNode.parentNode) {
+		if (domNode === document.body) {
+			// reached the body
+			return false;
+		}
+		domNode = domNode.parentNode;
+	}
+	return isShadowRoot(domNode);
+}
+
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';

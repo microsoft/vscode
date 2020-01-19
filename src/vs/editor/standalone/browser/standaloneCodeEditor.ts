@@ -351,6 +351,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		applyConfigurationValues(configurationService, options, false);
+		const themeDomRegistration = themeService.registerEditorContainer(domElement);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
@@ -362,6 +363,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._register(toDispose);
+		this._register(themeDomRegistration);
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
@@ -430,6 +432,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@optional(IClipboardService) clipboardService: IClipboardService | null,
 	) {
 		applyConfigurationValues(configurationService, options, true);
+		const themeDomRegistration = themeService.registerEditorContainer(domElement);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
@@ -441,6 +444,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._configurationService = configurationService;
 
 		this._register(toDispose);
+		this._register(themeDomRegistration);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}

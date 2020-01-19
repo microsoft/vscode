@@ -89,7 +89,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return editorWithWidgetFocus;
 	}
 
-	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
+	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
 	abstract removeDecorationType(key: string): void;
 	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
 
