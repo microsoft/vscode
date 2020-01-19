@@ -68,7 +68,7 @@ export class CodeLensContribution implements IEditorContribution {
 		this._styleElement = dom.createStyleSheet(
 			dom.isInShadowDOM(this._editor.getContainerDomNode())
 				? this._editor.getContainerDomNode()
-				: null
+				: undefined
 		);
 		this._updateLensStyle();
 	}
