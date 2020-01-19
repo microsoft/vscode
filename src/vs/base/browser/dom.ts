@@ -827,14 +827,18 @@ export function isShadowRoot(node: Node): node is ShadowRoot {
 }
 
 export function isInShadowDOM(domNode: Node): boolean {
+	return !!getShadowRoot(domNode);
+}
+
+export function getShadowRoot(domNode: Node): ShadowRoot | null {
 	while (domNode.parentNode) {
 		if (domNode === document.body) {
 			// reached the body
-			return false;
+			return null;
 		}
 		domNode = domNode.parentNode;
 	}
-	return isShadowRoot(domNode);
+	return isShadowRoot(domNode) ? domNode : null;
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {

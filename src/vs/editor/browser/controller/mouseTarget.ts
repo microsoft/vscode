@@ -17,6 +17,7 @@ import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import * as dom from 'vs/base/browser/dom';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -835,11 +836,13 @@ export class MouseTargetFactory {
 	}
 
 	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
-
-		const docOrRoot = (window as any).monacoShadowRoot || document;
-		const range: Range = docOrRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
-
-		//const range: Range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
+		let range: Range;
+		if (shadowRoot) {
+			range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+		} else {
+			range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+		}
 
 		if (!range || !range.startContainer) {
 			return {
