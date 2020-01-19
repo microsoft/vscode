@@ -2823,6 +2823,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
+				},
+				'editor.suggest.largeDetail': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.largeDetail', "When enabled IntelliSense shows larger details.")
 				}
 			}
 		);
