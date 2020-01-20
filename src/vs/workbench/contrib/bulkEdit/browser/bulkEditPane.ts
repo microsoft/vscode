@@ -219,11 +219,11 @@ export class BulkEditPane extends ViewPane {
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
-			options.selection = e.element.edit.edit.range;
+			options.selection = e.element.edit.textEdit.edit.range;
 
 		} else if (e.element instanceof FileElement) {
 			fileElement = e.element;
-			options.selection = e.element.edit.textEdits[0]?.edit.range;
+			options.selection = e.element.edit.textEdits[0]?.textEdit.edit.range;
 
 		} else {
 			// invalid event

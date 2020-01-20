@@ -82,7 +82,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map(edit => {
-				const range = Range.lift(edit.edit.range);
+				const range = Range.lift(edit.textEdit.edit.range);
 
 				const tokens = textModel.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
@@ -95,7 +95,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
 					textModel.getValueInRange(range),
-					edit.edit.text,
+					edit.textEdit.edit.text,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
@@ -166,13 +166,13 @@ export class BulkEditAccessibilityProvider implements IAccessibilityProvider<Bul
 		if (element instanceof TextEditElement) {
 			if (element.selecting.length > 0 && element.inserting.length > 0) {
 				// edit: replace
-				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.edit.range.startLineNumber, element.selecting, element.inserting);
+				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.textEdit.edit.range.startLineNumber, element.selecting, element.inserting);
 			} else if (element.selecting.length > 0 && element.inserting.length === 0) {
 				// edit: delete
-				return localize('aria.del', "line {0}, removing {1}", element.edit.edit.range.startLineNumber, element.selecting);
+				return localize('aria.del', "line {0}, removing {1}", element.edit.textEdit.edit.range.startLineNumber, element.selecting);
 			} else if (element.selecting.length === 0 && element.inserting.length > 0) {
 				// edit: insert
-				return localize('aria.insert', "line {0}, inserting {1}", element.edit.edit.range.startLineNumber, element.selecting);
+				return localize('aria.insert', "line {0}, inserting {1}", element.edit.textEdit.edit.range.startLineNumber, element.selecting);
 			}
 		}
 
@@ -188,7 +188,7 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		if (element instanceof FileElement) {
 			return element.uri;
 		} else {
-			return element.parent.uri.toString() + JSON.stringify(element.edit.edit);
+			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
 		}
 	}
 }

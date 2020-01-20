@@ -41,7 +41,7 @@ export class BulkTextEdit extends CheckedObject {
 
 	constructor(
 		readonly parent: BulkFileOperation,
-		readonly edit: TextEdit,
+		readonly textEdit: WorkspaceTextEdit,
 		emitter: Emitter<BulkFileOperation | BulkTextEdit>
 	) {
 		super(emitter);
@@ -73,7 +73,7 @@ export class BulkFileOperation extends CheckedObject {
 		this.type += type;
 		this.originalEdits.set(index, edit);
 		if (WorkspaceTextEdit.is(edit)) {
-			this.textEdits.push(new BulkTextEdit(this, edit.edit, this._emitter));
+			this.textEdits.push(new BulkTextEdit(this, edit, this._emitter));
 
 		} else if (type === BulkFileOperationType.Rename) {
 			this.newUri = edit.newUri;
@@ -188,7 +188,7 @@ export class BulkFileOperations {
 
 			for (let edit of file.textEdits) {
 				if (edit.isChecked()) {
-					checkedEdits.add(keyOfEdit(edit.edit));
+					checkedEdits.add(keyOfEdit(edit.textEdit.edit));
 				}
 			}
 
@@ -265,7 +265,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		}
 		// compute new edits
 		const newEdits = mergeSort(
-			operation.textEdits.filter(edit => edit.isChecked() && edit.parent.isChecked()).map(edit => EditOperation.replaceMove(Range.lift(edit.edit.range), edit.edit.text)),
+			operation.textEdits.filter(edit => edit.isChecked() && edit.parent.isChecked()).map(edit => EditOperation.replaceMove(Range.lift(edit.textEdit.edit.range), edit.textEdit.edit.text)),
 			(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
 		);
 		// apply edits and keep undo edits
