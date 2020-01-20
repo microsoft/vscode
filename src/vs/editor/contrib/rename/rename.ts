@@ -342,7 +342,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'editor.rename.enablePreview': {
 			scope: ConfigurationScope.RESOURCE_LANGUAGE,
-			description: nls.localize('enablePreview', "Enabe/disable the ability to preview changes before renaming"),
+			description: nls.localize('enablePreview', "Enable/disable the ability to preview changes before renaming"),
 			default: true,
 			type: 'boolean'
 		}
