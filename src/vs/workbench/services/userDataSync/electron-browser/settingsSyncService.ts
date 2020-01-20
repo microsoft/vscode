@@ -81,6 +81,10 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('resolveConflicts', [conflicts]);
 	}
 
+	getRemotContent(): Promise<string | null> {
+		return this.channel.call('getRemotContent');
+	}
+
 	private async updateStatus(status: SyncStatus): Promise<void> {
 		this._status = status;
 		this._onDidChangeStatus.fire(status);

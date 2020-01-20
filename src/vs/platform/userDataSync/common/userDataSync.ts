@@ -247,6 +247,8 @@ export interface ISettingsSyncService extends ISynchroniser {
 	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
 	readonly conflicts: IConflictSetting[];
 	resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
+	getRemotContent(): Promise<string | null>;
 }
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';

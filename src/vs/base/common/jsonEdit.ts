@@ -120,7 +120,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 	}
 }
 
-function withFormatting(text: string, edit: Edit, formattingOptions: FormattingOptions): Edit[] {
+export function withFormatting(text: string, edit: Edit, formattingOptions: FormattingOptions): Edit[] {
 	// apply the edit
 	let newText = applyEdit(text, edit);
 

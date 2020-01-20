@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -390,7 +390,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		});
 		if (result.confirmed) {
-			await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, false);
+			await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, undefined, ConfigurationTarget.USER);
 			if (result.checkboxChecked) {
 				await this.userDataSyncService.reset();
 			}
@@ -437,7 +437,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(input.getResource(), this.workbenchEnvironmentService.keybindingsSyncPreviewResource))[0];
 	}
 
+	private async openConflictsEditor(remoteResource: URI, previewResource: URI, source: SyncSource): Promise<void> {
+		await this.editorService.openEditor({
+			rightResource: previewResource,
+			leftResource: remoteResource,
+			label: localize('conflicts preview', "{0} Conflicts (Remote ↔ Local)", source),
+			options: {
+				preserveFocus: false,
+				pinned: false,
+				revealIfVisible: true,
+			},
+		});
+	}
+
 	private async handleConflicts(): Promise<void> {
+		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
+			return this.openConflictsEditor(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: SyncSource.Settings, path: '/remoteContent' }), this.workbenchEnvironmentService.settingsSyncPreviewResource, this.userDataSyncService.conflictsSource);
+		}
 		const conflictsResource = this.getConflictsResource();
 		if (conflictsResource) {
 			const resourceInput = {

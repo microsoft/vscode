@@ -9,7 +9,7 @@ import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, I
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import type { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -69,6 +69,7 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'hasRemoteData': return this.service.hasRemoteData();
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
+			case 'getRemotContent': return this.service.getRemotContent();
 		}
 		throw new Error('Invalid call');
 	}
