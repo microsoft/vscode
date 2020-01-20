@@ -9,7 +9,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { URI } from 'vs/base/common/uri';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
@@ -22,6 +22,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { basename } from 'vs/base/common/resources';
 
 // --- VIEW MODEL
 
@@ -420,5 +421,18 @@ export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
 		} else {
 			return CategoryElementRenderer.id;
 		}
+	}
+}
+
+
+export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvider<BulkEditElement> {
+
+	getKeyboardNavigationLabel(element: BulkEditElement) {
+		if (element instanceof FileElement) {
+			return basename(element.uri);
+		} else if (element instanceof BulkCategory) {
+			return element.label;
+		}
+		return undefined;
 	}
 }

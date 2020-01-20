@@ -6,7 +6,7 @@
 import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator2, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -119,7 +119,8 @@ export class BulkEditPane extends ViewPane {
 				ariaProvider: new BulkEditAriaProvider(),
 				identityProvider: new BulkEditIdentityProvider(),
 				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
 			}
 		);
 
