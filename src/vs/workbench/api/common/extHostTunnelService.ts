@@ -8,6 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import type * as vscode from 'vscode';
 import { RemoteTunnel, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
@@ -32,6 +33,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	readonly _serviceBrand: undefined;
 	openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
 	getTunnels(): Promise<vscode.TunnelDescription[]>;
+	onDidTunnelsChange: vscode.Event<void>;
 	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
 }
 
@@ -39,6 +41,8 @@ export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IEx
 
 export class ExtHostTunnelService implements IExtHostTunnelService {
 	_serviceBrand: undefined;
+	onDidTunnelsChange: vscode.Event<void> = (new Emitter<void>()).event;
+
 	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		return undefined;
 	}
@@ -54,5 +58,5 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> { return { dispose: () => { } }; }
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined { return undefined; }
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
-
+	async $onDidTunnelsChange(): Promise<void> { }
 }

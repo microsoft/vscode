@@ -765,6 +765,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get tunnels() {
 				return extHostTunnelService.getTunnels();
+			},
+			onDidTunnelsChange: (listener, thisArg?, disposables?) => {
+				return extHostTunnelService.onDidTunnelsChange(listener, thisArg, disposables);
 			}
 		};
 

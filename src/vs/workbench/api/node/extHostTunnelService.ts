@@ -39,6 +39,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, vscode.Tunnel>> = new Map();
+	private _onDidTunnelsChange: Emitter<void> = new Emitter<void>();
+	onDidTunnelsChange: vscode.Event<void> = this._onDidTunnelsChange.event;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -102,6 +104,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				hostMap.delete(remote.port);
 			}
 		}
+	}
+
+	async $onDidTunnelsChange(): Promise<void> {
+		this._onDidTunnelsChange.fire();
 	}
 
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined {

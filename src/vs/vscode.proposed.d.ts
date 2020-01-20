@@ -147,6 +147,11 @@ declare module 'vscode' {
 		 * Note that these are of type TunnelDescription and cannot be disposed.
 		 */
 		export let tunnels: Thenable<TunnelDescription[]>;
+
+		/**
+		 * Fired when the list of tunnels has changed.
+		 */
+		export const onDidTunnelsChange: Event<void>;
 	}
 
 	export interface ResourceLabelFormatter {
