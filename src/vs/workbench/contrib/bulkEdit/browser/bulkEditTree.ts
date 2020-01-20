@@ -15,12 +15,13 @@ import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 // --- VIEW MODEL
 
@@ -42,11 +43,13 @@ export class TextEditElement {
 	) { }
 }
 
-export type BulkEditElement = FileElement | TextEditElement;
+export type BulkEditElement = BulkCategory | FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
 export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, BulkEditElement> {
+
+	public groupByFile: boolean = true;
 
 	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
 
@@ -64,6 +67,13 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// root -> file/text edits
 		if (element instanceof BulkFileOperations) {
+			return this.groupByFile
+				? element.fileOperations.map(op => new FileElement(op))
+				: element.categories;
+		}
+
+		// category
+		if (element instanceof BulkCategory) {
 			return element.fileOperations.map(op => new FileElement(op));
 		}
 
@@ -187,8 +197,10 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 	getId(element: BulkEditElement): { toString(): string; } {
 		if (element instanceof FileElement) {
 			return element.uri;
-		} else {
+		} else if (element instanceof TextEditElement) {
 			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
+		} else {
+			return element.label || '<default>';
 		}
 	}
 }
@@ -209,6 +221,34 @@ export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
 }
 
 // --- RENDERER
+
+class CategoryElementTemplate {
+
+	readonly label: IconLabel;
+
+	constructor(container: HTMLElement) {
+		this.label = new IconLabel(container);
+	}
+}
+
+export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, FuzzyScore, CategoryElementTemplate> {
+
+	static readonly id: string = 'CategoryElementRenderer';
+
+	readonly templateId: string = CategoryElementRenderer.id;
+
+	renderTemplate(container: HTMLElement): CategoryElementTemplate {
+		return new CategoryElementTemplate(container);
+	}
+
+	renderElement(node: ITreeNode<BulkCategory, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
+		template.label.setLabel(node.element.label || localize('default', "Other"));
+	}
+
+	disposeTemplate(template: CategoryElementTemplate): void {
+		template.label.dispose();
+	}
+}
 
 class FileElementTemplate {
 
@@ -372,8 +412,13 @@ export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
 	}
 
 	getTemplateId(element: BulkEditElement): string {
-		return element instanceof FileElement
-			? FileElementRenderer.id
-			: TextEditElementRenderer.id;
+
+		if (element instanceof FileElement) {
+			return FileElementRenderer.id;
+		} else if (element instanceof TextEditElement) {
+			return TextEditElementRenderer.id;
+		} else {
+			return CategoryElementRenderer.id;
+		}
 	}
 }

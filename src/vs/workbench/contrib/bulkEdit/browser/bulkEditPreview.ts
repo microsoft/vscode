@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, TextEdit, WorkspaceTextEdit, WorkspaceFileEdit } from 'vs/editor/common/modes';
+import { WorkspaceEdit, TextEdit, WorkspaceTextEdit, WorkspaceFileEdit, WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mergeSort, coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,8 +18,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
+import { values } from 'vs/base/common/map';
 
-class CheckedObject {
+export class CheckedObject {
 
 	private _checked: boolean = true;
 
@@ -70,7 +71,7 @@ export class BulkFileOperation extends CheckedObject {
 	}
 
 	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit, ) {
-		this.type += type;
+		this.type |= type;
 		this.originalEdits.set(index, edit);
 		if (WorkspaceTextEdit.is(edit)) {
 			this.textEdits.push(new BulkTextEdit(this, edit, this._emitter));
@@ -78,6 +79,21 @@ export class BulkFileOperation extends CheckedObject {
 		} else if (type === BulkFileOperationType.Rename) {
 			this.newUri = edit.newUri;
 		}
+	}
+}
+
+export class BulkCategory {
+
+	static keyOf(metadata: WorkspaceEditMetadata | undefined) {
+		return metadata?.label || '<default>';
+	}
+
+	readonly operationByResource = new Map<string, BulkFileOperation>();
+
+	constructor(readonly label: string | undefined) { }
+
+	get fileOperations(): BulkFileOperation[] {
+		return values(this.operationByResource);
 	}
 }
 
@@ -92,7 +108,7 @@ export class BulkFileOperations {
 	readonly onDidChangeCheckedState: Event<BulkFileOperation | BulkTextEdit> = this._onDidChangeCheckedState.event;
 
 	readonly fileOperations: BulkFileOperation[] = [];
-
+	readonly categories: BulkCategory[] = [];
 	readonly conflicts: ConflictDetector;
 
 	constructor(
@@ -109,6 +125,8 @@ export class BulkFileOperations {
 
 	async _init() {
 		const operationByResource = new Map<string, BulkFileOperation>();
+		const operationByCategory = new Map<string, BulkCategory>();
+
 		const newToOldUri = new Map<string, string>();
 
 		for (let idx = 0; idx < this._bulkEdit.edits.length; idx++) {
@@ -153,23 +171,38 @@ export class BulkFileOperations {
 				continue;
 			}
 
-			let key = uri.toString();
-			let operation = operationByResource.get(key);
+			const insert = (map: Map<string, BulkFileOperation>) => {
+				let key = uri.toString();
+				let operation = map.get(key);
 
-			// rename
-			if (!operation && newToOldUri.has(key)) {
-				key = newToOldUri.get(key)!;
-				operation = operationByResource.get(key);
-			}
+				// rename
+				if (!operation && newToOldUri.has(key)) {
+					key = newToOldUri.get(key)!;
+					operation = map.get(key);
+				}
 
-			if (!operation) {
-				operation = new BulkFileOperation(uri, this);
-				operationByResource.set(key, operation);
+				if (!operation) {
+					operation = new BulkFileOperation(uri, this);
+					map.set(key, operation);
+				}
+				operation.addEdit(idx, type, edit);
+			};
+
+			insert(operationByResource);
+
+			// insert into "this" category
+			let key = BulkCategory.keyOf(edit.metadata);
+			let category = operationByCategory.get(key);
+			if (!category) {
+				category = new BulkCategory(edit.metadata?.label);
+				operationByCategory.set(key, category);
 			}
-			operation.addEdit(idx, type, edit);
+			insert(category.operationByResource);
 		}
 
 		operationByResource.forEach(value => this.fileOperations.push(value));
+		operationByCategory.forEach(value => this.categories.push(value));
+
 		return this;
 	}
 
