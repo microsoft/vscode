@@ -6,7 +6,7 @@
 import * as browser from 'vs/base/browser/browser';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, shadowCaretRangeFromPoint } from 'vs/editor/browser/editorDom';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates } from 'vs/editor/browser/editorDom';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
@@ -1017,5 +1017,96 @@ export class MouseTargetFactory {
 			position: null,
 			hitTarget: null
 		};
+	}
+}
+
+export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
+	const range = document.createRange();
+
+	// Get the element under the point
+	let el: Element | null = shadowRoot.elementFromPoint(x, y);
+
+	if (el !== null) {
+		// Get the last child of the element until its firstChild is a text node
+		// This assumes that the pointer is on the right of the line, out of the tokens
+		// and that we want to get the offset of the last token of the line
+		while (el && el.firstChild && el.firstChild.nodeType !== el.firstChild.TEXT_NODE) {
+			el = <Element>el.lastChild;
+		}
+
+		// Grab its rect
+		const rect = el.getBoundingClientRect();
+
+		// And its font
+		const font = window.getComputedStyle(el, null).getPropertyValue('font');
+
+		// And also its txt content
+		const text = (el as any).innerText;
+
+		// Position the pixel cursor at the left of the element
+		let pixelCursor = rect.left;
+		let offset = 0;
+		let step: number;
+
+		// If the point is on the right of the box put the cursor after the last character
+		if (x > rect.left + rect.width) {
+			offset = text.length;
+		} else {
+			const charWidthReader = CharWidthReader.getInstance();
+			// Goes through all the characters of the innerText, and checks if the x of the point
+			// belongs to the character.
+			for (let i = 0; i < text.length + 1; i++) {
+				// The step is half the width of the character
+				step = charWidthReader.getCharWidth(text.charAt(i), font) / 2;
+				// Move to the center of the character
+				pixelCursor += step;
+				// If the x of the point is smaller that the position of the cursor, the point is over that character
+				if (x < pixelCursor) {
+					offset = i;
+					break;
+				}
+				// Move between the current character and the next
+				pixelCursor += step;
+			}
+		}
+
+		// Creates a range with the text node of the element and set the offset found
+		range.setStart(el.firstChild!, offset);
+		range.setEnd(el.firstChild!, offset);
+	}
+
+	return range;
+}
+
+class CharWidthReader {
+	private static _INSTANCE: CharWidthReader | null = null;
+
+	public static getInstance(): CharWidthReader {
+		if (!CharWidthReader._INSTANCE) {
+			CharWidthReader._INSTANCE = new CharWidthReader();
+		}
+		return CharWidthReader._INSTANCE;
+	}
+
+	private readonly _cache: { [cacheKey: string]: number; };
+	private readonly _canvas: HTMLCanvasElement;
+
+	private constructor() {
+		this._cache = {};
+		this._canvas = document.createElement('canvas');
+	}
+
+	public getCharWidth(char: string, font: string): number {
+		const cacheKey = char + font;
+		if (this._cache[cacheKey]) {
+			return this._cache[cacheKey];
+		}
+
+		const context = this._canvas.getContext('2d')!;
+		context.font = font;
+		const metrics = context.measureText(char);
+		const width = metrics.width;
+		this._cache[cacheKey] = width;
+		return width;
 	}
 }
