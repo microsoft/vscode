@@ -108,7 +108,6 @@ declare module 'vscode' {
 		 */
 		environmentTunnels?: TunnelDescription[];
 
-		hideCandidatePorts?: boolean;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -128,6 +127,11 @@ declare module 'vscode' {
 		 * When implemented, the core will use this to forward ports.
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+
+		/**
+		 * Provides filtering for candidate ports.
+		 */
+		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
 	}
 
 	export namespace workspace {

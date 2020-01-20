@@ -37,6 +37,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
+	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, vscode.Tunnel>> = new Map();
 
 	constructor(
@@ -65,10 +66,22 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return this._proxy.$registerCandidateFinder();
 	}
 
-	async setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		if (provider && provider.tunnelFactory) {
-			this._forwardPortProvider = provider.tunnelFactory;
-			await this._proxy.$setTunnelProvider();
+	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
+		return Promise.all(candidates.map(candidate => {
+			return this._showCandidatePort(candidate.host, candidate.port, candidate.detail);
+		}));
+	}
+
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+		if (provider) {
+			if (provider.showCandidatePort) {
+				this._showCandidatePort = provider.showCandidatePort;
+				await this._proxy.$setCandidateFilter();
+			}
+			if (provider.tunnelFactory) {
+				this._forwardPortProvider = provider.tunnelFactory;
+				await this._proxy.$setTunnelProvider();
+			}
 		} else {
 			this._forwardPortProvider = undefined;
 		}
@@ -128,9 +141,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childStat = fs.statSync(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const rawCmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
-					const nullIndex = rawCmd.indexOf('\0');
-					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length).trim();
+					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

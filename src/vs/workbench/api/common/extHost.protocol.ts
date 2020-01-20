@@ -787,6 +787,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
+	$setCandidateFilter(): Promise<void>;
 }
 
 // -- extension host
@@ -1421,6 +1422,7 @@ export interface MainThreadThemingShape extends IDisposable {
 
 export interface ExtHostTunnelServiceShape {
 	$findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]>;
+	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]>;
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 }

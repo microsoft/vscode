@@ -31,7 +31,7 @@ export interface Tunnel extends vscode.Disposable {
 export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	readonly _serviceBrand: undefined;
 	openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
-	setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
+	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
@@ -44,7 +44,10 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	async $findCandidatePorts(): Promise<{ host: string, port: number; detail: string; }[]> {
 		return [];
 	}
-	async setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> { return { dispose: () => { } }; }
+	async $filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
+		return candidates.map(() => true);
+	}
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> { return { dispose: () => { } }; }
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined { return undefined; }
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
 
