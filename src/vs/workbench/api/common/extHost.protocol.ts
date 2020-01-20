@@ -563,6 +563,7 @@ export interface WebviewExtensionDescription {
 
 export enum WebviewEditorCapabilities {
 	Editable,
+	SupportsHotExit,
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
@@ -583,7 +584,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly WebviewEditorCapabilities[]): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onEdit(resource: UriComponents, viewType: string, editJson: any): void;
+	$onEdit(resource: UriComponents, viewType: string, editId: number): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -603,8 +604,9 @@ export interface ExtHostWebviewsShape {
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 
-	$undoEdits(resource: UriComponents, viewType: string, edits: readonly any[]): void;
-	$applyEdits(resource: UriComponents, viewType: string, edits: readonly any[]): void;
+	$undoEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
+	$applyEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
+	$disposeEdits(editIds: readonly number[]): void;
 
 	$onSave(resource: UriComponents, viewType: string): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;

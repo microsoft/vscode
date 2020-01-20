@@ -52,6 +52,7 @@ namespace ServerState {
 
 	export class Running {
 		readonly type = Type.Running;
+
 		constructor(
 			public readonly server: ITypeScriptServer,
 
@@ -68,6 +69,14 @@ namespace ServerState {
 		) { }
 
 		public readonly toCancelOnResourceChange = new Set<ToCancelOnResourceChanged>();
+
+		updateTsserverVersion(tsserverVersion: string) {
+			this.tsserverVersion = tsserverVersion;
+		}
+
+		updateLangaugeServiceEnabled(enabled: boolean) {
+			this.langaugeServiceEnabled = enabled;
+		}
 	}
 
 	export class Errored {
@@ -173,7 +182,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					return this.serverState.tsserverVersion;
 				}
 			}
-			return this.apiVersion.version;
+			return this.apiVersion.fullVersionString;
 		}));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
@@ -705,7 +714,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.bufferSyncSupport.interuptGetErr(f);
 	}
 
-	private fatalError(command: string, error: Error): void {
+	private fatalError(command: string, error: unknown): void {
+		if (!(error instanceof TypeScriptServerError)) {
+			console.log('fdasfasdf');
+		}
 		/* __GDPR__
 			"fatalError" : {
 				"${include}": [
@@ -759,10 +771,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				{
 					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
 					if (this.serverState.type === ServerState.Type.Running) {
-						this.serverState = {
-							...this.serverState,
-							langaugeServiceEnabled: body.languageServiceEnabled,
-						};
+						this.serverState.updateLangaugeServiceEnabled(body.languageServiceEnabled);
 					}
 					this._onProjectLanguageServiceStateChanged.fire(body);
 					break;
@@ -831,10 +840,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState = {
-					...this.serverState,
-					tsserverVersion: properties['version']
-				};
+				this.serverState.updateTsserverVersion(properties['version']);
 			}
 		}
 

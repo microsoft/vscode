@@ -14,12 +14,18 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
-	private _edits: Array<any> = [];
+	private readonly _edits: Array<CustomEditorEdit> = [];
 
 	constructor(
+		public readonly viewType: string,
 		private readonly _resource: URI,
 	) {
 		super();
+	}
+
+	dispose() {
+		this._onDisposeEdits.fire({ edits: this._edits });
+		super.dispose();
 	}
 
 	//#region IWorkingCopy
@@ -44,11 +50,14 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	//#endregion
 
-	protected readonly _onUndo = this._register(new Emitter<readonly CustomEditorEdit[]>());
+	protected readonly _onUndo = this._register(new Emitter<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>());
 	readonly onUndo = this._onUndo.event;
 
-	protected readonly _onApplyEdit = this._register(new Emitter<readonly CustomEditorEdit[]>());
+	protected readonly _onApplyEdit = this._register(new Emitter<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>());
 	readonly onApplyEdit = this._onApplyEdit.event;
+
+	protected readonly _onDisposeEdits = this._register(new Emitter<{ edits: readonly CustomEditorEdit[] }>());
+	readonly onDisposeEdits = this._onDisposeEdits.event;
 
 	protected readonly _onWillSave = this._register(new Emitter<CustomEditorSaveEvent>());
 	readonly onWillSave = this._onWillSave.event;
@@ -56,16 +65,26 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
 	readonly onWillSaveAs = this._onWillSaveAs.event;
 
-	get currentEdits(): readonly CustomEditorEdit[] {
-		return this._edits.slice(0, Math.max(0, this._currentEditIndex + 1));
-	}
+	public pushEdit(edit: CustomEditorEdit, trigger: any): void {
+		this.spliceEdits(edit);
 
-	public pushEdit(edit: CustomEditorEdit): void {
-		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, edit.data);
 		this._currentEditIndex = this._edits.length - 1;
 		this.updateDirty();
-		this._onApplyEdit.fire([edit]);
+		this._onApplyEdit.fire({ edits: [edit], trigger });
 		this.updateContentChanged();
+	}
+
+	private spliceEdits(editToInsert?: CustomEditorEdit) {
+		const start = this._currentEditIndex + 1;
+		const toRemove = this._edits.length - this._currentEditIndex;
+
+		const removedEdits = editToInsert
+			? this._edits.splice(start, toRemove, editToInsert)
+			: this._edits.splice(start, toRemove);
+
+		if (removedEdits.length) {
+			this._onDisposeEdits.fire({ edits: removedEdits });
+		}
 	}
 
 	private updateDirty() {
@@ -128,14 +147,15 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		if (this._currentEditIndex >= this._savePoint) {
 			const editsToUndo = this._edits.slice(this._savePoint, this._currentEditIndex);
-			this._onUndo.fire(editsToUndo.reverse());
+			this._onUndo.fire({ edits: editsToUndo.reverse(), trigger: undefined });
 		} else if (this._currentEditIndex < this._savePoint) {
 			const editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
-			this._onApplyEdit.fire(editsToRedo);
+			this._onApplyEdit.fire({ edits: editsToRedo, trigger: undefined });
 		}
 
 		this._currentEditIndex = this._savePoint;
-		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex);
+		this.spliceEdits();
+
 		this.updateDirty();
 		this.updateContentChanged();
 		return true;
@@ -149,7 +169,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		const undoneEdit = this._edits[this._currentEditIndex];
 		--this._currentEditIndex;
-		this._onUndo.fire([{ data: undoneEdit }]);
+		this._onUndo.fire({ edits: [undoneEdit], trigger: undefined });
 
 		this.updateDirty();
 		this.updateContentChanged();
@@ -164,7 +184,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		++this._currentEditIndex;
 		const redoneEdit = this._edits[this._currentEditIndex];
 
-		this._onApplyEdit.fire([{ data: redoneEdit }]);
+		this._onApplyEdit.fire({ edits: [redoneEdit], trigger: undefined });
 
 		this.updateDirty();
 		this.updateContentChanged();
