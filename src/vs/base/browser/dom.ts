@@ -793,7 +793,7 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 }
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
@@ -810,7 +810,7 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 			}
 		}
 
-		node = <HTMLElement>node.parentNode || (node as any).host;
+		node = <HTMLElement>node.parentNode;
 	}
 
 	return null;
@@ -1000,7 +1000,7 @@ export function saveParentsScrollTop(node: Element): number[] {
 	let r: number[] = [];
 	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
 		r[i] = node.scrollTop;
-		node = <Element>node.parentNode || (node as any).host;
+		node = <Element>node.parentNode;
 	}
 	return r;
 }
@@ -1010,7 +1010,7 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 		if (node.scrollTop !== state[i]) {
 			node.scrollTop = state[i];
 		}
-		node = <Element>node.parentNode || (node as any).host;
+		node = <Element>node.parentNode;
 	}
 }
 
@@ -1188,12 +1188,12 @@ export function hide(...elements: HTMLElement[]): void {
 }
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}
 
-		node = node.parentNode || (node as any).host;
+		node = node.parentNode;
 	}
 
 	return null;
