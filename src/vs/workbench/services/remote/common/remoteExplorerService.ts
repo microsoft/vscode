@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TunnelInformation, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -191,7 +191,7 @@ export class TunnelModel extends Disposable {
 		this._candidateFinder = finder;
 	}
 
-	setCandidateFilter(filter: (candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>): void {
+	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): void {
 		this._candidateFilter = filter;
 	}
 
@@ -235,7 +235,7 @@ export interface IRemoteExplorerService {
 	close(remote: { host: string, port: number }): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
-	setCandidateFilter(filter: (candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>): void;
+	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): IDisposable;
 	refresh(): Promise<void>;
 }
 
@@ -310,8 +310,18 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		this.tunnelModel.registerCandidateFinder(finder);
 	}
 
-	setCandidateFilter(filter: (candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>): void {
+	setCandidateFilter(filter: (candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>): IDisposable {
+		if (!filter) {
+			return {
+				dispose: () => { }
+			};
+		}
 		this.tunnelModel.setCandidateFilter(filter);
+		return {
+			dispose: () => {
+				this.tunnelModel.setCandidateFilter(undefined);
+			}
+		};
 	}
 
 	refresh(): Promise<void> {

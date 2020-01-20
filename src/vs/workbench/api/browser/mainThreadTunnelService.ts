@@ -8,9 +8,10 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
-export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
+export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape {
 	private readonly _proxy: ExtHostTunnelServiceShape;
 
 	constructor(
@@ -18,6 +19,7 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITunnelService private readonly tunnelService: ITunnelService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
 	}
 
@@ -60,7 +62,7 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 	}
 
 	async $setCandidateFilter(): Promise<void> {
-		this.remoteExplorerService.setCandidateFilter(async (candidates: { host: string, port: number, detail: string }[]): Promise<{ host: string, port: number, detail: string }[]> => {
+		this._register(this.remoteExplorerService.setCandidateFilter(async (candidates: { host: string, port: number, detail: string }[]): Promise<{ host: string, port: number, detail: string }[]> => {
 			const filters: boolean[] = await this._proxy.$filterCandidates(candidates);
 			const filteredCandidates: { host: string, port: number, detail: string }[] = [];
 			if (filters.length !== candidates.length) {
@@ -72,10 +74,10 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 				}
 			}
 			return filteredCandidates;
-		});
+		}));
 	}
 
 	dispose(): void {
-		//
+
 	}
 }
