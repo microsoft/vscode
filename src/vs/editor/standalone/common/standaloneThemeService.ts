@@ -29,7 +29,7 @@ export interface IStandaloneTheme extends ITheme {
 export interface IStandaloneThemeService extends IThemeService {
 	_serviceBrand: undefined;
 
-	registerEditorContainer(domNode: HTMLElement): IDisposable;
+	registerEditorContainer(domNode: any /* TODO: was `HTMLElement`. Changed to `any` to avoid layer violation */): IDisposable;
 
 	setTheme(themeName: string): string;
 
