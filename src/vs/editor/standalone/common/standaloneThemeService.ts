@@ -6,7 +6,6 @@
 import { ITokenThemeRule, TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');
 
@@ -28,8 +27,6 @@ export interface IStandaloneTheme extends ITheme {
 
 export interface IStandaloneThemeService extends IThemeService {
 	_serviceBrand: undefined;
-
-	registerEditorContainer(domNode: any /* TODO: was `HTMLElement`. Changed to `any` to avoid layer violation */): IDisposable;
 
 	setTheme(themeName: string): string;
 

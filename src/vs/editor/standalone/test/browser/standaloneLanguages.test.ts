@@ -13,7 +13,6 @@ import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { IIconTheme, ITheme, LIGHT } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -35,9 +34,6 @@ suite('TokenizationSupport2Adapter', () => {
 
 	class MockThemeService implements IStandaloneThemeService {
 		_serviceBrand: undefined;
-		public registerEditorContainer(domNode: HTMLElement): IDisposable {
-			throw new Error('Not implemented');
-		}
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}
