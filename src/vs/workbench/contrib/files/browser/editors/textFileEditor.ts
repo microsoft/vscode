@@ -239,9 +239,9 @@ export class TextFileEditor extends BaseTextEditor {
 
 		let ariaLabel: string;
 		if (inputName) {
-			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
+			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0} editor", inputName);
 		} else {
-			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
+			ariaLabel = nls.localize('fileEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;

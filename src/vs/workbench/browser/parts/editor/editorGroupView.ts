@@ -668,6 +668,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return localize('groupLabel', "Group {0}", this._index + 1);
 	}
 
+	get ariaLabel(): string {
+		return localize('groupAriaLabel', "Editor Group {0}", this._index + 1);
+	}
+
 	get disposed(): boolean {
 		return this._disposed;
 	}
