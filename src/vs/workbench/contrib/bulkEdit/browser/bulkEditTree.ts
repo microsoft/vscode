@@ -96,16 +96,24 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			const result = element.edit.textEdits.map(edit => {
 				const range = Range.lift(edit.textEdit.edit.range);
 
-				const tokens = textModel.getLineTokens(range.endLineNumber);
+				//prefix-math
+				let startTokens = textModel.getLineTokens(range.startLineNumber);
+				let prefixLen = 23; // default value for the no tokens/grammar case
+				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn) - 1; prefixLen < 50 && idx >= 0; idx--) {
+					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
+				}
+
+				//suffix-math
+				let endTokens = textModel.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
-				for (let idx = tokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < tokens.getCount(); idx++) {
-					suffixLen += tokens.getEndOffset(idx) - tokens.getStartOffset(idx);
+				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
+					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
 				}
 
 				return new TextEditElement(
 					element,
 					edit,
-					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
+					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
 					edit.textEdit.edit.text,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
