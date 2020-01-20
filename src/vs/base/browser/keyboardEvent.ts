@@ -228,7 +228,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		let e = source;
 
 		this.browserEvent = e;
-		this.target = (e as any).path ? (e as any).path[0] : <HTMLElement>e.target;
+		this.target = <HTMLElement>e.target;
 
 		this.ctrlKey = e.ctrlKey;
 		this.shiftKey = e.shiftKey;

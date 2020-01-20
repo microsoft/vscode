@@ -53,7 +53,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.rightButton = e.button === 2;
 		this.buttons = e.buttons;
 
-		this.target = (e as any).path ? (e as any).path[0] : <HTMLElement>e.target;
+		this.target = <HTMLElement>e.target;
 
 		this.detail = e.detail || 1;
 		if (e.type === 'dblclick') {
