@@ -2,16 +2,11 @@
 	"EXTENSIONS": [
 		"theme-defaults",
 		"css",
-		"css-language-features",
 		"javascript",
 		"typescript-basics",
-		"typescript-language-features",
 		"json",
-		"json-language-features",
 		"html",
-		"html-language-features",
-		"markdown-basics",
-		"markdown-language-features"
+		"markdown-basics"
 	],
 	"WEB_EXTENSIONS": ["web-api"],
 	"REMOTE": [
