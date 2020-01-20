@@ -83,7 +83,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	private deriveConfigurationTarget(key: string, overrides: IConfigurationOverrides): ConfigurationTarget {
 		if (overrides.resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.RESOURCE_LANGUAGE)) {
+			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.LANGUAGE_OVERRIDABLE)) {
 				return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}
