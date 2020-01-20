@@ -483,15 +483,29 @@ export namespace WorkspaceEdit {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
-		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
-			const [uri, uriOrEdits] = entry;
-			if (URI.isUri(uriOrEdits) || uriOrEdits === undefined) {
-				// resource edits
-				result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
-			} else {
-				// text edits
-				const doc = documents && uri ? documents.getDocument(uri) : undefined;
-				result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edit: TextEdit.from(uriOrEdits) });
+
+		if (value instanceof types.WorkspaceEdit) {
+			for (let entry of value.allEntries()) {
+
+				if (entry._type === 1) {
+					// file operation
+					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						oldUri: entry.from,
+						newUri: entry.to,
+						options: entry.options,
+						metadata: entry.metadata
+					});
+
+				} else {
+					// text edits
+					const doc = documents?.getDocument(entry.uri);
+					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						resource: entry.uri,
+						edit: TextEdit.from(entry.edit),
+						modelVersionId: doc?.version,
+						metadata: entry.metadata
+					});
+				}
 			}
 		}
 		return result;

@@ -1550,4 +1550,26 @@ declare module 'vscode' {
 
 	//#endregion
 
+
+	//#region https://github.com/microsoft/vscode/issues/77728
+
+	export interface WorkspaceEditMetadata {
+		needsConfirmation: boolean;
+		label: string;
+		description?: string;
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+	}
+
+	export interface WorkspaceEdit {
+
+		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditMetadata): void;
+		delete(uri: Uri, range: Range, metadata?: WorkspaceEditMetadata): void;
+		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditMetadata): void;
+
+		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
+	}
+
+	//#endregion
 }
