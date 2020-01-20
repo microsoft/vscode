@@ -6,12 +6,15 @@
 import * as assert from 'assert';
 import { replaceWhitespace, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
-import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, Scope, StackFrame, Thread, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
+import { State } from 'vs/workbench/contrib/debug/common/debug';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
@@ -123,5 +126,16 @@ suite('Debug - Base Debug View', () => {
 		assert.equal(label.element.textContent, 'console:');
 		assert.equal(label.element.title, 'console');
 		assert.equal(value.className, 'value number');
+	});
+
+	test('statusbar in debug mode', () => {
+		const model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		const session = createMockSession(model);
+		assert.equal(isStatusbarInDebugMode(State.Inactive, undefined), false);
+		assert.equal(isStatusbarInDebugMode(State.Initializing, session), false);
+		assert.equal(isStatusbarInDebugMode(State.Running, session), true);
+		assert.equal(isStatusbarInDebugMode(State.Stopped, session), true);
+		session.configuration.noDebug = true;
+		assert.equal(isStatusbarInDebugMode(State.Running, session), false);
 	});
 });
