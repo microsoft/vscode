@@ -23,6 +23,7 @@ import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget'
 import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // --- VIEW MODEL
 
@@ -201,7 +202,7 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		} else if (element instanceof TextEditElement) {
 			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
 		} else {
-			return element.label || '<default>';
+			return JSON.stringify(element.metadata);
 		}
 	}
 }
@@ -225,9 +226,13 @@ export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
 
 class CategoryElementTemplate {
 
+	readonly icon: HTMLDivElement;
 	readonly label: IconLabel;
 
 	constructor(container: HTMLElement) {
+		container.classList.add('category');
+		this.icon = document.createElement('div');
+		container.appendChild(this.icon);
 		this.label = new IconLabel(container);
 	}
 }
@@ -243,7 +248,26 @@ export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, Fuzz
 	}
 
 	renderElement(node: ITreeNode<BulkCategory, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
-		template.label.setLabel(node.element.label || localize('default', "Other"));
+
+		template.icon.style.setProperty('--background-dark', null);
+		template.icon.style.setProperty('--background-light', null);
+
+		const { metadata } = node.element;
+		if (ThemeIcon.isThemeIcon(metadata.icon)) {
+			// css
+			const className = ThemeIcon.asClassName(metadata.icon);
+			template.icon.className = className ? `theme-icon ${className}` : '';
+
+		} else if (metadata.icon) {
+			// background-image
+			template.icon.className = 'uri-icon';
+			template.icon.style.setProperty('--background-dark', `url("${metadata.icon.dark.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.icon.light.toString(true)}")`);
+		}
+
+		template.label.setLabel(metadata.label, metadata.description, {
+			descriptionMatches: createMatches(node.filterData),
+		});
 	}
 
 	disposeTemplate(template: CategoryElementTemplate): void {
@@ -431,7 +455,7 @@ export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvid
 		if (element instanceof FileElement) {
 			return basename(element.uri);
 		} else if (element instanceof BulkCategory) {
-			return element.label;
+			return element.metadata.label;
 		}
 		return undefined;
 	}

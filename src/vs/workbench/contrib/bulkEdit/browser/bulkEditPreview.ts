@@ -19,6 +19,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
 import { values } from 'vs/base/common/map';
+import { localize } from 'vs/nls';
 
 export class CheckedObject {
 
@@ -84,13 +85,19 @@ export class BulkFileOperation extends CheckedObject {
 
 export class BulkCategory {
 
-	static keyOf(metadata: WorkspaceEditMetadata | undefined) {
+	private static readonly _defaultMetadata = Object.freeze({
+		label: localize('default', "Other"),
+		icon: { id: 'codicon/symbol-file' },
+		needsConfirmation: false
+	});
+
+	static keyOf(metadata?: WorkspaceEditMetadata) {
 		return metadata?.label || '<default>';
 	}
 
 	readonly operationByResource = new Map<string, BulkFileOperation>();
 
-	constructor(readonly label: string | undefined) { }
+	constructor(readonly metadata: WorkspaceEditMetadata = BulkCategory._defaultMetadata) { }
 
 	get fileOperations(): BulkFileOperation[] {
 		return values(this.operationByResource);
@@ -194,7 +201,7 @@ export class BulkFileOperations {
 			let key = BulkCategory.keyOf(edit.metadata);
 			let category = operationByCategory.get(key);
 			if (!category) {
-				category = new BulkCategory(edit.metadata?.label);
+				category = new BulkCategory(edit.metadata);
 				operationByCategory.set(key, category);
 			}
 			insert(category.operationByResource);

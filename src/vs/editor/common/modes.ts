@@ -1265,6 +1265,7 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
+	icon?: { id: string } | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
