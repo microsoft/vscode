@@ -253,16 +253,16 @@ export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, Fuzz
 		template.icon.style.setProperty('--background-light', null);
 
 		const { metadata } = node.element;
-		if (ThemeIcon.isThemeIcon(metadata.icon)) {
+		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
 			// css
-			const className = ThemeIcon.asClassName(metadata.icon);
+			const className = ThemeIcon.asClassName(metadata.iconPath);
 			template.icon.className = className ? `theme-icon ${className}` : '';
 
-		} else if (metadata.icon) {
+		} else if (metadata.iconPath) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', `url("${metadata.icon.dark.toString(true)}")`);
-			template.icon.style.setProperty('--background-light', `url("${metadata.icon.light.toString(true)}")`);
+			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.dark.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.light.toString(true)}")`);
 		}
 
 		template.label.setLabel(metadata.label, metadata.description, {
