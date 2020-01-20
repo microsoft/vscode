@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, find, mergeSort } from 'vs/base/common/arrays';
+import { CancelablePromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
@@ -74,6 +75,8 @@ export interface ICustomEditorModel extends IWorkingCopy {
 
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
+
+	onBackup(f: () => CancelablePromise<boolean>): void;
 
 	undo(): void;
 	redo(): void;
