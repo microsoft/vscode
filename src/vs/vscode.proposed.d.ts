@@ -141,6 +141,12 @@ declare module 'vscode' {
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
+
+		/**
+		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
+		 * Note that these are of type TunnelDescription and cannot be disposed.
+		 */
+		export let tunnels: Thenable<TunnelDescription[]>;
 	}
 
 	export interface ResourceLabelFormatter {

@@ -9,6 +9,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
+import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape {
@@ -33,6 +34,15 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> {
 		return this.remoteExplorerService.close(remote);
+	}
+
+	async $getTunnels(): Promise<TunnelDescription[]> {
+		return (await this.tunnelService.tunnels).map(tunnel => {
+			return {
+				remoteAddress: { port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost },
+				localAddress: tunnel.localAddress
+			};
+		});
 	}
 
 	async $registerCandidateFinder(): Promise<void> {

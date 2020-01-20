@@ -62,6 +62,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
+	async getTunnels(): Promise<vscode.TunnelDescription[]> {
+		return this._proxy.$getTunnels();
+	}
+
 	registerCandidateFinder(): Promise<void> {
 		return this._proxy.$registerCandidateFinder();
 	}

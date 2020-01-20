@@ -762,6 +762,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			openTunnel: (forward: vscode.TunnelOptions) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.openTunnel(forward);
+			},
+			get tunnels() {
+				return extHostTunnelService.getTunnels();
 			}
 		};
 
