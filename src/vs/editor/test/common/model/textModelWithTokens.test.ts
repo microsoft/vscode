@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IFoundBracket } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
@@ -334,6 +334,76 @@ suite('TextModelWithTokens', () => {
 
 		model.dispose();
 		registration.dispose();
+	});
+
+	test('issue #88075: TypeScript brace matching is incorrect in `${}` strings', () => {
+		const mode = new LanguageIdentifier('testMode', 3);
+		const otherMetadata = (
+			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		) >>> 0;
+		const stringMetadata = (
+			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.String << MetadataConsts.TOKEN_TYPE_OFFSET)
+		) >>> 0;
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NULL_STATE,
+			tokenize: undefined!,
+			tokenize2: (line, state) => {
+				switch (line) {
+					case 'function hello() {': {
+						const tokens = new Uint32Array([
+							0, otherMetadata
+						]);
+						return new TokenizationResult2(tokens, state);
+					}
+					case '    console.log(`${100}`);': {
+						const tokens = new Uint32Array([
+							0, otherMetadata,
+							16, stringMetadata,
+							19, otherMetadata,
+							22, stringMetadata,
+							24, otherMetadata,
+						]);
+						return new TokenizationResult2(tokens, state);
+					}
+					case '}': {
+						const tokens = new Uint32Array([
+							0, otherMetadata
+						]);
+						return new TokenizationResult2(tokens, state);
+					}
+				}
+				throw new Error(`Unexpected`);
+			}
+		};
+
+		const registration1 = TokenizationRegistry.register(mode.language, tokenizationSupport);
+		const registration2 = LanguageConfigurationRegistry.register(mode, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			],
+		});
+
+		const model = TextModel.createFromString([
+			'function hello() {',
+			'    console.log(`${100}`);',
+			'}'
+		].join('\n'), undefined, mode);
+
+		model.forceTokenization(1);
+		model.forceTokenization(2);
+		model.forceTokenization(3);
+
+		assert.deepEqual(model.matchBracket(new Position(2, 23)), null);
+		assert.deepEqual(model.matchBracket(new Position(2, 20)), null);
+
+		model.dispose();
+		registration1.dispose();
+		registration2.dispose();
 	});
 });
 
