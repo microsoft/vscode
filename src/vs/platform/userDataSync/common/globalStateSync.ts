@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -25,9 +25,11 @@ interface ISyncPreviewResult {
 	readonly remoteUserData: IUserData | null;
 }
 
-export class GlobalStateSynchroniser extends Disposable implements ISynchroniser {
+export class GlobalStateSynchroniser extends Disposable implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_GLOBAL_STATE_KEY: string = 'globalState';
+
+	readonly source = SyncSource.UIState;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -165,6 +167,10 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 			/* ignore error */
 		}
 		return false;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		return null;
 	}
 
 	async resetLocal(): Promise<void> {

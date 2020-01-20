@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -37,7 +37,7 @@ interface ISyncPreviewResult {
 	readonly hasConflicts: boolean;
 }
 
-export class KeybindingsSynchroniser extends AbstractSynchroniser implements ISynchroniser {
+export class KeybindingsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_KEYBINDINGS_KEY: string = 'keybindings';
 
@@ -237,6 +237,17 @@ export class KeybindingsSynchroniser extends AbstractSynchroniser implements ISy
 			}
 		}
 		return false;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		if (this.syncPreviewResultPromise) {
+			const preview = await this.syncPreviewResultPromise;
+			if (preview.remoteUserData) {
+				return preview.remoteUserData.content;
+			}
+		}
+		const remoteUserData = this.getRemoteUserData();
+		return (await remoteUserData).content;
 	}
 
 	async resetLocal(): Promise<void> {

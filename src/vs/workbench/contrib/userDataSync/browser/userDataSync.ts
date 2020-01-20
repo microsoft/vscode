@@ -20,7 +20,6 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isEqual } from 'vs/base/common/resources';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -70,7 +69,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -452,41 +450,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async handleConflicts(): Promise<void> {
 		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
-			return this.openConflictsEditor(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: SyncSource.Settings, path: '/remoteContent' }), this.workbenchEnvironmentService.settingsSyncPreviewResource, this.userDataSyncService.conflictsSource);
+			return this.openConflictsEditor(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: this.userDataSyncService.conflictsSource, path: '/remoteContent' }), this.workbenchEnvironmentService.settingsSyncPreviewResource, this.userDataSyncService.conflictsSource);
+		} else if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
+			return this.openConflictsEditor(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: this.userDataSyncService.conflictsSource, path: '/remoteContent' }), this.workbenchEnvironmentService.keybindingsSyncPreviewResource, this.userDataSyncService.conflictsSource);
 		}
-		const conflictsResource = this.getConflictsResource();
-		if (conflictsResource) {
-			const resourceInput = {
-				resource: conflictsResource,
-				options: {
-					preserveFocus: false,
-					pinned: false,
-					revealIfVisible: true,
-				},
-				mode: 'jsonc'
-			};
-			this.editorService.openEditor(resourceInput)
-				.then(editor => {
-					this.historyService.remove(resourceInput);
-					if (editor && editor.input) {
-						// Trigger sync after closing the conflicts editor.
-						const disposable = editor.input.onDispose(() => {
-							disposable.dispose();
-							this.userDataSyncService.sync(true);
-						});
-					}
-				});
-		}
-	}
-
-	private getConflictsResource(): URI | null {
-		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
-			return this.workbenchEnvironmentService.settingsSyncPreviewResource;
-		}
-		if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
-			return this.workbenchEnvironmentService.keybindingsSyncPreviewResource;
-		}
-		return null;
 	}
 
 	private showSyncLog(): Promise<void> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -33,9 +33,11 @@ interface ILastSyncUserData extends IUserData {
 	skippedExtensions: ISyncExtension[] | undefined;
 }
 
-export class ExtensionsSynchroniser extends Disposable implements ISynchroniser {
+export class ExtensionsSynchroniser extends Disposable implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_EXTENSIONS_KEY: string = 'extensions';
+
+	readonly source = SyncSource.Extensions;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -187,6 +189,10 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			/* ignore error */
 		}
 		return false;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		return null;
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {

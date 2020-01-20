@@ -99,16 +99,7 @@ export async function merge(localContent: string, remoteContent: string, baseCon
 		mergeContent = updateKeybindings(mergeContent, command, keybindings, formattingOptions);
 	}
 
-	const hasConflicts = commandsMergeResult.conflicts.size > 0;
-	if (hasConflicts) {
-		mergeContent = `<<<<<<< local${formattingOptions.eol}`
-			+ mergeContent
-			+ `${formattingOptions.eol}=======${formattingOptions.eol}`
-			+ remoteContent
-			+ `${formattingOptions.eol}>>>>>>> remote`;
-	}
-
-	return { mergeContent, hasChanges: true, hasConflicts };
+	return { mergeContent, hasChanges: true, hasConflicts: commandsMergeResult.conflicts.size > 0 };
 }
 
 function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompareResult, baseToRemote: ICompareResult): { added: Set<string>, removed: Set<string>, updated: Set<string>, conflicts: Set<string> } {

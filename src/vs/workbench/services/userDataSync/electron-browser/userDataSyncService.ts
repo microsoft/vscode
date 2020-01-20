@@ -74,6 +74,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('hasLocalData');
 	}
 
+	getRemoteContent(source: SyncSource): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [source]);
+	}
+
 	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
 		return this.channel.call('isFirstTimeSyncAndHasUserData');
 	}

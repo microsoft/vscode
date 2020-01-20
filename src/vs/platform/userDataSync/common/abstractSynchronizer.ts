@@ -19,12 +19,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private cleanUpDelayer: ThrottledDelayer<void>;
 
 	constructor(
-		syncSource: SyncSource,
+		readonly source: SyncSource,
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
-		this.syncFolder = joinPath(environmentService.userRoamingDataHome, '.sync', syncSource);
+		this.syncFolder = joinPath(environmentService.userRoamingDataHome, '.sync', source);
 		this.cleanUpDelayer = new ThrottledDelayer(50);
 	}
 

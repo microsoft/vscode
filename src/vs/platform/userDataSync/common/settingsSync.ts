@@ -239,12 +239,13 @@ export class SettingsSynchroniser extends AbstractSynchroniser implements ISetti
 		return false;
 	}
 
-	async getRemotContent(): Promise<string | null> {
+	async getRemoteContent(): Promise<string | null> {
 		if (this.syncPreviewResultPromise) {
 			const preview = await this.syncPreviewResultPromise;
 			return preview.remoteContent;
 		}
-		return null;
+		const remoteUserData = this.getRemoteUserData();
+		return (await remoteUserData).content;
 	}
 
 	async resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
