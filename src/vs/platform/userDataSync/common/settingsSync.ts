@@ -66,7 +66,7 @@ export class SettingsSynchroniser extends AbstractSynchroniser implements ISetti
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(SyncSource.Settings, fileService, environmentService);
-		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
+		this.lastSyncSettingsResource = joinPath(this.syncFolder, '.lastSyncSettings.json');
 		this._register(this.fileService.watch(dirname(this.environmentService.settingsResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this._onDidChangeLocal.fire()));
 	}

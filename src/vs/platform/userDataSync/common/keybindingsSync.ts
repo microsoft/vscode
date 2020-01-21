@@ -62,7 +62,7 @@ export class KeybindingsSynchroniser extends AbstractSynchroniser implements IUs
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
 		super(SyncSource.Keybindings, fileService, environmentService);
-		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
+		this.lastSyncKeybindingsResource = joinPath(this.syncFolder, '.lastSyncKeybindings.json');
 		this._register(this.fileService.watch(dirname(this.environmentService.keybindingsResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this._onDidChangeLocal.fire()));
 	}

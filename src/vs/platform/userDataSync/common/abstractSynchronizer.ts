@@ -15,7 +15,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 
 export abstract class AbstractSynchroniser extends Disposable {
 
-	private readonly syncFolder: URI;
+	protected readonly syncFolder: URI;
 	private cleanUpDelayer: ThrottledDelayer<void>;
 
 	constructor(

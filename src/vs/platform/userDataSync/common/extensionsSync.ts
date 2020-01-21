@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -19,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { localize } from 'vs/nls';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 
 interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -33,11 +33,9 @@ interface ILastSyncUserData extends IUserData {
 	skippedExtensions: ISyncExtension[] | undefined;
 }
 
-export class ExtensionsSynchroniser extends Disposable implements IUserDataSynchroniser {
+export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_EXTENSIONS_KEY: string = 'extensions';
-
-	readonly source = SyncSource.Extensions;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -52,16 +50,16 @@ export class ExtensionsSynchroniser extends Disposable implements IUserDataSynch
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
+		super(SyncSource.Extensions, fileService, environmentService);
 		this.replaceQueue = this._register(new Queue());
-		this.lastSyncExtensionsResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncExtensions');
+		this.lastSyncExtensionsResource = joinPath(this.syncFolder, '.lastSyncExtensions');
 		this._register(
 			Event.debounce(
 				Event.any(

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,6 +15,7 @@ import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parse } from 'vs/base/common/json';
+import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 
 const argvProperties: string[] = ['locale'];
 
@@ -25,11 +25,9 @@ interface ISyncPreviewResult {
 	readonly remoteUserData: IUserData | null;
 }
 
-export class GlobalStateSynchroniser extends Disposable implements IUserDataSynchroniser {
+export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_GLOBAL_STATE_KEY: string = 'globalState';
-
-	readonly source = SyncSource.UIState;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -42,14 +40,14 @@ export class GlobalStateSynchroniser extends Disposable implements IUserDataSync
 	private readonly lastSyncGlobalStateResource: URI;
 
 	constructor(
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
-		this.lastSyncGlobalStateResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncGlobalState');
+		super(SyncSource.UIState, fileService, environmentService);
+		this.lastSyncGlobalStateResource = joinPath(this.syncFolder, '.lastSyncGlobalState');
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
 	}
