@@ -10,8 +10,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
-import { toLocalResource } from 'vs/base/common/resources';
+import { IUntitledTextResourceInput, IEditorInput } from 'vs/workbench/common/editor';
+import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class BackupRestorer implements IWorkbenchContribution {
@@ -34,7 +34,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	protected async doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
-		const backups = await this.backupFileService.getWorkspaceFileBackups();
+		const backups = await this.backupFileService.getBackups();
 		const unresolvedBackups = await this.doResolveOpenedBackups(backups);
 
 		// Some failed to restore or were not opened at all so we open and resolve them manually
@@ -51,7 +51,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		const unresolvedBackups: URI[] = [];
 
 		await Promise.all(backups.map(async backup => {
-			const openedEditor = this.editorService.getOpened({ resource: backup });
+			const openedEditor = this.findEditorByResource(backup);
 			if (openedEditor) {
 				try {
 					await openedEditor.resolve(); // trigger load
@@ -64,6 +64,16 @@ export class BackupRestorer implements IWorkbenchContribution {
 		}));
 
 		return unresolvedBackups;
+	}
+
+	private findEditorByResource(resource: URI): IEditorInput | undefined {
+		for (const editor of this.editorService.editors) {
+			if (isEqual(editor.getResource(), resource)) {
+				return editor;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async doOpenEditors(resources: URI[]): Promise<void> {

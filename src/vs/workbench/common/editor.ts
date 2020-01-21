@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
@@ -682,7 +683,7 @@ export class SideBySideEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
 	constructor(
-		private readonly name: string,
+		protected readonly name: string | undefined,
 		private readonly description: string | undefined,
 		private readonly _details: EditorInput,
 		private readonly _master: EditorInput
@@ -698,6 +699,22 @@ export class SideBySideEditorInput extends EditorInput {
 
 	get details(): EditorInput {
 		return this._details;
+	}
+
+	getTypeId(): string {
+		return SideBySideEditorInput.ID;
+	}
+
+	getName(): string {
+		if (!this.name) {
+			return localize('sideBySideLabels', "{0} - {1}", this._details.getName(), this._master.getName());
+		}
+
+		return this.name;
+	}
+
+	getDescription(): string | undefined {
+		return this.description;
 	}
 
 	isReadonly(): boolean {
@@ -758,18 +775,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	async resolve(): Promise<EditorModel | null> {
 		return null;
-	}
-
-	getTypeId(): string {
-		return SideBySideEditorInput.ID;
-	}
-
-	getName(): string {
-		return this.name;
-	}
-
-	getDescription(): string | undefined {
-		return this.description;
 	}
 
 	matches(otherInput: unknown): boolean {

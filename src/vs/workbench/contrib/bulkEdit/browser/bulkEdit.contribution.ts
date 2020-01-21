@@ -27,6 +27,7 @@ import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/act
 import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { getUriFromAmdModule } from 'vs/base/common/amd';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -213,7 +214,7 @@ registerAction2(class DiscardAction extends Action2 {
 });
 
 
-// CMD: toggle
+// CMD: toggle change
 registerAction2(class ToggleAction extends Action2 {
 
 	constructor() {
@@ -239,6 +240,94 @@ registerAction2(class ToggleAction extends Action2 {
 		const view = getBulkEditPane(panelService);
 		if (view) {
 			view.toggleChecked();
+		}
+	}
+});
+
+
+// CMD: toggle category
+registerAction2(class GroupByFile extends Action2 {
+
+	constructor() {
+		super({
+			id: 'refactorPreview.groupByFile',
+			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
+			category: localize('cat', "Refactor Preview"),
+			icon: {
+				light: getUriFromAmdModule(require, './media/ref-ungroup-by-type-light.svg'),
+				dark: getUriFromAmdModule(require, './media/ref-ungroup-by-type-dark.svg')
+			},
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
+			menu: [{
+				id: MenuId.BulkEditTitle,
+				when: BulkEditPane.ctxGroupByFile.negate(),
+				group: 'navigation',
+				order: 3,
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.groupByFile();
+		}
+	}
+});
+
+registerAction2(class GroupByType extends Action2 {
+
+	constructor() {
+		super({
+			id: 'refactorPreview.groupByType',
+			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
+			category: localize('cat', "Refactor Preview"),
+			icon: {
+				light: getUriFromAmdModule(require, './media/ref-group-by-type-light.svg'),
+				dark: getUriFromAmdModule(require, './media/ref-group-by-type-dark.svg')
+			},
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
+			menu: [{
+				id: MenuId.BulkEditTitle,
+				when: BulkEditPane.ctxGroupByFile,
+				group: 'navigation',
+				order: 3
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.groupByType();
+		}
+	}
+});
+
+registerAction2(class ToggleGrouping extends Action2 {
+
+	constructor() {
+		super({
+			id: 'refactorPreview.toggleGrouping',
+			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
+			category: localize('cat', "Refactor Preview"),
+			icon: { id: 'codicon/list-tree' },
+			toggled: BulkEditPane.ctxGroupByFile.negate(),
+			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled),
+			menu: [{
+				id: MenuId.BulkEditContext,
+				order: 3
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.toggleGrouping();
 		}
 	}
 });

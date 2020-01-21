@@ -23,7 +23,6 @@ export interface TunnelDescription {
 }
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];
-	hideCandidatePorts?: boolean;
 }
 
 export interface ResolverResult {

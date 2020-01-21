@@ -69,13 +69,12 @@ export class ViewCursorStateChangedEvent {
 
 	public readonly type = ViewEventType.ViewCursorStateChanged;
 
-	/**
-	 * The primary selection is always at index 0.
-	 */
 	public readonly selections: Selection[];
+	public readonly modelSelections: Selection[];
 
-	constructor(selections: Selection[]) {
+	constructor(selections: Selection[], modelSelections: Selection[]) {
 		this.selections = selections;
+		this.modelSelections = modelSelections;
 	}
 }
 

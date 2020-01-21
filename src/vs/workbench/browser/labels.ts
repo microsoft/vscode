@@ -97,7 +97,8 @@ export class ResourceLabels extends Disposable {
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
 
@@ -149,9 +150,15 @@ export class ResourceLabels extends Disposable {
 			}
 		}));
 
+		// notify when label formatters change
 		this._register(this.labelService.onDidChangeFormatters(() => {
 			this._widgets.forEach(widget => widget.notifyFormattersChange());
 		}));
+
+		// notify when untitled labels change
+		this.textFileService.untitled.onDidChangeLabel(resource => {
+			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(resource));
+		});
 	}
 
 	get(index: number): IResourceLabel {
@@ -220,9 +227,10 @@ export class ResourceLabel extends ResourceLabels {
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService, labelService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService, labelService, textFileService);
 
 		this._label = this._register(this.create(container, options));
 	}
@@ -321,6 +329,12 @@ class ResourceLabelWidget extends IconLabel {
 
 	notifyFormattersChange(): void {
 		this.render(false);
+	}
+
+	notifyUntitledLabelChange(resource: URI): void {
+		if (resources.isEqual(resource, this.label?.resource)) {
+			this.render(false);
+		}
 	}
 
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
@@ -449,7 +463,6 @@ class ResourceLabelWidget extends IconLabel {
 		};
 
 		const resource = this.label.resource;
-		const label = this.label.name;
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
@@ -496,7 +509,18 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		this.setLabel(label || '', this.label.description, iconLabelOptions);
+		let label = this.label.name || '';
+		if (resource?.scheme === Schemas.untitled) {
+			// Untitled labels are very dynamic because they may change
+			// whenever the content changes. As such we always ask the
+			// text file service for the name of the untitled editor
+			const untitledName = this.textFileService.untitled.get(resource)?.getName();
+			if (untitledName) {
+				label = untitledName;
+			}
+		}
+
+		this.setLabel(label, this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 	}

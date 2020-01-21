@@ -19,7 +19,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, matchTokenStylingRule } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/modes';
@@ -153,7 +153,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		if (this.tokenStylingRules === undefined) {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = matchTokenStylingRule(rule, classification);
+				const matchScore = rule.match(classification);
 				if (matchScore >= 0) {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
@@ -169,14 +169,14 @@ export class ColorThemeData implements IColorTheme {
 			}
 		} else {
 			for (const rule of this.tokenStylingRules) {
-				const matchScore = matchTokenStylingRule(rule, classification);
+				const matchScore = rule.match(classification);
 				if (matchScore >= 0) {
 					_processStyle(matchScore, rule.value);
 				}
 			}
 		}
 		for (const rule of this.customTokenStylingRules) {
-			const matchScore = matchTokenStylingRule(rule, classification);
+			const matchScore = rule.match(classification);
 			if (matchScore >= 0) {
 				_processStyle(matchScore, rule.value);
 			}

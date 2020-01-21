@@ -96,14 +96,13 @@ export interface TokenStyleDefaults {
 }
 
 export interface TokenStylingDefaultRule {
-	classification: TokenClassification;
-	matchScore: number;
+	match(classification: TokenClassification): number;
+	selector: TokenClassification;
 	defaults: TokenStyleDefaults;
 }
 
 export interface TokenStylingRule {
-	classification: TokenClassification;
-	matchScore: number;
+	match(classification: TokenClassification): number;
 	value: TokenStyle;
 }
 
@@ -276,16 +275,35 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return { type: tokenTypeDesc.num, modifiers: allModifierBits };
 	}
 
-	public getTokenStylingRule(classification: TokenClassification, value: TokenStyle): TokenStylingRule {
-		return { classification, matchScore: getTokenStylingScore(classification), value };
+
+	private newMatcher(selector: TokenClassification) {
+		const score = getTokenStylingScore(selector);
+		return (classification: TokenClassification) => {
+			const selectorType = selector.type;
+			if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType !== classification.type) {
+				return -1;
+			}
+			const selectorModifier = selector.modifiers;
+			if ((classification.modifiers & selectorModifier) !== selectorModifier) {
+				return -1;
+			}
+			return score;
+		};
 	}
 
-	public registerTokenStyleDefault(classification: TokenClassification, defaults: TokenStyleDefaults): void {
-		this.tokenStylingDefaultRules.push({ classification, matchScore: getTokenStylingScore(classification), defaults });
+	public getTokenStylingRule(selector: TokenClassification, value: TokenStyle): TokenStylingRule {
+		return {
+			match: this.newMatcher(selector),
+			value
+		};
+	}
+
+	public registerTokenStyleDefault(selector: TokenClassification, defaults: TokenStyleDefaults): void {
+		this.tokenStylingDefaultRules.push({ selector, match: this.newMatcher(selector), defaults });
 	}
 
 	public deregisterTokenStyleDefault(classification: TokenClassification): void {
-		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.classification.type === classification.type && r.classification.modifiers === classification.modifiers));
+		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.selector.type === classification.type && r.selector.modifiers === classification.modifiers));
 	}
 
 	public deregisterTokenType(id: string): void {
@@ -328,18 +346,6 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return Object.keys(this.tokenTypeById).sort(sorter).map(k => `- \`${k}\`: ${this.tokenTypeById[k].description}`).join('\n');
 	}
 
-}
-
-export function matchTokenStylingRule(themeSelector: TokenStylingRule | TokenStylingDefaultRule, classification: TokenClassification): number {
-	const selectorType = themeSelector.classification.type;
-	if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType !== classification.type) {
-		return -1;
-	}
-	const selectorModifier = themeSelector.classification.modifiers;
-	if ((classification.modifiers & selectorModifier) !== selectorModifier) {
-		return -1;
-	}
-	return themeSelector.matchScore;
 }
 
 

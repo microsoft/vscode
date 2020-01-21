@@ -2770,6 +2770,10 @@ declare namespace monaco.editor {
 		 */
 		colorDecorators?: boolean;
 		/**
+		 * Control the behaviour of comments in the editor.
+		 */
+		comments?: IEditorCommentsOptions;
+		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
 		 */
@@ -3083,6 +3087,19 @@ declare namespace monaco.editor {
 		readonly name: string;
 		defaultValue: V;
 	}
+
+	/**
+	 * Configuration options for editor comments
+	 */
+	export interface IEditorCommentsOptions {
+		/**
+		 * Insert a space after the line comment token and inside the block comments tokens.
+		 * Defaults to true.
+		 */
+		insertSpace?: boolean;
+	}
+
+	export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
 
 	/**
 	 * The kind of animation in which the editor's cursor should be rendered.
@@ -3676,101 +3693,102 @@ declare namespace monaco.editor {
 		autoSurround = 10,
 		codeLens = 11,
 		colorDecorators = 12,
-		contextmenu = 13,
-		copyWithSyntaxHighlighting = 14,
-		cursorBlinking = 15,
-		cursorSmoothCaretAnimation = 16,
-		cursorStyle = 17,
-		cursorSurroundingLines = 18,
-		cursorSurroundingLinesStyle = 19,
-		cursorWidth = 20,
-		disableLayerHinting = 21,
-		disableMonospaceOptimizations = 22,
-		dragAndDrop = 23,
-		emptySelectionClipboard = 24,
-		extraEditorClassName = 25,
-		fastScrollSensitivity = 26,
-		find = 27,
-		fixedOverflowWidgets = 28,
-		folding = 29,
-		foldingStrategy = 30,
-		foldingHighlight = 31,
-		fontFamily = 32,
-		fontInfo = 33,
-		fontLigatures = 34,
-		fontSize = 35,
-		fontWeight = 36,
-		formatOnPaste = 37,
-		formatOnType = 38,
-		glyphMargin = 39,
-		gotoLocation = 40,
-		hideCursorInOverviewRuler = 41,
-		highlightActiveIndentGuide = 42,
-		hover = 43,
-		inDiffEditor = 44,
-		letterSpacing = 45,
-		lightbulb = 46,
-		lineDecorationsWidth = 47,
-		lineHeight = 48,
-		lineNumbers = 49,
-		lineNumbersMinChars = 50,
-		links = 51,
-		matchBrackets = 52,
-		minimap = 53,
-		mouseStyle = 54,
-		mouseWheelScrollSensitivity = 55,
-		mouseWheelZoom = 56,
-		multiCursorMergeOverlapping = 57,
-		multiCursorModifier = 58,
-		multiCursorPaste = 59,
-		occurrencesHighlight = 60,
-		overviewRulerBorder = 61,
-		overviewRulerLanes = 62,
-		parameterHints = 63,
-		peekWidgetFocusInlineEditor = 64,
-		quickSuggestions = 65,
-		quickSuggestionsDelay = 66,
-		readOnly = 67,
-		renderControlCharacters = 68,
-		renderIndentGuides = 69,
-		renderFinalNewline = 70,
-		renderLineHighlight = 71,
-		renderWhitespace = 72,
-		revealHorizontalRightPadding = 73,
-		roundedSelection = 74,
-		rulers = 75,
-		scrollbar = 76,
-		scrollBeyondLastColumn = 77,
-		scrollBeyondLastLine = 78,
-		selectionClipboard = 79,
-		selectionHighlight = 80,
-		selectOnLineNumbers = 81,
-		semanticHighlighting = 82,
-		showFoldingControls = 83,
-		showUnused = 84,
-		snippetSuggestions = 85,
-		smoothScrolling = 86,
-		stopRenderingLineAfter = 87,
-		suggest = 88,
-		suggestFontSize = 89,
-		suggestLineHeight = 90,
-		suggestOnTriggerCharacters = 91,
-		suggestSelection = 92,
-		tabCompletion = 93,
-		useTabStops = 94,
-		wordSeparators = 95,
-		wordWrap = 96,
-		wordWrapBreakAfterCharacters = 97,
-		wordWrapBreakBeforeCharacters = 98,
-		wordWrapColumn = 99,
-		wordWrapMinified = 100,
-		wrappingIndent = 101,
-		wrappingAlgorithm = 102,
-		editorClassName = 103,
-		pixelRatio = 104,
-		tabFocusMode = 105,
-		layoutInfo = 106,
-		wrappingInfo = 107
+		comments = 13,
+		contextmenu = 14,
+		copyWithSyntaxHighlighting = 15,
+		cursorBlinking = 16,
+		cursorSmoothCaretAnimation = 17,
+		cursorStyle = 18,
+		cursorSurroundingLines = 19,
+		cursorSurroundingLinesStyle = 20,
+		cursorWidth = 21,
+		disableLayerHinting = 22,
+		disableMonospaceOptimizations = 23,
+		dragAndDrop = 24,
+		emptySelectionClipboard = 25,
+		extraEditorClassName = 26,
+		fastScrollSensitivity = 27,
+		find = 28,
+		fixedOverflowWidgets = 29,
+		folding = 30,
+		foldingStrategy = 31,
+		foldingHighlight = 32,
+		fontFamily = 33,
+		fontInfo = 34,
+		fontLigatures = 35,
+		fontSize = 36,
+		fontWeight = 37,
+		formatOnPaste = 38,
+		formatOnType = 39,
+		glyphMargin = 40,
+		gotoLocation = 41,
+		hideCursorInOverviewRuler = 42,
+		highlightActiveIndentGuide = 43,
+		hover = 44,
+		inDiffEditor = 45,
+		letterSpacing = 46,
+		lightbulb = 47,
+		lineDecorationsWidth = 48,
+		lineHeight = 49,
+		lineNumbers = 50,
+		lineNumbersMinChars = 51,
+		links = 52,
+		matchBrackets = 53,
+		minimap = 54,
+		mouseStyle = 55,
+		mouseWheelScrollSensitivity = 56,
+		mouseWheelZoom = 57,
+		multiCursorMergeOverlapping = 58,
+		multiCursorModifier = 59,
+		multiCursorPaste = 60,
+		occurrencesHighlight = 61,
+		overviewRulerBorder = 62,
+		overviewRulerLanes = 63,
+		parameterHints = 64,
+		peekWidgetFocusInlineEditor = 65,
+		quickSuggestions = 66,
+		quickSuggestionsDelay = 67,
+		readOnly = 68,
+		renderControlCharacters = 69,
+		renderIndentGuides = 70,
+		renderFinalNewline = 71,
+		renderLineHighlight = 72,
+		renderWhitespace = 73,
+		revealHorizontalRightPadding = 74,
+		roundedSelection = 75,
+		rulers = 76,
+		scrollbar = 77,
+		scrollBeyondLastColumn = 78,
+		scrollBeyondLastLine = 79,
+		selectionClipboard = 80,
+		selectionHighlight = 81,
+		selectOnLineNumbers = 82,
+		semanticHighlighting = 83,
+		showFoldingControls = 84,
+		showUnused = 85,
+		snippetSuggestions = 86,
+		smoothScrolling = 87,
+		stopRenderingLineAfter = 88,
+		suggest = 89,
+		suggestFontSize = 90,
+		suggestLineHeight = 91,
+		suggestOnTriggerCharacters = 92,
+		suggestSelection = 93,
+		tabCompletion = 94,
+		useTabStops = 95,
+		wordSeparators = 96,
+		wordWrap = 97,
+		wordWrapBreakAfterCharacters = 98,
+		wordWrapBreakBeforeCharacters = 99,
+		wordWrapColumn = 100,
+		wordWrapMinified = 101,
+		wrappingIndent = 102,
+		wrappingAlgorithm = 103,
+		editorClassName = 104,
+		pixelRatio = 105,
+		tabFocusMode = 106,
+		layoutInfo = 107,
+		wrappingInfo = 108
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3786,6 +3804,7 @@ declare namespace monaco.editor {
 		autoSurround: IEditorOption<EditorOption.autoSurround, EditorAutoSurroundStrategy>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
+		comments: IEditorOption<EditorOption.comments, EditorCommentsOptions>;
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
 		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
@@ -4469,6 +4488,10 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
+		 * Returns the editor's container dom node
+		 */
+		getContainerDomNode(): HTMLElement;
+		/**
 		 * Returns the editor's dom node
 		 */
 		getDomNode(): HTMLElement | null;
@@ -4614,6 +4637,7 @@ declare namespace monaco.editor {
 		readonly typicalFullwidthCharacterWidth: number;
 		readonly canUseHalfwidthRightwardsArrow: boolean;
 		readonly spaceWidth: number;
+		readonly middotWidth: number;
 		readonly maxDigitWidth: number;
 	}
 
@@ -5173,6 +5197,17 @@ declare namespace monaco.languages {
 		Snippet = 25
 	}
 
+	export interface CompletionItemLabel {
+		/**
+		 * The name of this completion item's label.
+		 */
+		name: string;
+		/**
+		 * The return-type of a function or type of a property, variable
+		 */
+		type?: string;
+	}
+
 	export enum CompletionItemTag {
 		Deprecated = 1
 	}
@@ -5199,7 +5234,7 @@ declare namespace monaco.languages {
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 		/**
 		 * The kind of this completion item. Based on the kind
 		 * an icon is chosen by the editor.
@@ -5282,7 +5317,6 @@ declare namespace monaco.languages {
 	export interface CompletionList {
 		suggestions: CompletionItem[];
 		incomplete?: boolean;
-		isDetailsResolved?: boolean;
 		dispose?(): void;
 	}
 
@@ -5874,21 +5908,37 @@ declare namespace monaco.languages {
 		constructor(value: string);
 	}
 
+	export interface WorkspaceEditMetadata {
+		needsConfirmation: boolean;
+		label: string;
+		description?: string;
+		iconPath?: {
+			id: string;
+		} | {
+			light: Uri;
+			dark: Uri;
+		};
+	}
+
+	export interface WorkspaceFileEditOptions {
+		overwrite?: boolean;
+		ignoreIfNotExists?: boolean;
+		ignoreIfExists?: boolean;
+		recursive?: boolean;
+	}
+
 	export interface WorkspaceFileEdit {
 		oldUri?: Uri;
 		newUri?: Uri;
-		options?: {
-			overwrite?: boolean;
-			ignoreIfNotExists?: boolean;
-			ignoreIfExists?: boolean;
-			recursive?: boolean;
-		};
+		options?: WorkspaceFileEditOptions;
+		metadata?: WorkspaceEditMetadata;
 	}
 
 	export interface WorkspaceTextEdit {
 		resource: Uri;
+		edit: TextEdit;
 		modelVersionId?: number;
-		edits: TextEdit[];
+		metadata?: WorkspaceEditMetadata;
 	}
 
 	export interface WorkspaceEdit {

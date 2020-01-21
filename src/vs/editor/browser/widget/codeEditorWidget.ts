@@ -1165,6 +1165,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.createOverviewRuler(cssClassName);
 	}
 
+	public getContainerDomNode(): HTMLElement {
+		return this._domElement;
+	}
+
 	public getDomNode(): HTMLElement | null {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return null;
@@ -1548,7 +1552,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
-		this._codeEditorService.registerDecorationType(key, options, parentTypeKey);
+		this._codeEditorService.registerDecorationType(key, options, parentTypeKey, this);
 	}
 
 	private _removeDecorationType(key: string): void {

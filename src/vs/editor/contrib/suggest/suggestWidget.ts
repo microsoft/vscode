@@ -46,11 +46,23 @@ const expandSuggestionDocsByDefault = false;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
+
+	/**
+	 * Flexbox
+	 * < -- left -->                   <---   right   --->
+	 * <icon><label>                   <details><readmore>
+	 */
+	left: HTMLElement;
+	right: HTMLElement;
+
 	icon: HTMLElement;
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
 	iconContainer: HTMLElement;
-	typeLabel: HTMLElement;
+	/**
+	 * Showing either `CompletionItem#details` or `CompletionItemLabel#name`
+	 */
+	detailsLabel: HTMLElement;
 	readMore: HTMLElement;
 	disposables: DisposableStore;
 }
@@ -66,8 +78,12 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function extractColor(item: CompletionItem, out: string[]): boolean {
-	if (item.completion.label.match(colorRegExp)) {
-		out[0] = item.completion.label;
+	const label = typeof item.completion.label === 'string'
+		? item.completion.label
+		: item.completion.label.name;
+
+	if (label.match(colorRegExp)) {
+		out[0] = label;
 		return true;
 	}
 	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
@@ -92,7 +108,7 @@ function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
 }
 
-class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
+class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	constructor(
 		private widget: SuggestWidget,
@@ -122,14 +138,22 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconContainer = append(main, $('.icon-label.codicon'));
+		/**
+		 * Flexbox
+		 * < -- left -->                   <---   right   --->
+		 * <icon><label>                   <details><readmore>
+		 */
+		data.left = append(main, $('span.left'));
+		data.right = append(main, $('span.right'));
 
-		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportCodicons: true });
+		data.iconContainer = append(data.left, $('.icon-label.codicon'));
+
+		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
-		data.typeLabel = append(main, $('span.type-label'));
+		data.detailsLabel = append(data.right, $('span.details-label'));
 
-		data.readMore = append(main, $('span.readMore.codicon.codicon-info'));
+		data.readMore = append(data.right, $('span.readMore.codicon.codicon-info'));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
@@ -166,6 +190,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).completion;
+		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 
 		data.root.id = getAriaId(index);
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
@@ -187,7 +212,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE);
+			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FILE);
 			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE);
 			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
@@ -196,7 +221,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
 			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FOLDER),
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FOLDER)
 			]);
 		} else {
@@ -211,10 +236,17 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			labelOptions.matches = [];
 		}
 
-		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);
-		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
+		if (typeof suggestion.label === 'string') {
+			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+			removeClass(data.right, 'always-show-details');
+		} else {
+			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
+			addClass(data.right, 'always-show-details');
+		}
 
 		if (canExpandCompletionItem(element)) {
+			addClass(data.right, 'can-expand-details');
 			show(data.readMore);
 			data.readMore.onmousedown = e => {
 				e.stopPropagation();
@@ -226,6 +258,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 				this.widget.toggleDetails();
 			};
 		} else {
+			removeClass(data.right, 'can-expand-details');
 			hide(data.readMore);
 			data.readMore.onmousedown = null;
 			data.readMore.onclick = null;
@@ -511,7 +544,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
-		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
+		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
@@ -519,6 +552,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: (item: CompletionItem) => {
+					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 					if (item.isResolved && this.expandDocsSettingFromStorage()) {
 						const { documentation, detail } = item.completion;
 						const docs = strings.format(
@@ -526,9 +560,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 							detail || '',
 							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, docs);
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, docs);
 					} else {
-						return item.completion.label;
+						return textLabel;
 					}
 				}
 			}
@@ -545,7 +579,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
 		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
-		this.toDispose.add(this.editor.onDidChangeConfiguration(e => e.hasChanged(EditorOption.suggest) && applyIconStyle()));
+		this.toDispose.add(this.editor.onDidChangeConfiguration(e => { if (e.hasChanged(EditorOption.suggest)) { applyIconStyle(); } }));
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);

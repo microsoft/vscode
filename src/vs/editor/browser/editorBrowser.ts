@@ -724,6 +724,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getTelemetryData(): { [key: string]: any } | undefined;
 
 	/**
+	 * Returns the editor's container dom node
+	 */
+	getContainerDomNode(): HTMLElement;
+
+	/**
 	 * Returns the editor's dom node
 	 */
 	getDomNode(): HTMLElement | null;

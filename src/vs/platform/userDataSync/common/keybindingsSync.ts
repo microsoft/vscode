@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -37,7 +37,7 @@ interface ISyncPreviewResult {
 	readonly hasConflicts: boolean;
 }
 
-export class KeybindingsSynchroniser extends AbstractSynchroniser implements ISynchroniser {
+export class KeybindingsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_KEYBINDINGS_KEY: string = 'keybindings';
 
@@ -62,7 +62,7 @@ export class KeybindingsSynchroniser extends AbstractSynchroniser implements ISy
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
 		super(SyncSource.Keybindings, fileService, environmentService);
-		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
+		this.lastSyncKeybindingsResource = joinPath(this.syncFolder, '.lastSyncKeybindings.json');
 		this._register(this.fileService.watch(dirname(this.environmentService.keybindingsResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this._onDidChangeLocal.fire()));
 	}
@@ -237,6 +237,18 @@ export class KeybindingsSynchroniser extends AbstractSynchroniser implements ISy
 			}
 		}
 		return false;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		let content: string | null | undefined = null;
+		if (this.syncPreviewResultPromise) {
+			const preview = await this.syncPreviewResultPromise;
+			content = preview.remoteUserData?.content;
+		} else {
+			const remoteUserData = await this.getRemoteUserData();
+			content = remoteUserData.content;
+		}
+		return content ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
 	async resetLocal(): Promise<void> {

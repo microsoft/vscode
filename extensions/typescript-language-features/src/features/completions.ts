@@ -23,6 +23,8 @@ import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
+const knownTsTriggerCharacters = new Set<string>(['.', '"', '\'', '`', '/', '@', '<']);
+
 interface DotAccessorContext {
 	readonly range: vscode.Range;
 	readonly text: string;
@@ -459,11 +461,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
-		// Workaround for https://github.com/microsoft/TypeScript/issues/36234
-		if (context.triggerCharacter === '#') {
-			return undefined;
-		}
-
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
 		if (context.triggerCharacter === '@'
 			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
@@ -471,10 +468,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return undefined;
 		}
 
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
-		if (context.triggerCharacter === '@'
-			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
-		) {
+		if (context.triggerCharacter && !knownTsTriggerCharacters.has(context.triggerCharacter)) {
 			return undefined;
 		}
 
@@ -524,7 +518,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 		item.additionalTextEdits = codeAction.additionalTextEdits;
 
-		if (detail && item.useCodeSnippet) {
+		if (item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
 			if (shouldCompleteFunction) {
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
