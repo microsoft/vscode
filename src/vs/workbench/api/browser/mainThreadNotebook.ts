@@ -5,7 +5,7 @@
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext } from '../common/extHost.protocol';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { INotebook, IMetadata, ICell, IOutput } from 'vs/editor/common/modes';
@@ -29,6 +29,7 @@ export class MainThreadCell implements ICell {
 	constructor(
 		public handle: number,
 		public source: string[],
+		public language: string,
 		public cell_type: 'markdown' | 'code',
 		outputs: IOutput[]
 	) {
@@ -36,8 +37,9 @@ export class MainThreadCell implements ICell {
 	}
 }
 
-export class MainThreadNotebookDocument implements INotebook {
-
+export class MainThreadNotebookDocument extends Disposable implements INotebook {
+	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	private readonly _onDidChangeCells = new Emitter<void>();
 	get onDidChangeCells(): Event<void> { return this._onDidChangeCells.event; }
 	private _mapping: Map<number, MainThreadCell> = new Map();
@@ -47,8 +49,9 @@ export class MainThreadNotebookDocument implements INotebook {
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
 		public handle: number,
-		public resource: URI
+		public uri: URI
 	) {
+		super();
 		this.cells = [];
 	}
 
@@ -65,7 +68,7 @@ export class MainThreadNotebookDocument implements INotebook {
 
 		if (this.cells.length === 0) {
 			newCells.forEach(cell => {
-				let mainCell = new MainThreadCell(cell.handle, cell.source, cell.cell_type, cell.outputs);
+				let mainCell = new MainThreadCell(cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
 				this._mapping.set(cell.handle, mainCell);
 				this.cells.push(mainCell);
 			});
@@ -83,6 +86,11 @@ export class MainThreadNotebookDocument implements INotebook {
 
 	updateActiveCell(handle: number) {
 		this.activeCell = this._mapping.get(handle);
+	}
+
+	dispose() {
+		this._onWillDispose.fire();
+		super.dispose();
 	}
 }
 

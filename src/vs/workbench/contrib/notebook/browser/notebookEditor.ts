@@ -31,9 +31,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebook } from 'vs/editor/common/modes';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
+
+export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
 
 interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -56,6 +59,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private fontInfo: BareFontInfo | undefined;
 	private relayoutDisposable: IDisposable | null = null;
 	private dimension: DOM.Dimension | null = null;
+	private editorFocus: IContextKey<boolean> | null = null;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -68,7 +72,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@INotebookService private notebookService: INotebookService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentSerice: IEnvironmentService
+		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
@@ -87,6 +92,14 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.rootElement = DOM.append(parent, $('.notebook-editor'));
 		this.createBody(this.rootElement);
 		this.generateFontInfo();
+		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
+		this._register(this.onDidFocus(() => {
+			this.editorFocus?.set(true);
+		}));
+
+		this._register(this.onDidBlur(() => {
+			this.editorFocus?.set(false);
+		}));
 	}
 
 	private generateFontInfo(): void {
@@ -343,6 +356,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		let newCell = new ViewCell(this.viewType!, this.notebook!.handle, {
 			handle: -1,
 			cell_type: type,
+			language: '',
 			source: [],
 			outputs: []
 		}, false, this.modelService, this.modeService);

@@ -1498,6 +1498,7 @@ export type IOutput = IStreamOutput | any;
 export interface ICell {
 	handle: number;
 	source: string[];
+	language: string;
 	cell_type: 'markdown' | 'code';
 	outputs: IOutput[];
 	onDidChangeOutputs?: Event<void>;
@@ -1523,8 +1524,10 @@ export interface IMetadata {
 export interface INotebook {
 	handle: number;
 	// metadata: IMetadata;
+	readonly uri: URI;
 	cells: ICell[];
 	onDidChangeCells?: Event<void>;
+	onWillDispose(listener: () => void): IDisposable;
 }
 
 export interface CodeLens {

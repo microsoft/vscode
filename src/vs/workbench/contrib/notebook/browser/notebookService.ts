@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotebook } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import { notebookExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
+
+function MODEL_ID(resource: URI): string {
+	return resource.toString();
+}
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
@@ -58,15 +62,32 @@ export class NotebookInfoStore {
 	}
 }
 
+class ModelData implements IDisposable {
+	private readonly _modelEventListeners = new DisposableStore();
+
+	constructor(
+		public model: INotebook,
+		onWillDispose: (model: INotebook) => void
+	) {
+		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+	}
+
+	public dispose(): void {
+		this._modelEventListeners.dispose();
+	}
+}
+
 
 export class NotebookService extends Disposable implements INotebookService {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	public notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
+	private readonly _models: { [modelId: string]: ModelData; };
 
 	constructor() {
 		super();
 
+		this._models = {};
 		notebookExtensionPoint.setHandler((extensions) => {
 			this.notebookProviderInfoStore.clear();
 
@@ -96,7 +117,19 @@ export class NotebookService extends Disposable implements INotebookService {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.resolveNotebook(viewType, uri);
+			let notebookModel = await provider.controller.resolveNotebook(viewType, uri);
+
+			if (notebookModel) {
+				// new notebook model created
+				const modelId = MODEL_ID(uri);
+
+				const modelData = new ModelData(
+					notebookModel,
+					(model) => this._onWillDispose(model),
+				);
+				this._models[modelId] = modelData;
+				return modelData.model;
+			}
 		}
 
 		return;
@@ -139,5 +172,15 @@ export class NotebookService extends Disposable implements INotebookService {
 		});
 
 		return ret;
+	}
+
+	private _onWillDispose(model: INotebook): void {
+		let modelId = MODEL_ID(model.uri);
+		let modelData = this._models[modelId];
+
+		delete this._models[modelId];
+		modelData.dispose();
+
+		// this._onModelRemoved.fire(model);
 	}
 }

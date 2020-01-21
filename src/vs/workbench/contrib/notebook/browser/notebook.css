@@ -17,9 +17,9 @@
 	white-space: initial;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell {
+/* .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell {
 	transform: translate3d(0, 0, 0);
-}
+} */
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container {
 	position: relative;

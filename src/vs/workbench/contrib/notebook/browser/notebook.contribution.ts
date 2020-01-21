@@ -6,14 +6,13 @@
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { NotebookEditor, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { endsWith } from 'vs/base/common/strings';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -22,8 +21,6 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IActiveCodeEditor, isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -151,7 +148,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			},
 			order: -1,
 			group: 'navigation',
-			when: ResourceContextKey.Extension.isEqualTo('.ipynb')
+			when: NOTEBOOK_EDITOR_FOCUSED
 		});
 
 		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ExecuteNotebookCellAction, ExecuteNotebookCellAction.ID, ExecuteNotebookCellAction.LABEL), 'Execute Notebook Cell', 'Notebook');
@@ -164,7 +161,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			},
 			order: -1,
 			group: 'navigation',
-			when: ResourceContextKey.Extension.isEqualTo('.ipynb')
+			when: NOTEBOOK_EDITOR_FOCUSED
 		});
 
 	}

@@ -412,7 +412,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private eventuallyUpdateScrollDimensions(): void {
 		this._scrollHeight = this.contentHeight;
-		this.rowsContainer.style.height = `${this._scrollHeight}px`;
+		if (this.scrollableElement.getScrollDimensions().height > this._scrollHeight) {
+			this.rowsContainer.style.height = `${this.scrollableElement.getScrollDimensions().height}`;
+		} else {
+			this.rowsContainer.style.height = `${this._scrollHeight}px`;
+		}
 
 		if (!this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable = DOM.scheduleAtNextAnimationFrame(() => {

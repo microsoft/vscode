@@ -84,6 +84,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 				this._proxy.$updateNotebookCell(this.handle, {
 					handle: cell.handle,
 					source: cell.source,
+					language: cell.language,
 					cell_type: cell.cell_type,
 					outputs: cell.outputs
 				});
@@ -107,6 +108,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		return await this._proxy.$updateNotebookCells(this.handle, this.cells.map(cell => ({
 			handle: cell.handle,
 			source: cell.source,
+			language: cell.language,
 			cell_type: cell.cell_type,
 			outputs: cell.outputs
 		})));
@@ -145,7 +147,7 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 		private readonly documentsProxy: MainThreadDocumentsShape,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
-		let regex = new RegExp(`${viewType}-(\\d+)-(\\d+)`);
+		let regex = new RegExp(`notebook\\+${viewType}-(\\d+)-(\\d+)`);
 		this._documentsAndEditors.onDidAddDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;

@@ -160,11 +160,12 @@ export class ViewCell {
 
 	getTextModel(): ITextModel {
 		if (!this._textModel) {
+			let mode = this.modeService.create(this.cell.language);
 			let ext = this.cellType === 'markdown' ? 'md' : 'py';
 			let resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
-			resource = resource.with({ authority: `${this.viewType}-${this.notebookHandle}-${this.cell.handle}` });
+			resource = resource.with({ authority: `notebook+${this.viewType}-${this.notebookHandle}-${this.cell.handle}` });
 			let content = this.cell.source.join('\n');
-			this._textModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+			this._textModel = this.modelService.createModel(content, mode, resource, false);
 		}
 
 		return this._textModel;
