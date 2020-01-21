@@ -714,7 +714,10 @@ export class RepositoryPane extends ViewPane {
 			lineHeight: 20,
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 			wrappingAlgorithm: 'dom',
-			wrappingIndent: 'none'
+			wrappingIndent: 'none',
+			suggest: {
+				showWords: false
+			}
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
