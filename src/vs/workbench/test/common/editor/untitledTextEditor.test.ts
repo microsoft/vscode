@@ -387,10 +387,19 @@ suite('Workbench untitled text editors', () => {
 		model.textEditorModel.setValue('');
 		assert.equal(input.getName(), 'Untitled-1');
 
-		assert.equal(counter, 3);
+		model.textEditorModel.setValue('        ');
+		assert.equal(input.getName(), 'Untitled-1');
+
+		model.textEditorModel.setValue('([]}'); // require actual words
+		assert.equal(input.getName(), 'Untitled-1');
+
+		model.textEditorModel.setValue('([]}hello   '); // require actual words
+		assert.equal(input.getName(), '([]}hello');
+
+		assert.equal(counter, 6);
 
 		model.textEditorModel.setValue('Hello\nWorld');
-		assert.equal(counter, 4);
+		assert.equal(counter, 7);
 
 		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 			let range = new Range(
@@ -409,7 +418,7 @@ suite('Workbench untitled text editors', () => {
 		}
 
 		model.textEditorModel.applyEdits([createSingleEditOp('hello', 2, 2)]);
-		assert.equal(counter, 4); // change was not on first line
+		assert.equal(counter, 7); // change was not on first line
 
 		input.dispose();
 		model.dispose();
