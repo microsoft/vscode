@@ -770,6 +770,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	disposed!: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label!: string;
+	ariaLabel!: string;
 	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	element!: HTMLElement;

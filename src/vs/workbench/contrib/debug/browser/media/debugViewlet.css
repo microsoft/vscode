@@ -173,8 +173,13 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file {
-	display: none;
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file .line-number {
+	visibility: hidden;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .monaco-action-bar {
+	position: absolute;
+	right: 2px;
 }
 
 .debug-viewlet .debug-call-stack .monaco-list-row .monaco-action-bar {

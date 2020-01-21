@@ -648,6 +648,18 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
+	test('issue #84217: Broken indentation detection', () => {
+		assertGuess(true, 4, [
+			'def main():',
+			'    print(\'hello\')',
+		]);
+		assertGuess(true, 4, [
+			'def main():',
+			'    with open(\'foo\') as fp:',
+			'        print(fp.read())',
+		]);
+	});
+
 	test('validatePosition', () => {
 
 		let m = TextModel.createFromString('line one\nline two');

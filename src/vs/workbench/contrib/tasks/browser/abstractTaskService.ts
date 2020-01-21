@@ -85,6 +85,8 @@ const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
 const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
 
+const SETTINGS_GROUP_KEY = 'settings';
+
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
@@ -546,7 +548,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(undefined);
 		}
 		return this.getGroupedTasks().then((map) => {
-			const values = map.get(folder);
+			let values = map.get(folder);
+			values = values.concat(map.get(SETTINGS_GROUP_KEY));
+
 			if (!values) {
 				return undefined;
 			}
@@ -1588,7 +1592,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				const userTasks = await this.computeUserTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (userTasks) {
-					result.set('settings', userTasks);
+					result.set(SETTINGS_GROUP_KEY, userTasks);
 				}
 				const workspaceFileTasks = await this.computeWorkspaceFileTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (workspaceFileTasks && this._workspace && this._workspace.configuration) {

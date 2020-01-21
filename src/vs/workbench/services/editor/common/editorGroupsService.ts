@@ -397,6 +397,8 @@ export interface IEditorGroup {
 	 */
 	readonly label: string;
 
+	readonly ariaLabel: string;
+
 	/**
 	 * The active control is the currently visible control of the group.
 	 */

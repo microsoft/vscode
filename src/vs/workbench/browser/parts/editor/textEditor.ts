@@ -104,7 +104,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		// Apply group information to help identify in which group we are
 		if (ariaLabel) {
 			if (this.group) {
-				ariaLabel = localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, this.group.label);
+				ariaLabel = localize('editorLabelWithGroup', "{0}, {1}", ariaLabel, this.group.ariaLabel);
 			}
 		}
 

@@ -764,9 +764,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTunnelService.openTunnel(forward);
 			},
 			get tunnels() {
+				checkProposedApiEnabled(extension);
 				return extHostTunnelService.getTunnels();
 			},
 			onDidTunnelsChange: (listener, thisArg?, disposables?) => {
+				checkProposedApiEnabled(extension);
 				return extHostTunnelService.onDidTunnelsChange(listener, thisArg, disposables);
 			}
 		};

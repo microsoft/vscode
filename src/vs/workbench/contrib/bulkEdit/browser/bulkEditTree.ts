@@ -23,6 +23,7 @@ import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget'
 import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // --- VIEW MODEL
 
@@ -95,16 +96,24 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			const result = element.edit.textEdits.map(edit => {
 				const range = Range.lift(edit.textEdit.edit.range);
 
-				const tokens = textModel.getLineTokens(range.endLineNumber);
+				//prefix-math
+				let startTokens = textModel.getLineTokens(range.startLineNumber);
+				let prefixLen = 23; // default value for the no tokens/grammar case
+				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn) - 1; prefixLen < 50 && idx >= 0; idx--) {
+					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
+				}
+
+				//suffix-math
+				let endTokens = textModel.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
-				for (let idx = tokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < tokens.getCount(); idx++) {
-					suffixLen += tokens.getEndOffset(idx) - tokens.getStartOffset(idx);
+				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
+					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
 				}
 
 				return new TextEditElement(
 					element,
 					edit,
-					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
+					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
 					edit.textEdit.edit.text,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
@@ -201,7 +210,7 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		} else if (element instanceof TextEditElement) {
 			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
 		} else {
-			return element.label || '<default>';
+			return JSON.stringify(element.metadata);
 		}
 	}
 }
@@ -225,9 +234,13 @@ export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
 
 class CategoryElementTemplate {
 
+	readonly icon: HTMLDivElement;
 	readonly label: IconLabel;
 
 	constructor(container: HTMLElement) {
+		container.classList.add('category');
+		this.icon = document.createElement('div');
+		container.appendChild(this.icon);
 		this.label = new IconLabel(container);
 	}
 }
@@ -243,7 +256,26 @@ export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, Fuzz
 	}
 
 	renderElement(node: ITreeNode<BulkCategory, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
-		template.label.setLabel(node.element.label || localize('default', "Other"));
+
+		template.icon.style.setProperty('--background-dark', null);
+		template.icon.style.setProperty('--background-light', null);
+
+		const { metadata } = node.element;
+		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
+			// css
+			const className = ThemeIcon.asClassName(metadata.iconPath);
+			template.icon.className = className ? `theme-icon ${className}` : '';
+
+		} else if (metadata.iconPath) {
+			// background-image
+			template.icon.className = 'uri-icon';
+			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.dark.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.light.toString(true)}")`);
+		}
+
+		template.label.setLabel(metadata.label, metadata.description, {
+			descriptionMatches: createMatches(node.filterData),
+		});
 	}
 
 	disposeTemplate(template: CategoryElementTemplate): void {
@@ -431,7 +463,7 @@ export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvid
 		if (element instanceof FileElement) {
 			return basename(element.uri);
 		} else if (element instanceof BulkCategory) {
-			return element.label;
+			return element.metadata.label;
 		}
 		return undefined;
 	}
