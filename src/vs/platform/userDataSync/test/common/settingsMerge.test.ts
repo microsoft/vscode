@@ -1432,6 +1432,52 @@ suite('SettingsMerge - Add Setting', () => {
 
 		assert.equal(actual, expected);
 	});
+
+	test('Insert after a setting that is of object type', () => {
+
+		const sourceContent = `
+{
+	"b": {
+		"d": 1
+	},
+	"a": 2,
+	"c": 1
+}`;
+		const targetContent = `
+{
+	"b": {
+		"d": 1
+	},
+	"c": 1
+}`;
+
+		const actual = addSetting('a', sourceContent, targetContent, formattingOptions);
+
+		assert.equal(actual, sourceContent);
+	});
+
+	test('Insert after a setting that is of array type', () => {
+
+		const sourceContent = `
+{
+	"b": [
+		1
+	],
+	"a": 2,
+	"c": 1
+}`;
+		const targetContent = `
+{
+	"b": [
+		1
+	],
+	"c": 1
+}`;
+
+		const actual = addSetting('a', sourceContent, targetContent, formattingOptions);
+
+		assert.equal(actual, sourceContent);
+	});
 });
 
 function stringify(value: any): string {
