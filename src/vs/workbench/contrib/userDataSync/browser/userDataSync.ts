@@ -57,6 +57,15 @@ const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', Au
 
 type ConfigureSyncQuickPickItem = { id: string, label: string, description?: string };
 
+function getSyncAreaLabel(source: SyncSource): string {
+	switch (source) {
+		case SyncSource.Settings: return localize('settings', "Settings");
+		case SyncSource.Keybindings: return localize('keybindings', "Keybindings");
+		case SyncSource.Extensions: return localize('extensions', "Extensions");
+		case SyncSource.UIState: return localize('ui state label', "UI State");
+	}
+}
+
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
 	private static readonly ENABLEMENT_SETTING = 'sync.enable';
@@ -198,7 +207,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			if (!this.conflictsWarningDisposable.value) {
-				const conflictsArea = this.userDataSyncService.conflictsSource === SyncSource.Settings ? localize('settings', "Settings") : localize('keybindings', "Keybindings");
+				const conflictsArea = getSyncAreaLabel(this.userDataSyncService.conflictsSource!);
 				const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts in {0}. Please resolve them to continue.", conflictsArea),
 					[
 						{
@@ -308,16 +317,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
 		return [{
 			id: 'sync.enableSettings',
-			label: localize('settings', "Settings")
+			label: getSyncAreaLabel(SyncSource.Settings)
 		}, {
 			id: 'sync.enableKeybindings',
-			label: localize('keybindings', "Keybindings")
+			label: getSyncAreaLabel(SyncSource.Keybindings)
 		}, {
 			id: 'sync.enableExtensions',
-			label: localize('extensions', "Extensions")
+			label: getSyncAreaLabel(SyncSource.Extensions)
 		}, {
 			id: 'sync.enableUIState',
-			label: localize('ui state label', "UI State"),
+			label: getSyncAreaLabel(SyncSource.UIState),
 			description: localize('ui state description', "Display Language (Only)")
 		}];
 	}
@@ -680,7 +689,8 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IFileService private readonly fileService: IFileService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -724,22 +734,36 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 	private createAcceptChangesWidgetRenderer(): void {
 		if (!this.acceptChangesButton) {
-			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? localize('accept remote', "Accept (Remote)") : localize('accept local', "Accept (Local)"), null);
+			const replaceLabel = localize('accept remote', "Replace (Overwrite Local)");
+			const acceptLabel = localize('accept local', "Accept");
+			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? replaceLabel : acceptLabel, null);
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
 					try {
 						const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
-						if (syncSource === SyncSource.Settings) {
-							const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Settings);
-							if (remoteContent) {
-								await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+						if (syncSource !== undefined) {
+							const syncAreaLabel = getSyncAreaLabel(syncSource);
+							const result = await this.dialogService.confirm({
+								type: 'info',
+								title: localize('Sync overwrite local', "Sync: {0}", replaceLabel),
+								message: localize('confirm replace and overwrite local', "Would you like to replace Local {0} with Remote {1}?", syncAreaLabel, syncAreaLabel),
+								primaryButton: replaceLabel
+							});
+							if (!result.confirmed) {
+								return;
 							}
-						}
-						else if (syncSource === SyncSource.Keybindings) {
-							const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
-							if (remoteContent) {
-								await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+							if (syncSource === SyncSource.Settings) {
+								const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Settings);
+								if (remoteContent) {
+									await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+								}
+							}
+							else if (syncSource === SyncSource.Keybindings) {
+								const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
+								if (remoteContent) {
+									await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+								}
 							}
 						}
 						await this.userDataSyncService.sync(true);
