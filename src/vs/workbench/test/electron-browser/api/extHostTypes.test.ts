@@ -451,11 +451,11 @@ suite('ExtHostTypes', function () {
 			command: { command: 'id', title: 'title' }
 		});
 
-		assertToJSON(new types.CompletionItem('complete'), { label: 'complete', label2: { name: 'complete' } });
+		assertToJSON(new types.CompletionItem('complete'), { label: 'complete' });
 
 		let item = new types.CompletionItem('complete');
 		item.kind = types.CompletionItemKind.Interface;
-		assertToJSON(item, { label: 'complete', label2: { name: 'complete' }, kind: 'Interface' });
+		assertToJSON(item, { label: 'complete', kind: 'Interface' });
 
 	});
 

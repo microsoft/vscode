@@ -1386,7 +1386,6 @@ export class CompletionItem implements vscode.CompletionItem {
 
 	constructor(label: string, kind?: CompletionItemKind) {
 		this.label = label;
-		this.label2 = { name: label };
 		this.kind = kind;
 	}
 
