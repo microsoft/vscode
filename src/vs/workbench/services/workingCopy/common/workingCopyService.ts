@@ -22,8 +22,21 @@ export const enum WorkingCopyCapabilities {
 	Untitled = 1 << 1
 }
 
+/**
+ * Data to be associated with working copy backups. Use
+ * `IBackupFileService.resolve(workingCopy.resource)` to
+ * retrieve the backup when loading the working copy.
+ */
 export interface IWorkingCopyBackup {
+
+	/**
+	 * Any serializable metadata to be associated with the backup.
+	 */
 	meta?: object;
+
+	/**
+	 * Use this for larger textual content of the backup.
+	 */
 	content?: ITextSnapshot;
 }
 
@@ -36,8 +49,17 @@ export interface IWorkingCopy {
 
 	//#region Events
 
+	/**
+	 * Used by the workbench to signal if the working copy
+	 * is dirty or not. Typically a working copy is dirty
+	 * once changed until saved or reverted.
+	 */
 	readonly onDidChangeDirty: Event<void>;
 
+	/**
+	 * Used by the workbench e.g. to trigger auto-save
+	 * (unless this working copy is untitled) and backups.
+	 */
 	readonly onDidChangeContent: Event<void>;
 
 	//#endregion
@@ -52,6 +74,14 @@ export interface IWorkingCopy {
 
 	//#region Save / Backup
 
+	/**
+	 * The workbench may call this method often after it receives
+	 * the `onDidChangeContent` event for the working copy. The motivation
+	 * is to allow to quit VSCode with dirty working copies present.
+	 *
+	 * Providers of working copies should use `IBackupFileService.resolve(workingCopy.resource)`
+	 * to retrieve the backup metadata associated when loading the working copy.
+	 */
 	backup(): Promise<IWorkingCopyBackup>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
