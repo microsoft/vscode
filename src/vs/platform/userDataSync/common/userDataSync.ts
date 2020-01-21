@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -256,4 +257,11 @@ export interface ISettingsSyncService extends IUserDataSynchroniser {
 }
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
+export function toRemoteContentResource(source: SyncSource): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${source}/remoteContent` });
+}
+export function getSyncSourceFromRemoteContentResource(uri: URI): SyncSource | undefined {
+	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.UIState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
+}

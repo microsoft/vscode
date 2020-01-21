@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
-import { Disposable, MutableDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
@@ -15,8 +15,6 @@ import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workben
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
@@ -41,6 +39,12 @@ import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/s
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import type { ITextModel } from 'vs/editor/common/model';
+import type { IEditorContribution } from 'vs/editor/common/editorCommon';
+import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -48,8 +52,6 @@ const enum AuthStatus {
 	SignedOut = 'SignedOut'
 }
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthStatus.Initializing);
-const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
-const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-dark.svg`));
 
 type ConfigureSyncQuickPickItem = { id: string, label: string, description?: string };
 
@@ -105,6 +107,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			});
 
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
+			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
 		}
 	}
 
@@ -459,7 +462,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 		if (rightResource) {
 			await this.editorService.openEditor({
-				leftResource: URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${this.userDataSyncService.conflictsSource}/remoteContent` }),
+				leftResource: toRemoteContentResource(this.userDataSyncService.conflictsSource!),
 				rightResource,
 				label,
 				options: {
@@ -548,14 +551,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: resolveConflictsCommandId,
-				title: localize('resolveConflicts_global', "Resolve sync conflicts (1)"),
+				title: localize('resolveConflicts_global', "Show sync conflicts (1)"),
 			},
 			when: resolveConflictsWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: resolveConflictsCommandId,
-				title: localize('resolveConflicts', "Sync: Resolve sync conflicts"),
+				title: localize('showConflicts', "Sync: Show sync conflicts"),
 			},
 			when: resolveConflictsWhenContext,
 		});
@@ -568,32 +571,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				title: localize('continue sync', "Sync: Continue sync")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
-		});
-		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-			command: {
-				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue sync"),
-				icon: {
-					light: SYNC_PUSH_LIGHT_ICON_URI,
-					dark: SYNC_PUSH_DARK_ICON_URI
-				}
-			},
-			group: 'navigation',
-			order: 1,
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.settingsSyncPreviewResource.toString())),
-		});
-		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-			command: {
-				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue sync"),
-				icon: {
-					light: SYNC_PUSH_LIGHT_ICON_URI,
-					dark: SYNC_PUSH_DARK_ICON_URI
-				}
-			},
-			group: 'navigation',
-			order: 1,
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.keybindingsSyncPreviewResource.toString())),
 		});
 
 		const signOutMenuItem: IMenuItem = {
@@ -650,16 +627,112 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		let promise: Promise<string | null> | undefined;
-		if (uri.path === `${SyncSource.Settings}/remoteContent`) {
+		if (isEqual(uri, toRemoteContentResource(SyncSource.Settings))) {
 			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings);
 		}
-		if (uri.path === `${SyncSource.Keybindings}/remoteContent`) {
+		if (isEqual(uri, toRemoteContentResource(SyncSource.Keybindings))) {
 			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
 		}
 		if (promise) {
 			return promise.then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
 		}
 		return null;
+	}
+}
+
+class AcceptChangesContribution extends Disposable implements IEditorContribution {
+
+	static get(editor: ICodeEditor): AcceptChangesContribution {
+		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
+	}
+
+	public static readonly ID = 'editor.contrib.acceptChangesButton';
+
+	private acceptChangesButton: FloatingClickWidget | undefined;
+
+	constructor(
+		private editor: ICodeEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IFileService private readonly fileService: IFileService
+	) {
+		super();
+
+		this.update();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.editor.onDidChangeModel(e => this.update()));
+	}
+
+	private update(): void {
+		if (!this.shouldShowButton(this.editor)) {
+			this.disposeAcceptChangesWidgetRenderer();
+			return;
+		}
+
+		this.createAcceptChangesWidgetRenderer();
+	}
+
+	private shouldShowButton(editor: ICodeEditor): boolean {
+		const model = editor.getModel();
+		if (!model) {
+			return false; // we need a model
+		}
+
+		if (isEqual(model.uri, this.environmentService.settingsSyncPreviewResource)) {
+			return true;
+		}
+
+		if (isEqual(model.uri, this.environmentService.keybindingsSyncPreviewResource)) {
+			return true;
+		}
+
+		if (getSyncSourceFromRemoteContentResource(model.uri) !== undefined) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private createAcceptChangesWidgetRenderer(): void {
+		if (!this.acceptChangesButton) {
+			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? localize('accept remote', "Accept (Remote)") : localize('accept local', "Accept (Local)"), null);
+			this._register(this.acceptChangesButton.onClick(async () => {
+				const model = this.editor.getModel();
+				if (model) {
+					const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
+					if (syncSource === SyncSource.Settings) {
+						const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Settings);
+						if (remoteContent) {
+							await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+						}
+					}
+					else if (syncSource === SyncSource.Keybindings) {
+						const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
+						if (remoteContent) {
+							await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+						}
+					}
+					await this.userDataSyncService.sync(true);
+				}
+			}));
+
+			this.acceptChangesButton.render();
+		}
+	}
+
+	private disposeAcceptChangesWidgetRenderer(): void {
+		dispose(this.acceptChangesButton);
+		this.acceptChangesButton = undefined;
+	}
+
+	dispose(): void {
+		this.disposeAcceptChangesWidgetRenderer();
+
+		super.dispose();
 	}
 }
 
