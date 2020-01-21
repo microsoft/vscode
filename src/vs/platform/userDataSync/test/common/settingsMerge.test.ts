@@ -178,6 +178,69 @@ suite('SettingsMerge - Merge', () => {
 		assert.ok(!actual.hasConflicts);
 	});
 
+	test('merge when remote has moved forwareded with order changes and local stays with base', async () => {
+		const localContent = stringify({
+			'a': 1,
+			'b': 2,
+			'c': 3,
+		});
+		const remoteContent = stringify({
+			'a': 2,
+			'd': 4,
+			'c': 3,
+			'b': 2,
+		});
+		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, remoteContent);
+		assert.equal(actual.remoteContent, null);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge when remote has moved forwareded with comment changes and local stays with base', async () => {
+		const localContent = `
+{
+	// this is comment for b
+	"b": 2,
+	// this is comment for c
+	"c": 1,
+}`;
+		const remoteContent = stringify`
+{
+	// comment b has changed
+	"b": 2,
+	// this is comment for c
+	"c": 1,
+}`;
+		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, remoteContent);
+		assert.equal(actual.remoteContent, null);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge when remote has moved forwareded with comment and order changes and local stays with base', async () => {
+		const localContent = `
+{
+	// this is comment for b
+	"b": 2,
+	// this is comment for c
+	"c": 1,
+}`;
+		const remoteContent = stringify`
+{
+	// this is comment for c
+	"c": 1,
+	// comment b has changed
+	"b": 2,
+}`;
+		const actual = merge(localContent, remoteContent, localContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, remoteContent);
+		assert.equal(actual.remoteContent, null);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
+
 	test('merge when a new entries are added to local', async () => {
 		const localContent = stringify({
 			'a': 1,
@@ -256,6 +319,68 @@ suite('SettingsMerge - Merge', () => {
 		const remoteContent = stringify({
 			'a': 1,
 		});
+		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, null);
+		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge when local has moved forwarded with order changes and remote stays with base', async () => {
+		const localContent = `
+{
+	"b": 2,
+	"c": 1,
+}`;
+		const remoteContent = stringify`
+{
+	"c": 1,
+	"b": 2,
+}`;
+		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, null);
+		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge when local has moved forwarded with comment changes and remote stays with base', async () => {
+		const localContent = `
+{
+	// comment for b has changed
+	"b": 2,
+	// comment for c
+	"c": 1,
+}`;
+		const remoteContent = stringify`
+{
+	// comment for b
+	"b": 2,
+	// comment for c
+	"c": 1,
+}`;
+		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, null);
+		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge when local has moved forwarded with comment and order changes and remote stays with base', async () => {
+		const localContent = `
+{
+	// comment for c
+	"c": 1,
+	// comment for b has changed
+	"b": 2,
+}`;
+		const remoteContent = stringify`
+{
+	// comment for b
+	"b": 2,
+	// comment for c
+	"c": 1,
+}`;
 		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
 		assert.equal(actual.localContent, null);
 		assert.equal(actual.remoteContent, localContent);
@@ -358,6 +483,71 @@ suite('SettingsMerge - Merge', () => {
 		}));
 		assert.ok(actual.hasConflicts);
 		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+	});
+
+	test('merge when local and remote has moved forwareded with change in order', async () => {
+		const baseContent = stringify({
+			'a': 1,
+			'b': 2,
+			'c': 3,
+			'd': 4,
+		});
+		const localContent = stringify({
+			'a': 2,
+			'c': 3,
+			'b': 2,
+			'd': 4,
+			'e': 5,
+		});
+		const remoteContent = stringify({
+			'a': 1,
+			'b': 2,
+			'c': 4,
+		});
+		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, stringify({
+			'a': 2,
+			'c': 4,
+			'b': 2,
+			'e': 5,
+		}));
+		assert.equal(actual.remoteContent, stringify({
+			'a': 2,
+			'b': 2,
+			'e': 5,
+			'c': 4,
+		}));
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, []);
+	});
+
+	test('merge when local and remote has moved forwareded with comment changes', async () => {
+		const baseContent = `
+{
+	// this is comment for b
+	"b": 2,
+	// this is comment for c
+	"c": 1
+}`;
+		const localContent = `
+{
+	// comment b has changed in local
+	"b": 2,
+	// this is comment for c
+	"c": 1
+}`;
+		const remoteContent = `
+{
+	// comment b has changed in remote
+	"b": 2,
+	// this is comment for c
+	"c": 1
+}`;
+		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
+		assert.equal(actual.localContent, localContent);
+		assert.equal(actual.remoteContent, remoteContent);
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, []);
 	});
 
 	test('resolve when local and remote has moved forwareded with resolved conflicts', async () => {
