@@ -278,7 +278,7 @@ CommandsRegistry.registerCommand({
 		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
 		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 		if (!extensionToUninstall) {
-			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id));
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", extensionId));
 		}
 
 		try {
