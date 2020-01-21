@@ -74,8 +74,14 @@ class Settings {
 		this.right = position.right;
 		this.domWidth = position.width;
 		this.domHeight = position.height;
-		this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
-		this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
+		if (this.overviewRulerLanes === 0) {
+			// overview ruler is off
+			this.canvasWidth = 0;
+			this.canvasHeight = 0;
+		} else {
+			this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
+			this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
+		}
 
 		const [x, w] = this._initLanes(1, this.canvasWidth, this.overviewRulerLanes);
 		this.x = x;
@@ -303,6 +309,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _render(): void {
+		if (this._settings.overviewRulerLanes === 0) {
+			// overview ruler is off
+			this._domNode.setBackgroundColor(this._settings.backgroundColor ? this._settings.backgroundColor : '');
+			return;
+		}
 		const canvasWidth = this._settings.canvasWidth;
 		const canvasHeight = this._settings.canvasHeight;
 		const lineHeight = this._settings.lineHeight;
