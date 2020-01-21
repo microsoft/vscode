@@ -61,10 +61,6 @@ export function activate(context: ExtensionContext) {
 							type: (item.documentation as string)
 						};
 					}
-					const range = item.range;
-					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range = { inserting: new Range(range.start, position), replacing: range };
-					}
 				}
 				// testing the new completion
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
