@@ -44,10 +44,16 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private editorMemento: IEditorMemento<IEditorViewState>;
 	private inputDisposable: IDisposable | undefined;
 
+	// Allow subclasses to provide a different (e.g. scoped)
+	// instantiation service for this abstract text editor
+	protected get instantiationService(): IInstantiationService {
+		return this._instantiationService;
+	}
+
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService protected readonly configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,

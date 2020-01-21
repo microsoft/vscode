@@ -47,6 +47,11 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		this.scopedInstantiationService = instantiationService;
 	}
 
+	protected get instantiationService(): IInstantiationService {
+		// Override instantiation service with our scoped service
+		return this.scopedInstantiationService;
+	}
+
 	getId(): string {
 		return OUTPUT_PANEL_ID;
 	}
@@ -157,9 +162,5 @@ export class OutputPanel extends AbstractTextResourceEditor {
 				lockAction.run(newLockState);
 			}
 		});
-	}
-
-	get instantiationService(): IInstantiationService {
-		return this.scopedInstantiationService;
 	}
 }
