@@ -453,20 +453,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async handleConflicts(): Promise<void> {
-		let rightResource: URI | undefined = undefined;
+		let previewResource: URI | undefined = undefined;
 		let label: string = '';
 		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
-			rightResource = this.workbenchEnvironmentService.settingsSyncPreviewResource;
+			previewResource = this.workbenchEnvironmentService.settingsSyncPreviewResource;
 			label = localize('settings conflicts preview', "Settings Conflicts (Remote ↔ Local)");
 		} else if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
-			rightResource = this.workbenchEnvironmentService.keybindingsResource;
+			previewResource = this.workbenchEnvironmentService.keybindingsResource;
 			label = localize('keybindings conflicts preview', "Keybindings Conflicts (Remote ↔ Local)");
 		}
-		if (rightResource) {
-			const leftResource = toRemoteContentResource(this.userDataSyncService.conflictsSource!);
+		if (previewResource) {
+			const remoteContentResource = toRemoteContentResource(this.userDataSyncService.conflictsSource!);
 			const editor = await this.editorService.openEditor({
-				leftResource,
-				rightResource,
+				leftResource: remoteContentResource,
+				rightResource: previewResource,
 				label,
 				options: {
 					preserveFocus: false,
@@ -477,26 +477,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (editor?.input) {
 				const disposable = editor.input.onDispose(async () => {
 					disposable.dispose();
-					this.checkAndContinueSync(leftResource, rightResource!);
+					const source = getSyncSourceFromRemoteContentResource(remoteContentResource);
+					if (source === undefined || this.userDataSyncService.conflictsSource !== source) {
+						return;
+					}
+
+					const remoteModelRef = await this.textModelResolverService.createModelReference(remoteContentResource);
+					const previewModelRef = await this.textModelResolverService.createModelReference(previewResource!);
+					const remoteModelContent = remoteModelRef.object.textEditorModel.getValue();
+					const preivewContent = previewModelRef.object.textEditorModel.getValue();
+					remoteModelRef.dispose();
+					previewModelRef.dispose();
+					if (remoteModelContent !== preivewContent
+						|| (source === SyncSource.Settings && !areSame(remoteModelContent, preivewContent, getIgnoredSettings(this.configurationService)))) {
+						return;
+					}
+					await this.userDataSyncService.sync(true);
 				});
 			}
-		}
-	}
-
-	private async checkAndContinueSync(remoteResource: URI, previewResource: URI): Promise<void> {
-		const source = getSyncSourceFromRemoteContentResource(remoteResource);
-		if (source === undefined || this.userDataSyncService.conflictsSource !== source) {
-			return;
-		}
-
-		const remoteModelRef = await this.textModelResolverService.createModelReference(remoteResource);
-		const previewModelRef = await this.textModelResolverService.createModelReference(previewResource!);
-		if (source === SyncSource.Settings) {
-			if (areSame(remoteModelRef.object.textEditorModel.getValue(), previewModelRef.object.textEditorModel.getValue(), getIgnoredSettings(this.configurationService))) {
-				await this.userDataSyncService.sync(true);
-			}
-		} else if (remoteModelRef.object.textEditorModel.getValue() === previewModelRef.object.textEditorModel.getValue()) {
-			await this.userDataSyncService.sync(true);
 		}
 	}
 
