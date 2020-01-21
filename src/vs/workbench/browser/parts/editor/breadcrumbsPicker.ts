@@ -82,6 +82,7 @@ export abstract class BreadcrumbsPicker {
 	dispose(): void {
 		this._disposables.dispose();
 		this._onDidPickElement.dispose();
+		this._onDidFocusElement.dispose();
 		this._tree.dispose();
 	}
 

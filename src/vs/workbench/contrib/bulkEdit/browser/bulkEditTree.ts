@@ -9,18 +9,21 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { URI } from 'vs/base/common/uri';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { basename } from 'vs/base/common/resources';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // --- VIEW MODEL
 
@@ -42,11 +45,13 @@ export class TextEditElement {
 	) { }
 }
 
-export type BulkEditElement = FileElement | TextEditElement;
+export type BulkEditElement = BulkCategory | FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
 export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, BulkEditElement> {
+
+	public groupByFile: boolean = true;
 
 	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
 
@@ -64,6 +69,13 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// root -> file/text edits
 		if (element instanceof BulkFileOperations) {
+			return this.groupByFile
+				? element.fileOperations.map(op => new FileElement(op))
+				: element.categories;
+		}
+
+		// category
+		if (element instanceof BulkCategory) {
 			return element.fileOperations.map(op => new FileElement(op));
 		}
 
@@ -82,20 +94,28 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map(edit => {
-				const range = Range.lift(edit.edit.range);
+				const range = Range.lift(edit.textEdit.edit.range);
 
-				const tokens = textModel.getLineTokens(range.endLineNumber);
+				//prefix-math
+				let startTokens = textModel.getLineTokens(range.startLineNumber);
+				let prefixLen = 23; // default value for the no tokens/grammar case
+				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn) - 1; prefixLen < 50 && idx >= 0; idx--) {
+					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
+				}
+
+				//suffix-math
+				let endTokens = textModel.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
-				for (let idx = tokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < tokens.getCount(); idx++) {
-					suffixLen += tokens.getEndOffset(idx) - tokens.getStartOffset(idx);
+				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
+					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
 				}
 
 				return new TextEditElement(
 					element,
 					edit,
-					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
+					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
-					edit.edit.text,
+					edit.textEdit.edit.text,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
@@ -166,13 +186,13 @@ export class BulkEditAccessibilityProvider implements IAccessibilityProvider<Bul
 		if (element instanceof TextEditElement) {
 			if (element.selecting.length > 0 && element.inserting.length > 0) {
 				// edit: replace
-				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.edit.range.startLineNumber, element.selecting, element.inserting);
+				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.textEdit.edit.range.startLineNumber, element.selecting, element.inserting);
 			} else if (element.selecting.length > 0 && element.inserting.length === 0) {
 				// edit: delete
-				return localize('aria.del', "line {0}, removing {1}", element.edit.edit.range.startLineNumber, element.selecting);
+				return localize('aria.del', "line {0}, removing {1}", element.edit.textEdit.edit.range.startLineNumber, element.selecting);
 			} else if (element.selecting.length === 0 && element.inserting.length > 0) {
 				// edit: insert
-				return localize('aria.insert', "line {0}, inserting {1}", element.edit.edit.range.startLineNumber, element.selecting);
+				return localize('aria.insert', "line {0}, inserting {1}", element.edit.textEdit.edit.range.startLineNumber, element.selecting);
 			}
 		}
 
@@ -187,8 +207,10 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 	getId(element: BulkEditElement): { toString(): string; } {
 		if (element instanceof FileElement) {
 			return element.uri;
+		} else if (element instanceof TextEditElement) {
+			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
 		} else {
-			return element.parent.uri.toString() + JSON.stringify(element.edit.edit);
+			return JSON.stringify(element.metadata);
 		}
 	}
 }
@@ -209,6 +231,57 @@ export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
 }
 
 // --- RENDERER
+
+class CategoryElementTemplate {
+
+	readonly icon: HTMLDivElement;
+	readonly label: IconLabel;
+
+	constructor(container: HTMLElement) {
+		container.classList.add('category');
+		this.icon = document.createElement('div');
+		container.appendChild(this.icon);
+		this.label = new IconLabel(container);
+	}
+}
+
+export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, FuzzyScore, CategoryElementTemplate> {
+
+	static readonly id: string = 'CategoryElementRenderer';
+
+	readonly templateId: string = CategoryElementRenderer.id;
+
+	renderTemplate(container: HTMLElement): CategoryElementTemplate {
+		return new CategoryElementTemplate(container);
+	}
+
+	renderElement(node: ITreeNode<BulkCategory, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
+
+		template.icon.style.setProperty('--background-dark', null);
+		template.icon.style.setProperty('--background-light', null);
+
+		const { metadata } = node.element;
+		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
+			// css
+			const className = ThemeIcon.asClassName(metadata.iconPath);
+			template.icon.className = className ? `theme-icon ${className}` : '';
+
+		} else if (metadata.iconPath) {
+			// background-image
+			template.icon.className = 'uri-icon';
+			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.dark.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.light.toString(true)}")`);
+		}
+
+		template.label.setLabel(metadata.label, metadata.description, {
+			descriptionMatches: createMatches(node.filterData),
+		});
+	}
+
+	disposeTemplate(template: CategoryElementTemplate): void {
+		template.label.dispose();
+	}
+}
 
 class FileElementTemplate {
 
@@ -372,8 +445,26 @@ export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
 	}
 
 	getTemplateId(element: BulkEditElement): string {
-		return element instanceof FileElement
-			? FileElementRenderer.id
-			: TextEditElementRenderer.id;
+
+		if (element instanceof FileElement) {
+			return FileElementRenderer.id;
+		} else if (element instanceof TextEditElement) {
+			return TextEditElementRenderer.id;
+		} else {
+			return CategoryElementRenderer.id;
+		}
+	}
+}
+
+
+export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvider<BulkEditElement> {
+
+	getKeyboardNavigationLabel(element: BulkEditElement) {
+		if (element instanceof FileElement) {
+			return basename(element.uri);
+		} else if (element instanceof BulkCategory) {
+			return element.metadata.label;
+		}
+		return undefined;
 	}
 }

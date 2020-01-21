@@ -306,6 +306,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		provider.dispose();
 		this._editorProviders.delete(viewType);
+
+		this._customEditorService.models.disposeAllModelsForView(viewType);
 	}
 
 	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
@@ -323,21 +325,23 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		const capabilitiesSet = new Set(capabilities);
 		const isEditable = capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable);
 		if (isEditable) {
-			model.onUndo(edits => {
-				this._proxy.$undoEdits(resource, viewType, edits.map(x => x.data));
+			model.onUndo(e => {
+				this._proxy.$undoEdits(resource, viewType, e.edits);
 			});
 
-			model.onApplyEdit(edits => {
-				const editsToApply = edits.filter(x => x.source !== model).map(x => x.data);
-				if (editsToApply.length) {
-					this._proxy.$applyEdits(resource, viewType, editsToApply);
+			model.onDisposeEdits(e => {
+				this._proxy.$disposeEdits(e.edits);
+			});
+
+			model.onApplyEdit(e => {
+				if (e.trigger !== model) {
+					this._proxy.$applyEdits(resource, viewType, e.edits);
 				}
 			});
 
 			model.onWillSave(e => {
 				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
 			});
-
 		}
 
 		// Save as should always be implemented even if the model is readonly
@@ -349,6 +353,11 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				e.waitUntil(this._fileService.copy(e.resource, e.targetResource, false /* overwrite */));
 			}
 		});
+
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SupportsHotExit)) {
+			// TODO: Hook up hot exit / backup logic
+		}
+
 		return model;
 	}
 
@@ -365,13 +374,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}
 	}
 
-	public $onEdit(resource: UriComponents, viewType: string, editData: any): void {
+	public $onEdit(resource: UriComponents, viewType: string, editId: number): void {
 		const model = this._customEditorService.models.get(URI.revive(resource), viewType);
 		if (!model) {
 			throw new Error('Could not find model for webview editor');
 		}
 
-		model.pushEdit({ source: model, data: editData });
+		model.pushEdit(editId, model);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {

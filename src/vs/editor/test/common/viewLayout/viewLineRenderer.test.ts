@@ -1385,7 +1385,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
-	test('issue #37401: Allow both before and after decorations on empty line', () => {
+	test('issue #37401 #40127: Allow both before and after decorations on empty line', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			true,
@@ -1412,7 +1412,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="before after"></span>',
+			'<span class="before"></span>',
+			'<span class="after"></span>',
 			'</span>'
 		].join('');
 

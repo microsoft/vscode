@@ -14,31 +14,101 @@ import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, Overview
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
+class RefCountedStyleSheet {
+
+	private readonly _parent: CodeEditorServiceImpl;
+	private readonly _editorId: string;
+	public readonly styleSheet: HTMLStyleElement;
+	private _refCount: number;
+
+	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
+		this._parent = parent;
+		this._editorId = editorId;
+		this.styleSheet = styleSheet;
+		this._refCount = 0;
+	}
+
+	public ref(): void {
+		this._refCount++;
+	}
+
+	public unref(): void {
+		this._refCount--;
+		if (this._refCount === 0) {
+			this.styleSheet.parentNode?.removeChild(this.styleSheet);
+			this._parent._removeEditorStyleSheets(this._editorId);
+		}
+	}
+}
+
+class GlobalStyleSheet {
+	public readonly styleSheet: HTMLStyleElement;
+
+	constructor(styleSheet: HTMLStyleElement) {
+		this.styleSheet = styleSheet;
+	}
+
+	public ref(): void {
+	}
+
+	public unref(): void {
+	}
+}
+
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
-	private readonly _styleSheet: HTMLStyleElement;
+	private _globalStyleSheet: GlobalStyleSheet | null;
 	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
+	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 	private readonly _themeService: IThemeService;
 
-	constructor(@IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
+	constructor(@IThemeService themeService: IThemeService, styleSheet: HTMLStyleElement | null = null) {
 		super();
-		this._styleSheet = styleSheet;
+		this._globalStyleSheet = styleSheet ? new GlobalStyleSheet(styleSheet) : null;
 		this._themeService = themeService;
 	}
 
-	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
+	private _getOrCreateGlobalStyleSheet(): GlobalStyleSheet {
+		if (!this._globalStyleSheet) {
+			this._globalStyleSheet = new GlobalStyleSheet(dom.createStyleSheet());
+		}
+		return this._globalStyleSheet;
+	}
+
+	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
+		if (!editor) {
+			return this._getOrCreateGlobalStyleSheet();
+		}
+		const domNode = editor.getContainerDomNode();
+		if (!dom.isInShadowDOM(domNode)) {
+			return this._getOrCreateGlobalStyleSheet();
+		}
+		const editorId = editor.getId();
+		if (!this._editorStyleSheets.has(editorId)) {
+			const refCountedStyleSheet = new RefCountedStyleSheet(this, editorId, dom.createStyleSheet(domNode));
+			this._editorStyleSheets.set(editorId, refCountedStyleSheet);
+		}
+		return this._editorStyleSheets.get(editorId)!;
+	}
+
+	_removeEditorStyleSheets(editorId: string): void {
+		this._editorStyleSheets.delete(editorId);
+	}
+
+	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
+			const styleSheet = this._getOrCreateStyleSheet(editor);
 			const providerArgs: ProviderArguments = {
-				styleSheet: this._styleSheet,
+				styleSheet: styleSheet.styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
 				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
-				provider = new DecorationTypeOptionsProvider(this._themeService, providerArgs);
+				provider = new DecorationTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			} else {
-				provider = new DecorationSubTypeOptionsProvider(this._themeService, providerArgs);
+				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			}
 			this._decorationOptionProviders.set(key, provider);
 		}
@@ -76,13 +146,16 @@ interface IModelDecorationOptionsProvider extends IDisposable {
 
 class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
+	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
 	private readonly _parentTypeKey: string | undefined;
 	private _beforeContentRules: DecorationCSSRules | null;
 	private _afterContentRules: DecorationCSSRules | null;
 
-	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
+	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+		this._styleSheet = styleSheet;
+		this._styleSheet.ref();
 		this._parentTypeKey = providerArgs.parentTypeKey;
 		this.refCount = 0;
 
@@ -110,6 +183,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 			this._afterContentRules.dispose();
 			this._afterContentRules = null;
 		}
+		this._styleSheet.unref();
 	}
 }
 
@@ -124,6 +198,7 @@ interface ProviderArguments {
 class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _disposables = new DisposableStore();
+	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
 	public className: string | undefined;
@@ -136,7 +211,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 
-	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
+	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+		this._styleSheet = styleSheet;
+		this._styleSheet.ref();
 		this.refCount = 0;
 
 		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
@@ -202,6 +279,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	public dispose(): void {
 		this._disposables.dispose();
+		this._styleSheet.unref();
 	}
 }
 

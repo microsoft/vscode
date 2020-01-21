@@ -655,8 +655,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 				let array = edits.get(model);
 				if (!array) {
 					array = [];
+					edits.set(model, array);
 				}
-				edits.set(model, array.concat(edit.edits));
+				array.push(edit.edit);
 			}
 		}
 

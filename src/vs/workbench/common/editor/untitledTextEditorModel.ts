@@ -9,13 +9,15 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Emitter } from 'vs/base/common/event';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
 
@@ -23,6 +25,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+
+	private readonly _onDidChangeFirstLine = this._register(new Emitter<void>());
+	readonly onDidChangeFirstLine = this._onDidChangeFirstLine.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -124,24 +129,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return true;
 	}
 
-	async backup(): Promise<void> {
-		if (this.isResolved()) {
-			return this.backupFileService.backupResource(this.resource, this.createSnapshot(), this.versionId);
-		}
-	}
-
-	hasBackup(): boolean {
-		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+	async backup(): Promise<IWorkingCopyBackup> {
+		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
 	async load(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 
-		// Check for backups first
-		let backup: IResolvedBackup<object> | undefined = undefined;
-		const backupResource = await this.backupFileService.loadBackupResource(this.resource);
-		if (backupResource) {
-			backup = await this.backupFileService.resolveBackupContent(backupResource);
-		}
+		// Check for backups
+		const backup = await this.backupFileService.resolve(this.resource);
 
 		// untitled associated to file path are dirty right away as well as untitled with content
 		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
@@ -170,15 +165,22 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		const textEditorModel = this.textEditorModel!;
 
 		// Listen to content changes
-		this._register(textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
 
 		// Listen to mode changes
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
+		// If we have initial contents, make sure to emit this
+		// as the appropiate events to the outside.
+		if (backup || this.initialValue) {
+			this._onDidChangeContent.fire();
+			this._onDidChangeFirstLine.fire();
+		}
+
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
-	private onModelContentChanged(): void {
+	private onModelContentChanged(e: IModelContentChangedEvent): void {
 		if (!this.isResolved()) {
 			return;
 		}
@@ -196,8 +198,13 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(true);
 		}
 
-		// Emit as event
+		// Emit as general content change event
 		this._onDidChangeContent.fire();
+
+		// Emit as first line change event depending on actual change
+		if (e.changes.some(change => change.range.startLineNumber === 1 || change.range.endLineNumber === 1)) {
+			this._onDidChangeFirstLine.fire();
+		}
 	}
 
 	isReadonly(): boolean {

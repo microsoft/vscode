@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
+import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -85,3 +86,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, 
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);

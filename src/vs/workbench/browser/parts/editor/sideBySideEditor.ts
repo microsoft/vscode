@@ -55,6 +55,7 @@ export class SideBySideEditor extends BaseEditor {
 	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
 

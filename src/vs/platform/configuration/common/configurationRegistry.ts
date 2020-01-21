@@ -100,9 +100,9 @@ export const enum ConfigurationScope {
 	 */
 	RESOURCE,
 	/**
-	 * Resource specific configuration that can also be configured in language specific settings
+	 * Resource specific configuration that can be configured in language specific settings
 	 */
-	RESOURCE_LANGUAGE,
+	LANGUAGE_OVERRIDABLE,
 	/**
 	 * Machine specific configuration that can also be configured in workspace or folder settings.
 	 */
@@ -221,7 +221,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 							delete windowSettings.properties[key];
 							break;
 						case ConfigurationScope.RESOURCE:
-						case ConfigurationScope.RESOURCE_LANGUAGE:
+						case ConfigurationScope.LANGUAGE_OVERRIDABLE:
 							delete resourceSettings.properties[key];
 							break;
 					}
@@ -373,7 +373,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						case ConfigurationScope.RESOURCE:
 							resourceSettings.properties[key] = properties[key];
 							break;
-						case ConfigurationScope.RESOURCE_LANGUAGE:
+						case ConfigurationScope.LANGUAGE_OVERRIDABLE:
 							resourceSettings.properties[key] = properties[key];
 							this.resourceLanguageSettingsSchema.properties![key] = properties[key];
 							break;

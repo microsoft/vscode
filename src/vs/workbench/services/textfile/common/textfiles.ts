@@ -407,10 +407,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(options?: IRevertOptions): Promise<boolean>;
 
-	backup(target?: URI): Promise<void>;
-
-	hasBackup(): boolean;
-
 	isDirty(): this is IResolvedTextFileEditorModel;
 
 	makeDirty(): void;

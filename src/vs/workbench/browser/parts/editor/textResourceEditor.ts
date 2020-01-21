@@ -107,9 +107,9 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		const inputName = this.input?.getName();
 		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
-			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
+			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('untitledFileEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;

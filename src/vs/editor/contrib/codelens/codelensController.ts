@@ -18,7 +18,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
 
 export class CodeLensContribution implements IEditorContribution {
@@ -65,7 +65,11 @@ export class CodeLensContribution implements IEditorContribution {
 		this._onModelChange();
 
 		this._styleClassName = hash(this._editor.getId()).toString(16);
-		this._styleElement = createStyleSheet();
+		this._styleElement = dom.createStyleSheet(
+			dom.isInShadowDOM(this._editor.getContainerDomNode())
+				? this._editor.getContainerDomNode()
+				: undefined
+		);
 		this._updateLensStyle();
 	}
 

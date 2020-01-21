@@ -75,6 +75,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 	}
 
 	public startMonitoring(
+		initialElement: HTMLElement,
 		initialButtons: number,
 		mouseMoveEventMerger: IEventMerger<R>,
 		mouseMoveCallback: IMouseMoveCallback<R>,
@@ -88,11 +89,18 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._mouseMoveCallback = mouseMoveCallback;
 		this._onStopCallback = onStopCallback;
 
-		let windowChain = IframeUtils.getSameOriginWindowChain();
+		const windowChain = IframeUtils.getSameOriginWindowChain();
 		const mouseMove = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
 		const mouseUp = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
-		for (const element of windowChain) {
-			this._hooks.add(dom.addDisposableThrottledListener(element.window.document, mouseMove,
+
+		const listenTo: (Document | ShadowRoot)[] = windowChain.map(element => element.window.document);
+		const shadowRoot = dom.getShadowRoot(initialElement);
+		if (shadowRoot) {
+			listenTo.unshift(shadowRoot);
+		}
+
+		for (const element of listenTo) {
+			this._hooks.add(dom.addDisposableThrottledListener(element, mouseMove,
 				(data: R) => {
 					if (data.buttons !== initialButtons) {
 						// Buttons state has changed in the meantime
@@ -103,7 +111,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 				},
 				(lastEvent: R | null, currentEvent) => this._mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
 			));
-			this._hooks.add(dom.addDisposableListener(element.window.document, mouseUp, (e: MouseEvent) => this.stopMonitoring(true)));
+			this._hooks.add(dom.addDisposableListener(element, mouseUp, (e: MouseEvent) => this.stopMonitoring(true)));
 		}
 
 		if (IframeUtils.hasDifferentOriginAncestor()) {

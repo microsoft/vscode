@@ -49,29 +49,29 @@ class ModelEditTask implements IDisposable {
 
 	addEdit(resourceEdit: WorkspaceTextEdit): void {
 		this._expectedModelVersionId = resourceEdit.modelVersionId;
-		for (const edit of resourceEdit.edits) {
-			if (typeof edit.eol === 'number') {
-				// honor eol-change
-				this._newEol = edit.eol;
-			}
-			if (!edit.range && !edit.text) {
-				// lacks both a range and the text
-				continue;
-			}
-			if (Range.isEmpty(edit.range) && !edit.text) {
-				// no-op edit (replace empty range with empty text)
-				continue;
-			}
+		const { edit } = resourceEdit;
 
-			// create edit operation
-			let range: Range;
-			if (!edit.range) {
-				range = this._model.getFullModelRange();
-			} else {
-				range = Range.lift(edit.range);
-			}
-			this._edits.push(EditOperation.replaceMove(range, edit.text));
+		if (typeof edit.eol === 'number') {
+			// honor eol-change
+			this._newEol = edit.eol;
 		}
+		if (!edit.range && !edit.text) {
+			// lacks both a range and the text
+			return;
+		}
+		if (Range.isEmpty(edit.range) && !edit.text) {
+			// no-op edit (replace empty range with empty text)
+			return;
+		}
+
+		// create edit operation
+		let range: Range;
+		if (!edit.range) {
+			range = this._model.getFullModelRange();
+		} else {
+			range = Range.lift(edit.range);
+		}
+		this._edits.push(EditOperation.replaceMove(range, edit.text));
 	}
 
 	validate(): ValidationResult {
@@ -180,9 +180,14 @@ class BulkEditModel implements IDisposable {
 
 				for (const edit of value) {
 					if (makeMinimal) {
-						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, edit.edits);
-						task.addEdit({ ...edit, edits: newEdits ?? edit.edits });
-
+						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.edit]);
+						if (!newEdits) {
+							task.addEdit(edit);
+						} else {
+							for (let moreMinialEdit of newEdits) {
+								task.addEdit({ ...edit, edit: moreMinialEdit });
+							}
+						}
 					} else {
 						task.addEdit(edit);
 					}
@@ -243,7 +248,7 @@ class BulkEdit {
 	}
 
 	ariaMessage(): string {
-		const editCount = this._edits.reduce((prev, cur) => WorkspaceFileEdit.is(cur) ? prev : prev + cur.edits.length, 0);
+		const editCount = this._edits.length;
 		const resourceCount = this._edits.length;
 		if (editCount === 0) {
 			return localize('summary.0', "Made no edits");
@@ -393,7 +398,7 @@ export class BulkEditService implements IBulkEditService {
 			return { ariaSummary: localize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && options?.showPreview) {
+		if (this._previewHandler && (options?.showPreview || edit.edits.some(value => value.metadata?.needsConfirmation))) {
 			edit = await this._previewHandler(edit, options);
 		}
 

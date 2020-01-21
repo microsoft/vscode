@@ -514,8 +514,15 @@ class RenderedViewLine implements IRenderedViewLine {
 				return 0;
 			}
 			if (this._containsForeignElements === ForeignElementType.Before) {
-				// We have foreign element before the (empty) line
+				// We have foreign elements before the (empty) line
 				return this.getWidth();
+			}
+			// We have foreign elements before & after the (empty) line
+			const readingTarget = this._getReadingTarget(domNode);
+			if (readingTarget.firstChild) {
+				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth;
+			} else {
+				return 0;
 			}
 		}
 

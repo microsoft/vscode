@@ -9,7 +9,7 @@ import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND,
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
@@ -28,8 +28,8 @@ export class NotificationsCenter extends Themable {
 
 	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
 
-	private readonly _onDidChangeVisibility: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
+	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private notificationsCenterContainer: HTMLElement | undefined;
 	private notificationsCenterHeader: HTMLElement | undefined;

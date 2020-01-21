@@ -110,7 +110,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// showings until mouse is released
 			this.hide();
 			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
-			monitor.startMonitoring(e.buttons, standardMouseMoveMerger, () => { }, () => {
+			monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, () => { }, () => {
 				monitor.dispose();
 			});
 		}));

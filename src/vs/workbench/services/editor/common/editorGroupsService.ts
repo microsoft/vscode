@@ -398,6 +398,11 @@ export interface IEditorGroup {
 	readonly label: string;
 
 	/**
+	 * A human readable label for the group to be used by screen readers.
+	 */
+	readonly ariaLabel: string;
+
+	/**
 	 * The active control is the currently visible control of the group.
 	 */
 	readonly activeControl: IVisibleEditor | undefined;

@@ -17,7 +17,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 
@@ -51,11 +51,11 @@ export interface ICompositeBar {
 
 export class ActivityAction extends Action {
 
-	private readonly _onDidChangeActivity = new Emitter<this>();
-	readonly onDidChangeActivity: Event<this> = this._onDidChangeActivity.event;
+	private readonly _onDidChangeActivity = this._register(new Emitter<this>());
+	readonly onDidChangeActivity = this._onDidChangeActivity.event;
 
-	private readonly _onDidChangeBadge = new Emitter<this>();
-	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
+	private readonly _onDidChangeBadge = this._register(new Emitter<this>());
+	readonly onDidChangeBadge = this._onDidChangeBadge.event;
 
 	private badge: IBadge | undefined;
 	private clazz: string | undefined;

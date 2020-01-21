@@ -163,7 +163,7 @@ class SaturationBox extends Disposable {
 			this.onDidChangePosition(e.offsetX, e.offsetY);
 		}
 
-		this.monitor.startMonitoring(e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+		this.monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
 			this._onColorFlushed.fire();
@@ -270,7 +270,7 @@ abstract class Strip extends Disposable {
 			this.onDidChangeTop(e.offsetY);
 		}
 
-		monitor.startMonitoring(e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
+		monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
 			this._onColorFlushed.fire();

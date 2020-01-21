@@ -128,7 +128,7 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		try {
 			const result = await this.getPreview();
 			await this.apply(result);
-			this.logService.trace('UI State: Finised synchronizing ui state.');
+			this.logService.trace('UI State: Finished synchronizing ui state.');
 			return true;
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);

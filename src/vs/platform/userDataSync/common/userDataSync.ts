@@ -140,11 +140,12 @@ export interface IUserDataSyncStore {
 	url: string;
 	name: string;
 	account: string;
+	authenticationProviderId: string;
 }
 
 export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
 	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
-	return value && value.url && value.name && value.account ? value : undefined;
+	return value && value.url && value.name && value.account && value.authenticationProviderId ? value : undefined;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');

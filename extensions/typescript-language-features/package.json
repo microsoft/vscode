@@ -957,7 +957,8 @@
     ],
     "typescriptServerPlugins": [
       {
-        "name": "typescript-vscode-sh-plugin"
+        "name": "typescript-vscode-sh-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   }

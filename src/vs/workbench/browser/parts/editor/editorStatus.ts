@@ -51,6 +51,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { find } from 'vs/base/common/arrays';
+import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -180,6 +182,7 @@ interface StateDelta {
 }
 
 class State {
+
 	private _selectionStatus: string | undefined;
 	get selectionStatus(): string | undefined { return this._selectionStatus; }
 
@@ -386,7 +389,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				this.tabFocusModeElement.value = this.statusbarService.addEntry({
 					text: nls.localize('tabFocusModeEnabled', "Tab Moves Focus"),
 					tooltip: nls.localize('disableTabMode', "Disable Accessibility Mode"),
-					command: 'editor.action.toggleTabFocusMode'
+					command: 'editor.action.toggleTabFocusMode',
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND)
 				}, 'status.editor.tabFocusMode', nls.localize('status.editor.tabFocusMode', "Accessibility Mode"), StatusbarAlignment.RIGHT, 100.7);
 			}
 		} else {
@@ -400,7 +404,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				this.screenRedearModeElement.value = this.statusbarService.addEntry({
 					text: nls.localize('screenReaderDetected', "Screen Reader Optimized"),
 					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
-					command: 'showEditorScreenReaderNotification'
+					command: 'showEditorScreenReaderNotification',
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND)
 				}, 'status.editor.screenReaderMode', nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"), StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
