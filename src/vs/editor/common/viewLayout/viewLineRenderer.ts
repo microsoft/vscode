@@ -68,6 +68,7 @@ export class RenderLineInput {
 	public readonly tabSize: number;
 	public readonly startVisibleColumn: number;
 	public readonly spaceWidth: number;
+	public readonly middotWidth: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
@@ -92,6 +93,7 @@ export class RenderLineInput {
 		tabSize: number,
 		startVisibleColumn: number,
 		spaceWidth: number,
+		middotWidth: number,
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'all',
 		renderControlCharacters: boolean,
@@ -110,6 +112,7 @@ export class RenderLineInput {
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.spaceWidth = spaceWidth;
+		this.middotWidth = middotWidth;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = (
 			renderWhitespace === 'all'
@@ -380,6 +383,7 @@ class ResolvedRenderLineInput {
 		public readonly startVisibleColumn: number,
 		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
+		public readonly middotWidth: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
 	) {
@@ -439,6 +443,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.startVisibleColumn,
 		input.containsRTL,
 		input.spaceWidth,
+		input.middotWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
 	);
@@ -734,8 +739,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	const startVisibleColumn = input.startVisibleColumn;
 	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
+	const middotWidth = input.middotWidth;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
+
+	// use U+2E31 - WORD SEPARATOR MIDDLE DOT or U+00B7 - MIDDLE DOT
+	const spaceRenderWhitespaceCharacter = (middotWidth > spaceWidth ? 0x2E31 : 0xB7);
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 
@@ -808,7 +817,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				} else { // must be CharCode.Space
 					charWidth = 1;
 
-					sb.write1(0xB7); // &middot;
+					sb.write1(spaceRenderWhitespaceCharacter); // &middot; or word separator middle dot
 				}
 
 				charOffsetInPart += charWidth;

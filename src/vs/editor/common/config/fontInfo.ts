@@ -134,6 +134,7 @@ export class FontInfo extends BareFontInfo {
 	readonly typicalFullwidthCharacterWidth: number;
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
+	readonly middotWidth: number;
 	readonly maxDigitWidth: number;
 
 	/**
@@ -152,6 +153,7 @@ export class FontInfo extends BareFontInfo {
 		typicalFullwidthCharacterWidth: number;
 		canUseHalfwidthRightwardsArrow: boolean;
 		spaceWidth: number;
+		middotWidth: number;
 		maxDigitWidth: number;
 	}, isTrusted: boolean) {
 		super(opts);
@@ -161,6 +163,7 @@ export class FontInfo extends BareFontInfo {
 		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
 		this.canUseHalfwidthRightwardsArrow = opts.canUseHalfwidthRightwardsArrow;
 		this.spaceWidth = opts.spaceWidth;
+		this.middotWidth = opts.middotWidth;
 		this.maxDigitWidth = opts.maxDigitWidth;
 	}
 
@@ -179,6 +182,7 @@ export class FontInfo extends BareFontInfo {
 			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.spaceWidth === other.spaceWidth
+			&& this.middotWidth === other.middotWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
 		);
 	}
