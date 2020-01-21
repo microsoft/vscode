@@ -180,6 +180,7 @@ interface StateDelta {
 }
 
 class State {
+
 	private _selectionStatus: string | undefined;
 	get selectionStatus(): string | undefined { return this._selectionStatus; }
 

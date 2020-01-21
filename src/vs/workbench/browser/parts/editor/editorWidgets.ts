@@ -5,7 +5,7 @@
 
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { $, append, clearNode } from 'vs/base/browser/dom';
@@ -23,8 +23,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 
 export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
-	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
-	readonly onClick: Event<void> = this._onClick.event;
+	private readonly _onClick = this._register(new Emitter<void>());
+	readonly onClick = this._onClick.event;
 
 	private _domNode: HTMLElement;
 

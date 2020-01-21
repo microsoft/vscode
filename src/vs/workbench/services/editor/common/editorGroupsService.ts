@@ -397,6 +397,9 @@ export interface IEditorGroup {
 	 */
 	readonly label: string;
 
+	/**
+	 * A human readable label for the group to be used by screen readers.
+	 */
 	readonly ariaLabel: string;
 
 	/**
