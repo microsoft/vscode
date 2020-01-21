@@ -141,10 +141,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				let item = suggestions[i];
 				let to = i + 1;
 				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
+					suggestions[to].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.name, suggestions[to].snippet.name);
 				}
 				if (to > i + 1) {
-					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
+					suggestions[i].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.name, suggestions[i].snippet.name);
 					i = to;
 				}
 			}
