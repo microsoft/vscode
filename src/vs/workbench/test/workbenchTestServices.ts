@@ -1175,7 +1175,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	backup<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return Promise.resolve();
 	}
 

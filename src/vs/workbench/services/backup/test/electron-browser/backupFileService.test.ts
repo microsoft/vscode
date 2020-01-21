@@ -78,7 +78,7 @@ export class NodeTestBackupFileService extends BackupFileService {
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async backup(resource: URI, content: ITextSnapshot, versionId?: number, meta?: any): Promise<void> {
+	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any): Promise<void> {
 		await super.backup(resource, content, versionId, meta);
 
 		while (this.backupResourceJoiners.length) {
@@ -162,6 +162,14 @@ suite('BackupFileService', () => {
 	});
 
 	suite('backup', () => {
+		test('no text', async () => {
+			await service.backup(fooFile);
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.equal(fs.existsSync(fooBackupPath), true);
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n`);
+			assert.ok(service.hasBackupSync(fooFile));
+		});
+
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);

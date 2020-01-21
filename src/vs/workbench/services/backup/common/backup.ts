@@ -51,12 +51,12 @@ export interface IBackupFileService {
 	 * Backs up a resource.
 	 *
 	 * @param resource The resource to back up.
-	 * @param content The content of the resource as snapshot.
-	 * @param versionId The version id of the resource to backup.
-	 * @param meta The (optional) meta data of the resource to backup. This information
+	 * @param content The optional content of the resource as snapshot.
+	 * @param versionId The optionsl version id of the resource to backup.
+	 * @param meta The optional meta data of the resource to backup. This information
 	 * can be restored later when loading the backup again.
 	 */
-	backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..

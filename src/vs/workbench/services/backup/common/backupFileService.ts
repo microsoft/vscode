@@ -18,7 +18,7 @@ import { keys, ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextSnapshotReadable, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -152,7 +152,7 @@ export class BackupFileService implements IInternalBackupFilesService {
 		return this.impl.hasBackupSync(resource, versionId);
 	}
 
-	backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return this.impl.backup(resource, content, versionId, meta);
 	}
 
@@ -228,7 +228,7 @@ class BackupFileServiceImpl implements IInternalBackupFilesService {
 		return this.model.has(backupResource, versionId);
 	}
 
-	async backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		if (this.isShuttingDown) {
 			return;
 		}
@@ -257,7 +257,7 @@ class BackupFileServiceImpl implements IInternalBackupFilesService {
 			}
 
 			// Update content with value
-			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble));
+			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content || stringToSnapshot(''), preamble));
 
 			// Update model
 			model.add(backupResource, versionId, meta);
@@ -413,9 +413,9 @@ export class InMemoryBackupFileService implements IInternalBackupFilesService {
 		return this.backups.has(backupResource.toString());
 	}
 
-	async backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
-		this.backups.set(backupResource.toString(), content);
+		this.backups.set(backupResource.toString(), content || stringToSnapshot(''));
 	}
 
 	async resolve<T extends object>(resource: URI, options?: { isBackupResource?: boolean }): Promise<IResolvedBackup<T> | undefined> {
