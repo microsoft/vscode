@@ -470,11 +470,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		if (markerMessages.length) {
 			markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
-
-			if (MarkerController.get(this._editor)) {
-				const markerHoverForStatusbar = markerMessages.length === 1 ? markerMessages[0] : markerMessages.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-				fragment.appendChild(this.renderMarkerStatusbar(markerHoverForStatusbar));
-			}
+			const markerHoverForStatusbar = markerMessages.length === 1 ? markerMessages[0] : markerMessages.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
+			fragment.appendChild(this.renderMarkerStatusbar(markerHoverForStatusbar));
 		}
 
 		// show
