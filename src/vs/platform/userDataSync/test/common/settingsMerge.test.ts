@@ -5,10 +5,11 @@
 
 import * as assert from 'assert';
 import { merge, updateIgnoredSettings, addSetting } from 'vs/platform/userDataSync/common/settingsMerge';
+import type { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };
 
-suite('SettingsMerge - No Conflicts', () => {
+suite('SettingsMerge - Merge', () => {
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify({ 'a': 1 });
@@ -262,11 +263,6 @@ suite('SettingsMerge - No Conflicts', () => {
 		assert.ok(!actual.hasConflicts);
 	});
 
-});
-
-/*
-suite('SettingsMerge - Conflicts', () => {
-
 	test('merge when local and remote with one entry but different value', async () => {
 		const localContent = stringify({
 			'a': 1
@@ -276,16 +272,10 @@ suite('SettingsMerge - Conflicts', () => {
 		});
 		const expectedConflicts: IConflictSetting[] = [{ key: 'a', localValue: 1, remoteValue: 2 }];
 		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
-		assert.ok(actual.hasChanges);
-		assert.deepEqual(actual.conflicts, expectedConflicts);
-		assert.equal(actual.mergeContent,
-			`{
-<<<<<<< local
-	"a": 1
-=======
-	"a": 2,
->>>>>>> remote
-}`);
+		assert.equal(actual.localContent, localContent);
+		assert.equal(actual.remoteContent, remoteContent);
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
@@ -300,16 +290,13 @@ suite('SettingsMerge - Conflicts', () => {
 		});
 		const expectedConflicts: IConflictSetting[] = [{ key: 'a', localValue: 2, remoteValue: undefined }];
 		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.ok(actual.hasChanges);
-		assert.deepEqual(actual.conflicts, expectedConflicts);
-		assert.equal(actual.mergeContent,
-			`{
-<<<<<<< local
-	"a": 2,
-=======
->>>>>>> remote
-	"b": 2
-}`);
+		assert.equal(actual.localContent, stringify({
+			'a': 2,
+			'b': 2
+		}));
+		assert.equal(actual.remoteContent, remoteContent);
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge with single entry and local is empty', async () => {
@@ -322,15 +309,10 @@ suite('SettingsMerge - Conflicts', () => {
 		});
 		const expectedConflicts: IConflictSetting[] = [{ key: 'a', localValue: undefined, remoteValue: 2 }];
 		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.ok(actual.hasChanges);
-		assert.deepEqual(actual.conflicts, expectedConflicts);
-		assert.equal(actual.mergeContent,
-			`{
-<<<<<<< local
-=======
-	"a": 2,
->>>>>>> remote
-}`);
+		assert.equal(actual.localContent, localContent);
+		assert.equal(actual.remoteContent, remoteContent);
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge when local and remote has moved forwareded with conflicts', async () => {
@@ -356,38 +338,29 @@ suite('SettingsMerge - Conflicts', () => {
 		const expectedConflicts: IConflictSetting[] = [
 			{ key: 'b', localValue: undefined, remoteValue: 3 },
 			{ key: 'a', localValue: 2, remoteValue: undefined },
-			{ key: 'e', localValue: 4, remoteValue: 5 },
 			{ key: 'd', localValue: 5, remoteValue: 6 },
+			{ key: 'e', localValue: 4, remoteValue: 5 },
 		];
 		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
-		assert.ok(actual.hasChanges);
-		assert.deepEqual(actual.conflicts, expectedConflicts);
-		assert.equal(actual.mergeContent,
-			`{
-<<<<<<< local
-	"a": 2,
-=======
->>>>>>> remote
-	"c": 3,
-<<<<<<< local
-	"d": 5,
-=======
-	"d": 6,
->>>>>>> remote
-<<<<<<< local
-	"e": 4,
-=======
-	"e": 5,
->>>>>>> remote
-	"f": 1
-<<<<<<< local
-=======
-	"b": 3,
->>>>>>> remote
-}`);
+		assert.equal(actual.localContent, stringify({
+			'a': 2,
+			'c': 3,
+			'd': 5,
+			'e': 4,
+			'f': 1,
+		}));
+		assert.equal(actual.remoteContent, stringify({
+			'b': 3,
+			'c': 3,
+			'd': 6,
+			'e': 5,
+			'f': 1,
+		}));
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
-	test('resolve when local and remote has moved forwareded with conflicts', async () => {
+	test('resolve when local and remote has moved forwareded with resolved conflicts', async () => {
 		const baseContent = stringify({
 			'a': 1,
 			'b': 2,
@@ -411,26 +384,23 @@ suite('SettingsMerge - Conflicts', () => {
 			{ key: 'd', localValue: 5, remoteValue: 6 },
 		];
 		const actual = merge(localContent, remoteContent, baseContent, [], [{ key: 'a', value: 2 }, { key: 'b', value: undefined }, { key: 'e', value: 5 }], formattingOptions);
-		assert.ok(actual.hasChanges);
-		assert.deepEqual(actual.conflicts, expectedConflicts);
-		assert.equal(actual.mergeContent,
-			`{
-	"a": 2,
-	"c": 3,
-<<<<<<< local
-	"d": 5,
-=======
-	"d": 6,
->>>>>>> remote
-	"e": 5,
-	"f": 1
-}`);
+		assert.equal(actual.localContent, stringify({
+			'a': 2,
+			'c': 3,
+			'd': 5,
+			'e': 5,
+			'f': 1,
+		}));
+		assert.equal(actual.remoteContent, stringify({
+			'c': 3,
+			'd': 6,
+			'e': 5,
+			'f': 1,
+			'a': 2,
+		}));
+		assert.ok(actual.hasConflicts);
+		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
 	});
-
-});
-*/
-
-suite('SettingsMerge - Ignored Settings', () => {
 
 	test('ignored setting is not merged when changed in local and remote', async () => {
 		const localContent = stringify({ 'a': 1 });
@@ -448,7 +418,7 @@ suite('SettingsMerge - Ignored Settings', () => {
 		const remoteContent = stringify({ 'a': 2 });
 		const actual = merge(localContent, remoteContent, baseContent, ['a'], [], formattingOptions);
 		assert.equal(actual.localContent, null);
-		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.remoteContent, null);
 		assert.equal(actual.conflictsSettings.length, 0);
 		assert.ok(!actual.hasConflicts);
 	});
@@ -458,7 +428,7 @@ suite('SettingsMerge - Ignored Settings', () => {
 		const remoteContent = stringify({ 'a': 1 });
 		const actual = merge(localContent, remoteContent, null, ['a'], [], formattingOptions);
 		assert.equal(actual.localContent, null);
-		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.remoteContent, null);
 		assert.equal(actual.conflictsSettings.length, 0);
 		assert.ok(!actual.hasConflicts);
 	});
@@ -468,7 +438,7 @@ suite('SettingsMerge - Ignored Settings', () => {
 		const remoteContent = stringify({ 'a': 1, 'b': 2 });
 		const actual = merge(localContent, remoteContent, localContent, ['a'], [], formattingOptions);
 		assert.equal(actual.localContent, null);
-		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.remoteContent, null);
 		assert.equal(actual.conflictsSettings.length, 0);
 		assert.ok(!actual.hasConflicts);
 	});
@@ -478,7 +448,7 @@ suite('SettingsMerge - Ignored Settings', () => {
 		const remoteContent = stringify({});
 		const actual = merge(localContent, remoteContent, null, ['a'], [], formattingOptions);
 		assert.equal(actual.localContent, null);
-		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.remoteContent, null);
 		assert.equal(actual.conflictsSettings.length, 0);
 		assert.ok(!actual.hasConflicts);
 	});
@@ -488,7 +458,7 @@ suite('SettingsMerge - Ignored Settings', () => {
 		const remoteContent = stringify({});
 		const actual = merge(localContent, remoteContent, localContent, ['a'], [], formattingOptions);
 		assert.equal(actual.localContent, null);
-		assert.equal(actual.remoteContent, localContent);
+		assert.equal(actual.remoteContent, null);
 		assert.equal(actual.conflictsSettings.length, 0);
 		assert.ok(!actual.hasConflicts);
 	});
@@ -512,18 +482,21 @@ suite('SettingsMerge - Ignored Settings', () => {
 			'd': 4,
 			'e': 6,
 		});
-		const expectedContent = stringify({
+		const actual = merge(localContent, remoteContent, baseContent, ['a', 'e'], [], formattingOptions);
+		assert.equal(actual.localContent, stringify({
 			'a': 1,
 			'b': 3,
-		});
-		const actual = merge(localContent, remoteContent, baseContent, ['a', 'e'], [], formattingOptions);
-		assert.equal(actual.localContent, expectedContent);
-		assert.equal(actual.remoteContent, expectedContent);
+		}));
+		assert.equal(actual.remoteContent, stringify({
+			'a': 3,
+			'b': 3,
+			'e': 6,
+		}));
 		assert.equal(actual.conflictsSettings.length, 0);
 		assert.ok(!actual.hasConflicts);
 	});
 
-	/* test('ignored setting is not merged with other changes conflicts', async () => {
+	test('ignored setting is not merged with other changes conflicts', async () => {
 		const baseContent = stringify({
 			'a': 2,
 			'b': 2,
@@ -547,24 +520,19 @@ suite('SettingsMerge - Ignored Settings', () => {
 			{ key: 'b', localValue: 4, remoteValue: 3 },
 		];
 		const actual = merge(localContent, remoteContent, baseContent, ['a', 'e'], [], formattingOptions);
-		assert.ok(actual.hasChanges);
-		assert.ok(actual.hasChanges);
-		assert.deepEqual(actual.conflicts, expectedConflicts);
-		assert.equal(actual.mergeContent,
-			`{
-	"a": 1,
-<<<<<<< local
-	"b": 4,
-=======
-	"b": 3,
->>>>>>> remote
-<<<<<<< local
-	"d": 5
-=======
->>>>>>> remote
-}`);
-	}); */
-
+		assert.equal(actual.localContent, stringify({
+			'a': 1,
+			'b': 4,
+			'd': 5,
+		}));
+		assert.equal(actual.remoteContent, stringify({
+			'a': 3,
+			'b': 3,
+			'e': 6,
+		}));
+		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.ok(actual.hasConflicts);
+	});
 });
 
 suite('SettingsMerge - Compute Remote Content', () => {
