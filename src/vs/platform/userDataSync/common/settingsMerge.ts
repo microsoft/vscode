@@ -188,19 +188,20 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 		}
 	}
 
-	const hasConflicts = conflicts.size > 0 || !areSame(localContent, remoteContent, ignored);
-	const hasLocalChanged = hasConflicts || !areSame(localContent, originalLocalContent, new Set<string>());
-	const hasRemoteChanged = hasConflicts || !areSame(remoteContent, originalRemoteContent, new Set<string>());
+	const hasConflicts = conflicts.size > 0 || !areSame(localContent, remoteContent, ignoredSettings);
+	const hasLocalChanged = hasConflicts || !areSame(localContent, originalLocalContent, []);
+	const hasRemoteChanged = hasConflicts || !areSame(remoteContent, originalRemoteContent, []);
 	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: values(conflicts), hasConflicts };
 }
 
-function areSame(localContent: string, remoteContent: string, ignored: Set<string>): boolean {
+export function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
 	if (localContent === remoteContent) {
 		return true;
 	}
 
 	const local = parse(localContent);
 	const remote = parse(remoteContent);
+	const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
 	const localTree = parseSettings(localContent).filter(node => !(node.setting && ignored.has(node.setting.key)));
 	const remoteTree = parseSettings(remoteContent).filter(node => !(node.setting && ignored.has(node.setting.key)));
 
