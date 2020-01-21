@@ -11,6 +11,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { firstIndex } from 'vs/base/common/arrays';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -269,7 +270,7 @@ interface InsertLocation {
 
 function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]): InsertLocation {
 
-	const sourceNodeIndex = sourceTree.findIndex(node => node.setting?.key === key);
+	const sourceNodeIndex = firstIndex(sourceTree, (node => node.setting?.key === key));
 
 	const sourcePreviousNode: INode = sourceTree[sourceNodeIndex - 1];
 	if (sourcePreviousNode) {
