@@ -71,10 +71,3 @@ export interface IBackupFileService {
 	 */
 	discardBackups(): Promise<void>;
 }
-
-// TODO@ben: should try to avoid using backup for restoring dirty between windows
-// Should rather have a way to open existing files with contents?
-export interface IInternalBackupFilesService extends IBackupFileService {
-	toBackupResource(resource: URI): URI;
-	resolve<T extends object>(resource: URI, options?: { isBackupResource?: boolean }): Promise<IResolvedBackup<T> | undefined>;
-}

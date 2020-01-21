@@ -10,7 +10,7 @@ import { hash } from 'vs/base/common/hash';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IResolvedBackup, IInternalBackupFilesService } from 'vs/workbench/services/backup/common/backup';
+import { IResolvedBackup, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -103,11 +103,11 @@ export class BackupFilesModel implements IBackupFilesModel {
 	}
 }
 
-export class BackupFileService implements IInternalBackupFilesService {
+export class BackupFileService implements IBackupFileService {
 
 	_serviceBrand: undefined;
 
-	private impl: IInternalBackupFilesService;
+	private impl: BackupFileServiceImpl | InMemoryBackupFileService;
 
 	constructor(
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
@@ -122,7 +122,7 @@ export class BackupFileService implements IInternalBackupFilesService {
 		return hash(str).toString(16);
 	}
 
-	private initialize(): IInternalBackupFilesService {
+	private initialize(): BackupFileServiceImpl | InMemoryBackupFileService {
 		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
 		if (backupWorkspaceResource) {
 			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService);
@@ -168,8 +168,8 @@ export class BackupFileService implements IInternalBackupFilesService {
 		return this.impl.getBackups();
 	}
 
-	resolve<T extends object>(resource: URI, options?: { isBackupResource?: boolean }): Promise<IResolvedBackup<T> | undefined> {
-		return this.impl.resolve(resource, options);
+	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
+		return this.impl.resolve(resource);
 	}
 
 	toBackupResource(resource: URI): URI {
@@ -177,7 +177,7 @@ export class BackupFileService implements IInternalBackupFilesService {
 	}
 }
 
-class BackupFileServiceImpl implements IInternalBackupFilesService {
+class BackupFileServiceImpl implements IBackupFileService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
@@ -330,11 +330,11 @@ class BackupFileServiceImpl implements IInternalBackupFilesService {
 		throw new Error(`Backup: Could not find ${JSON.stringify(matchingString)} in first ${maximumBytesToRead} bytes of ${file}`);
 	}
 
-	async resolve<T extends object>(resource: URI, options?: { isBackupResource?: boolean }): Promise<IResolvedBackup<T> | undefined> {
-		const backupResource = options?.isBackupResource ? resource : this.toBackupResource(resource);
+	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
+		const backupResource = this.toBackupResource(resource);
 
 		const model = await this.ready;
-		if (!options?.isBackupResource && !model.has(backupResource)) {
+		if (!model.has(backupResource)) {
 			return undefined; // require backup to be present
 		}
 
@@ -395,7 +395,7 @@ class BackupFileServiceImpl implements IInternalBackupFilesService {
 	}
 }
 
-export class InMemoryBackupFileService implements IInternalBackupFilesService {
+export class InMemoryBackupFileService implements IBackupFileService {
 
 	_serviceBrand: undefined;
 
@@ -418,8 +418,8 @@ export class InMemoryBackupFileService implements IInternalBackupFilesService {
 		this.backups.set(backupResource.toString(), content || stringToSnapshot(''));
 	}
 
-	async resolve<T extends object>(resource: URI, options?: { isBackupResource?: boolean }): Promise<IResolvedBackup<T> | undefined> {
-		const backupResource = options?.isBackupResource ? resource : this.toBackupResource(resource);
+	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
+		const backupResource = this.toBackupResource(resource);
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return { value: createTextBufferFactoryFromSnapshot(snapshot) };
