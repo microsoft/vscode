@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { Storage, IStorage, InMemoryStorageDatabase, IStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
@@ -83,11 +83,9 @@ export interface IStorageChangeEvent {
 	key: string;
 }
 
-export class StorageMainService extends Disposable implements IStorageMainService {
+export abstract class AbstractStorageMainService extends Disposable implements IStorageMainService {
 
 	_serviceBrand: undefined;
-
-	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -98,32 +96,13 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	get items(): Map<string, string> { return this.storage.items; }
 
 	private storage: IStorage;
-
 	private initializePromise: Promise<void> | undefined;
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-	) {
+	constructor() {
 		super();
 
 		// Until the storage has been initialized, it can only be in memory
 		this.storage = new Storage(new InMemoryStorageDatabase());
-	}
-
-	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsLocationURI) {
-			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
-		}
-
-		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
-	}
-
-	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => this.logService.error(error)
-		};
 	}
 
 	initialize(): Promise<void> {
@@ -134,12 +113,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.initializePromise;
 	}
 
-	private doInitialize(): Promise<void> {
+	private async doInitialize(): Promise<void> {
 		this.storage.dispose();
-		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
-			logging: this.createLogginOptions()
-		}));
-
+		this.storage = this.createStorage();
 		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
 		return this.storage.init();
@@ -179,4 +155,53 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		// Do it
 		return this.storage.close();
 	}
+
+	protected abstract createStorage(): IStorage;
+}
+
+export class StorageMainService extends AbstractStorageMainService implements IStorageMainService {
+
+	private static readonly STORAGE_NAME = 'state.vscdb';
+
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
+	) {
+		super();
+	}
+
+	private get storagePath(): string {
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
+		}
+
+		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
+	}
+
+	protected createStorage(): IStorage {
+		return new Storage(new SQLiteStorageDatabase(this.storagePath, {
+			logging: this.createLogginOptions()
+		}));
+	}
+
+	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+		return {
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
+		};
+	}
+}
+
+export class SimpleStorageMainService extends AbstractStorageMainService implements IStorageMainService {
+
+	constructor(
+		private database: IStorageDatabase
+	) {
+		super();
+	}
+
+	protected createStorage(): IStorage {
+		return new Storage(this.database);
+	}
+
 }

@@ -62,6 +62,8 @@ import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentia
 import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
+import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { IStorageMainService, SimpleStorageMainService } from 'vs/platform/storage/node/storageMainService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -126,6 +128,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
+
+	const storageMainService = new SimpleStorageMainService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')));
+	await storageMainService.initialize();
+	services.set(IStorageMainService, storageMainService);
 
 	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
 	services.set(IElectronService, electronService);
