@@ -36,6 +36,11 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { Session } from 'vs/editor/common/modes';
 import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import type { ITextModel } from 'vs/editor/common/model';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -76,6 +81,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
+		@ITextModelService textModelResolverService: ITextModelService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -97,6 +103,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
 				}
 			});
+
+			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 		}
 	}
 
@@ -200,7 +208,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
 			}
 		} else {
-			const previewEditorInput = this.getPreviewEditorInput();
+			const previewEditorInput = this.getConflictsEditorInput();
 			if (previewEditorInput) {
 				previewEditorInput.dispose();
 			}
@@ -413,7 +421,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async continueSync(): Promise<void> {
 		// Get the preview editor
-		const previewEditorInput = this.getPreviewEditorInput();
+		const previewEditorInput = this.getConflictsEditorInput();
 		// Save the preview
 		if (previewEditorInput && previewEditorInput.isDirty()) {
 			await this.textFileService.save(previewEditorInput.getResource()!);
@@ -431,28 +439,34 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private getPreviewEditorInput(): IEditorInput | undefined {
-		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(input.getResource(), this.workbenchEnvironmentService.keybindingsSyncPreviewResource))[0];
-	}
-
-	private async openConflictsEditor(remoteResource: URI, previewResource: URI, source: SyncSource): Promise<void> {
-		await this.editorService.openEditor({
-			rightResource: previewResource,
-			leftResource: remoteResource,
-			label: localize('conflicts preview', "{0} Conflicts (Remote ↔ Local)", source),
-			options: {
-				preserveFocus: false,
-				pinned: false,
-				revealIfVisible: true,
-			},
-		});
+	private getConflictsEditorInput(): IEditorInput | undefined {
+		return this.editorService.editors.filter(input => {
+			const resource = input instanceof DiffEditorInput ? input.master.getResource() : input.getResource();
+			return isEqual(resource, this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(resource, this.workbenchEnvironmentService.keybindingsSyncPreviewResource);
+		})[0];
 	}
 
 	private async handleConflicts(): Promise<void> {
+		let rightResource: URI | undefined = undefined;
+		let label: string = '';
 		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
-			return this.openConflictsEditor(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: this.userDataSyncService.conflictsSource, path: '/remoteContent' }), this.workbenchEnvironmentService.settingsSyncPreviewResource, this.userDataSyncService.conflictsSource);
+			rightResource = this.workbenchEnvironmentService.settingsSyncPreviewResource;
+			label = localize('settings conflicts preview', "Settings Conflicts (Remote ↔ Local)");
 		} else if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
-			return this.openConflictsEditor(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: this.userDataSyncService.conflictsSource, path: '/remoteContent' }), this.workbenchEnvironmentService.keybindingsSyncPreviewResource, this.userDataSyncService.conflictsSource);
+			rightResource = this.workbenchEnvironmentService.keybindingsResource;
+			label = localize('keybindings conflicts preview', "Keybindings Conflicts (Remote ↔ Local)");
+		}
+		if (rightResource) {
+			await this.editorService.openEditor({
+				leftResource: URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${this.userDataSyncService.conflictsSource}/remoteContent` }),
+				rightResource,
+				label,
+				options: {
+					preserveFocus: false,
+					pinned: false,
+					revealIfVisible: true,
+				},
+			});
 		}
 	}
 
@@ -623,3 +637,28 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 }
+
+class UserDataRemoteContentProvider implements ITextModelContentProvider {
+
+	constructor(
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+	) {
+	}
+
+	provideTextContent(uri: URI): Promise<ITextModel> | null {
+		let promise: Promise<string | null> | undefined;
+		if (uri.path === `${SyncSource.Settings}/remoteContent`) {
+			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings);
+		}
+		if (uri.path === `${SyncSource.Keybindings}/remoteContent`) {
+			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
+		}
+		if (promise) {
+			return promise.then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
+		}
+		return null;
+	}
+}
+
