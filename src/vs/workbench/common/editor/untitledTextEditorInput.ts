@@ -178,14 +178,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		return this.hasAssociatedFilePath;
 	}
 
-	hasBackup(): boolean {
-		if (this.cachedModel) {
-			return this.cachedModel.hasBackup();
-		}
-
-		return false;
-	}
-
 	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
 		return this.doSaveAs(group, options, async () => {
 

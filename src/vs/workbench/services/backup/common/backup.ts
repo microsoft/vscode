@@ -48,6 +48,21 @@ export interface IBackupFileService {
 	toBackupResource(resource: URI): URI;
 
 	/**
+	 * Gets a list of file backups for the current workspace.
+	 *
+	 * @return The list of backups.
+	 */
+	getBackups(): Promise<URI[]>;
+
+	/**
+	 * Resolves the backup for the given resource.
+	 *
+	 * @param resource The resource to get the backup for.
+	 * @return The backup file's backed up content and metadata if available.
+	 */
+	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T>>;
+
+	/**
 	 * Backs up a resource.
 	 *
 	 * @param resource The resource to back up.
@@ -56,33 +71,18 @@ export interface IBackupFileService {
 	 * @param meta The (optional) meta data of the resource to backup. This information
 	 * can be restored later when loading the backup again.
 	 */
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
-
-	/**
-	 * Gets a list of file backups for the current workspace.
-	 *
-	 * @return The list of backups.
-	 */
-	getWorkspaceFileBackups(): Promise<URI[]>;
-
-	/**
-	 * Resolves the backup for the given resource.
-	 *
-	 * @param resource The resource to get the backup for.
-	 * @return The backup file's backed up content and metadata if available.
-	 */
-	resolveBackupContent<T extends object>(resource: URI): Promise<IResolvedBackup<T>>;
+	backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
-	discardResourceBackup(resource: URI): Promise<void>;
+	discardBackup(resource: URI): Promise<void>;
 
 	/**
 	 * Discards all backups associated with the current workspace and prevents further backups from
 	 * being made.
 	 */
-	discardAllWorkspaceBackups(): Promise<void>;
+	discardBackups(): Promise<void>;
 }

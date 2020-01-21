@@ -119,6 +119,6 @@ export class BackupTracker extends Disposable implements IWorkbenchContribution 
 		this.pendingBackups.delete(workingCopy);
 
 		// Forward to backup file service
-		this.backupFileService.discardResourceBackup(workingCopy.resource);
+		this.backupFileService.discardBackup(workingCopy.resource);
 	}
 }

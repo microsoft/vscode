@@ -202,6 +202,6 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 			return false; // extension development does not track any backups
 		}
 
-		return this.backupFileService.discardAllWorkspaceBackups().then(() => false, () => false);
+		return this.backupFileService.discardBackups().then(() => false, () => false);
 	}
 }

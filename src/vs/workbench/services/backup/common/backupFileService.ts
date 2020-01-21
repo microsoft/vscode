@@ -156,24 +156,24 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.loadBackupResource(resource);
 	}
 
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		return this.impl.backupResource(resource, content, versionId, meta);
+	backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+		return this.impl.backup(resource, content, versionId, meta);
 	}
 
-	discardResourceBackup(resource: URI): Promise<void> {
-		return this.impl.discardResourceBackup(resource);
+	discardBackup(resource: URI): Promise<void> {
+		return this.impl.discardBackup(resource);
 	}
 
-	discardAllWorkspaceBackups(): Promise<void> {
-		return this.impl.discardAllWorkspaceBackups();
+	discardBackups(): Promise<void> {
+		return this.impl.discardBackups();
 	}
 
-	getWorkspaceFileBackups(): Promise<URI[]> {
-		return this.impl.getWorkspaceFileBackups();
+	getBackups(): Promise<URI[]> {
+		return this.impl.getBackups();
 	}
 
-	resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
-		return this.impl.resolveBackupContent(backup);
+	resolve<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
+		return this.impl.resolve(backup);
 	}
 
 	toBackupResource(resource: URI): URI {
@@ -244,7 +244,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		return undefined;
 	}
 
-	async backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	async backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		if (this.isShuttingDown) {
 			return;
 		}
@@ -280,7 +280,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		});
 	}
 
-	async discardResourceBackup(resource: URI): Promise<void> {
+	async discardBackup(resource: URI): Promise<void> {
 		const model = await this.ready;
 		const backupResource = this.toBackupResource(resource);
 
@@ -291,7 +291,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		});
 	}
 
-	async discardAllWorkspaceBackups(): Promise<void> {
+	async discardBackups(): Promise<void> {
 		this.isShuttingDown = true;
 
 		const model = await this.ready;
@@ -311,7 +311,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		}
 	}
 
-	async getWorkspaceFileBackups(): Promise<URI[]> {
+	async getBackups(): Promise<URI[]> {
 		const model = await this.ready;
 
 		const backups = await Promise.all(model.get().map(async fileBackup => {
@@ -346,7 +346,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		throw new Error(`Backup: Could not find ${JSON.stringify(matchingString)} in first ${maximumBytesToRead} bytes of ${file}`);
 	}
 
-	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
+	async resolve<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
 
 		// Metadata extraction
 		let metaRaw = '';
@@ -432,14 +432,14 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve(undefined);
 	}
 
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	backup<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
 		return Promise.resolve();
 	}
 
-	async resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
+	async resolve<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return { value: createTextBufferFactoryFromSnapshot(snapshot) };
@@ -448,17 +448,17 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		throw new Error('Unexpected backup resource to resolve');
 	}
 
-	getWorkspaceFileBackups(): Promise<URI[]> {
+	getBackups(): Promise<URI[]> {
 		return Promise.resolve(keys(this.backups).map(key => URI.parse(key)));
 	}
 
-	discardResourceBackup(resource: URI): Promise<void> {
+	discardBackup(resource: URI): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
 
 		return Promise.resolve();
 	}
 
-	discardAllWorkspaceBackups(): Promise<void> {
+	discardBackups(): Promise<void> {
 		this.backups.clear();
 
 		return Promise.resolve();

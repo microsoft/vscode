@@ -130,7 +130,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	async backup(): Promise<void> {
 		if (this.isResolved()) {
-			return this.backupFileService.backupResource(this.resource, this.createSnapshot(), this.versionId);
+			return this.backupFileService.backup(this.resource, this.createSnapshot(), this.versionId);
 		}
 	}
 
@@ -144,7 +144,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		let backup: IResolvedBackup<object> | undefined = undefined;
 		const backupResource = await this.backupFileService.loadBackupResource(this.resource);
 		if (backupResource) {
-			backup = await this.backupFileService.resolveBackupContent(backupResource);
+			backup = await this.backupFileService.resolve(backupResource);
 		}
 
 		// untitled associated to file path are dirty right away as well as untitled with content

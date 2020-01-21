@@ -113,10 +113,10 @@ suite('BackupRestorer', () => {
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
 		// Backup 2 normal files and 2 untitled file
-		await backupFileService.backupResource(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).createSnapshot(false));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();

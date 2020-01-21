@@ -204,7 +204,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				};
 			}
 
-			return this.backupFileService.backupResource<IBackupMetaData>(target, this.createSnapshot(), this.versionId, meta);
+			return this.backupFileService.backup<IBackupMetaData>(target, this.createSnapshot(), this.versionId, meta);
 		}
 	}
 
@@ -290,7 +290,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async loadFromBackup(backup: URI, options?: ILoadOptions): Promise<TextFileEditorModel> {
 
 		// Resolve actual backup contents
-		const resolvedBackup = await this.backupFileService.resolveBackupContent<IBackupMetaData>(backup);
+		const resolvedBackup = await this.backupFileService.resolve<IBackupMetaData>(backup);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not suceed in loading

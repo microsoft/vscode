@@ -253,8 +253,8 @@ export class ResourcesDropHandler {
 		// Resolve the contents of the dropped dirty resource from source
 		if (droppedDirtyEditor.backupResource) {
 			try {
-				const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource));
-				await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
+				const backup = await this.backupFileService.resolve((droppedDirtyEditor.backupResource));
+				await this.backupFileService.backup(droppedDirtyEditor.resource, backup.value.create(this.getDefaultEOL()).createSnapshot(true), undefined, backup.meta);
 			} catch (e) {
 				// Ignore error
 			}

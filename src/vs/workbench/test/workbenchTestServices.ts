@@ -1188,11 +1188,11 @@ export class TestBackupFileService implements IBackupFileService {
 		throw new Error('not implemented');
 	}
 
-	backupResource<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	backup<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return Promise.resolve();
 	}
 
-	getWorkspaceFileBackups(): Promise<URI[]> {
+	getBackups(): Promise<URI[]> {
 		return Promise.resolve([]);
 	}
 
@@ -1203,17 +1203,17 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	resolveBackupContent<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
+	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
 		throw new Error('not implemented');
 	}
 
-	discardResourceBackup(_resource: URI): Promise<void> {
+	discardBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
 
 	didDiscardAllWorkspaceBackups = false;
 
-	discardAllWorkspaceBackups(): Promise<void> {
+	discardBackups(): Promise<void> {
 		this.didDiscardAllWorkspaceBackups = true;
 
 		return Promise.resolve();

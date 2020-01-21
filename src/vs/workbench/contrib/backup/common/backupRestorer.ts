@@ -34,7 +34,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	protected async doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
-		const backups = await this.backupFileService.getWorkspaceFileBackups();
+		const backups = await this.backupFileService.getBackups();
 		const unresolvedBackups = await this.doResolveOpenedBackups(backups);
 
 		// Some failed to restore or were not opened at all so we open and resolve them manually
