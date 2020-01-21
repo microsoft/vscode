@@ -417,7 +417,15 @@ class TextEditElementTemplate {
 		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: 'remove' };
 		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: 'insert' };
 
-		this._label.set(value, [selectHighlight, insertHighlight], undefined, true);
+		let title: string | undefined;
+		let { metadata } = element.edit.textEdit;
+		if (metadata && metadata.description) {
+			title = localize('title', "{0} - {1}", metadata.label, metadata.description);
+		} else if (metadata) {
+			title = metadata.label;
+		}
+
+		this._label.set(value, [selectHighlight, insertHighlight], title, true);
 	}
 }
 
