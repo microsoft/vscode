@@ -228,20 +228,14 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.installExtension.arg.name', "Extension id or VSIX resource uri"),
+				name: localize('workbench.extensions.installExtension.extensionId.name', "Extension id or VSIX resource uri"),
 				schema: {
 					'type': ['object', 'string']
-				}
-			},
-			{
-				name: localize('workbench.extensions.installExtension.arg.throwOnFailure', "Indicates whether to re-throw any exception as well as log it"),
-				schema: {
-					'type': 'boolean'
 				}
 			}
 		]
 	},
-	handler: async (accessor, extensionId: string | UriComponents, throwOnFailure?: boolean) => {
+	handler: async (accessor, extensionId: string | UriComponents) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
@@ -258,9 +252,7 @@ CommandsRegistry.registerCommand({
 			}
 		} catch (e) {
 			onUnexpectedError(e);
-			if (throwOnFailure) {
-				throw e;
-			}
+			throw e;
 		}
 	}
 });
@@ -271,26 +263,20 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				name: localize('workbench.extensions.uninstallExtension.extensionId.name', "Id of the extension to uninstall"),
 				schema: {
 					'type': 'string'
-				}
-			},
-			{
-				name: localize('workbench.extensions.uninstallExtension.arg.throwOnFailure', "Indicates whether to re-throw any exception as well as log it"),
-				schema: {
-					'type': 'boolean'
 				}
 			}
 		]
 	},
-	handler: async (accessor, id: string, throwOnFailure?: boolean) => {
-		if (!id) {
+	handler: async (accessor, extensionId: string) => {
+		if (!extensionId) {
 			throw new Error(localize('id required', "Extension id required."));
 		}
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
-		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 		if (!extensionToUninstall) {
 			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id));
 		}
@@ -299,9 +285,7 @@ CommandsRegistry.registerCommand({
 			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);
-			if (throwOnFailure) {
-				throw e;
-			}
+			throw e;
 		}
 	}
 });
