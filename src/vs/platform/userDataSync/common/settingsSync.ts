@@ -296,8 +296,13 @@ export class SettingsSynchroniser extends AbstractSynchroniser implements ISetti
 
 	private async continueSync(): Promise<boolean> {
 		if (this.status === SyncStatus.HasConflicts) {
-			await this.apply();
-			this.setStatus(SyncStatus.Idle);
+			try {
+				await this.apply();
+				this.setStatus(SyncStatus.Idle);
+			} catch (e) {
+				this.logService.error(e);
+				throw e;
+			}
 		}
 		return true;
 	}

@@ -679,7 +679,8 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -727,20 +728,24 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
-					if (syncSource === SyncSource.Settings) {
-						const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Settings);
-						if (remoteContent) {
-							await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+					try {
+						const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
+						if (syncSource === SyncSource.Settings) {
+							const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Settings);
+							if (remoteContent) {
+								await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+							}
 						}
-					}
-					else if (syncSource === SyncSource.Keybindings) {
-						const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
-						if (remoteContent) {
-							await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+						else if (syncSource === SyncSource.Keybindings) {
+							const remoteContent = await this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
+							if (remoteContent) {
+								await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+							}
 						}
+						await this.userDataSyncService.sync(true);
+					} catch (e) {
+						this.notificationService.error(e);
 					}
-					await this.userDataSyncService.sync(true);
 				}
 			}));
 
