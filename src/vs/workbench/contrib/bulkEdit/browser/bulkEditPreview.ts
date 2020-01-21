@@ -215,7 +215,7 @@ export class BulkFileOperations {
 		}
 
 		operationByResource.forEach(value => this.fileOperations.push(value));
-		operationByCategory.forEach(value => this.categories.push(value));
+		operationByCategory.forEach(value => value.metadata.needsConfirmation ? this.categories.unshift(value) : this.categories.push(value));
 
 		return this;
 	}
