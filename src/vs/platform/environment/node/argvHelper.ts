@@ -13,7 +13,7 @@ import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): ParsedArgs {
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
-			console.warn(localize('unknownOption', "Option '{0}' is unknown. Ignoring.", id));
+			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
 		},
 		onMultipleValues: (id, val) => {
 			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
