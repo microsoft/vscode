@@ -8,7 +8,7 @@ import { compare, startsWith } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -18,8 +18,7 @@ import { isPatternInWord } from 'vs/base/common/filters';
 
 export class SnippetCompletion implements CompletionItem {
 
-	label: string;
-	detail: string;
+	label: CompletionItemLabel;
 	insertText: string;
 	documentation?: MarkdownString;
 	range: IRange | { insert: IRange, replace: IRange };
@@ -31,8 +30,11 @@ export class SnippetCompletion implements CompletionItem {
 		readonly snippet: Snippet,
 		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = snippet.prefix;
-		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
+		this.label = {
+			name: snippet.prefix,
+			type: localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source)
+		};
+
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
@@ -46,7 +48,7 @@ export class SnippetCompletion implements CompletionItem {
 	}
 
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label, b.label);
+		return compare(a.label.name, b.label.name);
 	}
 }
 
@@ -146,6 +148,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 					i = to;
 				}
 			}
+
 			return { suggestions };
 		});
 	}
