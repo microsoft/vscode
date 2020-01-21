@@ -92,7 +92,7 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	teardown(async () => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
 		disposables.clear();
 

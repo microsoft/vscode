@@ -15,6 +15,7 @@ import { inputBackground, inputBorder, inputForeground, widgetShadow, editorWidg
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { toggleClass } from 'vs/base/browser/dom';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
@@ -148,7 +149,9 @@ export class RenameInputField implements IContentWidget {
 		}
 	}
 
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<RenameInputFieldResult | boolean> {
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean): Promise<RenameInputFieldResult | boolean> {
+
+		toggleClass(this._domNode!, 'preview', supportPreview);
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._input!.value = value;
@@ -178,7 +181,7 @@ export class RenameInputField implements IContentWidget {
 				this._currentCancelInput = undefined;
 				resolve({
 					newName: this._input!.value,
-					wantsPreview
+					wantsPreview: supportPreview && wantsPreview
 				});
 			};
 

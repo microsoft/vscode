@@ -16,10 +16,10 @@ import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePortFaster } from 'vs/base/node/ports';
 import { AbstractTunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 
-export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
+async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	const tunnel = new NodeRemoteTunnel(options, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
 	return tunnel.waitForReady();
 }
@@ -64,7 +64,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	public async waitForReady(): Promise<this> {
 
 		// try to get the same port number as the remote port number...
-		const localPort = await findFreePort(this.suggestedLocalPort ?? this.tunnelRemotePort, 1, 1000);
+		const localPort = await findFreePortFaster(this.suggestedLocalPort ?? this.tunnelRemotePort, 2, 1000);
 
 		// if that fails, the method above returns 0, which works out fine below...
 		const address = (<net.AddressInfo>this._server.listen(localPort).address());

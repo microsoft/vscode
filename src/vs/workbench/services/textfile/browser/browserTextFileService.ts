@@ -24,7 +24,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean {
-		if (this.models.getAll().some(model => model.hasState(ModelState.PENDING_SAVE))) {
+		if (this.files.getAll().some(model => model.hasState(ModelState.PENDING_SAVE))) {
 			console.warn('Unload prevented: pending file saves');
 
 			return true; // files are pending to be saved: veto

@@ -491,6 +491,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
 	/**
+	 * An event emitted when the content width or content height in the editor has changed.
+	 * @event
+	 */
+	onDidContentSizeChange(listener: (e: editorCommon.IContentSizeChangedEvent) => void): IDisposable;
+	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
 	 */
@@ -567,6 +572,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setValue(newValue: string): void;
 
 	/**
+	 * Get the width of the editor's content.
+	 * This is information that is "erased" when computing `scrollWidth = Math.max(contentWidth, width)`
+	 */
+	getContentWidth(): number;
+	/**
 	 * Get the scrollWidth of the editor's viewport.
 	 */
 	getScrollWidth(): number;
@@ -575,6 +585,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getScrollLeft(): number;
 
+	/**
+	 * Get the height of the editor's content.
+	 * This is information that is "erased" when computing `scrollHeight = Math.max(contentHeight, height)`
+	 */
+	getContentHeight(): number;
 	/**
 	 * Get the scrollHeight of the editor's viewport.
 	 */
@@ -707,6 +722,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	getTelemetryData(): { [key: string]: any } | undefined;
+
+	/**
+	 * Returns the editor's container dom node
+	 */
+	getContainerDomNode(): HTMLElement;
 
 	/**
 	 * Returns the editor's dom node

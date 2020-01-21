@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -18,7 +18,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	_serviceBrand: any;
 
-	private readonly synchronisers: ISynchroniser[];
+	private readonly synchronisers: IUserDataSynchroniser[];
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }
@@ -131,7 +131,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return false;
 	}
 
-	async hasRemote(): Promise<boolean> {
+	async hasRemoteData(): Promise<boolean> {
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
@@ -139,11 +139,48 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasRemote()) {
+			if (await synchroniser.hasRemoteData()) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasLocalData()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async getRemoteContent(source: SyncSource): Promise<string | null> {
+		for (const synchroniser of this.synchronisers) {
+			if (synchroniser.source === source) {
+				return synchroniser.getRemoteContent();
+			}
+		}
+		return null;
+	}
+
+	async isFirstTimeSyncAndHasUserData(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		if (await this.hasPreviouslySynced()) {
+			return false;
+		}
+		return await this.hasLocalData();
 	}
 
 	async reset(): Promise<void> {

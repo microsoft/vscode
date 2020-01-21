@@ -31,7 +31,7 @@
 }
 
 .monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
-	padding-right: 0px;
+	padding-right: 2px;
 }
 
 .repl .repl-tree .output.expression.value-and-source {
@@ -61,6 +61,10 @@
 
 .repl .repl-tree .monaco-list-row {
 	cursor: text;
+}
+
+.repl .repl-tree .monaco-list-rows > .monaco-list-row .monaco-tl-twistie.collapsible {
+	padding-left: 18px !important;
 }
 
 .repl .repl-tree .output.expression > .value,

@@ -39,7 +39,7 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, RerunEditorSearchAction, RerunEditorSearchWithContextAction, ExpandAllAction, OpenSearchEditorAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, ExpandAllAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorWholeWordCommand, toggleSearchEditorRegexCommand, toggleSearchEditorContextLinesCommand } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { SearchView, SearchViewPosition } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -53,7 +53,6 @@ import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { assertType } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
@@ -200,7 +199,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FocusNextInputAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(Constants.InSearchEditor, Constants.InputBoxFocusedKey),
+		ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey)),
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusNextInputAction, FocusNextInputAction.ID, '').run();
@@ -210,7 +211,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FocusPreviousInputAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey, Constants.SearchInputBoxFocusedKey.toNegated()),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(Constants.InSearchEditor, Constants.InputBoxFocusedKey),
+		ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey, Constants.SearchInputBoxFocusedKey.toNegated())),
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusPreviousInputAction, FocusPreviousInputAction.ID, '').run();
@@ -624,6 +627,36 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	handler: toggleRegexCommand
 }, ToggleRegexKeybinding));
 
+KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	id: Constants.ToggleSearchEditorCaseSensitiveCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.InSearchEditor, Constants.SearchInputBoxFocusedKey),
+	handler: toggleSearchEditorCaseSensitiveCommand
+}, ToggleCaseSensitiveKeybinding));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	id: Constants.ToggleSearchEditorWholeWordCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.InSearchEditor, Constants.SearchInputBoxFocusedKey),
+	handler: toggleSearchEditorWholeWordCommand
+}, ToggleWholeWordKeybinding));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	id: Constants.ToggleSearchEditorRegexCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.InSearchEditor, Constants.SearchInputBoxFocusedKey),
+	handler: toggleSearchEditorRegexCommand
+}, ToggleRegexKeybinding));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.ToggleSearchEditorContextLinesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.InSearchEditor),
+	handler: toggleSearchEditorContextLinesCommand,
+	primary: KeyMod.Alt | KeyCode.KEY_L,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.AddCursorsAtSearchResults,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -656,20 +689,6 @@ registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
 	'Search: Open new Search Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
-
-const searchEditorCategory = nls.localize({ comment: ['The name of the tabbed search view'], key: 'searcheditor' }, "Search Editor");
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(RerunEditorSearchAction, RerunEditorSearchAction.ID, RerunEditorSearchAction.LABEL,
-		{ primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_R },
-		ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result'))),
-	'Search Editor: Search Again', searchEditorCategory,
-	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
-
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(RerunEditorSearchWithContextAction, RerunEditorSearchWithContextAction.ID, RerunEditorSearchWithContextAction.LABEL),
-	'Search Editor: Search Again (With Context)', searchEditorCategory,
-	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
-
 
 // Register Quick Open Handler
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQuickOpenHandler(

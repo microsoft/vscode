@@ -87,21 +87,21 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('loadOrCreate', async () => {
+	test('resolve', async () => {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
-		const model = await manager.loadOrCreate(resource, { encoding });
+		const model = await manager.resolve(resource, { encoding });
 		assert.ok(model);
 		assert.equal(model.getEncoding(), encoding);
 		assert.equal(manager.get(resource), model);
 
-		const model2 = await manager.loadOrCreate(resource, { encoding });
+		const model2 = await manager.resolve(resource, { encoding });
 		assert.equal(model2, model);
 		model.dispose();
 
-		const model3 = await manager.loadOrCreate(resource, { encoding });
+		const model3 = await manager.resolve(resource, { encoding });
 		assert.notEqual(model3, model2);
 		assert.equal(manager.get(resource), model3);
 		model3.dispose();
@@ -127,7 +127,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('pasero events', async function () {
+	test('events', async function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource1 = toResource.call(this, '/path/index.txt');
@@ -174,13 +174,13 @@ suite('Files - TextFileEditorModelManager', () => {
 			}
 		});
 
-		const model1 = await manager.loadOrCreate(resource1, { encoding: 'utf8' });
+		const model1 = await manager.resolve(resource1, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 1);
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
 
-		const model2 = await manager.loadOrCreate(resource2, { encoding: 'utf8' });
+		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 2);
 
 		model1.textEditorModel!.setValue('changed');
@@ -211,7 +211,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		const model = await manager.loadOrCreate(resource, { encoding: 'utf8' });
+		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.dispose();
 		assert.ok(!manager.get(resource));
 		assert.ok(!accessor.modelService.getModel(model.resource));
@@ -223,7 +223,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		const model = await manager.loadOrCreate(resource, { encoding: 'utf8' });
+		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.textEditorModel!.setValue('make dirty');
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(!model.isDisposed());
@@ -243,10 +243,10 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		let model = await manager.loadOrCreate(resource, { mode });
+		let model = await manager.resolve(resource, { mode });
 		assert.equal(model.textEditorModel!.getModeId(), mode);
 
-		model = await manager.loadOrCreate(resource, { mode: 'text' });
+		model = await manager.resolve(resource, { mode: 'text' });
 		assert.equal(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
 
 		manager.disposeModel((model as TextFileEditorModel));

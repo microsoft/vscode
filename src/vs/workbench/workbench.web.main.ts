@@ -63,12 +63,14 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, ISettingsSyncService, IUserDataAuthTokenService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
+import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
+import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataAutoSync';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -79,6 +81,8 @@ registerSingleton(ILoggerService, FileLoggerService);
 registerSingleton(IAuthenticationService, AuthenticationService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
+registerSingleton(IUserDataAuthTokenService, UserDataAuthTokenService);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSync);
 registerSingleton(ISettingsSyncService, SettingsSynchroniser);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
 

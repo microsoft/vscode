@@ -10,32 +10,27 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 
 export class MainThreadAuthenticationProvider {
-	public readonly handle: number;
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
-		public readonly id: string,
-		handle: number
-	) {
-		this.handle = handle;
+		public readonly id: string
+	) { }
+
+	getSessions(): Promise<ReadonlyArray<modes.Session>> {
+		return this._proxy.$getSessions(this.id);
 	}
 
-	accounts(): Promise<ReadonlyArray<modes.Account>> {
-		return this._proxy.$accounts(this.handle);
-	}
-
-	login(): Promise<modes.Account> {
-		return this._proxy.$login(this.handle);
+	login(): Promise<modes.Session> {
+		return this._proxy.$login(this.id);
 	}
 
 	logout(accountId: string): Promise<void> {
-		return this._proxy.$logout(this.handle, accountId);
+		return this._proxy.$logout(this.id, accountId);
 	}
 }
 
 @extHostNamedCustomer(MainContext.MainThreadAuthentication)
 export class MainThreadAuthentication extends Disposable implements MainThreadAuthenticationShape {
 	private readonly _proxy: ExtHostAuthenticationShape;
-	private _handlers = new Map<number, string>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -45,25 +40,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 	}
 
-	$registerAuthenticationProvider(handle: number, id: string): void {
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, handle);
-		this._handlers.set(handle, id);
+	$registerAuthenticationProvider(id: string): void {
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
-	$unregisterAuthenticationProvider(handle: number): void {
-		const id = this._handlers.get(handle);
-		if (!id) {
-			throw new Error(`No authentication provider registered with id ${id}`);
-		}
-
+	$unregisterAuthenticationProvider(id: string): void {
 		this.authenticationService.unregisterAuthenticationProvider(id);
 	}
 
-	$onDidChangeAccounts(handle: number, accounts: ReadonlyArray<modes.Account>) {
-		const id = this._handlers.get(handle);
-		if (id) {
-			this.authenticationService.accountsUpdate(id, accounts);
-		}
+	$onDidChangeSessions(id: string) {
+		this.authenticationService.sessionsUpdate(id);
 	}
 }

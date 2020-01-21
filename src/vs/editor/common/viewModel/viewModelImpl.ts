@@ -100,6 +100,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}));
 
+		this._register(this.viewLayout.onDidContentSizeChange((e) => {
+			try {
+				const eventsCollector = this._beginEmit();
+				eventsCollector.emit(new viewEvents.ViewContentSizeChangedEvent(e));
+			} finally {
+				this._endEmit();
+			}
+		}));
+
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
 		this._registerModelEvents();
@@ -647,15 +656,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getEOL();
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
 		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
-		ranges = ranges.slice(0);
-		ranges.sort(Range.compareRangesUsingStarts);
+		modelRanges = modelRanges.slice(0);
+		modelRanges.sort(Range.compareRangesUsingStarts);
 
 		let hasEmptyRange = false;
 		let hasNonEmptyRange = false;
-		for (const range of ranges) {
+		for (const range of modelRanges) {
 			if (range.isEmpty()) {
 				hasEmptyRange = true;
 			} else {
@@ -669,10 +678,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				return '';
 			}
 
-			const modelLineNumbers = ranges.map((r) => {
-				const viewLineStart = new Position(r.startLineNumber, 1);
-				return this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).lineNumber;
-			});
+			const modelLineNumbers = modelRanges.map((r) => r.startLineNumber);
 
 			let result = '';
 			for (let i = 0; i < modelLineNumbers.length; i++) {
@@ -688,14 +694,14 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			// mixed empty selections and non-empty selections
 			let result: string[] = [];
 			let prevModelLineNumber = 0;
-			for (const range of ranges) {
-				const modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-				if (range.isEmpty()) {
+			for (const modelRange of modelRanges) {
+				const modelLineNumber = modelRange.startLineNumber;
+				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
 						result.push(this.model.getLineContent(modelLineNumber));
 					}
 				} else {
-					result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 				}
 				prevModelLineNumber = modelLineNumber;
 			}
@@ -703,31 +709,31 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		let result: string[] = [];
-		for (const range of ranges) {
-			if (!range.isEmpty()) {
-				result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const modelRange of modelRanges) {
+			if (!modelRange.isEmpty()) {
+				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 			}
 		}
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string | null {
+	public getHTMLToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): string | null {
 		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
 			return null;
 		}
 
-		if (viewRanges.length !== 1) {
+		if (modelRanges.length !== 1) {
 			// no multiple selection support at this time
 			return null;
 		}
 
-		let range = this.coordinatesConverter.convertViewRangeToModelRange(viewRanges[0]);
+		let range = modelRanges[0];
 		if (range.isEmpty()) {
 			if (!emptySelectionClipboard) {
 				// nothing to copy
 				return null;
 			}
-			let lineNumber = range.startLineNumber;
+			const lineNumber = range.startLineNumber;
 			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
 		}
 

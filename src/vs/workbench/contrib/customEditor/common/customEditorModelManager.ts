@@ -21,13 +21,13 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		return this._models.get(this.key(resource, viewType))?.model;
 	}
 
-	public async loadOrCreate(resource: URI, viewType: string): Promise<ICustomEditorModel> {
+	public async resolve(resource: URI, viewType: string): Promise<ICustomEditorModel> {
 		const existing = this.get(resource, viewType);
 		if (existing) {
 			return existing;
 		}
 
-		const model = new CustomEditorModel(resource);
+		const model = new CustomEditorModel(viewType, resource);
 		const disposables = new DisposableStore();
 		disposables.add(this._workingCopyService.registerWorkingCopy(model));
 		this._models.set(this.key(resource, viewType), { model, disposables });
@@ -39,6 +39,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		this._models.forEach((value, key) => {
 			if (model === value.model) {
 				value.disposables.dispose();
+				value.model.dispose();
 				foundKey = key;
 			}
 		});
@@ -46,6 +47,14 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			this._models.delete(foundKey);
 		}
 		return;
+	}
+
+	public disposeAllModelsForView(viewType: string): void {
+		this._models.forEach((value) => {
+			if (value.model.viewType === viewType) {
+				this.disposeModel(value.model);
+			}
+		});
 	}
 
 	private key(resource: URI, viewType: string): string {

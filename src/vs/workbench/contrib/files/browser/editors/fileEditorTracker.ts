@@ -25,8 +25,6 @@ import { timeout, RunOnceWorker } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { Schemas } from 'vs/base/common/network';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -42,8 +40,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -61,9 +58,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Ensure dirty text file and untitled models are always opened as editors
-		this._register(this.textFileService.models.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
-		this._register(this.textFileService.models.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
-		this._register(this.untitledTextEditorService.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
+		this._register(this.textFileService.files.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.textFileService.files.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.textFileService.untitled.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
 
 		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -115,7 +112,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						}
 
 						let encoding: string | undefined = undefined;
-						const model = this.textFileService.models.get(resource);
+						const model = this.textFileService.files.get(resource);
 						if (model) {
 							encoding = model.getEncoding();
 						}
@@ -282,23 +279,17 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private ensureDirtyFilesAreOpened(resources: URI[]): void {
 		this.doEnsureDirtyFilesAreOpened(distinct(resources.filter(resource => {
-			if (resource.scheme === Schemas.untitled) {
-				if (!this.untitledTextEditorService.isDirty(resource)) {
-					return false; // untitled must be dirty
-				}
-			} else {
-				const model = this.textFileService.models.get(resource);
-				if (!model) {
-					return false; // only for text file models
-				}
-
-				if (!model?.hasState(ModelState.DIRTY) || model.hasState(ModelState.PENDING_SAVE)) {
-					return false; // model must be dirty and not being saved
-				}
+			if (!this.textFileService.isDirty(resource)) {
+				return false; // resource must be dirty
 			}
 
-			if (this.editorService.isOpen({ resource })) {
-				return false; // model must not be opened already
+			const model = this.textFileService.files.get(resource);
+			if (model?.hasState(ModelState.PENDING_SAVE)) {
+				return false; // resource must not be pending to save
+			}
+
+			if (this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: true }))) {
+				return false; // model must not be opened already as file
 			}
 
 			return true;
@@ -371,7 +362,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							return undefined;
 						}
 
-						const model = this.textFileService.models.get(resource);
+						const model = this.textFileService.files.get(resource);
 						if (!model) {
 							return undefined;
 						}

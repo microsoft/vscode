@@ -15,6 +15,7 @@ import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -33,9 +34,16 @@ export interface ITextFileService extends IDisposable {
 	readonly onDidRunOperation: Event<FileOperationDidRunEvent>;
 
 	/**
-	 * Access to the manager of text file editor models providing further methods to work with them.
+	 * Access to the manager of text file editor models providing further
+	 * methods to work with them.
 	 */
-	readonly models: ITextFileEditorModelManager;
+	readonly files: ITextFileEditorModelManager;
+
+	/**
+	 * Access to the manager of untitled text editor models providing further
+	 * methods to work with them.
+	 */
+	readonly untitled: IUntitledTextEditorModelManager;
 
 	/**
 	 * Helper to determine encoding for resources.
@@ -312,9 +320,9 @@ export interface IModelLoadOrCreateOptions {
 	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
-	 * - async: loadOrCreate() will return immediately and trigger
+	 * - async: resolve() will return immediately and trigger
 	 * a reload that will run in the background.
-	 * - sync: loadOrCreate() will only return resolved when the
+	 * - sync: resolve() will only return resolved when the
 	 * model has finished reloading.
 	 */
 	reload?: {
@@ -349,9 +357,7 @@ export interface ITextFileEditorModelManager {
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
-	getAll(resource?: URI): ITextFileEditorModel[];
-
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
+	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
@@ -400,10 +406,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
 
 	revert(options?: IRevertOptions): Promise<boolean>;
-
-	backup(target?: URI): Promise<void>;
-
-	hasBackup(): boolean;
 
 	isDirty(): this is IResolvedTextFileEditorModel;
 

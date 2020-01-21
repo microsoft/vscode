@@ -483,15 +483,29 @@ export namespace WorkspaceEdit {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
-		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
-			const [uri, uriOrEdits] = entry;
-			if (Array.isArray(uriOrEdits)) {
-				// text edits
-				const doc = documents && uri ? documents.getDocument(uri) : undefined;
-				result.edits.push(<extHostProtocol.IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
-			} else {
-				// resource edits
-				result.edits.push(<extHostProtocol.IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
+
+		if (value instanceof types.WorkspaceEdit) {
+			for (let entry of value.allEntries()) {
+
+				if (entry._type === 1) {
+					// file operation
+					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						oldUri: entry.from,
+						newUri: entry.to,
+						options: entry.options,
+						metadata: entry.metadata
+					});
+
+				} else {
+					// text edits
+					const doc = documents?.getDocument(entry.uri);
+					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						resource: entry.uri,
+						edit: TextEdit.from(entry.edit),
+						modelVersionId: doc?.version,
+						metadata: entry.metadata
+					});
+				}
 			}
 		}
 		return result;
@@ -500,16 +514,17 @@ export namespace WorkspaceEdit {
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if (Array.isArray((<extHostProtocol.IResourceTextEditDto>edit).edits)) {
-				result.set(
-					URI.revive((<extHostProtocol.IResourceTextEditDto>edit).resource),
-					<types.TextEdit[]>(<extHostProtocol.IResourceTextEditDto>edit).edits.map(TextEdit.to)
+			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).edit) {
+				result.replace(
+					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
+					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).edit.range),
+					(<extHostProtocol.IWorkspaceTextEditDto>edit).edit.text
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).oldUri!),
-					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).newUri!),
-					(<extHostProtocol.IResourceFileEditDto>edit).options
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldUri!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newUri!),
+					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}
 		}
@@ -832,7 +847,12 @@ export namespace CompletionItemKind {
 export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
-		const result = new types.CompletionItem(suggestion.label);
+
+		const result = new types.CompletionItem(typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name);
+		if (typeof suggestion.label !== 'string') {
+			result.label2 = suggestion.label;
+		}
+
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
 		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
@@ -842,8 +862,14 @@ export namespace CompletionItem {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : undefined;
-		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
+
+		// range
+		if (editorRange.Range.isIRange(suggestion.range)) {
+			result.range = Range.to(suggestion.range);
+		} else if (typeof suggestion.range === 'object') {
+			result.range = { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
+		}
+
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'insertText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {

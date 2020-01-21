@@ -6,6 +6,9 @@
 .monaco-editor .rename-box {
 	z-index: 100;
 	color: inherit;
+}
+
+.monaco-editor .rename-box.preview {
 	padding: 4px;
 }
 
@@ -15,5 +18,10 @@
 }
 
 .monaco-editor .rename-box .rename-label {
+	display: none;
 	opacity: .8;
+}
+
+.monaco-editor .rename-box.preview .rename-label {
+	display: inherit;
 }

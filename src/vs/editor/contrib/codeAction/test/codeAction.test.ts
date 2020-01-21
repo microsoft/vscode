@@ -69,7 +69,7 @@ suite('CodeAction', () => {
 			bcd: {
 				diagnostics: <IMarkerData[]>[],
 				edit: new class implements modes.WorkspaceEdit {
-					edits!: modes.ResourceTextEdit[];
+					edits!: modes.WorkspaceTextEdit[];
 				},
 				title: 'abc'
 			}

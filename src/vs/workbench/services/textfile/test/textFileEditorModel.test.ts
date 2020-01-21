@@ -47,7 +47,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 		accessor.fileService.setContent(content);
 	});

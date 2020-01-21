@@ -182,6 +182,24 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const authentication: typeof vscode.authentication = {
 			registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
 				return extHostAuthentication.registerAuthenticationProvider(provider);
+			},
+			login(providerId: string): Promise<vscode.Session> {
+				return extHostAuthentication.$login(providerId);
+			},
+			logout(providerId: string, accountId: string): Promise<void> {
+				return extHostAuthentication.$logout(providerId, accountId);
+			},
+			getSessions(providerId: string): Promise<ReadonlyArray<vscode.Session>> {
+				return extHostAuthentication.$getSessions(providerId);
+			},
+			get onDidChangeSessions() {
+				return extHostAuthentication.onDidChangeSessions;
+			},
+			get onDidRegisterAuthenticationProvider() {
+				return extHostAuthentication.onDidRegisterAuthenticationProvider;
+			},
+			get onDidUnregisterAuthenticationProvider() {
+				return extHostAuthentication.onDidUnregisterAuthenticationProvider;
 			}
 		};
 
@@ -361,9 +379,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
-			registerSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+			registerDocumentSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
+				return extHostLanguageFeatures.registerDocumentSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
+			},
+			registerDocumentRangeSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerDocumentRangeSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
 				if (typeof firstItem === 'object') {
@@ -740,6 +762,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			openTunnel: (forward: vscode.TunnelOptions) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.openTunnel(forward);
+			},
+			get tunnels() {
+				checkProposedApiEnabled(extension);
+				return extHostTunnelService.getTunnels();
+			},
+			onDidTunnelsChange: (listener, thisArg?, disposables?) => {
+				checkProposedApiEnabled(extension);
+				return extHostTunnelService.onDidTunnelsChange(listener, thisArg, disposables);
 			}
 		};
 

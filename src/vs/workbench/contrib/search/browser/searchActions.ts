@@ -29,10 +29,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { createEditorFromSearchResult, openNewSearchEditor, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
+
+import type { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -86,11 +86,26 @@ export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleCaseSensitive();
+	}
+};
+
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 	if (searchView) {
-
 		searchView.toggleWholeWords();
+	}
+};
+
+export const toggleSearchEditorWholeWordCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleWholeWords();
 	}
 };
 
@@ -101,23 +116,45 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const toggleSearchEditorRegexCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleRegex();
+	}
+};
+
+export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).toggleContextLines();
+	}
+};
+
 export class FocusNextInputAction extends Action {
 
 	static readonly ID = 'search.focus.nextInputBox';
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			(this.editorService.activeControl as SearchEditor).focusNextInput();
+		}
+
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.focusNextInputBox();
 		}
-		return Promise.resolve(null);
 	}
 }
 
@@ -127,17 +164,23 @@ export class FocusPreviousInputAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			(this.editorService.activeControl as SearchEditor).focusPrevInput();
+		}
+
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.focusPreviousInputBox();
 		}
-		return Promise.resolve(null);
 	}
 }
 
@@ -544,6 +587,7 @@ export class OpenResultsInEditorAction extends Action {
 		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(id, label, 'codicon-go-to-file');
 	}
@@ -560,62 +604,7 @@ export class OpenResultsInEditorAction extends Action {
 	async run() {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
-		}
-	}
-}
-
-export class RerunEditorSearchAction extends Action {
-
-	static readonly ID: string = Constants.RerunEditorSearchCommandId;
-	static readonly LABEL = nls.localize('search.rerunEditorSearch', "Search Again");
-
-	constructor(id: string, label: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ILabelService private labelService: ILabelService,
-		@IProgressService private progressService: IProgressService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
-				() => refreshActiveEditorSearch(undefined, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
-		}
-	}
-}
-
-export class RerunEditorSearchWithContextAction extends Action {
-
-	static readonly ID: string = Constants.RerunEditorSearchWithContextCommandId;
-	static readonly LABEL = nls.localize('search.rerunEditorSearchContext', "Search Again (With Context)");
-
-	constructor(id: string, label: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ILabelService private labelService: ILabelService,
-		@IProgressService private progressService: IProgressService,
-		@IQuickInputService private quickPickService: IQuickInputService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		const lines = await this.quickPickService.input({
-			prompt: nls.localize('lines', "Lines of Context"),
-			value: '2',
-			validateInput: async (value) => isNaN(parseInt(value)) ? nls.localize('mustBeInteger', "Must enter an integer") : undefined
-		});
-		if (lines === undefined) { return; }
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
-				() => refreshActiveEditorSearch(+lines, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
+			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.textFileService, this.instantiationService);
 		}
 	}
 }

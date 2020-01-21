@@ -301,7 +301,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'changePeekFocus',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
 	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
@@ -313,7 +313,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib - 10,
 	primary: KeyCode.F4,
 	secondary: [KeyCode.F12],
 	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
@@ -326,7 +326,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReference',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib - 10,
 	primary: KeyMod.Shift | KeyCode.F4,
 	secondary: [KeyMod.Shift | KeyCode.F12],
 	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),

@@ -9,6 +9,7 @@ import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, I
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -34,7 +35,10 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemote': return this.service.hasRemote();
+			case 'hasRemoteData': return this.service.hasRemoteData();
+			case 'hasLocalData': return this.service.hasLocalData();
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
+			case 'isFirstTimeSyncAndHasUserData': return this.service.isFirstTimeSyncAndHasUserData();
 		}
 		throw new Error('Invalid call');
 	}
@@ -63,8 +67,10 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemote': return this.service.hasRemote();
+			case 'hasRemoteData': return this.service.hasRemoteData();
+			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
+			case 'getRemoteContent': return this.service.getRemoteContent();
 		}
 		throw new Error('Invalid call');
 	}
@@ -118,6 +124,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 			case 'resolveUserKeybindings': return this.service.resolveUserBindings(args[0]);
 			case 'resolveFormattingOptions': return this.service.resolveFormattingOptions(URI.revive(args[0]));
 			case 'updateConfigurationValue': return this.service.updateConfigurationValue(args[0], args[1]);
+			case 'ignoreExtensionsToSync': return this.service.ignoreExtensionsToSync(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -140,6 +147,10 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 	async updateConfigurationValue(key: string, value: any): Promise<void> {
 		return this.channel.call('updateConfigurationValue', [key, value]);
+	}
+
+	async ignoreExtensionsToSync(extensionIdentifiers: IExtensionIdentifier[]): Promise<void> {
+		return this.channel.call('ignoreExtensionsToSync', [extensionIdentifiers]);
 	}
 
 }

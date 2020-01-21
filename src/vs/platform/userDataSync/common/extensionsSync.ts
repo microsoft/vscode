@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,6 +17,8 @@ import { Queue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 
 interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -32,7 +33,7 @@ interface ILastSyncUserData extends IUserData {
 	skippedExtensions: ISyncExtension[] | undefined;
 }
 
-export class ExtensionsSynchroniser extends Disposable implements ISynchroniser {
+export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static EXTERNAL_USER_DATA_EXTENSIONS_KEY: string = 'extensions';
 
@@ -49,16 +50,16 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
+		super(SyncSource.Extensions, fileService, environmentService);
 		this.replaceQueue = this._register(new Queue());
-		this.lastSyncExtensionsResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncExtensions');
+		this.lastSyncExtensionsResource = joinPath(this.syncFolder, '.lastSyncExtensions');
 		this._register(
 			Event.debounce(
 				Event.any(
@@ -159,7 +160,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			throw e;
 		}
 
-		this.logService.trace('Extensions: Finised synchronizing extensions.');
+		this.logService.trace('Extensions: Finished synchronizing extensions.');
 		this.setStatus(SyncStatus.Idle);
 		return true;
 	}
@@ -171,9 +172,25 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		return !!lastSyncData;
 	}
 
-	async hasRemote(): Promise<boolean> {
+	async hasRemoteData(): Promise<boolean> {
 		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const localExtensions = await this.getLocalExtensions();
+			if (isNonEmptyArray(localExtensions)) {
+				return true;
+			}
+		} catch (error) {
+			/* ignore error */
+		}
+		return false;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		return null;
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {

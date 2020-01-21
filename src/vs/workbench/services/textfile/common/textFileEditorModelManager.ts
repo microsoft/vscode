@@ -92,7 +92,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.mapResourceToModel.get(resource);
 	}
 
-	async loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
+	async resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);

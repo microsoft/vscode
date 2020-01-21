@@ -239,7 +239,8 @@ export function registerCommands(): void {
 		id: STEP_INTO_ID,
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
-		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+		// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
+		when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}

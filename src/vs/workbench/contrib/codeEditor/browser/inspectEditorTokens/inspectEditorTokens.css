@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.tm-inspect-widget {
+.token-inspect-widget {
 	z-index: 50;
 	user-select: text;
 	-webkit-user-select: text;
 	padding: 10px;
 }
 
-.tm-token {
+.tiw-token {
 	font-family: var(--monaco-monospace-font);
 }
 
-.tm-metadata-separator {
+.tiw-metadata-separator {
 	height: 1px;
 	border: 0;
 }
 
-.tm-token-length {
+.tiw-token-length {
 	font-weight: normal;
 	font-size: 60%;
 	float: right;
 }
 
-.tm-metadata-table {
+.tiw-metadata-table {
 	width: 100%;
 }
 
-.tm-metadata-value {
+.tiw-metadata-value {
 	font-family: var(--monaco-monospace-font);
 	text-align: right;
 }
 
-.tm-theme-selector {
+.tiw-theme-selector {
 	font-family: var(--monaco-monospace-font);
 }

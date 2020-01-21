@@ -195,6 +195,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
+
 	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
 	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
 
@@ -759,6 +762,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.cursor.setSelections(source, ranges);
 	}
 
+	public getContentWidth(): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getContentWidth();
+	}
+
 	public getScrollWidth(): number {
 		if (!this._modelData) {
 			return -1;
@@ -770,6 +780,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.viewModel.viewLayout.getCurrentScrollLeft();
+	}
+
+	public getContentHeight(): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getContentHeight();
 	}
 
 	public getScrollHeight(): number {
@@ -1148,6 +1165,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.createOverviewRuler(cssClassName);
 	}
 
+	public getContainerDomNode(): HTMLElement {
+		return this._domElement;
+	}
+
 	public getDomNode(): HTMLElement | null {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return null;
@@ -1479,6 +1500,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
+		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
 		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
 		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
@@ -1530,7 +1552,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
-		this._codeEditorService.registerDecorationType(key, options, parentTypeKey);
+		this._codeEditorService.registerDecorationType(key, options, parentTypeKey, this);
 	}
 
 	private _removeDecorationType(key: string): void {

@@ -198,7 +198,6 @@ export class TestTextFileService extends NativeTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IHistoryService historyService: IHistoryService,
@@ -208,14 +207,14 @@ export class TestTextFileService extends NativeTextFileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService
+		@ITextModelService textModelService: ITextModelService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(
 			fileService,
 			untitledTextEditorService,
 			lifecycleService,
 			instantiationService,
-			modeService,
 			modelService,
 			environmentService,
 			historyService,
@@ -225,7 +224,8 @@ export class TestTextFileService extends NativeTextFileService {
 			textResourceConfigurationService,
 			productService,
 			filesConfigurationService,
-			textModelService
+			textModelService,
+			codeEditorService
 		);
 	}
 
@@ -260,10 +260,6 @@ export class TestTextFileService extends NativeTextFileService {
 
 	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
 		return Promise.resolve(this.promptPath);
-	}
-
-	getDirty(resources?: URI[]): URI[] {
-		return super.getDirty(resources);
 	}
 }
 
@@ -417,7 +413,7 @@ export class TestFileDialogService implements IFileDialogService {
 	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
 	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
@@ -774,6 +770,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	disposed!: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label!: string;
+	ariaLabel!: string;
 	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	element!: HTMLElement;
@@ -1170,15 +1167,6 @@ export class TestBackupFileService implements IBackupFileService {
 		return false;
 	}
 
-	async loadBackupResource(resource: URI): Promise<URI | undefined> {
-		const hasBackup = await this.hasBackup(resource);
-		if (hasBackup) {
-			return this.toBackupResource(resource);
-		}
-
-		return undefined;
-	}
-
 	registerResourceForBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1187,15 +1175,11 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	toBackupResource(_resource: URI): URI {
-		throw new Error('not implemented');
-	}
-
-	backupResource<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return Promise.resolve();
 	}
 
-	getWorkspaceFileBackups(): Promise<URI[]> {
+	getBackups(): Promise<URI[]> {
 		return Promise.resolve([]);
 	}
 
@@ -1206,19 +1190,15 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	resolveBackupContent<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
-		throw new Error('not implemented');
+	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> {
+		return Promise.resolve(undefined);
 	}
 
-	discardResourceBackup(_resource: URI): Promise<void> {
+	discardBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
 
-	didDiscardAllWorkspaceBackups = false;
-
-	discardAllWorkspaceBackups(): Promise<void> {
-		this.didDiscardAllWorkspaceBackups = true;
-
+	discardBackups(): Promise<void> {
 		return Promise.resolve();
 	}
 }
@@ -1244,6 +1224,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	resolveDecorationOptions(_typeKey: string, _writable: boolean): IModelDecorationOptions { return Object.create(null); }
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
+	getTransientModelProperties(_model: ITextModel) { return undefined; }
 	getActiveCodeEditor(): ICodeEditor | null { return null; }
 	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | null> { return Promise.resolve(null); }
 }

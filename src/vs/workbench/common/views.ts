@@ -361,8 +361,6 @@ export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
-
 	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;

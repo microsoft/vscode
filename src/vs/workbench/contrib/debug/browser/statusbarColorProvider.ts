@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { addClass, removeClass, createStyleSheet } from 'vs/base/browser/dom';
@@ -58,7 +58,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		super.updateStyles();
 
 		const container = assertIsDefined(this.layoutService.getContainer(Parts.STATUSBAR_PART));
-		if (isStatusbarInDebugMode(this.debugService)) {
+		if (isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
 			addClass(container, 'debugging');
 		} else {
 			removeClass(container, 'debugging');
@@ -90,7 +90,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
 
 		// Not debugging
-		if (!isStatusbarInDebugMode(this.debugService)) {
+		if (!isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 				return normalColor;
 			}
@@ -103,12 +103,10 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	}
 }
 
-function isStatusbarInDebugMode(debugService: IDebugService): boolean {
-	if (debugService.state === State.Inactive || debugService.state === State.Initializing) {
+export function isStatusbarInDebugMode(state: State, session: IDebugSession | undefined): boolean {
+	if (state === State.Inactive || state === State.Initializing) {
 		return false;
 	}
-
-	const session = debugService.getViewModel().focusedSession;
 	const isRunningWithoutDebug = session?.configuration?.noDebug;
 	if (isRunningWithoutDebug) {
 		return false;

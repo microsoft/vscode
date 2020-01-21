@@ -1,5 +1,5 @@
-# Query: \\w+\\?\\.\\w+!
-# Flags: CaseSensitive WordMatch RegExp
+# Query: \\w+\\?\\..+![(.[]
+# Flags: RegExp
 # ContextLines: 2
 
 src/vs/base/browser/ui/tree/asyncDataTree.ts:
