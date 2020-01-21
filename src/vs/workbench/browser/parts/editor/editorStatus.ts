@@ -403,7 +403,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				this.screenRedearModeElement.value = this.statusbarService.addEntry({
 					text: nls.localize('screenReaderDetected', "Screen Reader Optimized"),
 					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
-					command: 'showEditorScreenReaderNotification'
+					command: 'showEditorScreenReaderNotification',
+					backgroundColor: { id: STATUS_BAR_PROMINENT_ITEM_BACKGROUND }
 				}, 'status.editor.screenReaderMode', nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"), StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
