@@ -47,6 +47,7 @@ export class BulkTextEdit extends CheckedObject {
 		emitter: Emitter<BulkFileOperation | BulkTextEdit>
 	) {
 		super(emitter);
+		this.updateChecked(!textEdit.metadata?.needsConfirmation);
 	}
 }
 
@@ -77,8 +78,14 @@ export class BulkFileOperation extends CheckedObject {
 		if (WorkspaceTextEdit.is(edit)) {
 			this.textEdits.push(new BulkTextEdit(this, edit, this._emitter));
 
-		} else if (type === BulkFileOperationType.Rename) {
-			this.newUri = edit.newUri;
+		} else {
+			if (type === BulkFileOperationType.Rename) {
+				this.newUri = edit.newUri;
+			}
+			// one needsConfirmation is enough to uncheck this item
+			if (this.isChecked() && edit.metadata?.needsConfirmation) {
+				this.updateChecked(false);
+			}
 		}
 	}
 }
