@@ -92,8 +92,10 @@ class FastLabelNode {
 export class IconLabel extends Disposable {
 
 	private domNode: FastLabelNode;
-	private descriptionContainer: FastLabelNode;
+
 	private nameNode: Label | LabelWithHighlights;
+
+	private descriptionContainer: FastLabelNode;
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 

@@ -43,7 +43,7 @@ suite('Workbench untitled text editors', () => {
 		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
 	});
 
-	test('Untitled Text Editor Service', async (done) => {
+	test('basics', async (done) => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
@@ -108,7 +108,7 @@ suite('Workbench untitled text editors', () => {
 		input2.dispose();
 	});
 
-	test('Untitled with associated resource is dirty', () => {
+	test('associated resource is dirty', () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const untitled = service.create({ associatedResource: file });
@@ -119,7 +119,7 @@ suite('Workbench untitled text editors', () => {
 		untitled.dispose();
 	});
 
-	test('Untitled no longer dirty when content gets empty (not with associated resource)', async () => {
+	test('no longer dirty when content gets empty (not with associated resource)', async () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 		const input = service.create();
@@ -136,7 +136,7 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('Untitled via create options', async () => {
+	test('via create options', async () => {
 		const service = accessor.untitledTextEditorService;
 
 		const model1 = await service.create().resolve();
@@ -168,7 +168,7 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled suggest name', function () {
+	test('suggest name', function () {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
@@ -176,7 +176,7 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled with associated path remains dirty when content gets empty', async () => {
+	test('associated path remains dirty when content gets empty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const input = service.create({ associatedResource: file });
@@ -191,7 +191,7 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('Untitled with initial content is dirty', async () => {
+	test('initial content is dirty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
@@ -214,7 +214,7 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('Untitled created with files.defaultLanguage setting', () => {
+	test('created with files.defaultLanguage setting', () => {
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
@@ -229,7 +229,7 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled created with files.defaultLanguage setting (${activeEditorLanguage})', () => {
+	test('created with files.defaultLanguage setting (${activeEditorLanguage})', () => {
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': '${activeEditorLanguage}' });
 
@@ -246,7 +246,7 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled created with mode overrides files.defaultLanguage setting', () => {
+	test('created with mode overrides files.defaultLanguage setting', () => {
 		const mode = 'typescript';
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
@@ -262,7 +262,7 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled can change mode afterwards', async () => {
+	test('can change mode afterwards', async () => {
 		const mode = 'untitled-input-test';
 
 		ModesRegistry.registerLanguage({
@@ -285,7 +285,7 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('encoding change event', async () => {
+	test('service#onDidChangeEncoding', async () => {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
@@ -296,7 +296,7 @@ suite('Workbench untitled text editors', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		// dirty
+		// encoding
 		const model = await input.resolve();
 		model.setEncoding('utf16');
 		assert.equal(counter, 1);
@@ -304,7 +304,44 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('onDidChangeContent event', async function () {
+	test('service#onDidChangeLabel', async () => {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		service.onDidChangeLabel(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		// label
+		const model = await input.resolve();
+		model.textEditorModel.setValue('Foo Bar');
+		assert.equal(counter, 1);
+		input.dispose();
+		model.dispose();
+	});
+
+	test('service#onDidDisposeModel', async () => {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		service.onDidDisposeModel(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		const model = await input.resolve();
+		assert.equal(counter, 0);
+		input.dispose();
+		assert.equal(counter, 1);
+		model.dispose();
+	});
+
+	test('model#onDidChangeContent', async function () {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
@@ -330,7 +367,7 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('onDidChangeFirstLine event and input name', async function () {
+	test('model#onDidChangeFirstLine and input name', async function () {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
@@ -386,7 +423,7 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('onDidChangeDirty event', async function () {
+	test('model#onDidChangeDirty', async function () {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
@@ -403,24 +440,6 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(counter, 1, 'Another change does not fire event');
 
 		input.dispose();
-		model.dispose();
-	});
-
-	test('onDidDisposeModel event', async () => {
-		const service = accessor.untitledTextEditorService;
-		const input = service.create();
-
-		let counter = 0;
-
-		service.onDidDisposeModel(r => {
-			counter++;
-			assert.equal(r.toString(), input.getResource().toString());
-		});
-
-		const model = await input.resolve();
-		assert.equal(counter, 0);
-		input.dispose();
-		assert.equal(counter, 1);
 		model.dispose();
 	});
 });
