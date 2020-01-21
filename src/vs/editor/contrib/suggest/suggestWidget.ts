@@ -149,7 +149,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.disposables.add(data.iconLabel);
 
 		data.signatureLabel = append(data.left, $('span.signature-label'));
-		data.qualifierLabel = append(data.right, $('span.qualifier-label'));
+		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
 		data.readMore = append(data.right, $('span.readMore.codicon.codicon-info'));

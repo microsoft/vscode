@@ -14,6 +14,10 @@
 	width: 430px;
 }
 
+.monaco-editor .suggest-widget.wide {
+	width: 600px;
+}
+
 .monaco-editor .suggest-widget > .message,
 .monaco-editor .suggest-widget > .tree,
 .monaco-editor .suggest-widget > .details {
@@ -134,9 +138,15 @@
 
 /** signature, qualifier, type/details opacity **/
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .signature-label,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .qualifier-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
 	opacity: 0.7;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label {
+	margin-left: .5rem;
+	opacity: 0.5;
+	font-size: 90%;
 }
 
 /** Type Info and icon next to the label in the focused completion item **/
