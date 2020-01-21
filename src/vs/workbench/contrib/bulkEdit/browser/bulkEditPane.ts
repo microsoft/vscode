@@ -233,6 +233,18 @@ export class BulkEditPane extends ViewPane {
 		}
 	}
 
+	groupByFile(): void {
+		if (!this._treeDataSource.groupByFile) {
+			this.toggleGrouping();
+		}
+	}
+
+	groupByType(): void {
+		if (this._treeDataSource.groupByFile) {
+			this.toggleGrouping();
+		}
+	}
+
 	toggleGrouping() {
 		const input = this._tree.getInput();
 		if (input) {

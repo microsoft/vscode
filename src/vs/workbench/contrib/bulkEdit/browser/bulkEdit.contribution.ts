@@ -245,23 +245,73 @@ registerAction2(class ToggleAction extends Action2 {
 
 
 // CMD: toggle category
-registerAction2(class ToggleCategoryAction extends Action2 {
+registerAction2(class GroupByFile extends Action2 {
 
 	constructor() {
 		super({
 			id: 'refactorPreview.groupByFile',
 			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
 			category: localize('cat', "Refactor Preview"),
+			icon: { id: 'codicon/list-flat' },
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
+			menu: [{
+				id: MenuId.BulkEditTitle,
+				when: BulkEditPane.ctxGroupByFile.negate(),
+				group: 'navigation',
+				order: 3,
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.groupByFile();
+		}
+	}
+});
+
+registerAction2(class GroupByType extends Action2 {
+
+	constructor() {
+		super({
+			id: 'refactorPreview.groupByType',
+			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
+			category: localize('cat', "Refactor Preview"),
 			icon: { id: 'codicon/list-tree' },
-			toggled: BulkEditPane.ctxGroupByFile,
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
+			menu: [{
+				id: MenuId.BulkEditTitle,
+				when: BulkEditPane.ctxGroupByFile,
+				group: 'navigation',
+				order: 3
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void | Promise<void> {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.groupByType();
+		}
+	}
+});
+
+registerAction2(class ToggleGrouping extends Action2 {
+
+	constructor() {
+		super({
+			id: 'refactorPreview.toggleGrouping',
+			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
+			category: localize('cat', "Refactor Preview"),
+			icon: { id: 'codicon/list-tree' },
+			toggled: BulkEditPane.ctxGroupByFile.negate(),
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditContext,
 				order: 3
-				// }, {
-				// 	id: MenuId.BulkEditTitle,
-				// 	group: 'navigation',
-				// 	order: 3
 			}]
 		});
 	}
