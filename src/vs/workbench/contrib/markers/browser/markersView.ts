@@ -101,7 +101,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	constructor(
 		options: IViewPaneOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -113,7 +113,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_PANEL_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));

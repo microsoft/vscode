@@ -266,7 +266,7 @@ export class OutlinePane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, _instantiationService);
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);

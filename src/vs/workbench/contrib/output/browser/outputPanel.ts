@@ -47,15 +47,20 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		this.scopedInstantiationService = instantiationService;
 	}
 
-	public getId(): string {
+	protected get instantiationService(): IInstantiationService {
+		// Override instantiation service with our scoped service
+		return this.scopedInstantiationService;
+	}
+
+	getId(): string {
 		return OUTPUT_PANEL_ID;
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return nls.localize('output', "Output");
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
@@ -70,7 +75,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return this.actions;
 	}
 
-	public getActionViewItem(action: Action): IActionViewItem | undefined {
+	getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
 			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
@@ -109,7 +114,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this._focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return Promise.resolve(undefined);
@@ -119,15 +124,14 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		return super.setInput(input, options, token).then(() => {
-			if (this._focus) {
-				this.focus();
-			}
-			this.revealLastLine();
-		});
+		await super.setInput(input, options, token);
+		if (this._focus) {
+			this.focus();
+		}
+		this.revealLastLine();
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 		if (this.input) {
 			// Dispose current input (Output panel is not a workbench editor)
 			this.input.dispose();
@@ -158,9 +162,5 @@ export class OutputPanel extends AbstractTextResourceEditor {
 				lockAction.run(newLockState);
 			}
 		});
-	}
-
-	public get instantiationService(): IInstantiationService {
-		return this.scopedInstantiationService;
 	}
 }

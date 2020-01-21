@@ -71,7 +71,9 @@ export class EditorBreadcrumbsModel {
 	dispose(): void {
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
+		this._outlineDisposables.dispose();
 		this._disposables.dispose();
+		this._onDidUpdate.dispose();
 	}
 
 	isRelative(): boolean {
@@ -192,13 +194,16 @@ export class EditorBreadcrumbsModel {
 
 		this._outlineDisposables.add({
 			dispose: () => {
-				source.cancel();
-				source.dispose();
+				source.dispose(true);
 				timeout.dispose();
 			}
 		});
 
 		OutlineModel.create(buffer, source.token).then(model => {
+			if (source.token.isCancellationRequested) {
+				// cancelled -> do nothing
+				return;
+			}
 			if (TreeElement.empty(model)) {
 				// empty -> no outline elements
 				this._updateOutlineElements([]);

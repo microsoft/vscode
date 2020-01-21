@@ -461,7 +461,7 @@ export class ConfigurationEditingService {
 
 			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-				if (!(configurationProperties[operation.key].scope === ConfigurationScope.RESOURCE || configurationProperties[operation.key].scope === ConfigurationScope.RESOURCE_LANGUAGE)) {
+				if (!(configurationProperties[operation.key].scope === ConfigurationScope.RESOURCE || configurationProperties[operation.key].scope === ConfigurationScope.LANGUAGE_OVERRIDABLE)) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
 				}
 			}
@@ -469,7 +469,7 @@ export class ConfigurationEditingService {
 
 		if (overrides.overrideIdentifier) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE_LANGUAGE) {
+			if (configurationProperties[operation.key].scope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION, target, operation);
 			}
 		}
@@ -487,7 +487,7 @@ export class ConfigurationEditingService {
 				}
 
 				// Target cannot be dirty if not writing into buffer
-				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
+				if (checkDirty && operation.resource && this.textFileService.isDirty(operation.resource)) {
 					return this.reject<typeof reference>(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target, operation);
 				}
 				return reference;

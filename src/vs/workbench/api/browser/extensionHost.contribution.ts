@@ -59,6 +59,7 @@ import './mainThreadComments';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
+import './mainThreadAuthentication';
 import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {

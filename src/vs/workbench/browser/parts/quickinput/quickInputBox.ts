@@ -32,17 +32,17 @@ export class QuickInputBox extends Disposable {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
 		});
-	}
+	};
 
 	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			handler(new StandardMouseEvent(e));
 		});
-	}
+	};
 
 	onDidChange = (handler: (event: string) => void): IDisposable => {
 		return this.inputBox.onDidChange(handler);
-	}
+	};
 
 	get value() {
 		return this.inputBox.value;

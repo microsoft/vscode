@@ -71,7 +71,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
-	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
+	readonly onDidViewletDeregister = this._onDidViewletDeregister.event;
 
 	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
 	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
@@ -173,7 +173,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		const container = assertIsDefined(this.getContainer());
 
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
-		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
+		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
 
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;

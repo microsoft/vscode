@@ -11,7 +11,7 @@ const localize = nls.loadMessageBundle();
 import {
 	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	SemanticTokensProvider, SemanticTokens
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
@@ -96,9 +96,8 @@ export function activate(context: ExtensionContext) {
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
-					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range2 = { inserting: new Range(range.start, position), replacing: range };
-						item.range = undefined;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
@@ -154,18 +153,26 @@ export function activate(context: ExtensionContext) {
 
 		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
 			if (legend) {
-				const provider: SemanticTokensProvider = {
-					provideSemanticTokens(doc, opts) {
+				const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
+					provideDocumentSemanticTokens(doc) {
 						const params: SemanticTokenParams = {
 							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-							ranges: opts.ranges?.map(r => client.code2ProtocolConverter.asRange(r))
+						};
+						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+							return data && new SemanticTokens(new Uint32Array(data));
+						});
+					},
+					provideDocumentRangeSemanticTokens(doc, range) {
+						const params: SemanticTokenParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+							ranges: [client.code2ProtocolConverter.asRange(range)]
 						};
 						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
 							return data && new SemanticTokens(new Uint32Array(data));
 						});
 					}
 				};
-				toDispose.push(languages.registerSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
+				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
 			}
 		});
 

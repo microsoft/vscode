@@ -16,12 +16,14 @@ import { ConfigurationDependentRegistration } from '../utils/dependentRegistrati
 import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
+
+const knownTsTriggerCharacters = new Set<string>(['.', '"', '\'', '`', '/', '@', '<']);
 
 interface DotAccessorContext {
 	readonly range: vscode.Range;
@@ -331,7 +333,7 @@ namespace CompletionConfiguration {
 
 class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -405,15 +407,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
 				this.telemetryReporter.logTelemetry('completions.execute', {
-					duration: duration + '',
-					type: response ? response.type : 'unknown',
-					count: (response && response.type === 'response' && response.body ? response.body.entries.length : 0) + ''
+					duration: duration,
+					type: response?.type ?? 'unknown',
+					count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
+					updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
 				});
 			}
 
@@ -464,6 +468,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return undefined;
 		}
 
+		if (context.triggerCharacter && !knownTsTriggerCharacters.has(context.triggerCharacter)) {
+			return undefined;
+		}
+
 		return context.triggerCharacter as Proto.CompletionsTriggerCharacter;
 	}
 
@@ -510,7 +518,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 		item.additionalTextEdits = codeAction.additionalTextEdits;
 
-		if (detail && item.useCodeSnippet) {
+		if (item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
 			if (shouldCompleteFunction) {
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
@@ -592,7 +600,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	): boolean {
 		if (this.client.apiVersion.lt(API.v320)) {
 			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
-			// Only enable dot completions when previous character not a dot preceeded by whitespace.
+			// Only enable dot completions when previous character not a dot preceded by whitespace.
 			// Prevents incorrectly completing while typing spread operators.
 			if (position.character > 1) {
 				const preText = document.getText(new vscode.Range(

@@ -134,6 +134,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
+
+	@memoize
 	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
 
 	@memoize
@@ -234,8 +237,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	sharedIPCHandle!: string;
 
 	nodeCachedDataDir?: string;
-
-	argvResource!: URI;
 
 	disableCrashReporter!: boolean;
 

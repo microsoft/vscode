@@ -36,6 +36,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -332,7 +333,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
 				name: title, extensionId,
-				ctorDescriptor: { ctor: CustomViewPaneContainer },
+				ctorDescriptor: new SyncDescriptor(CustomViewPaneContainer),
 				hideIfEmpty: true,
 				icon,
 			}, ViewContainerLocation.Sidebar);
@@ -416,7 +417,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
-						ctorDescriptor: { ctor: CustomTreeViewPane },
+						ctorDescriptor: new SyncDescriptor(CustomTreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
 						collapsed: this.showCollapsed(container),

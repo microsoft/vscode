@@ -8,7 +8,7 @@ import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings
+	LanguageMode, Settings, SemanticTokenData
 } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
@@ -17,8 +17,6 @@ import * as ts from 'typescript';
 import { join } from 'path';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 
-const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
-const TS_FILE_NAME = 'vscode://javascript/2.ts';
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
@@ -26,8 +24,10 @@ if (!ts.sys.fileExists(jquery_d_ts)) {
 	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
 }
 
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
-	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript'): LanguageMode {
+	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
+
+	const workingFile = languageId === 'javascript' ? 'vscode://javascript/1.js' : 'vscode://javascript/2.ts'; // the same 'file' is used for all contents
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
@@ -40,10 +40,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [FILE_NAME, TS_FILE_NAME, jquery_d_ts],
-		getScriptKind: (fileName) => fileName === TS_FILE_NAME ? ts.ScriptKind.TS : ts.ScriptKind.JS,
+		getScriptFileNames: () => [workingFile, jquery_d_ts],
+		getScriptKind: (fileName) => fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
-			if (fileName === FILE_NAME || fileName === TS_FILE_NAME) {
+			if (fileName === workingFile) {
 				return String(scriptFileVersion);
 			}
 			return '1'; // default lib an jquery.d.ts are static
@@ -51,7 +51,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		getScriptSnapshot: (fileName: string) => {
 			let text = '';
 			if (startsWith(fileName, 'vscode:')) {
-				if (fileName === FILE_NAME || fileName === TS_FILE_NAME) {
+				if (fileName === workingFile) {
 					text = currentTextDocument.getText();
 				}
 			} else {
@@ -72,17 +72,17 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	return {
 		getId() {
-			return 'javascript';
+			return languageId;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
-			const syntaxDiagnostics: ts.Diagnostic[] = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
-			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
+			const syntaxDiagnostics: ts.Diagnostic[] = jsLanguageService.getSyntacticDiagnostics(workingFile);
+			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(workingFile);
 			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
-					source: 'js',
+					source: languageId,
 					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
@@ -90,7 +90,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		doComplete(document: TextDocument, position: Position): CompletionList {
 			updateCurrentTextDocument(document);
 			let offset = currentTextDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
+			let completions = jsLanguageService.getCompletionsAtPosition(workingFile, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
 			if (!completions) {
 				return { isIncomplete: false, items: [] };
 			}
@@ -106,7 +106,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						kind: convertKind(entry.kind),
 						textEdit: TextEdit.replace(replaceRange, entry.name),
 						data: { // data used for resolving item details (see 'doResolve')
-							languageId: 'javascript',
+							languageId,
 							uri: document.uri,
 							offset: offset
 						}
@@ -116,7 +116,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doResolve(document: TextDocument, item: CompletionItem): CompletionItem {
 			updateCurrentTextDocument(document);
-			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label, undefined, undefined, undefined);
+			let details = jsLanguageService.getCompletionEntryDetails(workingFile, item.data.offset, item.label, undefined, undefined, undefined);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);
 				item.documentation = ts.displayPartsToString(details.documentation);
@@ -126,7 +126,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doHover(document: TextDocument, position: Position): Hover | null {
 			updateCurrentTextDocument(document);
-			let info = jsLanguageService.getQuickInfoAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
+			let info = jsLanguageService.getQuickInfoAtPosition(workingFile, currentTextDocument.offsetAt(position));
 			if (info) {
 				let contents = ts.displayPartsToString(info.displayParts);
 				return {
@@ -138,7 +138,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp | null {
 			updateCurrentTextDocument(document);
-			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position), undefined);
+			let signHelp = jsLanguageService.getSignatureHelpItems(workingFile, currentTextDocument.offsetAt(position), undefined);
 			if (signHelp) {
 				let ret: SignatureHelp = {
 					activeSignature: signHelp.selectedItemIndex,
@@ -175,7 +175,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		findDocumentHighlight(document: TextDocument, position: Position): DocumentHighlight[] {
 			updateCurrentTextDocument(document);
-			const highlights = jsLanguageService.getDocumentHighlights(FILE_NAME, currentTextDocument.offsetAt(position), [FILE_NAME]);
+			const highlights = jsLanguageService.getDocumentHighlights(workingFile, currentTextDocument.offsetAt(position), [workingFile]);
 			const out: DocumentHighlight[] = [];
 			for (const entry of highlights || []) {
 				for (const highlight of entry.highlightSpans) {
@@ -189,7 +189,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
 			updateCurrentTextDocument(document);
-			let items = jsLanguageService.getNavigationBarItems(FILE_NAME);
+			let items = jsLanguageService.getNavigationBarItems(workingFile);
 			if (items) {
 				let result: SymbolInformation[] = [];
 				let existing = Object.create(null);
@@ -225,9 +225,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		findDefinition(document: TextDocument, position: Position): Definition | null {
 			updateCurrentTextDocument(document);
-			let definition = jsLanguageService.getDefinitionAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
+			let definition = jsLanguageService.getDefinitionAtPosition(workingFile, currentTextDocument.offsetAt(position));
 			if (definition) {
-				return definition.filter(d => d.fileName === FILE_NAME).map(d => {
+				return definition.filter(d => d.fileName === workingFile).map(d => {
 					return {
 						uri: document.uri,
 						range: convertRange(currentTextDocument, d.textSpan)
@@ -238,9 +238,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		findReferences(document: TextDocument, position: Position): Location[] {
 			updateCurrentTextDocument(document);
-			let references = jsLanguageService.getReferencesAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
+			let references = jsLanguageService.getReferencesAtPosition(workingFile, currentTextDocument.offsetAt(position));
 			if (references) {
-				return references.filter(d => d.fileName === FILE_NAME).map(d => {
+				return references.filter(d => d.fileName === workingFile).map(d => {
 					return {
 						uri: document.uri,
 						range: convertRange(currentTextDocument, d.textSpan)
@@ -255,7 +255,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
 				return SelectionRange.create(convertRange(currentTextDocument, selectionRange.textSpan), parent);
 			}
-			const range = jsLanguageService.getSmartSelectionRange(FILE_NAME, currentTextDocument.offsetAt(position));
+			const range = jsLanguageService.getSmartSelectionRange(workingFile, currentTextDocument.offsetAt(position));
 			return convertSelectionRange(range);
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
@@ -273,7 +273,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				end -= range.end.character;
 				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
 			}
-			let edits = jsLanguageService.getFormattingEditsForRange(FILE_NAME, start, end, formatSettings);
+			let edits = jsLanguageService.getFormattingEditsForRange(workingFile, start, end, formatSettings);
 			if (edits) {
 				let result = [];
 				for (let edit of edits) {
@@ -296,7 +296,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		getFoldingRanges(document: TextDocument): FoldingRange[] {
 			updateCurrentTextDocument(document);
-			let spans = jsLanguageService.getOutliningSpans(FILE_NAME);
+			let spans = jsLanguageService.getOutliningSpans(workingFile);
 			let ranges: FoldingRange[] = [];
 			for (let span of spans) {
 				let curr = convertRange(currentTextDocument, span.textSpan);
@@ -316,12 +316,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);
 		},
-		getSemanticTokens(document: TextDocument, ranges: Range[] | undefined): number[] {
+		getSemanticTokens(document: TextDocument): SemanticTokenData[] {
 			updateCurrentTextDocument(document);
-			if (!ranges) {
-				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
-			}
-			return getSemanticTokens(jsLanguageService, currentTextDocument, TS_FILE_NAME, ranges);
+			return getSemanticTokens(jsLanguageService, currentTextDocument, workingFile);
 		},
 		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
 			return getSemanticTokenLegend();

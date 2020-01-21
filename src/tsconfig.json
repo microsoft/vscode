@@ -24,10 +24,6 @@
 		"./vs"
 	],
 	"exclude": [
-		"./typings/es6-promise.d.ts",
-		"./typings/require-monaco.d.ts",
-		"./typings/xterm.d.ts",
-		"./typings/xterm-addon-search.d.ts",
-		"./typings/xterm-addon-web-links.d.ts"
+		"./typings/es6-promise.d.ts"
 	]
 }

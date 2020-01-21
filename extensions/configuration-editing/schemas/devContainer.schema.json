@@ -15,7 +15,9 @@
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
-						"type": "string"
+						"type": "string",
+						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)$",
+						"errorMessage": "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'."
 					}
 				},
 				"settings": {

@@ -668,7 +668,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 
 export interface IdleDeadline {
 	readonly didTimeout: boolean;
-	timeRemaining(): DOMHighResTimeStamp;
+	timeRemaining(): number;
 }
 /**
  * Execute the callback the next time the browser is idle

@@ -31,7 +31,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
-import { RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverErrorCode, ResolverResult, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
@@ -145,6 +145,12 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
+}
+
+export interface MainThreadAuthenticationShape extends IDisposable {
+	$registerAuthenticationProvider(id: string): void;
+	$unregisterAuthenticationProvider(id: string): void;
+	$onDidChangeSessions(id: string): void;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -352,7 +358,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean): void;
-	$registerSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
+	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
@@ -556,6 +563,7 @@ export interface WebviewExtensionDescription {
 
 export enum WebviewEditorCapabilities {
 	Editable,
+	SupportsHotExit,
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
@@ -576,7 +584,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly WebviewEditorCapabilities[]): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onEdit(resource: UriComponents, viewType: string, editJson: any): void;
+	$onEdit(resource: UriComponents, viewType: string, editId: number): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -596,8 +604,9 @@ export interface ExtHostWebviewsShape {
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 
-	$undoEdits(resource: UriComponents, viewType: string, edits: readonly any[]): void;
-	$applyEdits(resource: UriComponents, viewType: string, edits: readonly any[]): void;
+	$undoEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
+	$applyEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
+	$disposeEdits(editIds: readonly number[]): void;
 
 	$onSave(resource: UriComponents, viewType: string): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
@@ -776,8 +785,10 @@ export interface MainThreadWindowShape extends IDisposable {
 export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
+	$getTunnels(): Promise<TunnelDescription[]>;
 	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
+	$setCandidateFilter(): Promise<void>;
 }
 
 // -- extension host
@@ -891,6 +902,12 @@ export interface ExtHostLabelServiceShape {
 	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable;
 }
 
+export interface ExtHostAuthenticationShape {
+	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
+	$login(id: string): Promise<modes.Session>;
+	$logout(id: string, accountId: string): Promise<void>;
+}
+
 export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
@@ -986,16 +1003,20 @@ export const enum ISuggestDataDtoField {
 	additionalTextEdits = 'l',
 	command = 'm',
 	kindModifier = 'n',
+
+	// to merge into label
+	label2 = 'o',
 }
 
 export interface ISuggestDataDto {
 	[ISuggestDataDtoField.label]: string;
+	[ISuggestDataDtoField.label2]?: string | modes.CompletionItemLabel;
 	[ISuggestDataDtoField.kind]: modes.CompletionItemKind;
 	[ISuggestDataDtoField.detail]?: string;
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
 	[ISuggestDataDtoField.sortText]?: string;
 	[ISuggestDataDtoField.filterText]?: string;
-	[ISuggestDataDtoField.preselect]?: boolean;
+	[ISuggestDataDtoField.preselect]?: true;
 	[ISuggestDataDtoField.insertText]?: string;
 	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
 	[ISuggestDataDtoField.range]?: IRange | { insert: IRange, replace: IRange; };
@@ -1011,7 +1032,7 @@ export interface ISuggestResultDto {
 	x?: number;
 	a: { insert: IRange, replace: IRange; };
 	b: ISuggestDataDto[];
-	c?: boolean;
+	c?: true;
 }
 
 export interface ISignatureHelpDto {
@@ -1051,25 +1072,22 @@ export interface IWorkspaceSymbolsDto extends IdObject {
 	symbols: IWorkspaceSymbolDto[];
 }
 
-export interface IResourceFileEditDto {
+export interface IWorkspaceFileEditDto {
 	oldUri?: UriComponents;
 	newUri?: UriComponents;
-	options?: {
-		overwrite?: boolean;
-		ignoreIfExists?: boolean;
-		ignoreIfNotExists?: boolean;
-		recursive?: boolean;
-	};
+	options?: modes.WorkspaceFileEditOptions
+	metadata?: modes.WorkspaceEditMetadata;
 }
 
-export interface IResourceTextEditDto {
+export interface IWorkspaceTextEditDto {
 	resource: UriComponents;
+	edit: modes.TextEdit;
 	modelVersionId?: number;
-	edits: modes.TextEdit[];
+	metadata?: modes.WorkspaceEditMetadata;
 }
 
 export interface IWorkspaceEditDto {
-	edits: Array<IResourceFileEditDto | IResourceTextEditDto>;
+	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto>;
 
 	// todo@joh reject should go into rename
 	rejectReason?: string;
@@ -1078,11 +1096,11 @@ export interface IWorkspaceEditDto {
 export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): modes.WorkspaceEdit {
 	if (data && data.edits) {
 		for (const edit of data.edits) {
-			if (typeof (<IResourceTextEditDto>edit).resource === 'object') {
-				(<IResourceTextEditDto>edit).resource = URI.revive((<IResourceTextEditDto>edit).resource);
+			if (typeof (<IWorkspaceTextEditDto>edit).resource === 'object') {
+				(<IWorkspaceTextEditDto>edit).resource = URI.revive((<IWorkspaceTextEditDto>edit).resource);
 			} else {
-				(<IResourceFileEditDto>edit).newUri = URI.revive((<IResourceFileEditDto>edit).newUri);
-				(<IResourceFileEditDto>edit).oldUri = URI.revive((<IResourceFileEditDto>edit).oldUri);
+				(<IWorkspaceFileEditDto>edit).newUri = URI.revive((<IWorkspaceFileEditDto>edit).newUri);
+				(<IWorkspaceFileEditDto>edit).oldUri = URI.revive((<IWorkspaceFileEditDto>edit).oldUri);
 			}
 		}
 	}
@@ -1175,8 +1193,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
-	$provideSemanticTokens(handle: number, resource: UriComponents, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
-	$releaseSemanticTokens(handle: number, semanticColoringResultId: number): void;
+	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
+	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void;
+	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<ISuggestResultDto | undefined>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
@@ -1404,13 +1423,16 @@ export interface MainThreadThemingShape extends IDisposable {
 
 export interface ExtHostTunnelServiceShape {
 	$findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]>;
+	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]>;
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
+	$onDidTunnelsChange(): Promise<void>;
 }
 
 // --- proxy identifiers
 
 export const MainContext = {
+	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
@@ -1486,5 +1508,6 @@ export const ExtHostContext = {
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
-	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService')
+	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
+	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication')
 };

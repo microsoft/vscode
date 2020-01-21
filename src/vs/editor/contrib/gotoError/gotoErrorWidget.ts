@@ -228,7 +228,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget!.push(this.actions, { label: false, icon: true });
+		this._actionbarWidget!.push(this.actions, { label: false, icon: true, index: 0 });
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {
@@ -237,7 +237,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 

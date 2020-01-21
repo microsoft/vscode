@@ -410,7 +410,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			recordingBadge.style.borderWidth = border ? '1px' : '';
 			recordingBadge.style.borderStyle = border ? 'solid' : '';
 			recordingBadge.style.borderColor = border;
-			recordingBadge.style.color = color ? color.toString() : null;
+			recordingBadge.style.color = color ? color.toString() : '';
 		}));
 		return recordingBadge;
 	}

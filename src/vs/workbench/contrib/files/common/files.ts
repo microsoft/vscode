@@ -248,6 +248,10 @@ export class OpenEditor implements IEditorIdentifier {
 		return this.editor.isDirty();
 	}
 
+	isSaving(): boolean {
+		return this.editor.isSaving();
+	}
+
 	getResource(): URI | undefined {
 		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}

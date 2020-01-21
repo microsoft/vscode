@@ -110,7 +110,7 @@ export class ExtensionsListView extends ViewPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this.server = options.server;
 	}
 

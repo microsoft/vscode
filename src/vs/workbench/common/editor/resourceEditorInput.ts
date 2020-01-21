@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, ITextEditorModel, IModeSupport } from 'vs/workbench/common/editor';
+import { EditorInput, ITextEditorModel, IModeSupport, GroupIdentifier, isTextEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { basename } from 'vs/base/common/resources';
+import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -26,7 +29,9 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		private description: string | undefined,
 		private readonly resource: URI,
 		private preferredMode: string | undefined,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -102,6 +107,28 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		}
 
 		return model;
+	}
+
+	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+
+		// Preserve view state by opening the editor first. In addition
+		// this allows the user to review the contents of the editor.
+		let viewState: IEditorViewState | undefined = undefined;
+		const editor = await this.editorService.openEditor(this, undefined, group);
+		if (isTextEditor(editor)) {
+			viewState = editor.getViewState();
+		}
+
+		// Save as
+		const target = await this.textFileService.saveAs(this.resource, undefined, options);
+		if (!target) {
+			return false; // save cancelled
+		}
+
+		// Open the target
+		await this.editorService.openEditor({ resource: target, options: { viewState, pinned: true } }, group);
+
+		return true;
 	}
 
 	matches(otherInput: unknown): boolean {

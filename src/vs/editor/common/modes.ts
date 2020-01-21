@@ -369,6 +369,24 @@ export let completionKindFromString: {
 	};
 })();
 
+export interface CompletionItemLabel {
+
+	/**
+	 * The name of this completion item's label.
+	 */
+	name: string;
+
+	// The signature, without the return type. is render directly after `name`
+	// signature?: string; // parameters
+	// The fully qualified name, like package name, file path etc
+	// qualifier?: string;
+
+	/**
+	 * The return-type of a function or type of a property, variable
+	 */
+	type?: string;
+}
+
 export const enum CompletionItemTag {
 	Deprecated = 1
 }
@@ -396,7 +414,7 @@ export interface CompletionItem {
 	 * this is also the text that is inserted when selecting
 	 * this completion.
 	 */
-	label: string;
+	label: string | CompletionItemLabel;
 	/**
 	 * The kind of this completion item. Based on the kind
 	 * an icon is chosen by the editor.
@@ -554,8 +572,8 @@ export interface CodeAction {
 /**
  * @internal
  */
-export const enum CodeActionTrigger {
-	Automatic = 1,
+export const enum CodeActionTriggerType {
+	Auto = 1,
 	Manual = 2,
 }
 
@@ -564,7 +582,7 @@ export const enum CodeActionTrigger {
  */
 export interface CodeActionContext {
 	only?: string;
-	trigger: CodeActionTrigger;
+	trigger: CodeActionTriggerType;
 }
 
 export interface CodeActionList extends IDisposable {
@@ -586,6 +604,11 @@ export interface CodeActionProvider {
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
+
+	/**
+	 * @internal
+	 */
+	_getAdditionalMenuItems?(context: CodeActionContext, actions: readonly CodeAction[]): Command[];
 }
 
 /**
@@ -1234,31 +1257,57 @@ export class FoldingRangeKind {
 /**
  * @internal
  */
-export function isResourceFileEdit(thing: any): thing is ResourceFileEdit {
-	return isObject(thing) && (Boolean((<ResourceFileEdit>thing).newUri) || Boolean((<ResourceFileEdit>thing).oldUri));
+export namespace WorkspaceFileEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceFileEdit {
+		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
+	}
 }
 
 /**
  * @internal
  */
-export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
-	return isObject(thing) && (<ResourceTextEdit>thing).resource && Array.isArray((<ResourceTextEdit>thing).edits);
+export namespace WorkspaceTextEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceTextEdit {
+		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
+	}
 }
 
-export interface ResourceFileEdit {
+export interface WorkspaceEditMetadata {
+	needsConfirmation: boolean;
+	label: string;
+	description?: string;
+	iconPath?: { id: string } | { light: URI, dark: URI };
+}
+
+export interface WorkspaceFileEditOptions {
+	overwrite?: boolean;
+	ignoreIfNotExists?: boolean;
+	ignoreIfExists?: boolean;
+	recursive?: boolean;
+}
+
+export interface WorkspaceFileEdit {
 	oldUri?: URI;
 	newUri?: URI;
-	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	options?: WorkspaceFileEditOptions;
+	metadata?: WorkspaceEditMetadata;
 }
 
-export interface ResourceTextEdit {
+export interface WorkspaceTextEdit {
 	resource: URI;
+	edit: TextEdit;
 	modelVersionId?: number;
-	edits: TextEdit[];
+	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
 }
 
 export interface Rejection {
@@ -1274,6 +1323,14 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+/**
+ * @internal
+ */
+export interface Session {
+	id: string;
+	accessToken: string;
+	displayName: string;
+}
 
 export interface Command {
 	id: string;
@@ -1486,10 +1543,15 @@ export interface SemanticTokensEdits {
 	readonly edits: SemanticTokensEdit[];
 }
 
-export interface SemanticTokensProvider {
+export interface DocumentSemanticTokensProvider {
 	getLegend(): SemanticTokensLegend;
-	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-	releaseSemanticTokens(resultId: string | undefined): void;
+	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseDocumentSemanticTokens(resultId: string | undefined): void;
+}
+
+export interface DocumentRangeSemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
 
 // --- feature registries ------
@@ -1597,7 +1659,12 @@ export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingR
 /**
  * @internal
  */
-export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
+export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
+
+/**
+ * @internal
+ */
+export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
 
 /**
  * @internal

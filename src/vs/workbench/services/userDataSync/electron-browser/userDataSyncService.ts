@@ -38,12 +38,48 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		});
 	}
 
+	pull(): Promise<void> {
+		return this.channel.call('pull');
+	}
+
+	push(): Promise<void> {
+		return this.channel.call('push');
+	}
+
 	sync(_continue?: boolean): Promise<boolean> {
 		return this.channel.call('sync', [_continue]);
 	}
 
+	reset(): Promise<void> {
+		return this.channel.call('reset');
+	}
+
+	resetLocal(): Promise<void> {
+		return this.channel.call('resetLocal');
+	}
+
 	stop(): void {
 		this.channel.call('stop');
+	}
+
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
+	}
+
+	hasRemoteData(): Promise<boolean> {
+		return this.channel.call('hasRemoteData');
+	}
+
+	hasLocalData(): Promise<boolean> {
+		return this.channel.call('hasLocalData');
+	}
+
+	getRemoteContent(source: SyncSource): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [source]);
+	}
+
+	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncAndHasUserData');
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {

@@ -749,7 +749,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				'configurationService.folder.languageSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE_LANGUAGE
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 				}
 			}
 		});
@@ -1094,7 +1094,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('no change event when there are no global tasks', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
-		await timeout(500);
+		await timeout(5);
 		assert.ok(target.notCalled);
 	});
 
@@ -1141,7 +1141,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				'configurationService.workspace.testLanguageSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE_LANGUAGE
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 				}
 			}
 		});
@@ -1331,7 +1331,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 						'configurationService.workspace.testNewResourceLanguageSetting2': {
 							'type': 'string',
 							'default': 'isSet',
-							scope: ConfigurationScope.RESOURCE_LANGUAGE
+							scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 						}
 					}
 				});

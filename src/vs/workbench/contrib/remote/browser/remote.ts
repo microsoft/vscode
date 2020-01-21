@@ -54,6 +54,7 @@ import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -277,13 +278,18 @@ abstract class HelpItemBase implements IHelpItem {
 
 	async handleClick() {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (remoteAuthority && startsWith(remoteAuthority, this.remoteExplorerService.targetType)) {
-			for (let value of this.values) {
-				if (value.remoteAuthority) {
-					for (let authority of value.remoteAuthority) {
-						if (startsWith(remoteAuthority, authority)) {
-							await this.takeAction(value.extensionDescription, value.url);
-							return;
+		if (!remoteAuthority) {
+			return;
+		}
+		for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
+			if (startsWith(remoteAuthority, this.remoteExplorerService.targetType[i])) {
+				for (let value of this.values) {
+					if (value.remoteAuthority) {
+						for (let authority of value.remoteAuthority) {
+							if (startsWith(remoteAuthority, authority)) {
+								await this.takeAction(value.extensionDescription, value.url);
+								return;
+							}
 						}
 					}
 				}
@@ -367,7 +373,7 @@ class HelpPanel extends ViewPane {
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -406,13 +412,14 @@ class HelpPanel extends ViewPane {
 class HelpPanelDescriptor implements IViewDescriptor {
 	readonly id = HelpPanel.ID;
 	readonly name = HelpPanel.TITLE;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
+	readonly group = 'help@50';
 
 	constructor(viewModel: IViewModel) {
-		this.ctorDescriptor = { ctor: HelpPanel, arguments: [viewModel] };
+		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
 	}
 }
 
@@ -521,7 +528,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 	{
 		id: VIEWLET_ID,
 		name: nls.localize('remote.explorer', "Remote Explorer"),
-		ctorDescriptor: { ctor: RemoteViewPaneContainer },
+		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
 			getOrder: (group?: string) => {
@@ -538,6 +545,11 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 
 				if (matches) {
 					return -500;
+				}
+
+				matches = /^help(@(\d+))?$/.exec(group);
+				if (matches) {
+					return -10;
 				}
 
 				return;

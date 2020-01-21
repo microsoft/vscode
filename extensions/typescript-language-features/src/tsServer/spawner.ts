@@ -15,7 +15,7 @@ import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate } from './server';

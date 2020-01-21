@@ -190,7 +190,13 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			},
 			getPosInSet(node) {
 				return node.visibleChildIndex + 1;
-			}
+			},
+			isChecked: options.ariaProvider && options.ariaProvider.isChecked ? (node) => {
+				return options.ariaProvider!.isChecked!(node.element);
+			} : undefined,
+			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
+				return options.ariaProvider!.getRole!(node.element);
+			} : undefined
 		}
 	};
 }

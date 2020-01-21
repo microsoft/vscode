@@ -18,9 +18,9 @@ import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/edito
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
+import { TextEdit, WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -80,13 +80,17 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	public dispose(): void {
 		this._onDispose.fire();
 	}
+
+	public isResolved(): boolean {
+		return true;
+	}
 }
 
 export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
-function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
+function withTypedEditor<T>(widget: IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
 	if (isCodeEditor(widget)) {
 		// Single Editor
 		return codeEditorCallback(<ICodeEditor>widget);
@@ -100,13 +104,13 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
 	private readonly modelService: IModelService | undefined;
-	private editor?: editorCommon.IEditor;
+	private editor?: IEditor;
 
 	constructor(modelService: IModelService | undefined) {
 		this.modelService = modelService;
 	}
 
-	public setEditor(editor: editorCommon.IEditor): void {
+	public setEditor(editor: IEditor): void {
 		this.editor = editor;
 	}
 
@@ -631,13 +635,17 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
+	setPreviewHandler(): IDisposable {
+		return Disposable.None;
+	}
+
 	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
 		if (workspaceEdit.edits) {
 			for (let edit of workspaceEdit.edits) {
-				if (!isResourceTextEdit(edit)) {
+				if (!WorkspaceTextEdit.is(edit)) {
 					return Promise.reject(new Error('bad edit - only text edits are supported'));
 				}
 				let model = this._modelService.getModel(edit.resource);
@@ -647,8 +655,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 				let array = edits.get(model);
 				if (!array) {
 					array = [];
+					edits.set(model, array);
 				}
-				edits.set(model, array.concat(edit.edits));
+				array.push(edit.edit);
 			}
 		}
 

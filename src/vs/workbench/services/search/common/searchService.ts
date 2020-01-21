@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -32,7 +32,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 	constructor(
 		private readonly modelService: IModelService,
-		private readonly untitledTextEditorService: IUntitledTextEditorService,
+		private readonly textFileService: ITextFileService,
 		private readonly editorService: IEditorService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly logService: ILogService,
@@ -391,7 +391,8 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				if (!this.editorService.isOpen({ resource })) {
+				// Skip if editor is not opened as text file
+				if (this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: true }))) {
 					return;
 				}
 
@@ -403,7 +404,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 				// Support untitled files
 				if (resource.scheme === Schemas.untitled) {
-					if (!this.untitledTextEditorService.exists(resource)) {
+					if (!this.textFileService.untitled.exists(resource)) {
 						return;
 					}
 				}
@@ -457,14 +458,14 @@ export class SearchService extends Disposable implements ISearchService {
 export class RemoteSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService
 	) {
-		super(modelService, untitledTextEditorService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, textFileService, editorService, telemetryService, logService, extensionService, fileService);
 	}
 }
 

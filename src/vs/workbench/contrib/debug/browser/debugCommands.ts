@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -27,9 +27,9 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -239,7 +239,8 @@ export function registerCommands(): void {
 		id: STEP_INTO_ID,
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
-		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+		// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
+		when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}
@@ -327,9 +328,9 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: FOCUS_REPL_ID,
-		handler: (accessor) => {
-			const panelService = accessor.get(IPanelService);
-			panelService.openPanel(REPL_ID, true);
+		handler: async (accessor) => {
+			const viewsService = accessor.get(IViewsService);
+			await viewsService.openView(REPL_VIEW_ID, true);
 		}
 	});
 

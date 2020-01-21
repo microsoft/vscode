@@ -29,6 +29,7 @@ import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalPosition | null;
@@ -76,6 +77,7 @@ export class TextAreaHandler extends ViewPart {
 	 */
 	private _visibleTextArea: VisibleTextAreaData | null;
 	private _selections: Selection[];
+	private _modelSelections: Selection[];
 
 	/**
 	 * The position at which the textarea was rendered.
@@ -102,7 +104,7 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.contentHeight;
+		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
@@ -110,6 +112,7 @@ export class TextAreaHandler extends ViewPart {
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
+		this._modelSelections = [new Selection(1, 1, 1, 1)];
 		this._lastRenderPosition = null;
 
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
@@ -148,17 +151,17 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (generateHTML: boolean): ClipboardDataToCopy => {
-				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard, platform.isWindows);
+				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.model.getEOL();
 
-				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
+				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
 				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
 				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
 
 				let html: string | null | undefined = undefined;
 				if (generateHTML) {
 					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-						html = this._context.model.getHTMLToCopy(this._selections, this._emptySelectionClipboard);
+						html = this._context.model.getHTMLToCopy(this._modelSelections, this._emptySelectionClipboard);
 					}
 				}
 				return {
@@ -353,7 +356,7 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.contentHeight;
+		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
@@ -376,6 +379,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
+		this._modelSelections = e.modelSelections.slice(0);
 		this._textAreaInput.writeScreenReaderContent('selection changed');
 		return true;
 	}
@@ -422,6 +426,18 @@ export class TextAreaHandler extends ViewPart {
 
 	public getLastRenderData(): Position | null {
 		return this._lastRenderPosition;
+	}
+
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		if (options.activeDescendant) {
+			this.textArea.setAttribute('aria-haspopup', 'true');
+			this.textArea.setAttribute('aria-autocomplete', 'list');
+			this.textArea.setAttribute('aria-activedescendant', options.activeDescendant);
+		} else {
+			this.textArea.setAttribute('aria-haspopup', 'false');
+			this.textArea.setAttribute('aria-autocomplete', 'both');
+			this.textArea.removeAttribute('aria-activedescendant');
+		}
 	}
 
 	// --- end view API

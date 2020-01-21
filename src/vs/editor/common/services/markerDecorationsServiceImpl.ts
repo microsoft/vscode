@@ -38,7 +38,9 @@ class MarkerDecorations extends Disposable {
 	}
 
 	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): void {
-		const ids = this.model.deltaDecorations(keys(this._markersData), newDecorations);
+		const oldIds = keys(this._markersData);
+		this._markersData.clear();
+		const ids = this.model.deltaDecorations(oldIds, newDecorations);
 		for (let index = 0; index < ids.length; index++) {
 			this._markersData.set(ids[index], markers[index]);
 		}

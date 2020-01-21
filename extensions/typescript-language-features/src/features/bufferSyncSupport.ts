@@ -547,6 +547,8 @@ export default class BufferSyncSupport extends Disposable {
 					orderedFileSet.set(resource, undefined);
 				}
 			}
+
+			this.pendingGetErr = undefined;
 		}
 
 		// Add all open TS buffers to the geterr request. They might be visible

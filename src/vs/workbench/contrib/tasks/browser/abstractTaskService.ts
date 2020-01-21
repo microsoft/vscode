@@ -70,7 +70,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
@@ -84,6 +84,8 @@ const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
 const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
+
+const SETTINGS_GROUP_KEY = 'settings';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -256,7 +258,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
@@ -546,7 +548,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(undefined);
 		}
 		return this.getGroupedTasks().then((map) => {
-			const values = map.get(folder);
+			let values = map.get(folder);
+			values = values.concat(map.get(SETTINGS_GROUP_KEY));
+
 			if (!values) {
 				return undefined;
 			}
@@ -1316,7 +1320,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.remoteAgentService,
+			this.remotePathService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;
@@ -1588,7 +1592,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				const userTasks = await this.computeUserTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (userTasks) {
-					result.set('settings', userTasks);
+					result.set(SETTINGS_GROUP_KEY, userTasks);
 				}
 				const workspaceFileTasks = await this.computeWorkspaceFileTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (workspaceFileTasks && this._workspace && this._workspace.configuration) {

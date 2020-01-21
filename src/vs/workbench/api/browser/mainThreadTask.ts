@@ -621,7 +621,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 							for (let i = 0; i < partiallyResolvedVars.length; i++) {
 								const variableName = vars[i].substring(2, vars[i].length - 1);
 								if (resolvedVars && values.variables[vars[i]] === vars[i]) {
-									result.variables.set(variableName, resolvedVars.get(variableName));
+									const resolved = resolvedVars.get(variableName);
+									if (typeof resolved === 'string') {
+										result.variables.set(variableName, resolved);
+									}
 								} else {
 									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}
