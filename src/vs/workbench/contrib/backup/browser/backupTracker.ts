@@ -3,31 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
+import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 
-export class BackupOnShutdown extends Disposable implements IWorkbenchContribution {
+export class BrowserBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
 	constructor(
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILogService logService: ILogService
 	) {
-		super();
-
-		this.registerListeners();
+		super(backupFileService, filesConfigurationService, workingCopyService, logService, lifecycleService);
 	}
 
-	private registerListeners() {
+	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
-		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown()));
-	}
-
-	private onBeforeShutdown(): boolean {
 
 		// Web: we cannot perform long running in the shutdown phase
 		// As such we need to check sync if there are any dirty working
@@ -44,7 +41,7 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 		}
 
 		for (const dirtyWorkingCopy of dirtyWorkingCopies) {
-			if (!dirtyWorkingCopy.hasBackup()) {
+			if (!this.backupFileService.hasBackupSync(dirtyWorkingCopy.resource, this.getContentVersion(dirtyWorkingCopy))) {
 				console.warn('Unload prevented: pending backups');
 				return true; // dirty without backup: veto
 			}

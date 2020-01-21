@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -19,9 +19,9 @@ import { timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { SaveSequentializer } from 'vs/workbench/services/textfile/common/saveSequenzializer';
 
@@ -189,27 +189,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Backup
 
-	async backup(target = this.resource): Promise<void> {
-		if (this.isResolved()) {
+	async backup(): Promise<IWorkingCopyBackup> {
 
-			// Only fill in model metadata if resource matches
-			let meta: IBackupMetaData | undefined = undefined;
-			if (isEqual(target, this.resource) && this.lastResolvedFileStat) {
-				meta = {
-					mtime: this.lastResolvedFileStat.mtime,
-					ctime: this.lastResolvedFileStat.ctime,
-					size: this.lastResolvedFileStat.size,
-					etag: this.lastResolvedFileStat.etag,
-					orphaned: this.inOrphanMode
-				};
-			}
-
-			return this.backupFileService.backup<IBackupMetaData>(target, this.createSnapshot(), this.versionId, meta);
+		// Fill in metadata if we are resolved
+		let meta: IBackupMetaData | undefined = undefined;
+		if (this.lastResolvedFileStat) {
+			meta = {
+				mtime: this.lastResolvedFileStat.mtime,
+				ctime: this.lastResolvedFileStat.ctime,
+				size: this.lastResolvedFileStat.size,
+				etag: this.lastResolvedFileStat.etag,
+				orphaned: this.inOrphanMode
+			};
 		}
-	}
 
-	hasBackup(): boolean {
-		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+		return { meta, content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
 	//#endregion

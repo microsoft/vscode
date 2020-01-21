@@ -14,9 +14,10 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
 
@@ -128,14 +129,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return true;
 	}
 
-	async backup(): Promise<void> {
-		if (this.isResolved()) {
-			return this.backupFileService.backup(this.resource, this.createSnapshot(), this.versionId);
-		}
-	}
-
-	hasBackup(): boolean {
-		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+	async backup(): Promise<IWorkingCopyBackup> {
+		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
 	async load(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {

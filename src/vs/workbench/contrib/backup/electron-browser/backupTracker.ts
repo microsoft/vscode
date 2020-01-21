@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -18,32 +17,27 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export class BackupOnShutdown extends Disposable implements IWorkbenchContribution {
+export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
 	constructor(
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IElectronService private readonly electronService: IElectronService
+		@IElectronService private readonly electronService: IElectronService,
+		@ILogService logService: ILogService
 	) {
-		super();
-
-		this.registerListeners();
+		super(backupFileService, filesConfigurationService, workingCopyService, logService, lifecycleService);
 	}
 
-	private registerListeners() {
-
-		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
-	}
-
-	private onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// Dirty working copies need treatment on shutdown
 		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
@@ -84,7 +78,7 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 				// since a backup did not happen, we have to confirm for the dirty working copies now
 				return this.confirmBeforeShutdown();
 			}, error => {
-				this.notificationService.error(localize('backupOnShutdown.failSave', "Working copies that are dirty could not be written to the backup location (Error: {0}). Try saving your editors first and then exit.", error.message));
+				this.notificationService.error(localize('backupTracker.failSave', "Working copies that are dirty could not be written to the backup location (Error: {0}). Try saving your editors first and then exit.", error.message));
 
 				return true; // veto, the backups failed
 			});
@@ -135,7 +129,10 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 		}
 
 		// Backup all working copies
-		await Promise.all(workingCopies.map(workingCopy => workingCopy.backup()));
+		await Promise.all(workingCopies.map(async workingCopy => {
+			const backup = await workingCopy.backup();
+			return this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
+		}));
 
 		return true;
 	}

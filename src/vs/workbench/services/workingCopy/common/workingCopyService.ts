@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, values } from 'vs/base/common/map';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 export const enum WorkingCopyCapabilities {
 
@@ -19,6 +20,11 @@ export const enum WorkingCopyCapabilities {
 	 * associated path to save to.
 	 */
 	Untitled = 1 << 1
+}
+
+export interface IWorkingCopyBackup {
+	meta?: object;
+	content?: ITextSnapshot;
 }
 
 export interface IWorkingCopy {
@@ -46,13 +52,11 @@ export interface IWorkingCopy {
 
 	//#region Save / Backup
 
+	backup(): Promise<IWorkingCopyBackup>;
+
 	save(options?: ISaveOptions): Promise<boolean>;
 
 	revert(options?: IRevertOptions): Promise<boolean>;
-
-	hasBackup(): boolean;
-
-	backup(): Promise<void>;
 
 	//#endregion
 }
@@ -124,7 +128,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	//#region Registry
 
-	private mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
+	private readonly mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
 
 	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
 	private _workingCopies = new Set<IWorkingCopy>();

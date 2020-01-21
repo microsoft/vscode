@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICustomEditorModel, CustomEditorEdit, CustomEditorSaveAsEvent, CustomEditorSaveEvent } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
 export class CustomEditorModel extends Disposable implements ICustomEditorModel {
@@ -190,11 +190,8 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this.updateContentChanged();
 	}
 
-	public hasBackup(): boolean {
-		return true; //TODO@matt forward to extension
-	}
-
-	public async backup(): Promise<void> {
-		//TODO@matt forward to extension
+	public async backup(): Promise<IWorkingCopyBackup> {
+		// TODO@matt implement
+		return {};
 	}
 }

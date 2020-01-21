@@ -72,6 +72,7 @@ export class NodeTestBackupFileService extends BackupFileService {
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
+		this.didDiscardAllWorkspaceBackups = false;
 	}
 
 	joinBackupResource(): Promise<void> {
@@ -96,6 +97,14 @@ export class NodeTestBackupFileService extends BackupFileService {
 		while (this.discardBackupJoiners.length) {
 			this.discardBackupJoiners.pop()!();
 		}
+	}
+
+	didDiscardAllWorkspaceBackups: boolean;
+
+	discardBackups(): Promise<void> {
+		this.didDiscardAllWorkspaceBackups = true;
+
+		return super.discardBackups();
 	}
 }
 
