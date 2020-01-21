@@ -62,13 +62,10 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -593,19 +590,12 @@ export class ToggleViewModeAction extends Action {
 	}
 }
 
-function convertValidationType(type: InputValidationType): MarkerSeverity {
-	switch (type) {
-		case InputValidationType.Information: return MarkerSeverity.Info;
-		case InputValidationType.Warning: return MarkerSeverity.Warning;
-		case InputValidationType.Error: return MarkerSeverity.Error;
-	}
-}
-
 export class RepositoryPane extends ViewPane {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
 	private inputContainer!: HTMLElement;
+	private validationContainer!: HTMLElement;
 	private inputEditor!: CodeEditorWidget;
 	private inputModel!: ITextModel;
 	private listContainer!: HTMLElement;
@@ -633,7 +623,6 @@ export class RepositoryPane extends ViewPane {
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService,
-		@IMarkerService private markerService: IMarkerService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
@@ -685,6 +674,8 @@ export class RepositoryPane extends ViewPane {
 			placeholderTextContainer.textContent = placeholderText;
 		};
 
+		this.validationContainer = append(editorContainer, $('.scm-editor-validation'));
+
 		const validationDelayer = new ThrottledDelayer<any>(200);
 		const validate = () => {
 			const position = this.inputEditor.getSelection()?.getStartPosition();
@@ -693,18 +684,21 @@ export class RepositoryPane extends ViewPane {
 
 			return this.repository.input.validateInput(value, offset || 0).then(result => {
 				if (!result) {
-					this.markerService.changeOne('scm', uri, []);
+					removeClass(editorContainer, 'validation-info');
+					removeClass(editorContainer, 'validation-warning');
+					removeClass(editorContainer, 'validation-error');
+					removeClass(this.validationContainer, 'validation-info');
+					removeClass(this.validationContainer, 'validation-warning');
+					removeClass(this.validationContainer, 'validation-error');
+					this.validationContainer.textContent = null;
 				} else {
-					const range = this.inputModel.getFullModelRange();
-
-					this.markerService.changeOne('scm', uri, [{
-						message: result.message,
-						severity: convertValidationType(result.type),
-						startLineNumber: range.startLineNumber,
-						startColumn: range.startColumn,
-						endLineNumber: range.endLineNumber,
-						endColumn: range.endColumn
-					}]);
+					toggleClass(editorContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(editorContainer, 'validation-error', result.type === InputValidationType.Error);
+					toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
+					this.validationContainer.textContent = result.message;
 				}
 			});
 		};
@@ -731,8 +725,6 @@ export class RepositoryPane extends ViewPane {
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				ColorDetector.ID,
-				ModesHoverController.ID
 			])
 		};
 
@@ -910,6 +902,8 @@ export class RepositoryPane extends ViewPane {
 			const editorHeight = Math.min(editorContentHeight + 3, 134);
 			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
 
+			this.validationContainer.style.top = `${editorHeight + 1}px`;
+
 			const listHeight = height - (editorHeight + 5 + 2 + 5);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
@@ -1067,8 +1061,56 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
+	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
 	if (inputPlaceholderForegroundColor) {
 		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
+	}
+
+	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
+	if (inputValidationInfoBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { border: 1px solid ${inputValidationInfoBorderColor}; }`);
+	}
+
+	const inputValidationInfoBackgroundColor = theme.getColor(inputValidationInfoBackground);
+	if (inputValidationInfoBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
+	}
+
+	const inputValidationInfoForegroundColor = theme.getColor(inputValidationInfoForeground);
+	if (inputValidationInfoForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
+	}
+
+	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
+	if (inputValidationWarningBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { border: 1px solid ${inputValidationWarningBorderColor}; }`);
+	}
+
+	const inputValidationWarningBackgroundColor = theme.getColor(inputValidationWarningBackground);
+	if (inputValidationWarningBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
+	}
+
+	const inputValidationWarningForegroundColor = theme.getColor(inputValidationWarningForeground);
+	if (inputValidationWarningForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
+	}
+
+	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
+	if (inputValidationErrorBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { border: 1px solid ${inputValidationErrorBorderColor}; }`);
+	}
+
+	const inputValidationErrorBackgroundColor = theme.getColor(inputValidationErrorBackground);
+	if (inputValidationErrorBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
+	}
+
+	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
+	if (inputValidationErrorForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
 	}
 });

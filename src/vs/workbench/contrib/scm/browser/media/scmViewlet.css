@@ -176,6 +176,22 @@
 .scm-viewlet .scm-editor-container {
 	padding: 1px;
 	position: relative;
+	outline-offset: -1px;
+}
+
+.scm-viewlet .scm-editor-container > .scm-editor-validation {
+	position: absolute;
+	width: 100%;
+	z-index: 10;
+	left: 0px;
+	box-sizing: border-box;
+	font-size: 0.9em;
+	padding: 1px 3px;
+	display: none;
+}
+
+.scm-viewlet .scm-editor-container.synthetic-focus > .scm-editor-validation {
+	display: block;
 }
 
 .scm-viewlet .scm-editor-placeholder {
