@@ -86,7 +86,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	async groups(): Promise<ITunnelGroup[]> {
 		const groups: ITunnelGroup[] = [];
-		if (this.model.forwarded.size > 0) {
+		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
 			groups.push({
 				label: nls.localize('remote.tunnelsView.forwarded', "Forwarded"),
 				tunnelType: TunnelType.Forwarded,
