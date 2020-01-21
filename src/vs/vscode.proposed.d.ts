@@ -1378,8 +1378,27 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/39441
 
-	export interface CompletionList {
-		isDetailsResolved?: boolean;
+	export interface CompletionItem {
+		/**
+		 * Will be merged into CompletionItem#label
+		 */
+		label2?: string | CompletionItemLabel;
+	}
+
+	export interface CompletionItemLabel {
+
+		/**
+		 * The function or variable
+		 */
+		name: string;
+
+		// The signature, without the return type. is render directly after `name`
+		// signature?: string; // parameters
+		// The fully qualified name, like package name, file path etc
+		// qualifier?: string;
+
+		// The return-type of a function or type of a property, variable etc
+		type?: string;
 	}
 
 	//#endregion

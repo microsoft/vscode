@@ -146,7 +146,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 					i = to;
 				}
 			}
-			return { suggestions, isDetailsResolved: true };
+			return { suggestions };
 		});
 	}
 

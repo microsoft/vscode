@@ -5196,6 +5196,17 @@ declare namespace monaco.languages {
 		Snippet = 25
 	}
 
+	export interface CompletionItemLabel {
+		/**
+		 * The name of this completion item's label.
+		 */
+		name: string;
+		/**
+		 * The return-type of a function or type of a property, variable
+		 */
+		type?: string;
+	}
+
 	export enum CompletionItemTag {
 		Deprecated = 1
 	}
@@ -5222,7 +5233,7 @@ declare namespace monaco.languages {
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 		/**
 		 * The kind of this completion item. Based on the kind
 		 * an icon is chosen by the editor.
@@ -5305,7 +5316,6 @@ declare namespace monaco.languages {
 	export interface CompletionList {
 		suggestions: CompletionItem[];
 		incomplete?: boolean;
-		isDetailsResolved?: boolean;
 		dispose?(): void;
 	}
 

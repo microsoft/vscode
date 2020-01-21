@@ -369,6 +369,24 @@ export let completionKindFromString: {
 	};
 })();
 
+export interface CompletionItemLabel {
+
+	/**
+	 * The name of this completion item's label.
+	 */
+	name: string;
+
+	// The signature, without the return type. is render directly after `name`
+	// signature?: string; // parameters
+	// The fully qualified name, like package name, file path etc
+	// qualifier?: string;
+
+	/**
+	 * The return-type of a function or type of a property, variable
+	 */
+	type?: string;
+}
+
 export const enum CompletionItemTag {
 	Deprecated = 1
 }
@@ -396,7 +414,7 @@ export interface CompletionItem {
 	 * this is also the text that is inserted when selecting
 	 * this completion.
 	 */
-	label: string;
+	label: string | CompletionItemLabel;
 	/**
 	 * The kind of this completion item. Based on the kind
 	 * an icon is chosen by the editor.
@@ -481,7 +499,6 @@ export interface CompletionItem {
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
-	isDetailsResolved?: boolean;
 	dispose?(): void;
 }
 

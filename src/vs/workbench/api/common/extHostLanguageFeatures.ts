@@ -823,8 +823,7 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined,
-				d: list.isDetailsResolved || undefined
+				c: list.isIncomplete || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -913,6 +912,7 @@ class SuggestAdapter {
 			x: id,
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
+			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
 			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
