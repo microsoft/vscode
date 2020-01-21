@@ -49,7 +49,7 @@ import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { EditorActivation, EditorOpenContext, IResourceInput } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -766,7 +766,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.indexOf(editor);
 	}
 
-	isOpened(editor: EditorInput | IResourceInput): boolean {
+	isOpened(editor: EditorInput): boolean {
 		return this._group.contains(editor);
 	}
 

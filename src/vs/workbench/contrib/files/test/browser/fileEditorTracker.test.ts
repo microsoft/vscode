@@ -106,14 +106,14 @@ suite('Files - FileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		assert.ok(!accessor.editorService.isOpen({ resource }));
+		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createInput({ resource, forceFile: true })));
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
 		await awaitEditorOpening(accessor.editorService);
-		assert.ok(accessor.editorService.isOpen({ resource }));
+		assert.ok(accessor.editorService.isOpen(accessor.editorService.createInput({ resource, forceFile: true })));
 
 		part.dispose();
 		tracker.dispose();

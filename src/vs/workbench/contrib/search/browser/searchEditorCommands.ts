@@ -480,7 +480,7 @@ export const openNewSearchEditor =
 	};
 
 export const createEditorFromSearchResult =
-	async (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelService: ILabelService, editorService: IEditorService, instantiationService: IInstantiationService) => {
+	async (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelService: ILabelService, editorService: IEditorService, textFileService: ITextFileService, instantiationService: IInstantiationService) => {
 		if (!searchResult.query) {
 			console.error('Expected searchResult.query to be defined. Got', searchResult);
 			return;
@@ -500,7 +500,7 @@ export const createEditorFromSearchResult =
 
 		let id = 0;
 
-		let existing = editorService.getOpened(possible);
+		let existing = textFileService.untitled.get(possible.resource);
 		while (existing) {
 			if (existing instanceof UntitledTextEditorInput) {
 				const model = await existing.resolve();
@@ -510,7 +510,7 @@ export const createEditorFromSearchResult =
 				}
 			}
 			possible.resource = possible.resource.with({ path: searchTerm + '-' + ++id });
-			existing = editorService.getOpened(possible);
+			existing = textFileService.untitled.get(possible.resource);
 		}
 
 		const input = instantiationService.createInstance(

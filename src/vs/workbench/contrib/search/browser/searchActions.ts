@@ -32,6 +32,7 @@ import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { createEditorFromSearchResult, openNewSearchEditor, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 
 import type { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -586,6 +587,7 @@ export class OpenResultsInEditorAction extends Action {
 		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(id, label, 'codicon-go-to-file');
 	}
@@ -602,7 +604,7 @@ export class OpenResultsInEditorAction extends Action {
 	async run() {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
+			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.textFileService, this.instantiationService);
 		}
 	}
 }

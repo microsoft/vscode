@@ -243,8 +243,8 @@ export class ResourcesDropHandler {
 			droppedDirtyEditor.resource = this.textFileService.untitled.create({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding }).getResource();
 		}
 
-		// Return early if the resource is already dirty in target or opened already
-		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
+		// Return early if the resource is already dirty in target or opened already as file
+		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen(this.editorService.createInput({ resource: droppedDirtyEditor.resource, forceFile: true }))) {
 			return false;
 		}
 

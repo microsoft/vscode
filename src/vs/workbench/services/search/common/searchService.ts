@@ -391,7 +391,8 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				if (!this.editorService.isOpen({ resource })) {
+				// Skip if editor is not opened as text file
+				if (this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: true }))) {
 					return;
 				}
 

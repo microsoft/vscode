@@ -288,8 +288,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				return false; // resource must not be pending to save
 			}
 
-			if (this.editorService.isOpen({ resource })) {
-				return false; // model must not be opened already
+			if (this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: true }))) {
+				return false; // model must not be opened already as file
 			}
 
 			return true;
