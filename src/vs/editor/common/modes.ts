@@ -380,14 +380,11 @@ export interface CompletionItemLabel {
 	// signature?: string; // parameters
 	// The fully qualified name, like package name, file path etc
 	// qualifier?: string;
-	// The return-type of a function or type of a property, variable etc
-	// type?: string;
 
 	/**
-	 * Details of the completion item that is rendered less
-	 * prominent to the right.
+	 * The return-type of a function or type of a property, variable
 	 */
-	details?: string;
+	type?: string;
 }
 
 export const enum CompletionItemTag {

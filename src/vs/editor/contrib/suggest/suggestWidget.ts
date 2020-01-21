@@ -241,7 +241,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 			removeClass(data.right, 'always-show-details');
 		} else {
-			data.detailsLabel.textContent = (suggestion.label.details || '').replace(/\n.*$/m, '');
+			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
 			addClass(data.right, 'always-show-details');
 		}
 

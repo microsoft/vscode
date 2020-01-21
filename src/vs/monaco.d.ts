@@ -5202,10 +5202,9 @@ declare namespace monaco.languages {
 		 */
 		name: string;
 		/**
-		 * Details of the completion item that is rendered less
-		 * prominent to the right.
+		 * The return-type of a function or type of a property, variable
 		 */
-		details?: string;
+		type?: string;
 	}
 
 	export enum CompletionItemTag {

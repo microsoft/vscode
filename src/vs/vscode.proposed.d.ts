@@ -1396,10 +1396,9 @@ declare module 'vscode' {
 		// signature?: string; // parameters
 		// The fully qualified name, like package name, file path etc
 		// qualifier?: string;
-		// The return-type of a function or type of a property, variable etc
-		// type?: string;
 
-		details?: string;
+		// The return-type of a function or type of a property, variable etc
+		type?: string;
 	}
 
 	//#endregion
