@@ -240,14 +240,15 @@ export class KeybindingsSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async getRemoteContent(): Promise<string | null> {
+		let content: string | null | undefined = null;
 		if (this.syncPreviewResultPromise) {
 			const preview = await this.syncPreviewResultPromise;
-			if (preview.remoteUserData) {
-				return preview.remoteUserData.content;
-			}
+			content = preview.remoteUserData?.content;
+		} else {
+			const remoteUserData = await this.getRemoteUserData();
+			content = remoteUserData.content;
 		}
-		const remoteUserData = this.getRemoteUserData();
-		return (await remoteUserData).content;
+		return content ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
 	async resetLocal(): Promise<void> {
