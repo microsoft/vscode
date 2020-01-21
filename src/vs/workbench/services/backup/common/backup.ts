@@ -32,22 +32,6 @@ export interface IBackupFileService {
 	hasBackupSync(resource: URI, versionId?: number): boolean;
 
 	/**
-	 * Loads the backup resource for a particular resource within the current workspace.
-	 *
-	 * @param resource The resource that is backed up.
-	 * @return The backup resource if any.
-	 */
-	loadBackupResource(resource: URI): Promise<URI | undefined>;
-
-	/**
-	 * Given a resource, returns the associated backup resource.
-	 *
-	 * @param resource The resource to get the backup resource for.
-	 * @return The backup resource.
-	 */
-	toBackupResource(resource: URI): URI;
-
-	/**
 	 * Gets a list of file backups for the current workspace.
 	 *
 	 * @return The list of backups.
@@ -55,12 +39,13 @@ export interface IBackupFileService {
 	getBackups(): Promise<URI[]>;
 
 	/**
-	 * Resolves the backup for the given resource.
+	 * Resolves the backup for the given resource if that exists.
 	 *
 	 * @param resource The resource to get the backup for.
-	 * @return The backup file's backed up content and metadata if available.
+	 * @return The backup file's backed up content and metadata if available or undefined
+	 * if not backup exists.
 	 */
-	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T>>;
+	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined>;
 
 	/**
 	 * Backs up a resource.
@@ -85,4 +70,11 @@ export interface IBackupFileService {
 	 * being made.
 	 */
 	discardBackups(): Promise<void>;
+}
+
+// TODO@ben: should try to avoid using backup for restoring dirty between windows
+// Should rather have a way to open existing files with contents?
+export interface IInternalBackupFilesService extends IBackupFileService {
+	toBackupResource(resource: URI): URI;
+	resolve<T extends object>(resource: URI, options?: { isBackupResource?: boolean }): Promise<IResolvedBackup<T> | undefined>;
 }

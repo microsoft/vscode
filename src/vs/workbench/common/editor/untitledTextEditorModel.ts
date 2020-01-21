@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Emitter } from 'vs/base/common/event';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -140,12 +140,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	async load(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 
-		// Check for backups first
-		let backup: IResolvedBackup<object> | undefined = undefined;
-		const backupResource = await this.backupFileService.loadBackupResource(this.resource);
-		if (backupResource) {
-			backup = await this.backupFileService.resolve(backupResource);
-		}
+		// Check for backups
+		const backup = await this.backupFileService.resolve(this.resource);
 
 		// untitled associated to file path are dirty right away as well as untitled with content
 		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);

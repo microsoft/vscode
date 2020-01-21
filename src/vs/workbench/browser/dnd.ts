@@ -10,7 +10,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IInternalBackupFilesService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -169,7 +169,7 @@ export class ResourcesDropHandler {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IBackupFileService private readonly backupFileService: IInternalBackupFilesService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
@@ -253,8 +253,10 @@ export class ResourcesDropHandler {
 		// Resolve the contents of the dropped dirty resource from source
 		if (droppedDirtyEditor.backupResource) {
 			try {
-				const backup = await this.backupFileService.resolve((droppedDirtyEditor.backupResource));
-				await this.backupFileService.backup(droppedDirtyEditor.resource, backup.value.create(this.getDefaultEOL()).createSnapshot(true), undefined, backup.meta);
+				const backup = await this.backupFileService.resolve(droppedDirtyEditor.backupResource, { isBackupResource: true });
+				if (backup) {
+					await this.backupFileService.backup(droppedDirtyEditor.resource, backup.value.create(this.getDefaultEOL()).createSnapshot(true), undefined, backup.meta);
+				}
 			} catch (e) {
 				// Ignore error
 			}
@@ -350,7 +352,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
-	const backupFileService = accessor.get(IBackupFileService);
+	const backupFileService = accessor.get(IBackupFileService) as IInternalBackupFilesService;
 	const editorService = accessor.get(IEditorService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];

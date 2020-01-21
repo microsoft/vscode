@@ -11,7 +11,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -268,7 +268,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Only for new models we support to load from backup
 		if (!this.isResolved()) {
-			const backup = await this.backupFileService.loadBackupResource(this.resource);
+			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
 
 			if (this.isResolved()) {
 				return this; // Make sure meanwhile someone else did not suceed in loading
@@ -287,29 +287,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.loadFromFile(options);
 	}
 
-	private async loadFromBackup(backup: URI, options?: ILoadOptions): Promise<TextFileEditorModel> {
-
-		// Resolve actual backup contents
-		const resolvedBackup = await this.backupFileService.resolve<IBackupMetaData>(backup);
-
-		if (this.isResolved()) {
-			return this; // Make sure meanwhile someone else did not suceed in loading
-		}
+	private async loadFromBackup(backup: IResolvedBackup<IBackupMetaData>, options?: ILoadOptions): Promise<TextFileEditorModel> {
 
 		// Load with backup
 		this.loadFromContent({
 			resource: this.resource,
 			name: basename(this.resource),
-			mtime: resolvedBackup.meta ? resolvedBackup.meta.mtime : Date.now(),
-			ctime: resolvedBackup.meta ? resolvedBackup.meta.ctime : Date.now(),
-			size: resolvedBackup.meta ? resolvedBackup.meta.size : 0,
-			etag: resolvedBackup.meta ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: resolvedBackup.value,
+			mtime: backup.meta ? backup.meta.mtime : Date.now(),
+			ctime: backup.meta ? backup.meta.ctime : Date.now(),
+			size: backup.meta ? backup.meta.size : 0,
+			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
+			value: backup.value,
 			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding
 		}, options, true /* from backup */);
 
 		// Restore orphaned flag based on state
-		if (resolvedBackup.meta && resolvedBackup.meta.orphaned) {
+		if (backup.meta && backup.meta.orphaned) {
 			this.setOrphaned(true);
 		}
 

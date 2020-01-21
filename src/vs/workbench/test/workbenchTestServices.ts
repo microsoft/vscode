@@ -1167,25 +1167,12 @@ export class TestBackupFileService implements IBackupFileService {
 		return false;
 	}
 
-	async loadBackupResource(resource: URI): Promise<URI | undefined> {
-		const hasBackup = await this.hasBackup(resource);
-		if (hasBackup) {
-			return this.toBackupResource(resource);
-		}
-
-		return undefined;
-	}
-
 	registerResourceForBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
 
 	deregisterResourceForBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
-	}
-
-	toBackupResource(_resource: URI): URI {
-		throw new Error('not implemented');
 	}
 
 	backup<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
@@ -1203,8 +1190,8 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
-		throw new Error('not implemented');
+	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> {
+		return Promise.resolve(undefined);
 	}
 
 	discardBackup(_resource: URI): Promise<void> {

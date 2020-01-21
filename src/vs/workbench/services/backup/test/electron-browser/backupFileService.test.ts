@@ -74,10 +74,6 @@ export class NodeTestBackupFileService extends BackupFileService {
 		this.discardBackupJoiners = [];
 	}
 
-	toBackupResource(resource: URI): URI {
-		return super.toBackupResource(resource);
-	}
-
 	joinBackupResource(): Promise<void> {
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
@@ -165,20 +161,7 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('loadBackupResource', () => {
-		test('should return whether a backup resource exists', async () => {
-			await pfs.mkdirp(path.dirname(fooBackupPath));
-			fs.writeFileSync(fooBackupPath, 'foo');
-			service = new NodeTestBackupFileService(workspaceBackupPath);
-			const resource = await service.loadBackupResource(fooFile);
-			assert.ok(resource);
-			assert.equal(path.basename(resource!.fsPath), path.basename(fooBackupPath));
-			const hasBackups = await service.hasBackups();
-			assert.ok(hasBackups);
-		});
-	});
-
-	suite('backupResource', () => {
+	suite('backup', () => {
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
@@ -262,7 +245,7 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('discardResourceBackup', () => {
+	suite('discardBackup', () => {
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
@@ -283,7 +266,7 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('discardAllWorkspaceBackups', () => {
+	suite('discardBackups', () => {
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
@@ -310,7 +293,7 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('getWorkspaceFileBackups', () => {
+	suite('getBackups', () => {
 		test('("file") - text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			const textFiles = await service.getBackups();
@@ -333,7 +316,7 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('resolveBackupContent', () => {
+	suite('resolve', () => {
 
 		interface IBackupTestMetaData {
 			mtime?: number;
@@ -440,8 +423,6 @@ suite('BackupFileService', () => {
 
 			await service.backup(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
 
-			assert.ok(await service.loadBackupResource(fooFile));
-
 			const fileContents = fs.readFileSync(fooBackupPath).toString();
 			assert.equal(fileContents.indexOf(fooFile.toString()), 0);
 
@@ -449,9 +430,10 @@ suite('BackupFileService', () => {
 			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substr(metaIndex);
 			fs.writeFileSync(fooBackupPath, newFileContents);
 
-			const backup = await service.resolve(service.toBackupResource(fooFile));
-			assert.equal(contents, snapshotToString(backup.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
-			assert.ok(!backup.meta);
+			const backup = await service.resolve(fooFile);
+			assert.ok(backup);
+			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+			assert.ok(!backup!.meta);
 		});
 
 		test('should restore the original contents (text file with metadata and fragment URI)', async () => {
@@ -513,16 +495,16 @@ suite('BackupFileService', () => {
 
 			await service.backup(fooBarFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1);
 
-			const backup = await service.loadBackupResource(fooBarFile);
+			const backup = await service.resolve(fooBarFile);
 			if (!backup) {
 				throw new Error('Unexpected missing backup');
 			}
 
-			await service.fileService.writeFile(backup, VSBuffer.fromString(''));
+			await service.fileService.writeFile(service.toBackupResource(fooBarFile), VSBuffer.fromString(''));
 
 			let err: Error;
 			try {
-				await service.resolve<IBackupTestMetaData>(backup);
+				await service.resolve<IBackupTestMetaData>(fooBarFile);
 			} catch (error) {
 				err = error;
 			}
@@ -537,18 +519,17 @@ suite('BackupFileService', () => {
 
 			await service.backup(resource, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
 
-			assert.ok(await service.loadBackupResource(resource));
-
-			const backup = await service.resolve<IBackupTestMetaData>(service.toBackupResource(resource));
-			assert.equal(contents, snapshotToString(backup.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+			const backup = await service.resolve<IBackupTestMetaData>(resource);
+			assert.ok(backup);
+			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 
 			if (expectedMeta) {
-				assert.equal(backup.meta!.etag, expectedMeta.etag);
-				assert.equal(backup.meta!.size, expectedMeta.size);
-				assert.equal(backup.meta!.mtime, expectedMeta.mtime);
-				assert.equal(backup.meta!.orphaned, expectedMeta.orphaned);
+				assert.equal(backup!.meta!.etag, expectedMeta.etag);
+				assert.equal(backup!.meta!.size, expectedMeta.size);
+				assert.equal(backup!.meta!.mtime, expectedMeta.mtime);
+				assert.equal(backup!.meta!.orphaned, expectedMeta.orphaned);
 			} else {
-				assert.ok(!backup.meta);
+				assert.ok(!backup!.meta);
 			}
 		}
 	});
