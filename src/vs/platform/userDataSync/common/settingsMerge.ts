@@ -506,8 +506,8 @@ function parseSettings(content: string): INode[] {
 			if (hierarchyLevel === 0) {
 				nodes.push({
 					startOffset,
-					endOffset: offset,
-					value: content.substring(startOffset, offset),
+					endOffset: offset + length,
+					value: content.substring(startOffset, offset + length),
 					setting: {
 						key,
 						hasCommaSeparator: false
@@ -523,8 +523,8 @@ function parseSettings(content: string): INode[] {
 			if (hierarchyLevel === 0) {
 				nodes.push({
 					startOffset,
-					endOffset: offset,
-					value: content.substring(startOffset, offset),
+					endOffset: offset + length,
+					value: content.substring(startOffset, offset + length),
 					setting: {
 						key,
 						hasCommaSeparator: false
@@ -537,7 +537,7 @@ function parseSettings(content: string): INode[] {
 				nodes.push({
 					startOffset,
 					endOffset: offset + length,
-					value: content.substring(startOffset, offset),
+					value: content.substring(startOffset, offset + length),
 					setting: {
 						key,
 						hasCommaSeparator: false

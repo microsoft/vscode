@@ -326,7 +326,7 @@ export class SettingsSynchroniser extends AbstractSynchroniser implements ISetti
 			}
 			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
-				const remoteContent = remoteUserData?.content ? updateIgnoredSettings(content, remoteUserData.content, getIgnoredSettings(this.configurationService, content), formatUtils) : content;
+				const remoteContent = remoteUserData ? updateIgnoredSettings(content, remoteUserData.content || '{}', getIgnoredSettings(this.configurationService, content), formatUtils) : content;
 				this.logService.info('Settings: Updating remote settings');
 				const ref = await this.writeToRemote(remoteContent, remoteUserData ? remoteUserData.ref : null);
 				remoteUserData = { ref, content };
