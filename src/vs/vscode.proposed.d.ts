@@ -1382,7 +1382,7 @@ declare module 'vscode' {
 		/**
 		 * Will be merged into CompletionItem#label
 		 */
-		label2?: string | CompletionItemLabel;
+		label2?: CompletionItemLabel;
 	}
 
 	export interface CompletionItemLabel {

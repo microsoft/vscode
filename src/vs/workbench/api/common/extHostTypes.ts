@@ -1368,7 +1368,7 @@ export interface CompletionItemLabel {
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
-	label2?: string | CompletionItemLabel;
+	label2?: CompletionItemLabel;
 	kind?: CompletionItemKind;
 	tags?: CompletionItemTag[];
 	detail?: string;
