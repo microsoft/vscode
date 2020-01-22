@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bulkEdit';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator2, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -131,7 +131,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 
-		const navigator = new TreeResourceNavigator2(this._tree, { openOnFocus: true });
+		const navigator = new TreeResourceNavigator(this._tree, { openOnFocus: true });
 		this._disposables.add(navigator);
 		this._disposables.add(navigator.onDidOpenResource(e => this._openElementAsEditor(e)));
 

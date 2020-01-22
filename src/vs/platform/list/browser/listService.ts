@@ -592,9 +592,9 @@ export interface IOpenEvent<T> {
 	browserEvent?: UIEvent;
 }
 
-export interface IResourceResultsNavigationOptions2 {
-	openOnFocus?: boolean;
-	openOnSelection?: boolean;
+export interface ITreeResourceNavigatorOptions {
+	readonly openOnFocus?: boolean;
+	readonly openOnSelection?: boolean;
 }
 
 export interface SelectionKeyboardEvent extends KeyboardEvent {
@@ -608,16 +608,16 @@ export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: b
 	return e;
 }
 
-export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
+export class TreeResourceNavigator<T, TFilterData> extends Disposable {
 
-	private options: IResourceResultsNavigationOptions2;
+	private options: ITreeResourceNavigatorOptions;
 
 	private readonly _onDidOpenResource = new Emitter<IOpenEvent<T | null>>();
 	readonly onDidOpenResource: Event<IOpenEvent<T | null>> = this._onDidOpenResource.event;
 
 	constructor(
 		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchCompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<any, T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<any, T, TFilterData>,
-		options?: IResourceResultsNavigationOptions2
+		options?: ITreeResourceNavigatorOptions
 	) {
 		super();
 
