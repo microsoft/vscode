@@ -13,7 +13,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, systemPreferences, MessageBoxOptions, Display, app } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -226,16 +226,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// React to HC color scheme changes (Windows)
 		if (isWindows) {
-			const onHighContrastChange = () => {
-				if (systemPreferences.isInvertedColorScheme() || systemPreferences.isHighContrastColorScheme()) {
+			nativeTheme.on('updated', () => {
+				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
 					this.sendToAll('vscode:enterHighContrast');
 				} else {
 					this.sendToAll('vscode:leaveHighContrast');
 				}
-			};
-
-			systemPreferences.on('inverted-color-scheme-changed', () => onHighContrastChange());
-			systemPreferences.on('high-contrast-color-scheme-changed', () => onHighContrastChange());
+			});
 		}
 
 		// When a window looses focus, save all windows state. This allows to

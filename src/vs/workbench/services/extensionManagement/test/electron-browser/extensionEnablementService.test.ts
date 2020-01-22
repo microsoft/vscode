@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -70,7 +70,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 suite('ExtensionEnablementService Test', () => {
 
 	let instantiationService: TestInstantiationService;
-	let testObject: IExtensionEnablementService;
+	let testObject: IWorkbenchExtensionEnablementService;
 
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 

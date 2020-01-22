@@ -30,6 +30,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { Cache } from './cache';
 
 // --- adapter
 
@@ -822,8 +823,7 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined,
-				d: list.isDetailsResolved || undefined
+				c: list.isIncomplete || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -912,6 +912,7 @@ class SuggestAdapter {
 			x: id,
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
+			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
 			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
@@ -1061,40 +1062,6 @@ class SignatureHelpAdapter {
 
 	releaseSignatureHelp(id: number): any {
 		this._cache.delete(id);
-	}
-}
-
-class Cache<T> {
-	private static readonly enableDebugLogging = false;
-
-	private readonly _data = new Map<number, readonly T[]>();
-	private _idPool = 1;
-
-	constructor(
-		private readonly id: string
-	) { }
-
-	add(item: readonly T[]): number {
-		const id = this._idPool++;
-		this._data.set(id, item);
-		this.logDebugInfo();
-		return id;
-	}
-
-	get(pid: number, id: number): T | undefined {
-		return this._data.has(pid) ? this._data.get(pid)![id] : undefined;
-	}
-
-	delete(id: number) {
-		this._data.delete(id);
-		this.logDebugInfo();
-	}
-
-	private logDebugInfo() {
-		if (!Cache.enableDebugLogging) {
-			return;
-		}
-		console.log(`${this.id} cache size — ${this._data.size}`);
 	}
 }
 

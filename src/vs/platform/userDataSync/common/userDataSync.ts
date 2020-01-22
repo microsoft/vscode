@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -140,11 +141,12 @@ export interface IUserDataSyncStore {
 	url: string;
 	name: string;
 	account: string;
+	authenticationProviderId: string;
 }
 
 export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
 	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
-	return value && value.url && value.name && value.account ? value : undefined;
+	return value && value.url && value.name && value.account && value.authenticationProviderId ? value : undefined;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
@@ -195,6 +197,11 @@ export interface ISynchroniser {
 	resetLocal(): Promise<void>;
 }
 
+export interface IUserDataSynchroniser extends ISynchroniser {
+	readonly source: SyncSource;
+	getRemoteContent(): Promise<string | null>;
+}
+
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
@@ -203,6 +210,7 @@ export interface IUserDataSyncService extends ISynchroniser {
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
+	getRemoteContent(source: SyncSource): Promise<string | null>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -241,7 +249,7 @@ export interface IConflictSetting {
 }
 
 export const ISettingsSyncService = createDecorator<ISettingsSyncService>('ISettingsSyncService');
-export interface ISettingsSyncService extends ISynchroniser {
+export interface ISettingsSyncService extends IUserDataSynchroniser {
 	_serviceBrand: any;
 	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
 	readonly conflicts: IConflictSetting[];
@@ -249,3 +257,11 @@ export interface ISettingsSyncService extends ISynchroniser {
 }
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+
+export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
+export function toRemoteContentResource(source: SyncSource): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${source}/remoteContent` });
+}
+export function getSyncSourceFromRemoteContentResource(uri: URI): SyncSource | undefined {
+	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.UIState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
+}

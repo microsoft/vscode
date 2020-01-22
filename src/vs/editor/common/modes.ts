@@ -369,6 +369,28 @@ export let completionKindFromString: {
 	};
 })();
 
+export interface CompletionItemLabel {
+	/**
+	 * The function or variable. Rendered leftmost.
+	 */
+	name: string;
+
+	/**
+	 * The signature without the return type. Render after `name`.
+	 */
+	signature?: string;
+
+	/**
+	 * The fully qualified name, like package name or file path. Rendered after `signature`.
+	 */
+	qualifier?: string;
+
+	/**
+	 * The return-type of a function or type of a property/variable. Rendered rightmost.
+	 */
+	type?: string;
+}
+
 export const enum CompletionItemTag {
 	Deprecated = 1
 }
@@ -396,7 +418,7 @@ export interface CompletionItem {
 	 * this is also the text that is inserted when selecting
 	 * this completion.
 	 */
-	label: string;
+	label: string | CompletionItemLabel;
 	/**
 	 * The kind of this completion item. Based on the kind
 	 * an icon is chosen by the editor.
@@ -481,7 +503,6 @@ export interface CompletionItem {
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
-	isDetailsResolved?: boolean;
 	dispose?(): void;
 }
 
@@ -1240,31 +1261,57 @@ export class FoldingRangeKind {
 /**
  * @internal
  */
-export function isResourceFileEdit(thing: any): thing is ResourceFileEdit {
-	return isObject(thing) && (Boolean((<ResourceFileEdit>thing).newUri) || Boolean((<ResourceFileEdit>thing).oldUri));
+export namespace WorkspaceFileEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceFileEdit {
+		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
+	}
 }
 
 /**
  * @internal
  */
-export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
-	return isObject(thing) && (<ResourceTextEdit>thing).resource && Array.isArray((<ResourceTextEdit>thing).edits);
+export namespace WorkspaceTextEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceTextEdit {
+		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
+	}
 }
 
-export interface ResourceFileEdit {
+export interface WorkspaceEditMetadata {
+	needsConfirmation: boolean;
+	label: string;
+	description?: string;
+	iconPath?: { id: string } | { light: URI, dark: URI };
+}
+
+export interface WorkspaceFileEditOptions {
+	overwrite?: boolean;
+	ignoreIfNotExists?: boolean;
+	ignoreIfExists?: boolean;
+	recursive?: boolean;
+}
+
+export interface WorkspaceFileEdit {
 	oldUri?: URI;
 	newUri?: URI;
-	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	options?: WorkspaceFileEditOptions;
+	metadata?: WorkspaceEditMetadata;
 }
 
-export interface ResourceTextEdit {
+export interface WorkspaceTextEdit {
 	resource: URI;
+	edit: TextEdit;
 	modelVersionId?: number;
-	edits: TextEdit[];
+	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
 }
 
 export interface Rejection {

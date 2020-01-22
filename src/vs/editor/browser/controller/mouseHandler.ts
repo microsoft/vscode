@@ -363,6 +363,7 @@ class MouseDownOperation extends Disposable {
 			this._isActive = true;
 
 			this._mouseMoveMonitor.startMonitoring(
+				e.target,
 				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
@@ -387,6 +388,7 @@ class MouseDownOperation extends Disposable {
 		if (!this._isActive) {
 			this._isActive = true;
 			this._mouseMoveMonitor.startMonitoring(
+				e.target,
 				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),

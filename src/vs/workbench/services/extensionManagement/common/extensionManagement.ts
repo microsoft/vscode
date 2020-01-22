@@ -34,9 +34,9 @@ export const enum EnablementState {
 	EnabledWorkspace
 }
 
-export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
+export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchExtensionEnablementService>('extensionEnablementService');
 
-export interface IExtensionEnablementService {
+export interface IWorkbenchExtensionEnablementService {
 	_serviceBrand: undefined;
 
 	readonly allUserExtensionsDisabled: boolean;

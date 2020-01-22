@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
 import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,12 +21,9 @@ import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename, toLocalResource } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { isEqualOrParent, isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
+import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { coalesce } from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -36,6 +32,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -57,9 +54,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	readonly files = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
 	private _untitled: IUntitledTextEditorModelManager;
-	get untitled(): IUntitledTextEditorModelManager {
-		return this._untitled;
-	}
+	get untitled(): IUntitledTextEditorModelManager { return this._untitled; }
 
 	abstract get encoding(): IResourceEncodings;
 
@@ -68,7 +63,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IHistoryService private readonly historyService: IHistoryService,
@@ -77,7 +71,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -184,7 +179,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
 
 		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
-		await this.doRevertAllFiles(dirtyFiles, { soft: true });
+		await this.doRevertFiles(dirtyFiles, { soft: true });
 
 		await this.fileService.del(resource, options);
 
@@ -250,7 +245,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// in order to move and copy, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.doRevertAllFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		await this.doRevertFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -311,7 +306,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.promptForPath(resource, this.suggestFileName(resource));
+					targetUri = await this.promptForPath(resource, this.suggestFilePath(resource));
 				}
 
 				// Save as if target provided
@@ -338,81 +333,26 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return false;
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
+	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
-		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
+		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
-	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: readonly string[]): ISaveDialogOptions {
-		const options: ISaveDialogOptions = {
-			defaultUri,
-			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems,
-		};
-
-		// Filters are only enabled on Windows where they work properly
-		if (!platform.isWindows) {
-			return options;
-		}
-
-		interface IFilter { name: string; extensions: string[]; }
-
-		// Build the file filter by using our known languages
-		const ext: string | undefined = defaultUri ? extname(defaultUri) : undefined;
-		let matchingFilter: IFilter | undefined;
-		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
-			const extensions = this.modeService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
-				return null;
-			}
-
-			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
-
-			if (ext && extensions.indexOf(ext) >= 0) {
-				matchingFilter = filter;
-
-				return null; // matching filter will be added last to the top
-			}
-
-			return filter;
-		}));
-
-		// Filters are a bit weird on Windows, based on having a match or not:
-		// Match: we put the matching filter first so that it shows up selected and the all files last
-		// No match: we put the all files filter first
-		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
-		if (matchingFilter) {
-			filters.unshift(matchingFilter);
-			filters.unshift(allFilesFilter);
-		} else {
-			filters.unshift(allFilesFilter);
-		}
-
-		// Allow to save file without extension
-		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
-
-		options.filters = filters;
-
-		return options;
-	}
-
-	private getFileModels(arg1?: URI | URI[]): ITextFileEditorModel[] {
-		if (Array.isArray(arg1)) {
+	private getFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
+		if (Array.isArray(resources)) {
 			const models: ITextFileEditorModel[] = [];
-			arg1.forEach(resource => {
-				models.push(...this.getFileModels(resource));
-			});
+			resources.forEach(resource => models.push(...this.getFileModels(resource)));
 
 			return models;
 		}
 
-		return this.files.getAll(arg1);
+		return this.files.getAll(resources);
 	}
 
-	private getDirtyFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
+	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[] {
 		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
@@ -422,10 +362,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (!target) {
 			let dialogPath = source;
 			if (source.scheme === Schemas.untitled) {
-				dialogPath = this.suggestFileName(source);
+				dialogPath = this.suggestFilePath(source);
 			}
 
-			target = await this.promptForPath(source, dialogPath, options ? options.availableFileSystems : undefined);
+			target = await this.promptForPath(source, dialogPath, options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -513,17 +453,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				await this.create(target, '');
 			}
 
-			// Carry over the mode if this is an untitled file and the mode was picked by the user
-			let mode: string | undefined;
-			if (sourceModel instanceof UntitledTextEditorModel) {
-				mode = sourceModel.getMode();
-				if (mode === PLAINTEXT_MODE_ID) {
-					mode = undefined; // never enforce plain text mode when moving as it is unspecific
-				}
-			}
-
 			try {
-				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding, mode });
+				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding });
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
 				// that we cannot load the target as text model if it is binary or too
@@ -574,14 +505,27 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// take over model value, encoding and mode (only if more specific) from source model
-		targetModel.updatePreferredEncoding(sourceModelEncoding);
 		if (sourceTextModel && targetTextModel) {
+
+			// encoding
+			targetModel.updatePreferredEncoding(sourceModelEncoding);
+
+			// content
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
+			// mode
 			const sourceMode = sourceTextModel.getLanguageIdentifier();
 			const targetMode = targetTextModel.getLanguageIdentifier();
 			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
 				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
+			}
+
+			// transient properties
+			const sourceTransientProperties = this.codeEditorService.getTransientModelProperties(sourceTextModel);
+			if (sourceTransientProperties) {
+				for (const [key, value] of sourceTransientProperties) {
+					this.codeEditorService.setTransientModelProperty(targetTextModel, key, value);
+				}
 			}
 		}
 
@@ -602,7 +546,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
-	private suggestFileName(untitledResource: URI): URI {
+	private suggestFilePath(untitledResource: URI): URI {
 		const untitledFileName = this.untitled.get(untitledResource)?.suggestFileName() ?? basename(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
@@ -638,10 +582,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// File
-		return !(await this.doRevertAllFiles([resource], options)).results.some(result => result.error);
+		return !(await this.doRevertFiles([resource], options)).results.some(result => result.error);
 	}
 
-	private async doRevertAllFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();

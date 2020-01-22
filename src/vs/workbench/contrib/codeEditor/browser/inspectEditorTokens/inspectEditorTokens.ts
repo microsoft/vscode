@@ -14,6 +14,7 @@ import { escape } from 'vs/base/common/strings';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/modes';
@@ -111,11 +112,16 @@ class InspectEditorTokens extends EditorAction {
 	}
 }
 
-interface ICompleteLineTokenization {
-	startState: StackElement | null;
-	tokens1: IToken[];
-	tokens2: Uint32Array;
-	endState: StackElement;
+interface ITextMateTokenInfo {
+	token: IToken;
+	metadata: IDecodedMetadata;
+}
+
+interface ISemanticTokenInfo {
+	type: string;
+	modifiers: string[];
+	range: Range;
+	metadata: IDecodedMetadata
 }
 
 interface IDecodedMetadata {
@@ -221,10 +227,12 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
 
 		Promise.all([this._grammar, this._semanticTokens]).then(([grammar, semanticTokens]) => {
-			if (!grammar) {
-				throw new Error(`Could not find grammar for language!`);
+			if (this._isDisposed) {
+				return;
 			}
-			this._compute(grammar, semanticTokens, position);
+			let text = this._compute(grammar, semanticTokens, position);
+			this._domNode.innerHTML = text;
+			this._editor.layoutContentWidget(this);
 		}, (err) => {
 			this._notificationService.warn(err);
 
@@ -235,85 +243,62 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	}
 
-	private _compute(grammar: IGrammar, semanticTokens: SemanticTokensResult | null, position: Position): void {
-		if (this._isDisposed) {
-			return;
-		}
-		let data = this._getTokensAtLine(grammar, position.lineNumber);
+	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, position: Position): string {
+		const textMateTokenInfo = grammar && this._getTokensAtPosition(grammar, position);
+		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
 
-		let token1Index = 0;
-		for (let i = data.tokens1.length - 1; i >= 0; i--) {
-			let t = data.tokens1[i];
-			if (position.column - 1 >= t.startIndex) {
-				token1Index = i;
-				break;
-			}
+		let tokenText;
+		let metadata: IDecodedMetadata | undefined;
+		let primary: IDecodedMetadata | undefined;
+		if (textMateTokenInfo) {
+			let tokenStartIndex = textMateTokenInfo.token.startIndex;
+			let tokenEndIndex = textMateTokenInfo.token.endIndex;
+			tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
+			metadata = textMateTokenInfo.metadata;
+			primary = semanticTokenInfo?.metadata;
+		} else if (semanticTokenInfo) {
+			tokenText = this._model.getValueInRange(semanticTokenInfo.range);
+			metadata = semanticTokenInfo.metadata;
+		} else {
+			return 'No grammar or semantic tokens available.';
 		}
-
-		let token2Index = 0;
-		for (let i = (data.tokens2.length >>> 1); i >= 0; i--) {
-			if (position.column - 1 >= data.tokens2[(i << 1)]) {
-				token2Index = i;
-				break;
-			}
-		}
-
-		let semanticMetadata: IDecodedMetadata | undefined = undefined;
-		let semanticClasssification;
-		if (semanticTokens) {
-			semanticClasssification = this._getSemanticTokenAtPosition(semanticTokens, position);
-			if (semanticClasssification) {
-				const metadata = this._themeService.getTheme().getTokenStyleMetadata(semanticClasssification.type, semanticClasssification.modifiers);
-				if (metadata) {
-					semanticMetadata = this._decodeMetadata(metadata);
-				}
-			}
-		}
-
 
 		let result = '';
-
-		let tokenStartIndex = data.tokens1[token1Index].startIndex;
-		let tokenEndIndex = data.tokens1[token1Index].endIndex;
-		let tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
 		result += `<h2 class="tiw-token">${renderTokenText(tokenText)}<span class="tiw-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
-
 		result += `<hr class="tiw-metadata-separator" style="clear:both"/>`;
 
-		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 		result += `<table class="tiw-metadata-table"><tbody>`;
 		result += `<tr><td class="tiw-metadata-key">language</td><td class="tiw-metadata-value">${escape(metadata.languageIdentifier.language)}</td></tr>`;
 		result += `<tr><td class="tiw-metadata-key">standard token type</td><td class="tiw-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td></tr>`;
-		if (semanticClasssification) {
-			result += `<tr><td class="tiw-metadata-key">semantic token type</td><td class="tiw-metadata-value">${semanticClasssification.type}</td></tr>`;
-
-			const modifiers = semanticClasssification.modifiers.join(' ') || '-';
+		if (semanticTokenInfo) {
+			result += `<tr><td class="tiw-metadata-key">semantic token type</td><td class="tiw-metadata-value">${semanticTokenInfo.type}</td></tr>`;
+			const modifiers = semanticTokenInfo.modifiers.join(' ') || '-';
 			result += `<tr><td class="tiw-metadata-key">semantic token modifiers</td><td class="tiw-metadata-value">${modifiers}</td></tr>`;
 		}
 		result += `</tbody></table>`;
 
 		result += `<hr class="tiw-metadata-separator"/>`;
 		result += `<table class="tiw-metadata-table"><tbody>`;
-		result += this._formatMetadata(metadata, semanticMetadata);
+		result += this._formatMetadata(metadata, primary);
 		result += `</tbody></table>`;
 
-		let theme = this._themeService.getColorTheme();
-		result += `<hr class="tiw-metadata-separator"/>`;
-		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes, false);
-		if (matchingRule) {
-			result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
-		} else {
-			result += `<span class="tiw-theme-selector">No theme selector.</span>`;
-		}
+		if (textMateTokenInfo) {
+			let theme = this._themeService.getColorTheme();
+			result += `<hr class="tiw-metadata-separator"/>`;
+			let matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
+			if (matchingRule) {
+				result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+			} else {
+				result += `<span class="tiw-theme-selector">No theme selector.</span>`;
+			}
 
-		result += `<ul>`;
-		for (let i = data.tokens1[token1Index].scopes.length - 1; i >= 0; i--) {
-			result += `<li>${escape(data.tokens1[token1Index].scopes[i])}</li>`;
+			result += `<ul>`;
+			for (let i = textMateTokenInfo.token.scopes.length - 1; i >= 0; i--) {
+				result += `<li>${escape(textMateTokenInfo.token.scopes[i])}</li>`;
+			}
+			result += `</ul>`;
 		}
-		result += `</ul>`;
-
-		this._domNode.innerHTML = result;
-		this._editor.layoutContentWidget(this);
+		return result;
 	}
 
 	private _formatMetadata(metadata: IDecodedMetadata, master?: IDecodedMetadata) {
@@ -381,17 +366,33 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return r;
 	}
 
-	private _getTokensAtLine(grammar: IGrammar, lineNumber: number): ICompleteLineTokenization {
+	private _getTokensAtPosition(grammar: IGrammar, position: Position): ITextMateTokenInfo {
+		const lineNumber = position.lineNumber;
 		let stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
 
 		let tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
 		let tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
 
+		let token1Index = 0;
+		for (let i = tokenizationResult1.tokens.length - 1; i >= 0; i--) {
+			let t = tokenizationResult1.tokens[i];
+			if (position.column - 1 >= t.startIndex) {
+				token1Index = i;
+				break;
+			}
+		}
+
+		let token2Index = 0;
+		for (let i = (tokenizationResult2.tokens.length >>> 1); i >= 0; i--) {
+			if (position.column - 1 >= tokenizationResult2.tokens[(i << 1)]) {
+				token2Index = i;
+				break;
+			}
+		}
+
 		return {
-			startState: stateBeforeLine,
-			tokens1: tokenizationResult1.tokens,
-			tokens2: tokenizationResult2.tokens,
-			endState: tokenizationResult1.ruleStack
+			token: tokenizationResult1.tokens[token1Index],
+			metadata: this._decodeMetadata(tokenizationResult2.tokens[(token2Index << 1) + 1])
 		};
 	}
 
@@ -422,7 +423,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): { type: string, modifiers: string[] } | null {
+	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): ISemanticTokenInfo | null {
 		const tokenData = semanticTokens.tokens.data;
 		let lastLine = 0;
 		let lastCharacter = 0;
@@ -432,10 +433,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const line = lastLine + lineDelta; // 0-based
 			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
 			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
-				return {
-					type: semanticTokens.legend.tokenTypes[typeIdx],
-					modifiers: semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k)
-				};
+				const type = semanticTokens.legend.tokenTypes[typeIdx];
+				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
+				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
+				const metadata = this._decodeMetadata(this._themeService.getTheme().getTokenStyleMetadata(type, modifiers) || 0);
+				return { type, modifiers, range, metadata };
 			}
 			lastLine = line;
 			lastCharacter = character;

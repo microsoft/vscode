@@ -23,6 +23,8 @@ import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
+const knownTsTriggerCharacters = new Set<string>(['.', '"', '\'', '`', '/', '@', '<']);
+
 interface DotAccessorContext {
 	readonly range: vscode.Range;
 	readonly text: string;
@@ -331,7 +333,7 @@ namespace CompletionConfiguration {
 
 class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -466,6 +468,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return undefined;
 		}
 
+		if (context.triggerCharacter && !knownTsTriggerCharacters.has(context.triggerCharacter)) {
+			return undefined;
+		}
+
 		return context.triggerCharacter as Proto.CompletionsTriggerCharacter;
 	}
 
@@ -512,7 +518,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 		item.additionalTextEdits = codeAction.additionalTextEdits;
 
-		if (detail && item.useCodeSnippet) {
+		if (item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
 			if (shouldCompleteFunction) {
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);

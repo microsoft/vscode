@@ -309,7 +309,7 @@ class DropOverlay extends Themable {
 
 								// Open as untitled file with the provided contents
 								const contents = VSBuffer.wrap(new Uint8Array(event.target.result)).toString();
-								const untitledEditor = this.textFileService.untitled.create({ resource: proposedFilePath, initialValue: contents });
+								const untitledEditor = this.textFileService.untitled.create({ associatedResource: proposedFilePath, initialValue: contents });
 
 								if (!targetGroup) {
 									targetGroup = ensureTargetGroup();

@@ -322,8 +322,15 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	public async createGrammar(modeId: string): Promise<IGrammar | null> {
+		const languageId = this._modeService.getLanguageIdentifier(modeId);
+		if (!languageId) {
+			return null;
+		}
 		const grammarFactory = await this._getOrCreateGrammarFactory();
-		const { grammar } = await grammarFactory.createGrammar(this._modeService.getLanguageIdentifier(modeId)!.id);
+		if (!grammarFactory.has(languageId.id)) {
+			return null;
+		}
+		const { grammar } = await grammarFactory.createGrammar(languageId.id);
 		return grammar;
 	}
 

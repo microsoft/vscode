@@ -278,13 +278,18 @@ abstract class HelpItemBase implements IHelpItem {
 
 	async handleClick() {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (remoteAuthority && startsWith(remoteAuthority, this.remoteExplorerService.targetType)) {
-			for (let value of this.values) {
-				if (value.remoteAuthority) {
-					for (let authority of value.remoteAuthority) {
-						if (startsWith(remoteAuthority, authority)) {
-							await this.takeAction(value.extensionDescription, value.url);
-							return;
+		if (!remoteAuthority) {
+			return;
+		}
+		for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
+			if (startsWith(remoteAuthority, this.remoteExplorerService.targetType[i])) {
+				for (let value of this.values) {
+					if (value.remoteAuthority) {
+						for (let authority of value.remoteAuthority) {
+							if (startsWith(remoteAuthority, authority)) {
+								await this.takeAction(value.extensionDescription, value.url);
+								return;
+							}
 						}
 					}
 				}
@@ -411,6 +416,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
+	readonly group = 'help@50';
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
@@ -539,6 +545,11 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 
 				if (matches) {
 					return -500;
+				}
+
+				matches = /^help(@(\d+))?$/.exec(group);
+				if (matches) {
+					return -10;
 				}
 
 				return;

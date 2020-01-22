@@ -211,16 +211,15 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}, err => {
-			return this._doCreateUntitled(uri).then(resource => !!resource);
+			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined).then(resource => !!resource);
 		});
 	}
 
-	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
+	private _doCreateUntitled(associatedResource?: URI, mode?: string, initialValue?: string): Promise<URI> {
 		return this._textFileService.untitled.resolve({
-			resource,
+			associatedResource,
 			mode,
-			initialValue,
-			useResourcePath: Boolean(resource && resource.path)
+			initialValue
 		}).then(model => {
 			const resource = model.resource;
 

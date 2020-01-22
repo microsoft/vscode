@@ -30,7 +30,7 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -64,7 +64,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	//#endregion
 
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onMenubarVisibilityChange: Event<boolean> = this._onMenubarVisibilityChange.event;
+	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
 	_serviceBrand: undefined;
 

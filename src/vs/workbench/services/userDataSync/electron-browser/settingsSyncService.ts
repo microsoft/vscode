@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, ISettingsSyncService, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, ISettingsSyncService, IConflictSetting, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,6 +15,8 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 	_serviceBrand: undefined;
 
 	private readonly channel: IChannel;
+
+	readonly source = SyncSource.Settings;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }
@@ -79,6 +81,10 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 
 	resolveConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		return this.channel.call('resolveConflicts', [conflicts]);
+	}
+
+	getRemoteContent(): Promise<string | null> {
+		return this.channel.call('getRemoteContent');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {
