@@ -14,10 +14,6 @@
 	width: 430px;
 }
 
-.monaco-editor .suggest-widget.wide {
-	width: 600px;
-}
-
 .monaco-editor .suggest-widget > .message,
 .monaco-editor .suggest-widget > .tree,
 .monaco-editor .suggest-widget > .details {
@@ -144,9 +140,13 @@
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label {
-	margin-left: .5rem;
-	opacity: 0.5;
+	margin-left: 4px;
+	opacity: 0.4;
 	font-size: 90%;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	line-height: 17px;
+	align-self: center;
 }
 
 /** Type Info and icon next to the label in the focused completion item **/
@@ -185,10 +185,18 @@
 	width: calc(100% - 26px);
 }
 
-/** ReadMore: show on hover **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left {
+	flex-shrink: 1;
+	overflow: hidden;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .monaco-icon-label {
+	flex-shrink: 0;
+}
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
 	overflow: hidden;
 	margin-left: 16px;
+	flex-shrink: 0;
+	max-width: 45%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {

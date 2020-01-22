@@ -237,6 +237,8 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
+			data.signatureLabel.textContent = '';
+			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 			removeClass(data.right, 'always-show-details');
 		} else {
