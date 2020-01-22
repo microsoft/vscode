@@ -406,7 +406,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
-				if (resource.scheme === 'gitfs') {
+				if (resource.scheme === 'git') {
 					return;
 				}
 

@@ -66,6 +66,7 @@ import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationW
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -731,7 +732,9 @@ export class RepositoryPane extends ViewPane {
 			])
 		};
 
-		this.inputEditor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
+		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
+		const instantiationService = this.instantiationService.createChild(services);
+		this.inputEditor = instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
 
 		this._register(this.inputEditor);
 
@@ -750,7 +753,7 @@ export class RepositoryPane extends ViewPane {
 			query
 		});
 
-		this.inputModel = this.modelService.createModel('', null, uri);
+		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
 		this.inputEditor.setModel(this.inputModel);
 
 		this.inputEditor.changeViewZones(accessor => {
@@ -764,6 +767,7 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.repository.input.onDidChange(value => this.inputModel.setValue(value)));
 
 		// Keep API in sync with model and update placeholder and validation
+		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
 		this.inputModel.onDidChangeContent(() => {
 			this.repository.input.value = this.inputModel.getValue();
 			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);

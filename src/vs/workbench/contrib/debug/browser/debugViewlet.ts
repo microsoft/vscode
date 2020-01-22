@@ -238,6 +238,6 @@ export class OpenDebugPanelAction extends TogglePanelAction {
 		@IPanelService panelService: IPanelService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, DEBUG_PANEL_ID, panelService, layoutService);
+		super(id, label, DEBUG_PANEL_ID, panelService, layoutService, 'codicon-repl');
 	}
 }

@@ -32,13 +32,14 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -391,6 +392,9 @@ class TunnelItem implements ITunnelItem {
 
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
 export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false);
+const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false);
+const TunnelViewSelectionKeyName = 'tunnelViewSelection';
+const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
 
 export class TunnelPanel extends ViewPane {
 	static readonly ID = '~remote.forwardedPorts';
@@ -398,6 +402,8 @@ export class TunnelPanel extends ViewPane {
 	private tree!: WorkbenchAsyncDataTree<any, any, any>;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
+	private tunnelViewFocusContext: IContextKey<boolean>;
+	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
 
 	private titleActions: IAction[] = [];
 	private readonly titleActionsDisposable = this._register(new MutableDisposable());
@@ -422,6 +428,8 @@ export class TunnelPanel extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
+		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
+		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
 		scopedContextKeyService.createKey('view', TunnelPanel.ID);
@@ -473,6 +481,9 @@ export class TunnelPanel extends ViewPane {
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e, actionRunner)));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
+		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this._register(this.tree.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
+		this._register(this.tree.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
 
 		this.tree.setInput(this.viewModel);
 		this._register(this.viewModel.onForwardedPortsChanged(() => {
@@ -517,6 +528,19 @@ export class TunnelPanel extends ViewPane {
 	focus(): void {
 		super.focus();
 		this.tree.domFocus();
+	}
+
+	private onFocusChanged(elements: ITunnelItem[]) {
+		const item = elements && elements.length ? elements[0] : undefined;
+		if (item) {
+			this.tunnelViewSelectionContext.set(item);
+			this.tunnelTypeContext.set(item.tunnelType);
+			this.tunnelCloseableContext.set(!!item.closeable);
+		} else {
+			this.tunnelTypeContext.reset();
+			this.tunnelViewSelectionContext.reset();
+			this.tunnelCloseableContext.reset();
+		}
 	}
 
 	private onContextMenu(treeEvent: ITreeContextMenuEvent<ITunnelItem | ITunnelGroup>, actionRunner: ActionRunner): void {
@@ -598,18 +622,19 @@ namespace LabelTunnelAction {
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			if (context instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				remoteExplorerService.setEditable(arg, {
+				remoteExplorerService.setEditable(context, {
 					onFinish: (value, success) => {
 						if (success) {
-							remoteExplorerService.tunnelModel.name(arg.remoteHost, arg.remotePort, value);
+							remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 						}
-						remoteExplorerService.setEditable(arg, null);
+						remoteExplorerService.setEditable(context, null);
 					},
 					validationMessage: () => null,
 					placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
-					startingValue: arg.name
+					startingValue: context.name
 				});
 			}
 			return;
@@ -685,7 +710,6 @@ namespace ForwardPortAction {
 	}
 }
 
-
 interface QuickPickTunnel extends IQuickPickItem {
 	tunnel?: ITunnelItem
 }
@@ -714,9 +738,10 @@ namespace ClosePortAction {
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			if (context instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
+				await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
 			}
 		};
 	}
@@ -774,8 +799,9 @@ namespace CopyAddressAction {
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
-				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), arg);
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			if (context instanceof TunnelItem) {
+				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), context);
 			}
 		};
 	}
@@ -810,13 +836,38 @@ namespace RefreshTunnelViewAction {
 	}
 }
 
-CommandsRegistry.registerCommand(LabelTunnelAction.ID, LabelTunnelAction.handler());
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: LabelTunnelAction.ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)),
+	primary: KeyCode.F2,
+	mac: {
+		primary: KeyCode.Enter
+	},
+	handler: LabelTunnelAction.handler()
+});
 CommandsRegistry.registerCommand(ForwardPortAction.INLINE_ID, ForwardPortAction.inlineHandler());
 CommandsRegistry.registerCommand(ForwardPortAction.COMMANDPALETTE_ID, ForwardPortAction.commandPaletteHandler());
-CommandsRegistry.registerCommand(ClosePortAction.INLINE_ID, ClosePortAction.inlineHandler());
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: ClosePortAction.INLINE_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(TunnelCloseableContextKey, TunnelViewFocusContextKey),
+	primary: KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace
+	},
+	handler: ClosePortAction.inlineHandler()
+});
+
 CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
-CommandsRegistry.registerCommand(CopyAddressAction.INLINE_ID, CopyAddressAction.inlineHandler());
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CopyAddressAction.INLINE_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.or(ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)), ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Detected))),
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+	handler: CopyAddressAction.inlineHandler()
+});
 CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(RefreshTunnelViewAction.ID, RefreshTunnelViewAction.handler());
 

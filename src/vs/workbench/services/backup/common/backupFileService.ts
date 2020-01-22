@@ -278,9 +278,18 @@ class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 	}
 
 	async discardAllBackups(): Promise<void> {
-		const model = await this.ready;
 
+		// Discard each backup and clear model
+		// We go through the doDiscardBackup()
+		// method to benefit from the IO queue
+		const model = await this.ready;
 		await Promise.all(model.get().map(backupResource => this.doDiscardBackup(backupResource)));
+		model.clear();
+
+		// Delete the backup home for this workspace
+		// It will automatically be populated again
+		// once another backup is made
+		await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
 	}
 
 	private async deleteIgnoreFileNotFound(resource: URI): Promise<void> {
