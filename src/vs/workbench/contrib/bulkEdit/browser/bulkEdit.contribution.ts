@@ -257,10 +257,10 @@ registerAction2(class GroupByFile extends Action2 {
 				light: getUriFromAmdModule(require, './media/ref-ungroup-by-type-light.svg'),
 				dark: getUriFromAmdModule(require, './media/ref-ungroup-by-type-dark.svg')
 			},
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
-				when: BulkEditPane.ctxGroupByFile.negate(),
+				when: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate()),
 				group: 'navigation',
 				order: 3,
 			}]
@@ -287,10 +287,10 @@ registerAction2(class GroupByType extends Action2 {
 				light: getUriFromAmdModule(require, './media/ref-group-by-type-light.svg'),
 				dark: getUriFromAmdModule(require, './media/ref-group-by-type-dark.svg')
 			},
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
-				when: BulkEditPane.ctxGroupByFile,
+				when: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile),
 				group: 'navigation',
 				order: 3
 			}]
@@ -315,7 +315,7 @@ registerAction2(class ToggleGrouping extends Action2 {
 			category: localize('cat', "Refactor Preview"),
 			icon: { id: 'codicon/list-tree' },
 			toggled: BulkEditPane.ctxGroupByFile.negate(),
-			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled),
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditContext,
 				order: 3
