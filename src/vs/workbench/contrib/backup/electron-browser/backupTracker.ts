@@ -10,8 +10,8 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ConfirmResult, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ConfirmResult, IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -28,7 +28,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IElectronService private readonly electronService: IElectronService,
 		@ILogService logService: ILogService
@@ -77,12 +77,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			}
 		}
 
-		if (!didBackup) {
+		if (!backupError && !didBackup) {
 			try {
 				// since a backup did not happen, we have to confirm for the dirty working copies now
 				return await this.confirmBeforeShutdown();
 			} catch (error) {
-				this.notificationService.error(localize('backupTrackerConfirmFailed', "Working copies that are dirty could not be saved or reverted (Error: {0}). Try saving your editors first and then exit.", error.message));
+				this.showErrorDialog(localize('backupTrackerConfirmFailed', "Editors that are dirty could not be saved or reverted."), error);
 
 				return true; // veto (save or revert failed)
 			}
@@ -92,15 +92,21 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			// we ran a backup and this either failed or there are
 			// some remaining dirty working copies without backup
 			if (backupError) {
-				this.notificationService.error(localize('backupTrackerBackupFailed', "Working copies that are dirty could not be written to the backup location (Error: {0}). Try saving your editors first and then exit.", backupError.message));
+				this.showErrorDialog(localize('backupTrackerBackupFailed', "Editors that are dirty could not be saved to the backup location."), backupError);
 			} else {
-				this.notificationService.error(localize('backupTrackerBackupIncomplete', "Some working copies that are dirty could not be backed up. Try saving your editors first and then exit."));
+				this.showErrorDialog(localize('backupTrackerBackupIncomplete', "Some dirty editors could not be saved to the backup location."));
 			}
 
 			return true; // veto (the backups failed)
 		}
 
 		return this.noVeto({ dicardAllBackups: false }); // no veto (backup was successful)
+	}
+
+	private showErrorDialog(msg: string, error?: Error): void {
+		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail: localize('backupErrorDetails', "Try saving your editors first and then try again.") });
+
+		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
 	private async backupBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
