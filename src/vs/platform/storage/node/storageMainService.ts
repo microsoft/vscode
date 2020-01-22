@@ -83,9 +83,11 @@ export interface IStorageChangeEvent {
 	key: string;
 }
 
-export abstract class AbstractStorageMainService extends Disposable implements IStorageMainService {
+export class StorageMainService extends Disposable implements IStorageMainService {
 
 	_serviceBrand: undefined;
+
+	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -96,13 +98,32 @@ export abstract class AbstractStorageMainService extends Disposable implements I
 	get items(): Map<string, string> { return this.storage.items; }
 
 	private storage: IStorage;
+
 	private initializePromise: Promise<void> | undefined;
 
-	constructor() {
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
+	) {
 		super();
 
 		// Until the storage has been initialized, it can only be in memory
 		this.storage = new Storage(new InMemoryStorageDatabase());
+	}
+
+	private get storagePath(): string {
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
+		}
+
+		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
+	}
+
+	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+		return {
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
+		};
 	}
 
 	initialize(): Promise<void> {
@@ -113,9 +134,12 @@ export abstract class AbstractStorageMainService extends Disposable implements I
 		return this.initializePromise;
 	}
 
-	private async doInitialize(): Promise<void> {
+	private doInitialize(): Promise<void> {
 		this.storage.dispose();
-		this.storage = this.createStorage();
+		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
+			logging: this.createLogginOptions()
+		}));
+
 		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
 		return this.storage.init();
@@ -154,40 +178,5 @@ export abstract class AbstractStorageMainService extends Disposable implements I
 
 		// Do it
 		return this.storage.close();
-	}
-
-	protected abstract createStorage(): IStorage;
-}
-
-export class StorageMainService extends AbstractStorageMainService implements IStorageMainService {
-
-	private static readonly STORAGE_NAME = 'state.vscdb';
-
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-	) {
-		super();
-	}
-
-	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsLocationURI) {
-			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
-		}
-
-		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
-	}
-
-	protected createStorage(): IStorage {
-		return new Storage(new SQLiteStorageDatabase(this.storagePath, {
-			logging: this.createLogginOptions()
-		}));
-	}
-
-	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => this.logService.error(error)
-		};
 	}
 }
