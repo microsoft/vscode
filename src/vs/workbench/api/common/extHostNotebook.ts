@@ -302,7 +302,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			// return provider.provider.executeNotebook(uri);
+			let document = this._documents.get(URI.revive(uri).toString());
+
+			return provider.provider.executeCell(document!, undefined);
 		}
 	}
 
