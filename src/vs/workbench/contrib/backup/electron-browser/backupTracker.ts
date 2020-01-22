@@ -54,7 +54,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 						return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
 					}
 
-					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since there are no dirty working copies)
+					return this.noVeto({ dicardAllBackups: false }); // no veto and no backup cleanup (since there are no dirty working copies)
 				});
 			}
 
@@ -63,7 +63,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		}
 
 		// No dirty working copies: no veto
-		return this.noVeto({ cleanUpBackups: true });
+		return this.noVeto({ dicardAllBackups: true });
 	}
 
 	private handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): boolean | Promise<boolean> {
@@ -72,7 +72,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		if (this.filesConfigurationService.isHotExitEnabled) {
 			return this.backupBeforeShutdown(workingCopies, reason).then(didBackup => {
 				if (didBackup) {
-					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
+					return this.noVeto({ dicardAllBackups: false }); // no veto and no backup cleanup (since backup was successful)
 				}
 
 				// since a backup did not happen, we have to confirm for the dirty working copies now
@@ -151,7 +151,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				return true; // veto if any save failed
 			}
 
-			return this.noVeto({ cleanUpBackups: true });
+			return this.noVeto({ dicardAllBackups: true });
 		}
 
 		// Don't Save
@@ -161,7 +161,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			// see https://github.com/Microsoft/vscode/issues/29572
 			await this.doRevertAll(dirtyWorkingCopies, { soft: true } /* soft revert is good enough on shutdown */);
 
-			return this.noVeto({ cleanUpBackups: true });
+			return this.noVeto({ dicardAllBackups: true });
 		}
 
 		// Cancel
@@ -186,19 +186,17 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		return Promise.all(workingCopies.map(workingCopy => workingCopy.revert(options)));
 	}
 
-	private noVeto(options: { cleanUpBackups: boolean }): boolean | Promise<boolean> {
-		if (!options.cleanUpBackups) {
-			return false;
-		}
+	private noVeto(options: { dicardAllBackups: boolean }): boolean | Promise<boolean> {
+		let dicardAllBackups = options.dicardAllBackups;
 
 		if (this.lifecycleService.phase < LifecyclePhase.Restored) {
-			return false; // if editors have not restored, we are not up to speed with backups and thus should not clean them
+			dicardAllBackups = false; // if editors have not restored, we are not up to speed with backups and thus should not discard them
 		}
 
 		if (this.environmentService.isExtensionDevelopment) {
-			return false; // extension development does not track any backups
+			dicardAllBackups = false; // extension development does not track any backups
 		}
 
-		return this.backupFileService.discardBackups().then(() => false, () => false);
+		return this.backupFileService.shutdown({ dicardAllBackups }).then(() => false, () => false);
 	}
 }

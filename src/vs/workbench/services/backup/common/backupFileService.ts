@@ -28,6 +28,7 @@ export interface IBackupFilesModel {
 	get(): URI[];
 	remove(resource: URI): void;
 	count(): number;
+
 	clear(): void;
 }
 
@@ -37,7 +38,8 @@ interface IBackupCacheEntry {
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
-	private cache: ResourceMap<IBackupCacheEntry> = new ResourceMap();
+
+	private readonly cache = new ResourceMap<IBackupCacheEntry>();
 
 	constructor(private fileService: IFileService) { }
 
@@ -160,8 +162,8 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.discardBackup(resource);
 	}
 
-	discardBackups(): Promise<void> {
-		return this.impl.discardBackups();
+	shutdown(options?: { dicardAllBackups: boolean }): Promise<void> {
+		return this.impl.shutdown(options);
 	}
 
 	getBackups(): Promise<URI[]> {
@@ -187,8 +189,8 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 	private backupWorkspacePath!: URI;
 
-	private isShuttingDown: boolean;
-	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
+	private readonly ioOperationQueues = new ResourceQueue(); // queue IO operations to ensure write order
+	private isShutdown = false; // a flag to set indicating that we no longer backup any resources
 
 	private ready!: Promise<IBackupFilesModel>;
 	private model!: IBackupFilesModel;
@@ -198,9 +200,6 @@ class BackupFileServiceImpl implements IBackupFileService {
 		private readonly hashPath: (resource: URI) => string,
 		@IFileService private readonly fileService: IFileService
 	) {
-		this.isShuttingDown = false;
-		this.ioOperationQueues = new ResourceQueue();
-
 		this.initialize(backupWorkspaceResource);
 	}
 
@@ -229,7 +228,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		if (this.isShuttingDown) {
+		if (this.isShutdown) {
 			return;
 		}
 
@@ -265,27 +264,39 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	async discardBackup(resource: URI): Promise<void> {
+		if (this.isShutdown) {
+			return;
+		}
+
 		const model = await this.ready;
 		const backupResource = this.toBackupResource(resource);
 
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			await this.doDiscardResource(backupResource);
+			await this.deleteIgnoreFileNotFound(backupResource);
 
 			model.remove(backupResource);
 		});
 	}
 
-	async discardBackups(): Promise<void> {
-		this.isShuttingDown = true;
+	async shutdown(options?: { dicardAllBackups: boolean }): Promise<void> {
 
-		const model = await this.ready;
+		// Signal that no more backups should happen from this point
+		this.isShutdown = true;
+		this.ioOperationQueues.dispose();
 
-		await this.doDiscardResource(this.backupWorkspacePath);
+		// Optionally discard backups
+		if (options?.dicardAllBackups) {
 
-		model.clear();
+			// Clear model
+			const model = await this.ready;
+			model.clear();
+
+			// Delete the backup home for this workspace
+			await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
+		}
 	}
 
-	private async doDiscardResource(resource: URI): Promise<void> {
+	private async deleteIgnoreFileNotFound(resource: URI): Promise<void> {
 		try {
 			await this.fileService.del(resource, { recursive: true });
 		} catch (error) {
@@ -436,7 +447,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		this.backups.delete(this.toBackupResource(resource).toString());
 	}
 
-	async discardBackups(): Promise<void> {
+	async shutdown(options?: { dicardAllBackups: boolean }): Promise<void> {
 		this.backups.clear();
 	}
 
