@@ -292,6 +292,7 @@ suite('BackupFileService', () => {
 			await service.discardAllBackups();
 			assert.equal(fs.existsSync(fooBackupPath), false);
 			assert.equal(fs.existsSync(barBackupPath), false);
+			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
 		});
 
 		test('untitled file', async () => {
@@ -299,6 +300,7 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			await service.discardAllBackups();
 			assert.equal(fs.existsSync(untitledBackupPath), false);
+			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
 		});
 	});
 
