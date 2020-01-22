@@ -30,6 +30,7 @@
 	line-height: inherit;
 	font-size: 110%;
 	vertical-align: inherit;
+	color: currentColor !important;
 }
 
 .monaco-editor .codelens-decoration > a:hover .codicon::before {
