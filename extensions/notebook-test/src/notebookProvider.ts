@@ -97,6 +97,7 @@ export class JupyterNotebook {
 			return managedCell;
 		}));
 
+		editor.document.languages = ['javascript'];
 		editor.document.cells = cells;
 	}
 
