@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
@@ -22,7 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
 const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
 
-export class ExtensionEnablementService extends Disposable implements IExtensionEnablementService {
+export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
 	_serviceBrand: undefined;
 
@@ -378,4 +378,4 @@ class StorageManager extends Disposable {
 	}
 }
 
-registerSingleton(IExtensionEnablementService, ExtensionEnablementService, true);
+registerSingleton(IWorkbenchExtensionEnablementService, ExtensionEnablementService, true);
