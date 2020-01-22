@@ -33,6 +33,8 @@ export interface TimelineItemWithSource extends TimelineItem {
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
+	onDidChange?: Event<URI | undefined>;
+
 	provideTimeline(uri: URI, since: number, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
@@ -48,6 +50,8 @@ export interface ITimelineService {
 	readonly _serviceBrand: undefined;
 
 	onDidChangeProviders: Event<void>;
+	onDidChangeTimeline: Event<URI | undefined>;
+
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(source: string): void;
 

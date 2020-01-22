@@ -14,7 +14,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { WorkbenchObjectTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -62,16 +62,31 @@ export class TimelinePane extends ViewPane {
 			uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		}
 
+		console.log(`TimelinePane.onActiveEditorChanged: uri=${uri?.toString(true)}`);
+
 		this.updateUri(uri);
 	}
 
 	private onProvidersChanged() {
+		console.log(`TimelinePane.onProvidersChanged`);
+
 		this.refresh();
+	}
+
+	private onTimelineChanged(uri: URI | undefined) {
+		console.log(`TimelinePane.onTimelineChanged: uri=${uri?.toString(true)} this._uri=${this._uri?.toString(true)}`);
+
+		// eslint-disable-next-line eqeqeq
+		if (uri == null || uri.toString(true) !== this._uri?.toString(true)) {
+			this.refresh();
+		}
 	}
 
 	private async refresh() {
 		this._tokenSource?.cancel();
 		this._tokenSource = new CancellationTokenSource();
+
+		console.log(`TimelinePane.refresh: uri=${this._uri?.toString(true)}`);
 
 		// TODO: Deal with no uri -- use a view title? or keep the last one cached?
 		// TODO: Deal with no items -- use a view title?
@@ -89,9 +104,12 @@ export class TimelinePane extends ViewPane {
 
 	private updateUri(uri: URI | undefined) {
 		if (uri?.toString(true) === this._uri?.toString(true)) {
+			console.log(`TimelinePane.updateUri(same): uri=${uri?.toString(true)}`);
+
 			return;
 		}
 
+		console.log(`TimelinePane.updateUri: uri=${uri?.toString(true)}`);
 		this._uri = uri;
 		this.refresh();
 	}
@@ -102,12 +120,15 @@ export class TimelinePane extends ViewPane {
 	}
 
 	setVisible(visible: boolean): void {
+		console.log(`TimelinePane.setVisible: visible=${visible}`);
+
 		if (visible) {
 			this._visibilityDisposables = new DisposableStore();
 
 			this.timelineService.onDidChangeProviders(this.onProvidersChanged, this, this._visibilityDisposables);
-
+			this.timelineService.onDidChangeTimeline(this.onTimelineChanged, this, this._visibilityDisposables);
 			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._visibilityDisposables);
+
 			this.onActiveEditorChanged();
 		} else {
 			this._visibilityDisposables?.dispose();

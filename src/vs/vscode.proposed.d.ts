@@ -1549,7 +1549,7 @@ declare module 'vscode' {
 		// onDidAdd?: Event<TimelimeAddEvent>;
 		// onDidChange?: Event<TimelimeChangeEvent>;
 
-		onDidChange?: Event<void>;
+		onDidChange?: Event<Uri | undefined>;
 
 		/**
 		 * An identifier of the source of the timeline items. This can be used for filtering and/or overriding existing sources.

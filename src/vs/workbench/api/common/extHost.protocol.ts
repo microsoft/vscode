@@ -801,8 +801,9 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
+	$emitTimelineChangeEvent(source: string, uri: UriComponents | undefined): void;
 
-	$getTimeline(resource: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(uri: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // -- extension host
