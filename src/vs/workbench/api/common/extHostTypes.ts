@@ -1358,8 +1358,8 @@ export enum CompletionItemTag {
 
 export interface CompletionItemLabel {
 	name: string;
-	// signature?: string; // parameters
-	// qualifier?: string;
+	signature?: string;
+	qualifier?: string;
 	type?: string;
 }
 

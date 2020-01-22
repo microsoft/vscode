@@ -1386,18 +1386,24 @@ declare module 'vscode' {
 	}
 
 	export interface CompletionItemLabel {
-
 		/**
 		 * The function or variable
 		 */
 		name: string;
 
-		// The signature, without the return type. is render directly after `name`
-		// signature?: string; // parameters
-		// The fully qualified name, like package name, file path etc
-		// qualifier?: string;
+		/**
+		 * The signature, without the return type. is render directly after `name`
+		 */
+		signature?: string;
 
-		// The return-type of a function or type of a property, variable etc
+		/**
+		 * The fully qualified name, like package name, file path etc
+		 */
+		qualifier?: string;
+
+		/**
+		 * The return-type of a function or type of a property, variable etc
+		 */
 		type?: string;
 	}
 

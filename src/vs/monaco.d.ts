@@ -5199,11 +5199,19 @@ declare namespace monaco.languages {
 
 	export interface CompletionItemLabel {
 		/**
-		 * The name of this completion item's label.
+		 * The function or variable
 		 */
 		name: string;
 		/**
-		 * The return-type of a function or type of a property, variable
+		 * The signature, without the return type. is render directly after `name`
+		 */
+		signature?: string;
+		/**
+		 * The fully qualified name, like package name, file path etc
+		 */
+		qualifier?: string;
+		/**
+		 * The return-type of a function or type of a property, variable etc
 		 */
 		type?: string;
 	}
