@@ -690,7 +690,8 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -700,6 +701,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 	private registerListeners(): void {
 		this._register(this.editor.onDidChangeModel(e => this.update()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('diffEditor.renderSideBySide'))(() => this.update()));
 	}
 
 	private update(): void {
@@ -717,15 +719,23 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			return false; // we need a model
 		}
 
-		if (isEqual(model.uri, this.environmentService.settingsSyncPreviewResource)) {
-			return true;
-		}
-
-		if (isEqual(model.uri, this.environmentService.keybindingsSyncPreviewResource)) {
+		if (this.isSyncPreviewResource(model.uri)) {
 			return true;
 		}
 
 		if (getSyncSourceFromRemoteContentResource(model.uri) !== undefined) {
+			return this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		}
+
+		return false;
+	}
+
+	private isSyncPreviewResource(uri: URI): boolean {
+		if (isEqual(uri, this.environmentService.settingsSyncPreviewResource)) {
+			return true;
+		}
+
+		if (isEqual(uri, this.environmentService.keybindingsSyncPreviewResource)) {
 			return true;
 		}
 
@@ -788,4 +798,3 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		super.dispose();
 	}
 }
-
