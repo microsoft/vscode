@@ -1198,7 +1198,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	shutdown(options?: { dicardAllBackups: boolean }): Promise<void> {
+	discardAllBackups(): Promise<void> {
 		return Promise.resolve();
 	}
 }

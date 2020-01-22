@@ -72,7 +72,7 @@ export class NodeTestBackupFileService extends BackupFileService {
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
-		this.didDiscardAllWorkspaceBackups = false;
+		this.didDiscardAllBackups = false;
 	}
 
 	joinBackupResource(): Promise<void> {
@@ -99,12 +99,12 @@ export class NodeTestBackupFileService extends BackupFileService {
 		}
 	}
 
-	didDiscardAllWorkspaceBackups: boolean;
+	didDiscardAllBackups: boolean;
 
-	shutdown(options?: { dicardAllBackups: boolean }): Promise<void> {
-		this.didDiscardAllWorkspaceBackups = !!options?.dicardAllBackups;
+	discardAllBackups(): Promise<void> {
+		this.didDiscardAllBackups = true;
 
-		return super.shutdown(options);
+		return super.discardAllBackups();
 	}
 }
 
@@ -283,30 +283,22 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('discardBackups', () => {
+	suite('discardAllBackups', () => {
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
-			await service.shutdown({ dicardAllBackups: true });
+			await service.discardAllBackups();
 			assert.equal(fs.existsSync(fooBackupPath), false);
 			assert.equal(fs.existsSync(barBackupPath), false);
-			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
 		});
 
 		test('untitled file', async () => {
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-			await service.shutdown({ dicardAllBackups: true });
+			await service.discardAllBackups();
 			assert.equal(fs.existsSync(untitledBackupPath), false);
-			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
-		});
-
-		test('should disable further backups', async () => {
-			await service.shutdown({ dicardAllBackups: true });
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
-			assert.equal(fs.existsSync(workspaceBackupPath), false);
 		});
 	});
 

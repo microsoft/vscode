@@ -279,13 +279,13 @@ suite('BackupTracker', () => {
 
 		let veto = event.value;
 		if (typeof veto === 'boolean') {
-			assert.ok(accessor.backupFileService.didDiscardAllWorkspaceBackups);
+			assert.ok(accessor.backupFileService.didDiscardAllBackups);
 			assert.ok(!veto);
 			return;
 		}
 
 		veto = await veto;
-		assert.ok(accessor.backupFileService.didDiscardAllWorkspaceBackups);
+		assert.ok(accessor.backupFileService.didDiscardAllBackups);
 		assert.ok(!veto);
 
 		part.dispose();
@@ -453,7 +453,7 @@ suite('BackupTracker', () => {
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			const veto = await (<Promise<boolean>>event.value);
-			assert.ok(!accessor.backupFileService.didDiscardAllWorkspaceBackups); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.ok(!accessor.backupFileService.didDiscardAllBackups); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.equal(veto, shouldVeto);
 
 			part.dispose();

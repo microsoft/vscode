@@ -66,7 +66,7 @@ export interface IBackupFileService {
 	discardBackup(resource: URI): Promise<void>;
 
 	/**
-	 * Shutdown the service and optionally discard any backups.
+	 * Discards all backups that exist.
 	 */
-	shutdown(options?: { dicardAllBackups: boolean }): Promise<void>;
+	discardAllBackups(): Promise<void>;
 }
