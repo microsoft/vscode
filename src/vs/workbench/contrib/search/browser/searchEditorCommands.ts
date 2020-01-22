@@ -256,7 +256,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async revert(options?: IRevertOptions) {
-		// TODO: this should actually revert the contents. But it needs to set dirst false.
+		// TODO: this should actually revert the contents. But it needs to set dirty false.
 		super.revert(options);
 		this.setDirty(false);
 		return true;
