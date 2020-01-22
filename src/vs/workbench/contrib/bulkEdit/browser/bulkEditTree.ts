@@ -323,7 +323,12 @@ class FileElementTemplate {
 	set(element: FileElement, score: FuzzyScore | undefined) {
 		this._localDisposables.clear();
 		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
-		this._checkbox.checked = element.edit.isChecked();
+
+		if (element.edit.type === BulkFileOperationType.TextEdit && element.edit.textEdits.every(edit => !edit.isChecked())) {
+			this._checkbox.checked = false;
+		} else {
+			this._checkbox.checked = element.edit.isChecked();
+		}
 
 		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
 			// rename: NEW NAME (old name)
@@ -407,8 +412,20 @@ class TextEditElementTemplate {
 
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => element.edit.updateChecked(this._checkbox.checked)));
-		this._checkbox.checked = element.edit.isChecked();
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
+			if (element.parent.edit.isChecked()) {
+				element.edit.updateChecked(this._checkbox.checked);
+			}
+		}));
+
+		if (element.parent.edit.isChecked()) {
+			this._checkbox.checked = element.edit.isChecked();
+			this._checkbox.disabled = false;
+		} else {
+			this._checkbox.checked = element.edit.isChecked();
+			this._checkbox.disabled = true;
+		}
+
 		dom.toggleClass(this._checkbox, 'disabled', !element.edit.parent.isChecked());
 
 		let value = '';

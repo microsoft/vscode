@@ -228,7 +228,9 @@ export class BulkEditPane extends ViewPane {
 
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
-		if (first instanceof FileElement || first instanceof TextEditElement) {
+		if (first instanceof FileElement) {
+			first.edit.updateChecked(!first.edit.isChecked());
+		} else if (first instanceof TextEditElement && first.parent.edit.isChecked()) {
 			first.edit.updateChecked(!first.edit.isChecked());
 		}
 	}
