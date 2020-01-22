@@ -66,6 +66,7 @@ import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationW
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -731,7 +732,9 @@ export class RepositoryPane extends ViewPane {
 			])
 		};
 
-		this.inputEditor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
+		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
+		const instantiationService = this.instantiationService.createChild(services);
+		this.inputEditor = instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
 
 		this._register(this.inputEditor);
 
