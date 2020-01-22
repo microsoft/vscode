@@ -799,8 +799,9 @@ namespace CopyAddressAction {
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
-				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), arg);
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			if (context instanceof TunnelItem) {
+				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), context);
 			}
 		};
 	}
@@ -860,7 +861,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
-CommandsRegistry.registerCommand(CopyAddressAction.INLINE_ID, CopyAddressAction.inlineHandler());
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CopyAddressAction.INLINE_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.or(ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)), ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Detected))),
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+	handler: CopyAddressAction.inlineHandler()
+});
 CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(RefreshTunnelViewAction.ID, RefreshTunnelViewAction.handler());
 
