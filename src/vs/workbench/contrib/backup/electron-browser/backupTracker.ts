@@ -16,7 +16,6 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -43,10 +42,10 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
 		if (dirtyWorkingCopies.length) {
 
-			// If auto save is enabled, save all working copies and then check again for dirty copies
-			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
+			// If auto save is enabled, save all non-untitled working copies
+			// and then check again for dirty copies
 			if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.doSaveAll(dirtyWorkingCopies, false /* not untitled */, { skipSaveParticipants: true }).then(() => {
+				return this.doSaveAllBeforeShutdown(dirtyWorkingCopies, false /* not untitled */).then(() => {
 
 					// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
 					const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
@@ -66,26 +65,38 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		return this.noVeto({ dicardAllBackups: true });
 	}
 
-	private handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): boolean | Promise<boolean> {
+	private async handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
+		let didBackup: boolean | undefined = undefined;
+		let backupError: Error | undefined = undefined;
 
-		// If hot exit is enabled, backup dirty working copies and allow to exit without confirmation
+		// Trigger backup if configured
 		if (this.filesConfigurationService.isHotExitEnabled) {
-			return this.backupBeforeShutdown(workingCopies, reason).then(didBackup => {
-				if (didBackup) {
-					return this.noVeto({ dicardAllBackups: false }); // no veto and no backup cleanup (since backup was successful)
-				}
-
-				// since a backup did not happen, we have to confirm for the dirty working copies now
-				return this.confirmBeforeShutdown();
-			}, error => {
-				this.notificationService.error(localize('backupTracker.failSave', "Working copies that are dirty could not be written to the backup location (Error: {0}). Try saving your editors first and then exit.", error.message));
-
-				return true; // veto, the backups failed
-			});
+			try {
+				didBackup = await this.backupBeforeShutdown(workingCopies, reason);
+			} catch (error) {
+				backupError = error;
+			}
 		}
 
-		// Otherwise just confirm from the user what to do with the dirty working copies
-		return this.confirmBeforeShutdown();
+		if (!didBackup) {
+			// since a backup did not happen, we have to confirm for the dirty working copies now
+			return this.confirmBeforeShutdown();
+		}
+
+		if (backupError || workingCopies.some(workingCopy => !this.backupFileService.hasBackupSync(workingCopy.resource, this.getContentVersion(workingCopy)))) {
+			// we ran a backup and this either failed or there are
+			// some remaining dirty working copies without backup
+			if (backupError) {
+				this.notificationService.error(localize('backupTrackerBackupFailed', "Working copies that are dirty could not be written to the backup location (Error: {0}). Try saving your editors first and then exit.", backupError.message));
+			} else {
+				this.notificationService.error(localize('backupTrackerBackupIncomplete', "Some working copies that are dirty could not be backed up. Try saving your editors first and then exit."));
+			}
+
+			return true; // veto, the backups failed
+		}
+
+		// no veto and no backup cleanup (since backup was successful)
+		return this.noVeto({ dicardAllBackups: false });
 	}
 
 	private async backupBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
@@ -128,7 +139,9 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false;
 		}
 
-		// Backup all working copies
+		// Backup all working copies. The backup file service is clever
+		// enough to not backup a dirty working copy again if there is
+		// already a backup for the given content version.
 		await Promise.all(workingCopies.map(async workingCopy => {
 			const backup = await workingCopy.backup();
 			return this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
@@ -145,21 +158,14 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
-			await this.doSaveAll(dirtyWorkingCopies, true /* includeUntitled */, { skipSaveParticipants: true });
-
-			if (this.workingCopyService.hasDirty) {
-				return true; // veto if any save failed
-			}
+			await this.doSaveAllBeforeShutdown(dirtyWorkingCopies, true /* includeUntitled */);
 
 			return this.noVeto({ dicardAllBackups: true });
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-
-			// Make sure to revert working copies so that they do not restore
-			// see https://github.com/Microsoft/vscode/issues/29572
-			await this.doRevertAll(dirtyWorkingCopies, { soft: true } /* soft revert is good enough on shutdown */);
+			await this.doRevertAllBeforeShutdown(dirtyWorkingCopies);
 
 			return this.noVeto({ dicardAllBackups: true });
 		}
@@ -172,18 +178,18 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		return false;
 	}
 
-	private doSaveAll(workingCopies: IWorkingCopy[], includeUntitled: boolean, options: ISaveOptions): Promise<boolean[]> {
+	private doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], includeUntitled: boolean): Promise<boolean[]> {
 		return Promise.all(workingCopies.map(async workingCopy => {
 			if (workingCopy.isDirty() && (includeUntitled || !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled))) {
-				return workingCopy.save(options);
+				return workingCopy.save({ skipSaveParticipants: true }); // skip save participants on shutdown for performance reasons
 			}
 
 			return false;
 		}));
 	}
 
-	private doRevertAll(workingCopies: IWorkingCopy[], options: IRevertOptions): Promise<boolean[]> {
-		return Promise.all(workingCopies.map(workingCopy => workingCopy.revert(options)));
+	private doRevertAllBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<boolean[]> {
+		return Promise.all(workingCopies.map(workingCopy => workingCopy.revert({ soft: true }))); // soft revert is good enough on shutdown
 	}
 
 	private noVeto(options: { dicardAllBackups: boolean }): boolean | Promise<boolean> {
