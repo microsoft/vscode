@@ -28,7 +28,7 @@ import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
@@ -383,7 +383,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const customTreeNavigator = new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false });
+		const customTreeNavigator = new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
 		this._register(customTreeNavigator);
 		this._register(customTreeNavigator.onDidOpenResource(e => {
 			if (!e.browserEvent) {

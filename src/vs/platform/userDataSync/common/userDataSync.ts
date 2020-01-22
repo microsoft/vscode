@@ -225,7 +225,6 @@ export interface IUserDataSyncUtilService {
 	updateConfigurationValue(key: string, value: any): Promise<void>;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
-	ignoreExtensionsToSync(extensionIdentifiers: IExtensionIdentifier[]): Promise<void>;
 }
 
 export const IUserDataAuthTokenService = createDecorator<IUserDataAuthTokenService>('IUserDataAuthTokenService');

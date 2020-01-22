@@ -10,7 +10,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -139,7 +139,7 @@ export class CommentsPanel extends Panel {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer));
 
-		const commentsNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
+		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(commentsNavigator.onDidOpenResource(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
 		}));

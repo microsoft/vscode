@@ -73,6 +73,12 @@ export class ConflictDetector {
 		this._disposables.add(fileService.onFileChanges(e => {
 			for (let change of e.changes) {
 
+				if (modelService.getModel(change.resource)) {
+					// ignore changes for which a model exists
+					// because we have a better check for models
+					continue;
+				}
+
 				// change
 				this._changes.set(change.resource, true);
 
@@ -83,7 +89,6 @@ export class ConflictDetector {
 				}
 			}
 		}));
-
 
 		// listen to model changes...?
 		const onDidChangeModel = (model: ITextModel) => {
