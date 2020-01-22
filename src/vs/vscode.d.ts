@@ -4256,7 +4256,7 @@ declare module 'vscode' {
 	 * `defaultLanguageValue` (if defined)
 	 * `globalLanguageValue` (if defined)
 	 * `workspaceLanguageValue` (if defined)
-	 * `workspaceLanguageValue` (if defined)
+	 * `workspaceFolderLanguageValue` (if defined)
 	 * ```
 	 * **Note:** Only `object` value types are merged and all other value types are overridden.
 	 *
