@@ -151,6 +151,8 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$onDidChangeSessions(id: string): void;
+	$getSessionsPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
+	$loginPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {

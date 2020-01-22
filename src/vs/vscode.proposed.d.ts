@@ -50,13 +50,7 @@ declare module 'vscode' {
 		export const onDidRegisterAuthenticationProvider: Event<string>;
 		export const onDidUnregisterAuthenticationProvider: Event<string>;
 
-		/**
-		 * Fires with the provider id that changed sessions.
-		 */
-		export const onDidChangeSessions: Event<string>;
-		export function login(providerId: string): Promise<Session>;
-		export function logout(providerId: string, accountId: string): Promise<void>;
-		export function getSessions(providerId: string): Promise<ReadonlyArray<Session>>;
+		export const providers: ReadonlyArray<AuthenticationProvider>;
 	}
 
 	//#endregion
