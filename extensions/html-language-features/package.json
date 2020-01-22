@@ -164,7 +164,7 @@
         "html.mirrorCursorOnMatchingTag": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.mirrorCursorOnMatchingTag%"
         },
         "html.trace.server": {
