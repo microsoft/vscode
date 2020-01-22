@@ -14,7 +14,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	vscode.authentication.registerAuthenticationProvider({
 		id: 'MSA',
-		displayName: 'Microsoft Account', // TODO localize
+		displayName: 'Microsoft',
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
 		login: async () => {

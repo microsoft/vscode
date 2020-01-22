@@ -148,7 +148,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string): void;
+	$registerAuthenticationProvider(id: string, displayName: string): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$onDidChangeSessions(id: string): void;
 	$getSessionsPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;

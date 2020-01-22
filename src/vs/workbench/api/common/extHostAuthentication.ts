@@ -82,7 +82,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._proxy.$onDidChangeSessions(provider.id);
 		});
 
-		this._proxy.$registerAuthenticationProvider(provider.id);
+		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);
 		this._onDidRegisterAuthenticationProvider.fire(provider.id);
 
 		return new Disposable(() => {

@@ -16,7 +16,8 @@ import Severity from 'vs/base/common/severity';
 export class MainThreadAuthenticationProvider {
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
-		public readonly id: string
+		public readonly id: string,
+		public readonly displayName: string
 	) { }
 
 	getSessions(): Promise<ReadonlyArray<modes.Session>> {
@@ -46,8 +47,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 	}
 
-	$registerAuthenticationProvider(id: string): void {
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id);
+	$registerAuthenticationProvider(id: string, displayName: string): void {
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
