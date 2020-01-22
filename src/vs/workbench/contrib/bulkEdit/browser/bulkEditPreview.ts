@@ -131,9 +131,23 @@ export class BulkFileOperations {
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		this.conflicts = instaService.createInstance(ConflictDetector, _bulkEdit);
+
+		// reflect checked-state for files in all categories the file occurs in
+		this._onDidChangeCheckedState.event(e => {
+			if (e instanceof BulkFileOperation && e.parent) {
+				for (let item of this.categories) {
+					for (let file of item.fileOperations) {
+						if (file.uri.toString() === e.uri.toString()) {
+							file.updateChecked(e.isChecked());
+						}
+					}
+				}
+			}
+		});
 	}
 
 	dispose(): void {
+		this._onDidChangeCheckedState.dispose();
 		this.conflicts.dispose();
 	}
 
