@@ -282,7 +282,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ok = false;
 			quickPick.customButton = true;
 			if (this.authenticationState.get() === AuthStatus.SignedIn) {
-				quickPick.description = localize('turn on sync detail', "Turn on to synchronize your following data across all your devices.");
 				quickPick.customLabel = localize('turn on', "Turn on");
 			} else {
 				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", this.userDataSyncStore!.account);
@@ -404,10 +403,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const result = await this.dialogService.confirm({
 			type: 'info',
 			message: localize('turn off sync confirmation', "Turn off Sync"),
-			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and more will no longer be synced."),
+			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
 			primaryButton: localize('turn off', "Turn off"),
 			checkbox: {
-				label: localize('turn off sync everywhere', "Turn off sync in all your devices and clear the data in cloud.")
+				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
 			}
 		});
 		if (result.confirmed) {
@@ -528,14 +527,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: turnOnSyncCommandId,
-				title: localize('global activity turn on sync', "Turn on sync...")
+				title: localize('global activity turn on sync', "Turn on Sync...")
 			},
 			when: turnOnSyncWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: turnOnSyncCommandId,
-				title: localize('turn on sync...', "Sync: Turn on sync...")
+				title: localize('turn on sync...', "Sync: Turn on Sync...")
 			},
 			when: turnOnSyncWhenContext,
 		});
@@ -547,7 +546,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: signInCommandId,
-				title: localize('global activity sign in', "Sign in to sync... (1)")
+				title: localize('global activity sign in', "Sign in to Sync... (1)")
 			},
 			when: signInWhenContext,
 		});
@@ -565,14 +564,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: stopSyncCommandId,
-				title: localize('global activity stop sync', "Turn off sync")
+				title: localize('global activity stop sync', "Turn off Sync")
 			},
 			when: ContextKeyExpr.and(ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.HasConflicts))
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: stopSyncCommandId,
-				title: localize('stop sync', "Sync: Turn off sync")
+				title: localize('stop sync', "Sync: Turn off Sync")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
 		});
@@ -584,14 +583,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: resolveConflictsCommandId,
-				title: localize('resolveConflicts_global', "Show sync conflicts (1)"),
+				title: localize('resolveConflicts_global', "Show Sync Conflicts (1)"),
 			},
 			when: resolveConflictsWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: resolveConflictsCommandId,
-				title: localize('showConflicts', "Sync: Show sync conflicts"),
+				title: localize('showConflicts', "Sync: Show Sync Conflicts"),
 			},
 			when: resolveConflictsWhenContext,
 		});
@@ -601,7 +600,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue sync")
+				title: localize('continue sync', "Sync: Continue Sync")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
 		});
