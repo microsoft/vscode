@@ -168,6 +168,10 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		if (confirm === ConfirmResult.SAVE) {
 			await this.doSaveAllBeforeShutdown(true /* includeUntitled */, SaveReason.EXPLICIT);
 
+			if (this.workingCopyService.hasDirty) {
+				return true; // veto if any save failed or was canceled
+			}
+
 			return this.noVeto({ discardAllBackups: true }); // no veto (dirty saved)
 		}
 
