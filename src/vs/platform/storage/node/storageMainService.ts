@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, IStorage, InMemoryStorageDatabase, IStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
@@ -190,18 +190,4 @@ export class StorageMainService extends AbstractStorageMainService implements IS
 			logError: error => this.logService.error(error)
 		};
 	}
-}
-
-export class SimpleStorageMainService extends AbstractStorageMainService implements IStorageMainService {
-
-	constructor(
-		private database: IStorageDatabase
-	) {
-		super();
-	}
-
-	protected createStorage(): IStorage {
-		return new Storage(this.database);
-	}
-
 }
