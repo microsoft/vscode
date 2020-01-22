@@ -9,7 +9,6 @@ import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languag
 import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
 import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
-import { generateRandomLabel } from './randomWord';
 
 const localize = nls.loadMessageBundle();
 
@@ -59,12 +58,12 @@ export function activate(context: ExtensionContext) {
 					if (item.kind === CompletionItemKind.Color) {
 						item.label2 = {
 							name: item.label,
-							signature: '(my, signature)',
-							qualifier: 'my.qualifier',
-							type: (item.documentation as string),
+							type: (item.documentation as string)
 						};
-					} else {
-						item.label2 = generateRandomLabel(item.label);
+					}
+					const range = item.range;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
 				}
 				// testing the new completion
