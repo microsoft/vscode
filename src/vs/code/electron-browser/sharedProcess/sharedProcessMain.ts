@@ -62,9 +62,6 @@ import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentia
 import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
-import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
-import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -122,11 +119,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	disposables.add(configurationService);
 	await configurationService.initialize();
-
-	const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
-	await storageService.initialize();
-	services.set(IStorageService, storageService);
-	disposables.add(toDisposable(() => storageService.flush()));
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(IProductService, { _serviceBrand: undefined, ...product });
