@@ -78,7 +78,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.configurationService.getValue(undefined, 'workbench.editor.restoreViewState');
+		this.restoreViewState = this.textResourceConfigurationService.getValue(undefined, 'workbench.editor.restoreViewState');
 	}
 
 	getTitle(): string {
