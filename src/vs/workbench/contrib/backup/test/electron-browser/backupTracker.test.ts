@@ -36,8 +36,7 @@ import { INewUntitledTextEditorOptions } from 'vs/workbench/services/untitled/co
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
@@ -77,12 +76,12 @@ class TestBackupTracker extends NativeBackupTracker {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@INotificationService notificationService: INotificationService,
+		@IDialogService dialogService: IDialogService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IElectronService electronService: IElectronService,
 		@ILogService logService: ILogService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, notificationService, contextService, electronService, logService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, dialogService, contextService, electronService, logService);
 
 		// Reduce timeout for tests
 		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
