@@ -117,7 +117,7 @@
 .codicon-logo-github:before { content: "\ea84" }
 .codicon-mark-github:before { content: "\ea84" }
 .codicon-github:before { content: "\ea84" }
-.codicon-terminal:before { content: "\ea85" }
+.codicon-repl:before { content: "\ea85" }
 .codicon-console:before { content: "\ea85" }
 .codicon-zap:before { content: "\ea86" }
 .codicon-symbol-event:before { content: "\ea86" }
