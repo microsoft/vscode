@@ -56,7 +56,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 						return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
 					}
 
-					return this.noVeto({ dicardAllBackups: false }); // no veto (there are no remaining dirty working copies)
+					return this.noVeto({ discardAllBackups: false }); // no veto (there are no remaining dirty working copies)
 				});
 			}
 
@@ -64,7 +64,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return this.handleDirtyBeforeShutdown(dirtyWorkingCopies, reason);
 		}
 
-		return this.noVeto({ dicardAllBackups: true }); // no veto (no dirty working copies)
+		return this.noVeto({ discardAllBackups: true }); // no veto (no dirty working copies)
 	}
 
 	private async handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
@@ -103,7 +103,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return true; // veto (the backups failed)
 		}
 
-		return this.noVeto({ dicardAllBackups: false }); // no veto (backup was successful)
+		return this.noVeto({ discardAllBackups: false }); // no veto (backup was successful)
 	}
 
 	private showErrorDialog(msg: string, error?: Error): void {
@@ -173,14 +173,14 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		if (confirm === ConfirmResult.SAVE) {
 			await this.doSaveAllBeforeShutdown(true /* includeUntitled */, SaveReason.EXPLICIT);
 
-			return this.noVeto({ dicardAllBackups: true }); // no veto (dirty saved)
+			return this.noVeto({ discardAllBackups: true }); // no veto (dirty saved)
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
 			await this.doRevertAllBeforeShutdown();
 
-			return this.noVeto({ dicardAllBackups: true }); // no veto (dirty reverted)
+			return this.noVeto({ discardAllBackups: true }); // no veto (dirty reverted)
 		}
 
 		// Cancel
@@ -223,8 +223,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		}
 	}
 
-	private noVeto(options: { dicardAllBackups: boolean }): boolean | Promise<boolean> {
-		if (!options.dicardAllBackups) {
+	private noVeto(options: { discardAllBackups: boolean }): boolean | Promise<boolean> {
+		if (!options.discardAllBackups) {
 			return false;
 		}
 
