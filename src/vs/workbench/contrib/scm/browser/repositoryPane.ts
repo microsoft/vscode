@@ -753,7 +753,7 @@ export class RepositoryPane extends ViewPane {
 			query
 		});
 
-		this.inputModel = this.modelService.createModel('', null, uri);
+		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
 		this.inputEditor.setModel(this.inputModel);
 
 		this.inputEditor.changeViewZones(accessor => {
@@ -767,6 +767,7 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.repository.input.onDidChange(value => this.inputModel.setValue(value)));
 
 		// Keep API in sync with model and update placeholder and validation
+		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
 		this.inputModel.onDidChangeContent(() => {
 			this.repository.input.value = this.inputModel.getValue();
 			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
