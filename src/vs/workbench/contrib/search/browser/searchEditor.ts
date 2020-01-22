@@ -357,14 +357,24 @@ export class SearchEditor extends BaseEditor {
 		this.inSearchEditorContextKey.set(true);
 
 		if (!(newInput instanceof SearchEditorInput)) { return; }
-		this.pauseSearching = true;
-		const model = this.modelService.getModel(newInput.resource);
-		if (newInput.resource.scheme !== 'search-editor') {
-			if (model?.getValue() === '') {
-				model.setValue((await this.textFileService.read(newInput.resource)).value);
+
+		const model = assertIsDefined(this.modelService.getModel(newInput.resource));
+		this.searchResultEditor.setModel(model);
+
+		const backup = await newInput.resolveBackup();
+		if (backup) {
+			model.setValueFromTextBuffer(backup);
+		} else {
+			if (newInput.resource.scheme !== 'search-editor') {
+				if (model.getValue() === '') {
+					model.setValue((await this.textFileService.read(newInput.resource)).value);
+				}
 			}
 		}
-		this.searchResultEditor.setModel(model);
+
+		this.hideHeader();
+
+		this.pauseSearching = true;
 		this.queryEditorWidget.setValue(newInput.config.query, true);
 		this.queryEditorWidget.searchInput.setCaseSensitive(newInput.config.caseSensitive);
 		this.queryEditorWidget.searchInput.setRegex(newInput.config.regexp);

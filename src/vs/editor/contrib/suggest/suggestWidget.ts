@@ -49,8 +49,8 @@ interface ISuggestionTemplateData {
 
 	/**
 	 * Flexbox
-	 * < -- left -->                   <---   right   --->
-	 * <icon><label>                   <details><readmore>
+	 * < ------- left ------- >     < -------- right -------- >
+	 * <icon><label><signature>     <qualifier><type><readmore>
 	 */
 	left: HTMLElement;
 	right: HTMLElement;
@@ -59,8 +59,10 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
 	iconContainer: HTMLElement;
+	signatureLabel: HTMLElement;
+	qualifierLabel: HTMLElement;
 	/**
-	 * Showing either `CompletionItem#details` or `CompletionItemLabel#name`
+	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
 	 */
 	detailsLabel: HTMLElement;
 	readMore: HTMLElement;
@@ -138,11 +140,6 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		/**
-		 * Flexbox
-		 * < -- left -->                   <---   right   --->
-		 * <icon><label>                   <details><readmore>
-		 */
 		data.left = append(main, $('span.left'));
 		data.right = append(main, $('span.right'));
 
@@ -151,6 +148,8 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
+		data.signatureLabel = append(data.left, $('span.signature-label'));
+		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
 		data.readMore = append(data.right, $('span.readMore.codicon.codicon-info'));
@@ -238,9 +237,13 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
+			data.signatureLabel.textContent = '';
+			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 			removeClass(data.right, 'always-show-details');
 		} else {
+			data.signatureLabel.textContent = (suggestion.label.signature || '').replace(/\n.*$/m, '');
+			data.qualifierLabel.textContent = (suggestion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
 			addClass(data.right, 'always-show-details');
 		}

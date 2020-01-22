@@ -87,8 +87,6 @@ export interface ParsedArgs {
 	'nolazy'?: boolean;
 	'force-device-scale-factor'?: string;
 	'force-renderer-accessibility'?: boolean;
-	'ignore-certificate-error': boolean;
-	'allow-insecure-localhost': boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

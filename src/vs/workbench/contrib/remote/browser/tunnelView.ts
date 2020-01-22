@@ -14,7 +14,7 @@ import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from '
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -26,7 +26,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -116,7 +116,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
-			return new TunnelItem(TunnelType.Forwarded, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.closeable, tunnel.name, tunnel.description);
+			return TunnelItem.createFromTunnel(tunnel);
 		});
 		if (this.remoteExplorerService.getEditableData(undefined)) {
 			forwarded.push(this._input);
@@ -126,7 +126,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get detected(): TunnelItem[] {
 		return Array.from(this.model.detected.values()).map(tunnel => {
-			return new TunnelItem(TunnelType.Detected, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, false, tunnel.name, tunnel.description);
+			return TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
 		});
 	}
 
@@ -352,6 +352,10 @@ interface ITunnelGroup {
 }
 
 class TunnelItem implements ITunnelItem {
+	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
+		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description);
+	}
+
 	constructor(
 		public tunnelType: TunnelType,
 		public remoteHost: string,
@@ -681,15 +685,54 @@ namespace ForwardPortAction {
 	}
 }
 
+
+interface QuickPickTunnel extends IQuickPickItem {
+	tunnel?: ITunnelItem
+}
+
+function makeTunnelPicks(tunnels: Tunnel[]): QuickPickInput<QuickPickTunnel>[] {
+	const picks: QuickPickInput<QuickPickTunnel>[] = tunnels.map(forwarded => {
+		const item = TunnelItem.createFromTunnel(forwarded);
+		return {
+			label: item.label,
+			description: item.description,
+			tunnel: item
+		};
+	});
+	if (picks.length === 0) {
+		picks.push({
+			label: nls.localize('remote.tunnel.closeNoPorts', "No ports currently forwarded. Try running the {0} command", ForwardPortAction.LABEL)
+		});
+	}
+	return picks;
+}
+
 namespace ClosePortAction {
-	export const ID = 'remote.tunnel.close';
+	export const INLINE_ID = 'remote.tunnel.closeInline';
+	export const COMMANDPALETTE_ID = 'remote.tunnel.closeCommandPalette';
 	export const LABEL = nls.localize('remote.tunnel.close', "Stop Forwarding Port");
 
-	export function handler(): ICommandHandler {
+	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
 			if (arg instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
+			}
+		};
+	}
+
+	export function commandPaletteHandler(): ICommandHandler {
+		return async (accessor) => {
+			const quickInputService = accessor.get(IQuickInputService);
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const commandService = accessor.get(ICommandService);
+
+			const picks: QuickPickInput<QuickPickTunnel>[] = makeTunnelPicks(Array.from(remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.closeable));
+			const result = await quickInputService.pick(picks, { placeHolder: nls.localize('remote.tunnel.closePlaceholder', "Choose a port to stop forwarding") });
+			if (result && result.tunnel) {
+				await remoteExplorerService.close({ host: result.tunnel.remoteHost, port: result.tunnel.remotePort });
+			} else if (result) {
+				await commandService.executeCommand(ForwardPortAction.COMMANDPALETTE_ID);
 			}
 		};
 	}
@@ -717,18 +760,39 @@ namespace OpenPortInBrowserAction {
 }
 
 namespace CopyAddressAction {
-	export const ID = 'remote.tunnel.copyAddress';
-	export const LABEL = nls.localize('remote.tunnel.copyAddress', "Copy Address");
+	export const INLINE_ID = 'remote.tunnel.copyAddressInline';
+	export const COMMANDPALETTE_ID = 'remote.tunnel.copyAddressCommandPalette';
+	export const INLINE_LABEL = nls.localize('remote.tunnel.copyAddressInline', "Copy Address");
+	export const COMMANDPALETTE_LABEL = nls.localize('remote.tunnel.copyAddressCommandPalette', "Copy Forwarded Port Address");
 
-	export function handler(): ICommandHandler {
+	async function copyAddress(remoteExplorerService: IRemoteExplorerService, clipboardService: IClipboardService, tunnelItem: ITunnelItem) {
+		const address = remoteExplorerService.tunnelModel.address(tunnelItem.remoteHost, tunnelItem.remotePort);
+		if (address) {
+			await clipboardService.writeText(address.toString());
+		}
+	}
+
+	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
 			if (arg instanceof TunnelItem) {
-				const model = accessor.get(IRemoteExplorerService).tunnelModel;
-				const clipboard = accessor.get(IClipboardService);
-				const address = model.address(arg.remoteHost, arg.remotePort);
-				if (address) {
-					await clipboard.writeText(address.toString());
-				}
+				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), arg);
+			}
+		};
+	}
+
+	export function commandPaletteHandler(): ICommandHandler {
+		return async (accessor, arg) => {
+			const quickInputService = accessor.get(IQuickInputService);
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const commandService = accessor.get(ICommandService);
+			const clipboardService = accessor.get(IClipboardService);
+
+			const tunnels = Array.from(remoteExplorerService.tunnelModel.forwarded.values()).concat(Array.from(remoteExplorerService.tunnelModel.detected.values()));
+			const result = await quickInputService.pick(makeTunnelPicks(tunnels), { placeHolder: nls.localize('remote.tunnel.copyAddressPlaceholdter', "Choose a forwarded port") });
+			if (result && result.tunnel) {
+				await copyAddress(remoteExplorerService, clipboardService, result.tunnel);
+			} else if (result) {
+				await commandService.executeCommand(ForwardPortAction.COMMANDPALETTE_ID);
 			}
 		};
 	}
@@ -749,15 +813,31 @@ namespace RefreshTunnelViewAction {
 CommandsRegistry.registerCommand(LabelTunnelAction.ID, LabelTunnelAction.handler());
 CommandsRegistry.registerCommand(ForwardPortAction.INLINE_ID, ForwardPortAction.inlineHandler());
 CommandsRegistry.registerCommand(ForwardPortAction.COMMANDPALETTE_ID, ForwardPortAction.commandPaletteHandler());
-CommandsRegistry.registerCommand(ClosePortAction.ID, ClosePortAction.handler());
+CommandsRegistry.registerCommand(ClosePortAction.INLINE_ID, ClosePortAction.inlineHandler());
+CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
-CommandsRegistry.registerCommand(CopyAddressAction.ID, CopyAddressAction.handler());
+CommandsRegistry.registerCommand(CopyAddressAction.INLINE_ID, CopyAddressAction.inlineHandler());
+CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(RefreshTunnelViewAction.ID, RefreshTunnelViewAction.handler());
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
 	command: {
+		id: ClosePortAction.COMMANDPALETTE_ID,
+		title: ClosePortAction.LABEL
+	},
+	when: forwardedPortsViewEnabled
+}));
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+	command: {
 		id: ForwardPortAction.COMMANDPALETTE_ID,
 		title: ForwardPortAction.LABEL
+	},
+	when: forwardedPortsViewEnabled
+}));
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+	command: {
+		id: CopyAddressAction.COMMANDPALETTE_ID,
+		title: CopyAddressAction.COMMANDPALETTE_LABEL
 	},
 	when: forwardedPortsViewEnabled
 }));
@@ -783,8 +863,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 0,
 	command: {
-		id: CopyAddressAction.ID,
-		title: CopyAddressAction.LABEL,
+		id: CopyAddressAction.INLINE_ID,
+		title: CopyAddressAction.INLINE_LABEL,
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
@@ -819,7 +899,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 3,
 	command: {
-		id: ClosePortAction.ID,
+		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,
 	},
 	when: TunnelCloseableContextKey
@@ -846,7 +926,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	order: 2,
 	command: {
-		id: ClosePortAction.ID,
+		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,
 		icon: { id: 'codicon/x' }
 	},

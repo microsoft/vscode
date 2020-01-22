@@ -19,6 +19,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -28,6 +29,7 @@ export interface IBackupFilesModel {
 	get(): URI[];
 	remove(resource: URI): void;
 	count(): number;
+
 	clear(): void;
 }
 
@@ -37,7 +39,8 @@ interface IBackupCacheEntry {
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
-	private cache: ResourceMap<IBackupCacheEntry> = new ResourceMap();
+
+	private readonly cache = new ResourceMap<IBackupCacheEntry>();
 
 	constructor(private fileService: IFileService) { }
 
@@ -160,8 +163,8 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.discardBackup(resource);
 	}
 
-	discardBackups(): Promise<void> {
-		return this.impl.discardBackups();
+	discardAllBackups(): Promise<void> {
+		return this.impl.discardAllBackups();
 	}
 
 	getBackups(): Promise<URI[]> {
@@ -177,7 +180,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 }
 
-class BackupFileServiceImpl implements IBackupFileService {
+class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
@@ -187,8 +190,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 	private backupWorkspacePath!: URI;
 
-	private isShuttingDown: boolean;
-	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
+	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
 	private ready!: Promise<IBackupFilesModel>;
 	private model!: IBackupFilesModel;
@@ -198,8 +200,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		private readonly hashPath: (resource: URI) => string,
 		@IFileService private readonly fileService: IFileService
 	) {
-		this.isShuttingDown = false;
-		this.ioOperationQueues = new ResourceQueue();
+		super();
 
 		this.initialize(backupWorkspaceResource);
 	}
@@ -229,10 +230,6 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		if (this.isShuttingDown) {
-			return;
-		}
-
 		const model = await this.ready;
 
 		const backupResource = this.toBackupResource(resource);
@@ -264,28 +261,38 @@ class BackupFileServiceImpl implements IBackupFileService {
 		});
 	}
 
-	async discardBackup(resource: URI): Promise<void> {
-		const model = await this.ready;
+	discardBackup(resource: URI): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 
+		return this.doDiscardBackup(backupResource);
+	}
+
+	private async doDiscardBackup(backupResource: URI): Promise<void> {
+		const model = await this.ready;
+
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			await this.doDiscardResource(backupResource);
+			await this.deleteIgnoreFileNotFound(backupResource);
 
 			model.remove(backupResource);
 		});
 	}
 
-	async discardBackups(): Promise<void> {
-		this.isShuttingDown = true;
+	async discardAllBackups(): Promise<void> {
 
+		// Discard each backup and clear model
+		// We go through the doDiscardBackup()
+		// method to benefit from the IO queue
 		const model = await this.ready;
-
-		await this.doDiscardResource(this.backupWorkspacePath);
-
+		await Promise.all(model.get().map(backupResource => this.doDiscardBackup(backupResource)));
 		model.clear();
+
+		// Delete the backup home for this workspace
+		// It will automatically be populated again
+		// once another backup is made
+		await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
 	}
 
-	private async doDiscardResource(resource: URI): Promise<void> {
+	private async deleteIgnoreFileNotFound(resource: URI): Promise<void> {
 		try {
 			await this.fileService.del(resource, { recursive: true });
 		} catch (error) {
@@ -298,8 +305,8 @@ class BackupFileServiceImpl implements IBackupFileService {
 	async getBackups(): Promise<URI[]> {
 		const model = await this.ready;
 
-		const backups = await Promise.all(model.get().map(async fileBackup => {
-			const backupPreamble = await this.readToMatchingString(fileBackup, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
+		const backups = await Promise.all(model.get().map(async backupResource => {
+			const backupPreamble = await this.readToMatchingString(backupResource, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
 			if (!backupPreamble) {
 				return undefined;
 			}
@@ -436,7 +443,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		this.backups.delete(this.toBackupResource(resource).toString());
 	}
 
-	async discardBackups(): Promise<void> {
+	async discardAllBackups(): Promise<void> {
 		this.backups.clear();
 	}
 

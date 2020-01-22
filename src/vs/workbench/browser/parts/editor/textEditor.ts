@@ -44,18 +44,12 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private editorMemento: IEditorMemento<IEditorViewState>;
 	private inputDisposable: IDisposable | undefined;
 
-	// Allow subclasses to provide a different (e.g. scoped)
-	// instantiation service for this abstract text editor
-	protected get instantiationService(): IInstantiationService {
-		return this._instantiationService;
-	}
-
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService protected readonly configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
@@ -64,9 +58,9 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
 			const resource = this.getResource();
-			const value = resource ? this.configurationService.getValue<IEditorConfiguration>(resource) : undefined;
+			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
 
 			return this.handleConfigurationChangeEvent(value);
 		}));
@@ -123,7 +117,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		// Editor for Text
 		this.editorContainer = parent;
-		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
+		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getResource()))));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this.editorControl);
@@ -265,7 +259,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		if (!configuration) {
 			const resource = this.getResource();
 			if (resource) {
-				configuration = this.configurationService.getValue<IEditorConfiguration>(resource);
+				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
 			}
 		}
 

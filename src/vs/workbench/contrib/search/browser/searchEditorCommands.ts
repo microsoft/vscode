@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, TrackedRangeStickiness, ITextModel, ITextBuffer, DefaultEndOfLine } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -21,7 +21,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledText
 import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextQuery } from 'vs/workbench/services/search/common/search';
-import { IEditorInputFactory, GroupIdentifier, EditorInput, SaveContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, GroupIdentifier, EditorInput, SaveContext, IRevertOptions } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
@@ -34,6 +34,8 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { basename } from 'vs/base/common/path';
+import { IWorkingCopyService, WorkingCopyCapabilities, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 
 
@@ -101,20 +103,21 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 
 	serialize(input: SearchEditorInput) {
 		let resource = undefined;
-		if (input.resource.path) {
+		if (input.resource.path || input.resource.fragment) {
 			resource = input.resource.toString();
 		}
 
-		return JSON.stringify({ ...input.config, resource });
+		return JSON.stringify({ ...input.config, resource, dirty: input.isDirty() });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, ...config } = JSON.parse(serializedEditorInput);
-		return instantiationService.createInstance(SearchEditorInput, config, undefined, resource && URI.parse(resource));
+		const { resource, dirty, ...config } = JSON.parse(serializedEditorInput);
+		const input = instantiationService.createInstance(SearchEditorInput, config, undefined, resource && URI.parse(resource));
+		input.setDirty(dirty);
+		return input;
 	}
 }
 
-let searchEditorInputInstances = 0;
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
@@ -127,6 +130,7 @@ export class SearchEditorInput extends EditorInput {
 	public readonly resource: URI;
 
 	private dirty: boolean = false;
+	private hasRestoredFromBackup = false;
 
 	constructor(
 		config: Partial<SearchConfiguration> | undefined,
@@ -140,15 +144,31 @@ export class SearchEditorInput extends EditorInput {
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IBackupFileService private readonly backupService: IBackupFileService,
 	) {
 		super();
-		this.resource = resource ?? URI.from({ scheme: 'search-editor', fragment: `${searchEditorInputInstances++}` });
+		this.resource = resource ?? URI.from({ scheme: 'search-editor', fragment: `${Math.random()}` });
 		this._config = { ...{ query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false }, ...config };
 
 		const searchResultMode = this.modeService.create('search-result');
 
 		this.model = this.modelService.getModel(this.resource) ?? this.modelService.createModel(initialContents ?? '', searchResultMode, this.resource);
+
+		const workingCopyAdapter: IWorkingCopy = {
+			resource: this.resource,
+			capabilities: this.resource.scheme === 'search-editor' ? WorkingCopyCapabilities.Untitled : 0,
+			onDidChangeDirty: this.onDidChangeDirty,
+			onDidChangeContent: this.onDidChangeDirty,
+			isDirty: () => this.isDirty(),
+			backup: () => this.backup(),
+			save: (options) => this.save(0, options),
+			revert: () => this.revert(),
+		};
+
+
+		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
@@ -201,6 +221,12 @@ export class SearchEditorInput extends EditorInput {
 		return null;
 	}
 
+	async resolveBackup(): Promise<ITextBuffer | undefined> {
+		if (this.hasRestoredFromBackup === true) { return undefined; }
+		this.hasRestoredFromBackup = true;
+		return (await this.backupService.resolve(this.resource))?.value.create(DefaultEndOfLine.LF);
+	}
+
 	setDirty(dirty: boolean) {
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();
@@ -227,6 +253,24 @@ export class SearchEditorInput extends EditorInput {
 			}
 		}
 		return false;
+	}
+
+	async revert(options?: IRevertOptions) {
+		// TODO: this should actually revert the contents. But it needs to set dirty false.
+		super.revert(options);
+		this.setDirty(false);
+		return true;
+	}
+
+	private async backup(): Promise<IWorkingCopyBackup> {
+		if (this.model.isDisposed() || this.model.getValueLength() === 0) {
+			// FIXME: this is clearly not good, but `backup` is sometimes getting called after the
+			// model disposes, so we cant reliably grab the snapshot from the model. Instead fall back to the existing snapshot, if one exists.
+			// Ideally we'd return undefined and thus signal we dont want to overwrite any existing backup.
+			return { content: (await this.backupService.resolve(this.resource))?.value.create(DefaultEndOfLine.LF).createSnapshot(true) };
+		}
+
+		return { content: this.model.createSnapshot() };
 	}
 
 	// Bringing this over from textFileService because it only suggests for untitled scheme.
