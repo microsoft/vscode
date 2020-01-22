@@ -68,10 +68,10 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 	}
 
 	private async handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
-		let didBackup: boolean | undefined = undefined;
-		let backupError: Error | undefined = undefined;
 
 		// Trigger backup if configured
+		let didBackup: boolean | undefined = undefined;
+		let backupError: Error | undefined = undefined;
 		if (this.filesConfigurationService.isHotExitEnabled) {
 			try {
 				didBackup = await this.backupBeforeShutdown(workingCopies, reason);
@@ -80,34 +80,29 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			}
 		}
 
-		if (!backupError && !didBackup) {
-			try {
-				// since a backup did not happen, we have to confirm for the dirty working copies now
-				return await this.confirmBeforeShutdown();
-			} catch (error) {
-				this.showErrorDialog(localize('backupTrackerConfirmFailed', "Editors that are dirty could not be saved or reverted."), error);
-
-				return true; // veto (save or revert failed)
-			}
+		if (didBackup) {
+			return this.noVeto({ discardAllBackups: false }); // no veto (backup was successful)
 		}
 
-		if (backupError || workingCopies.some(workingCopy => !this.backupFileService.hasBackupSync(workingCopy.resource, this.getContentVersion(workingCopy)))) {
-			// we ran a backup and this either failed or there are
-			// some remaining dirty working copies without backup
-			if (backupError) {
-				this.showErrorDialog(localize('backupTrackerBackupFailed', "Editors that are dirty could not be saved to the backup location."), backupError);
-			} else {
-				this.showErrorDialog(localize('backupTrackerBackupIncomplete', "Some dirty editors could not be saved to the backup location."));
-			}
+		// we ran a backup but received an error that we show to the user
+		if (backupError) {
+			this.showErrorDialog(localize('backupTrackerBackupFailed', "One or many editors that are dirty could not be saved to the backup location."), backupError);
 
-			return true; // veto (the backups failed)
+			return true; // veto (the backup failed)
 		}
 
-		return this.noVeto({ discardAllBackups: false }); // no veto (backup was successful)
+		// since a backup did not happen, we have to confirm for the dirty working copies now
+		try {
+			return await this.confirmBeforeShutdown();
+		} catch (error) {
+			this.showErrorDialog(localize('backupTrackerConfirmFailed', "Editors that are dirty could not be saved or reverted."), error);
+
+			return true; // veto (save or revert failed)
+		}
 	}
 
 	private showErrorDialog(msg: string, error?: Error): void {
-		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail: localize('backupErrorDetails', "Try saving your editors first and then try again.") });
+		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail: localize('backupErrorDetails', "Try saving the dirty editors first and then try again.") });
 
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
@@ -167,7 +162,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// Show confirm dialog for all dirty working copies
 		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-		const confirm = await this.fileDialogService.showSaveConfirm(dirtyWorkingCopies.map(w => w.resource));
+		const confirm = await this.fileDialogService.showSaveConfirm(dirtyWorkingCopies.map(workingCopy => workingCopy.resource));
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
