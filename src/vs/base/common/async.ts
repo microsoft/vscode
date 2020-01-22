@@ -501,10 +501,7 @@ export class ResourceQueue implements IDisposable {
 	}
 
 	dispose(): void {
-		for (const [, queue] of this.queues) {
-			queue.dispose();
-		}
-
+		this.queues.forEach(queue => queue.dispose());
 		this.queues.clear();
 	}
 }
