@@ -534,8 +534,10 @@ export class TunnelPanel extends ViewPane {
 		const item = elements && elements.length ? elements[0] : undefined;
 		if (item) {
 			this.tunnelViewSelectionContext.set(item);
+			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
 		} else {
+			this.tunnelTypeContext.reset();
 			this.tunnelViewSelectionContext.reset();
 			this.tunnelCloseableContext.reset();
 		}
@@ -620,18 +622,19 @@ namespace LabelTunnelAction {
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			if (context instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				remoteExplorerService.setEditable(arg, {
+				remoteExplorerService.setEditable(context, {
 					onFinish: (value, success) => {
 						if (success) {
-							remoteExplorerService.tunnelModel.name(arg.remoteHost, arg.remotePort, value);
+							remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 						}
-						remoteExplorerService.setEditable(arg, null);
+						remoteExplorerService.setEditable(context, null);
 					},
 					validationMessage: () => null,
 					placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
-					startingValue: arg.name
+					startingValue: context.name
 				});
 			}
 			return;
@@ -735,7 +738,7 @@ namespace ClosePortAction {
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
-			const context = arg instanceof TunnelItem ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
 			if (context instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
@@ -832,7 +835,16 @@ namespace RefreshTunnelViewAction {
 	}
 }
 
-CommandsRegistry.registerCommand(LabelTunnelAction.ID, LabelTunnelAction.handler());
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: LabelTunnelAction.ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)),
+	primary: KeyCode.F2,
+	mac: {
+		primary: KeyCode.Enter
+	},
+	handler: LabelTunnelAction.handler()
+});
 CommandsRegistry.registerCommand(ForwardPortAction.INLINE_ID, ForwardPortAction.inlineHandler());
 CommandsRegistry.registerCommand(ForwardPortAction.COMMANDPALETTE_ID, ForwardPortAction.commandPaletteHandler());
 KeybindingsRegistry.registerCommandAndKeybindingRule({
