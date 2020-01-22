@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineProvider } from './timeline';
+import { ITimelineService, TimelineProvider, TimelineItem } from './timeline';
 
 export class TimelineService implements ITimelineService {
 	_serviceBrand: undefined;
@@ -16,7 +16,11 @@ export class TimelineService implements ITimelineService {
 	private readonly _onDidChangeProviders = new Emitter<void>();
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
+	private readonly _onDidChangeTimeline = new Emitter<URI | undefined>();
+	readonly onDidChangeTimeline: Event<URI | undefined> = this._onDidChangeTimeline.event;
+
 	private readonly _providers = new Map<string, TimelineProvider>();
+	private readonly _providerSubscriptions = new Map<string, IDisposable>();
 
 	constructor(@ILogService private readonly logService: ILogService) {
 		this.registerTimelineProvider({
@@ -42,27 +46,34 @@ export class TimelineService implements ITimelineService {
 		});
 	}
 
-	// TODO: Add filtering
-	async getTimeline(uri: URI, since: number, token: CancellationToken) {
+	async getTimeline(uri: URI, since: number, token: CancellationToken, sources?: Set<string>) {
 		this.logService.trace(`TimelineService#getTimeline: uri=${uri.toString(true)}`);
-		const requests = [];
+
+		console.log(`TimelineService.getTimeline providers=${this._providers.size}`);
+
+		const requests = new Map<string, Promise<TimelineItem[] | CancellationErrorWithId<string>>>();
 
 		for (const provider of this._providers.values()) {
-			requests.push(
-				provider.provideTimeline(uri, since, token).then(items => ({ source: provider.source, items: items }))
-			);
+			if (sources && !sources.has(provider.source)) {
+				continue;
+			}
+
+			requests.set(provider.source, provider.provideTimeline(uri, since, token));
 		}
 
 		const timelines = await raceAll(requests /*, 5000*/);
 
+		console.log(`TimelineService.getTimeline timelines=${timelines.size}`);
+
 		const timeline = [];
-		for (const result of timelines) {
-			// eslint-disable-next-line eqeqeq
-			if (result == null || result instanceof CancellationError) {
+		for (const [source, items] of timelines) {
+			if (items instanceof CancellationError) {
+				console.log(`TimelineService.getTimeline source=${source} cancelled`);
 				continue;
 			}
 
-			const { source, items } = result;
+			console.log(`TimelineService.getTimeline source=${source} items=${items.length}`);
+
 			if (items.length === 0) {
 				continue;
 			}
@@ -85,6 +96,9 @@ export class TimelineService implements ITimelineService {
 		}
 
 		this._providers.set(source, provider);
+		if (provider.onDidChange) {
+			this._providerSubscriptions.set(source, provider.onDidChange(uri => this.onProviderTimelineChanged(provider.source, uri)));
+		}
 		this._onDidChangeProviders.fire();
 
 		return {
@@ -103,7 +117,14 @@ export class TimelineService implements ITimelineService {
 		}
 
 		this._providers.delete(source);
+		this._providerSubscriptions.delete(source);
 		this._onDidChangeProviders.fire();
+	}
+
+	private onProviderTimelineChanged(source: string, uri: URI | undefined) {
+		console.log(`TimelineService.onProviderTimelineChanged: source=${source} uri=${uri?.toString(true)}`);
+
+		this._onDidChangeTimeline.fire(uri);
 	}
 }
 

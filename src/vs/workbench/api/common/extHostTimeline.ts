@@ -39,13 +39,20 @@ export class ExtHostTimeline implements IExtHostTimeline {
 	}
 
 	registerTimelineProvider(provider: vscode.TimelineProvider, commandConverter: CommandsConverter): IDisposable {
-		const disposables = new DisposableStore();
+		const timelineDisposables = new DisposableStore();
 
-		const convertTimelineItem = this.convertTimelineItem(provider.source, commandConverter, disposables);
+		const convertTimelineItem = this.convertTimelineItem(provider.source, commandConverter, timelineDisposables);
+
+		let disposable: IDisposable | undefined;
+		if (provider.onDidChange) {
+			console.log(`ExtHostTimeline#registerTimelineProvider: provider=${provider.source} hooking up onDidChange`);
+			disposable = provider.onDidChange(this.emitTimelineChangeEvent(provider.source), this);
+		}
+
 		return this.registerTimelineProviderCore({
 			...provider,
 			async provideTimeline(uri: URI, since: number, token: CancellationToken) {
-				disposables.clear();
+				timelineDisposables.clear();
 
 				const results = await provider.provideTimeline(uri, since, token);
 				// eslint-disable-next-line eqeqeq
@@ -54,7 +61,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					: [];
 			},
 			dispose() {
-				disposables.dispose();
+				disposable?.dispose();
+				timelineDisposables.dispose();
 			}
 		});
 	}
@@ -87,6 +95,13 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				iconDark: iconDark,
 				themeIcon: themeIcon
 			};
+		};
+	}
+
+	private emitTimelineChangeEvent(source: string) {
+		return (uri: vscode.Uri | undefined) => {
+			console.log(`ExtHostTimeline#registerTimelineProvider: provider=${source} onDidChange fired; uri=${uri?.toString(true)}`);
+			this._proxy.$emitTimelineChangeEvent(source, uri);
 		};
 	}
 
