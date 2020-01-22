@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebook } from 'vs/editor/common/modes';
+import { INotebook, ICell } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import { notebookExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -22,7 +22,9 @@ export interface IMainNotebookController {
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	updateNotebook(uri: URI, notebook: INotebook): void;
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
+	createRawCell(uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
 	executeNotebookActiveCell(uri: URI): void;
+	destoryNotebookDocument(notebook: INotebook): void;
 }
 
 export interface INotebookService {
@@ -35,6 +37,8 @@ export interface INotebookService {
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
+	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
+	destoryNotebookDocument(viewType: string, notebook: INotebook): void;
 }
 
 export class NotebookInfoStore {
@@ -143,6 +147,16 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 	}
 
+	async createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.createRawCell(resource, index, language, type);
+		}
+
+		return;
+	}
+
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
@@ -172,6 +186,14 @@ export class NotebookService extends Disposable implements INotebookService {
 		});
 
 		return ret;
+	}
+
+	destoryNotebookDocument(viewType: string, notebook: INotebook): void {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			provider.controller.destoryNotebookDocument(notebook);
+		}
 	}
 
 	private _onWillDispose(model: INotebook): void {

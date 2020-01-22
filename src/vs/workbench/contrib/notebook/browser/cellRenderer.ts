@@ -32,7 +32,7 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeOb
 
 export const CELL_MARGIN = 24;
 
-export class ViewCell {
+export class ViewCell extends Disposable {
 	private _textModel: ITextModel | null = null;
 	private _mdRenderer: marked.Renderer | null = null;
 	private _html: string | null = null;
@@ -78,6 +78,8 @@ export class ViewCell {
 		private readonly modelService: IModelService,
 		private readonly modeService: IModeService
 	) {
+		super();
+
 		this.id = UUID.generateUuid();
 		if (this.cell.onDidChangeOutputs) {
 			this.cell.onDidChangeOutputs(() => {
@@ -134,7 +136,7 @@ export class ViewCell {
 	}
 
 	save() {
-		if (this._textModel && this.isEditing) {
+		if (this._textModel && (this.cell.isDirty || this.isEditing)) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -160,12 +162,16 @@ export class ViewCell {
 
 	getTextModel(): ITextModel {
 		if (!this._textModel) {
-			let mode = this.modeService.create(this.cell.language);
+			let mode = this.modeService.create(this.cellType === 'markdown' ? 'markdown' : this.cell.language);
 			let ext = this.cellType === 'markdown' ? 'md' : 'py';
 			let resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
 			resource = resource.with({ authority: `notebook+${this.viewType}-${this.notebookHandle}-${this.cell.handle}` });
 			let content = this.cell.source.join('\n');
 			this._textModel = this.modelService.createModel(content, mode, resource, false);
+			this._register(this._textModel);
+			this._register(this._textModel.onDidChangeContent(() => {
+				this.cell.isDirty = true;
+			}));
 		}
 
 		return this._textModel;
@@ -182,7 +188,7 @@ export class ViewCell {
 }
 
 export interface NotebookHandler {
-	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): void;
+	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
 	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
@@ -271,7 +277,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'above');
+				await this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'above');
 			}
 		);
 		actions.push(insertAbove);
@@ -282,7 +288,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'below');
+				await this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'below');
 			}
 		);
 		actions.push(insertBelow);
@@ -293,7 +299,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'above');
+				await this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'above');
 			}
 		);
 		actions.push(insertMarkdownAbove);
@@ -304,7 +310,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'below');
+				await this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'below');
 			}
 		);
 		actions.push(insertMarkdownBelow);

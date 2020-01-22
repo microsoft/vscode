@@ -1502,6 +1502,7 @@ export interface ICell {
 	cell_type: 'markdown' | 'code';
 	outputs: IOutput[];
 	onDidChangeOutputs?: Event<void>;
+	isDirty: boolean;
 }
 
 /**
@@ -1525,9 +1526,12 @@ export interface INotebook {
 	handle: number;
 	// metadata: IMetadata;
 	readonly uri: URI;
+	languages: string[];
 	cells: ICell[];
 	onDidChangeCells?: Event<void>;
+	onDidChangeDirtyState: Event<boolean>;
 	onWillDispose(listener: () => void): IDisposable;
+	save(): Promise<boolean>;
 }
 
 export interface CodeLens {

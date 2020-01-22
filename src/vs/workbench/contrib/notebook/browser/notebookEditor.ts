@@ -218,6 +218,14 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}
 
 		this.list?.splice(0, this.list?.length);
+
+		if (this.model && !this.model.isDirty()) {
+			this.notebookService.destoryNotebookDocument(this.viewType!, this.notebook!);
+			this.model = undefined;
+			this.notebook = undefined;
+			this.viewType = undefined;
+		}
+
 		super.onHide();
 	}
 
@@ -264,11 +272,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}));
 
 				let viewState = this.loadTextEditorViewState(input);
-				let notebook = model.getNotebook();
+				this.notebook = model.getNotebook();
 				this.viewType = input.viewType;
-				this.viewCells = notebook.cells.map(cell => {
+				this.viewCells = this.notebook.cells.map(cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return new ViewCell(input.viewType!, notebook.handle, cell, !!isEditing, this.modelService, this.modeService);
+					return new ViewCell(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService);
 				});
 
 				const updateScrollPosition = () => {
@@ -352,17 +360,18 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}
 	}
 
-	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
-		let newCell = new ViewCell(this.viewType!, this.notebook!.handle, {
-			handle: -1,
-			cell_type: type,
-			language: '',
-			source: [],
-			outputs: []
-		}, false, this.modelService, this.modeService);
+	async insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
+		let newLanguages = this.notebook!.languages;
+		let language = 'markdown';
+		if (newLanguages && newLanguages.length) {
+			language = newLanguages[0];
+		}
 
 		let index = listIndex ? listIndex : this.model!.getNotebook().cells.indexOf(cell.cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
+
+		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
+		let newCell = new ViewCell(this.viewType!, this.notebook!.handle, newModeCell!, false, this.modelService, this.modeService);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);

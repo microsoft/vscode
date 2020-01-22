@@ -611,10 +611,11 @@ export interface ExtHostWebviewsShape {
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
-	$createNotebookDocument(handle: number, resource: UriComponents): Promise<void>;
+	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
 	$updateNotebook(viewType: string, resource: UriComponents, notebook: modes.INotebook): Promise<void>;
-	$updateNotebookCells(handle: number, cells: modes.ICell[]): Promise<void>;
-	$updateNotebookCell(handle: number, cell: modes.ICell): Promise<void>;
+	$updateNotebookCells(viewType: string, resource: UriComponents, cells: modes.ICell[]): Promise<void>;
+	$updateNotebookCell(viewType: string, resource: UriComponents, cell: modes.ICell): Promise<void>;
+	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1409,6 +1410,8 @@ export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: URI): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: URI): Promise<void>;
 	$executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void>;
+	$createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<modes.ICell | undefined>;
+	$saveNotebook(viewType: string, uri: URI): Promise<boolean>;
 }
 
 export interface ExtHostStorageShape {

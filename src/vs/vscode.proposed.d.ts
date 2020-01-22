@@ -1324,7 +1324,8 @@ declare module 'vscode' {
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
 	export interface NotebookCell {
-		handle: number,
+		handle: number;
+		language: string;
 		cell_type: 'markdown' | 'code';
 		outputs: CellOutput[];
 		getContent(): string;
@@ -1334,6 +1335,7 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly fileName: string;
 		readonly isDirty: boolean;
+		languages: string[];
 		cells: NotebookCell[];
 	}
 

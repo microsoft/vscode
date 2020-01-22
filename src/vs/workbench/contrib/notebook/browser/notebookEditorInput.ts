@@ -6,9 +6,6 @@
 import { EditorInput, EditorModel, IEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebook, ICell } from 'vs/editor/common/modes';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -29,6 +26,10 @@ export class NotebookEditorModel extends EditorModel {
 		super();
 
 		if (_notebook && _notebook.onDidChangeCells) {
+			this._register(_notebook.onDidChangeDirtyState((newState) => {
+				this._dirty = newState;
+				this._onDidChangeDirty.fire();
+			}));
 			this._register(_notebook.onDidChangeCells(() => {
 				this._onDidChangeCells.fire();
 			}));
@@ -70,12 +71,19 @@ export class NotebookEditorModel extends EditorModel {
 		}
 	}
 
-	save() {
-		let content = JSON.stringify(this._notebook);
-		let edits = format(content, undefined, {});
-		this.textModel.setValue(applyEdits(content, edits));
-		this._dirty = false;
-		this._onDidChangeDirty.fire();
+	async save(): Promise<boolean> {
+		if (this._notebook) {
+			let ret = await this._notebook.save();
+
+			if (ret) {
+				this._dirty = false;
+				this._onDidChangeDirty.fire();
+				// todo, flush all states
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 
@@ -88,7 +96,6 @@ export class NotebookEditorInput extends EditorInput {
 		public readonly editorInput: IEditorInput,
 		public readonly viewType: string | undefined,
 		@INotebookService private readonly notebookService: INotebookService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
@@ -106,13 +113,12 @@ export class NotebookEditorInput extends EditorInput {
 		return this.textModel?.isDirty() || false;
 	}
 
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		if (this.textModel) {
-			this.textModel.save();
-			return this.textFileService.save(this.textModel.textModel.uri);
+			return await this.textModel.save();
 		}
 
-		return Promise.resolve(true);
+		return false;
 	}
 
 	getResource() {
