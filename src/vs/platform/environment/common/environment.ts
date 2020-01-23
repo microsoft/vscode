@@ -128,6 +128,7 @@ export interface IEnvironmentService extends IUserHomeProvider {
 
 	// sync resources
 	userDataSyncLogResource: URI;
+	userDataSyncHome: URI;
 	settingsSyncPreviewResource: URI;
 	keybindingsSyncPreviewResource: URI;
 

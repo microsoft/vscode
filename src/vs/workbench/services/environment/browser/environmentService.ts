@@ -137,10 +137,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
-	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, '.sync'); }
 
 	@memoize
-	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.keybindings.json'); }
+	get settingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'keybindings.json'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }

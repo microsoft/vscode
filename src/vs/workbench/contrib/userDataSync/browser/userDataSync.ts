@@ -469,7 +469,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			previewResource = this.workbenchEnvironmentService.settingsSyncPreviewResource;
 			label = localize('settings conflicts preview', "Settings Conflicts (Remote ↔ Local)");
 		} else if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
-			previewResource = this.workbenchEnvironmentService.keybindingsResource;
+			previewResource = this.workbenchEnvironmentService.keybindingsSyncPreviewResource;
 			label = localize('keybindings conflicts preview', "Keybindings Conflicts (Remote ↔ Local)");
 		}
 		if (previewResource) {
