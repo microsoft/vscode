@@ -169,6 +169,8 @@ export class SearchEditor extends BaseEditor {
 			}
 		});
 
+
+
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
 		this._register(this.searchResultEditor.onDidChangeModel(() => this.hideHeader()));
@@ -363,7 +365,6 @@ export class SearchEditor extends BaseEditor {
 
 		const { model } = await newInput.reloadModel();
 		this.searchResultEditor.setModel(model);
-		this.hideHeader();
 
 		this.pauseSearching = true;
 		const { query } = await newInput.reloadModel();
