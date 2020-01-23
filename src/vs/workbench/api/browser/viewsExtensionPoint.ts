@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor, ViewContainerLocation, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { CustomTreeViewPane, CustomTreeView } from 'vs/workbench/browser/parts/views/customView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
@@ -325,10 +325,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					@IThemeService themeService: IThemeService,
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService,
-					@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-					@IViewsService viewsService: IViewsService
+					@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 				) {
-					super(id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, viewsService);
+					super(id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 				}
 			}
 

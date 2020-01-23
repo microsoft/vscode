@@ -8,7 +8,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -44,11 +44,10 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IViewsService viewsService: IViewsService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 
-		super(viewletId, `${viewletId}.state`, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, viewsService);
+		super(viewletId, `${viewletId}.state`, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);

@@ -25,7 +25,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewsRegistry, Extensions, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
 import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
@@ -98,10 +98,9 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IViewsService viewsService: IViewsService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
-		super(VIEWLET_ID, SCMViewPaneContainer.STATE_KEY, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, viewsService);
+		super(VIEWLET_ID, SCMViewPaneContainer.STATE_KEY, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));

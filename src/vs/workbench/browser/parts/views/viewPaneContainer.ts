@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -311,8 +311,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IThemeService protected themeService: IThemeService,
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
-		@IViewsService protected viewsService: IViewsService
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService
 	) {
 
 		super(id, themeService, storageService);
@@ -666,11 +665,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		};
 		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 		this.viewsModel.setVisible(viewId, visible);
-	}
-
-	protected moveView(viewDescriptor: IViewDescriptor, location: ViewContainerLocation): void {
-		this.viewDescriptorService.moveViewToLocation(viewDescriptor, location);
-		this.viewsService.openView(viewDescriptor.id, true);
 	}
 
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
