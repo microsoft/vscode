@@ -38,7 +38,7 @@ export abstract class BackupTracker extends Disposable {
 		protected readonly backupFileService: IBackupFileService,
 		protected readonly filesConfigurationService: IFilesConfigurationService,
 		protected readonly workingCopyService: IWorkingCopyService,
-		private readonly logService: ILogService,
+		protected readonly logService: ILogService,
 		protected readonly lifecycleService: ILifecycleService
 	) {
 		super();
@@ -104,6 +104,10 @@ export abstract class BackupTracker extends Disposable {
 			return; // skip if auto save is enabled with a short delay
 		}
 
+		if (typeof workingCopy.backup !== 'function') {
+			return; // skip if working copy does not support backups
+		}
+
 		// Clear any running backup operation
 		dispose(this.pendingBackups.get(workingCopy));
 		this.pendingBackups.delete(workingCopy);
@@ -117,7 +121,7 @@ export abstract class BackupTracker extends Disposable {
 			this.pendingBackups.delete(workingCopy);
 
 			// Backup if dirty
-			if (workingCopy.isDirty()) {
+			if (workingCopy.isDirty() && typeof workingCopy.backup === 'function') {
 				this.logService.trace(`[backup tracker] running backup`, workingCopy.resource.toString());
 
 				const backup = await workingCopy.backup();

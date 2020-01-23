@@ -44,6 +44,8 @@ export interface IWorkingCopy {
 
 	readonly resource: URI;
 
+	readonly name: string;
+
 	readonly capabilities: WorkingCopyCapabilities;
 
 
@@ -81,8 +83,11 @@ export interface IWorkingCopy {
 	 *
 	 * Providers of working copies should use `IBackupFileService.resolve(workingCopy.resource)`
 	 * to retrieve the backup metadata associated when loading the working copy.
+	 *
+	 * Not providing this method from the working copy will disable any
+	 * backups and hot-exit functionality for those working copies.
 	 */
-	backup(): Promise<IWorkingCopyBackup>;
+	backup?(): Promise<IWorkingCopyBackup>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
 

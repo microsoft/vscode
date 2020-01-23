@@ -31,6 +31,8 @@ import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/edito
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CustomFileEditorInput } from './customEditorInput';
 import { Emitter } from 'vs/base/common/event';
+import { ILabelService } from 'vs/platform/label/common/label';
+
 export const defaultEditorId = 'default';
 
 const defaultEditorInfo = new CustomEditorInfo({
@@ -110,10 +112,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWebviewService private readonly webviewService: IWebviewService,
+		@ILabelService labelService: ILabelService
 	) {
 		super();
 
-		this._models = new CustomEditorModelManager(workingCopyService);
+		this._models = new CustomEditorModelManager(workingCopyService, labelService);
 
 		this._hasCustomEditor = CONTEXT_HAS_CUSTOM_EDITORS.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
@@ -441,7 +444,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		if (modifiedOverride || originalOverride) {
 			return {
 				override: (async () => {
-					const input = new DiffEditorInput(editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput);
+					const input = new DiffEditorInput(editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
 					return this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
 				})(),
 			};

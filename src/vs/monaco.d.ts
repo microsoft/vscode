@@ -3023,7 +3023,7 @@ declare namespace monaco.editor {
 		 * Controls whether to focus the inline editor in the peek widget by default.
 		 * Defaults to false.
 		 */
-		peekWidgetFocusInlineEditor?: boolean;
+		peekWidgetDefaultFocus?: 'tree' | 'editor';
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3745,7 +3745,7 @@ declare namespace monaco.editor {
 		overviewRulerBorder = 62,
 		overviewRulerLanes = 63,
 		parameterHints = 64,
-		peekWidgetFocusInlineEditor = 65,
+		peekWidgetDefaultFocus = 65,
 		quickSuggestions = 66,
 		quickSuggestionsDelay = 67,
 		readOnly = 68,
@@ -3856,7 +3856,7 @@ declare namespace monaco.editor {
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
-		peekWidgetFocusInlineEditor: IEditorOption<EditorOption.peekWidgetFocusInlineEditor, boolean>;
+		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
@@ -4276,11 +4276,11 @@ declare namespace monaco.editor {
 		/**
 		 * An event emitted after composition has started.
 		 */
-		onCompositionStart(listener: () => void): IDisposable;
+		onDidCompositionStart(listener: () => void): IDisposable;
 		/**
 		 * An event emitted after composition has ended.
 		 */
-		onCompositionEnd(listener: () => void): IDisposable;
+		onDidCompositionEnd(listener: () => void): IDisposable;
 		/**
 		 * An event emitted when users paste text in the editor.
 		 * @event
@@ -5199,11 +5199,19 @@ declare namespace monaco.languages {
 
 	export interface CompletionItemLabel {
 		/**
-		 * The name of this completion item's label.
+		 * The function or variable. Rendered leftmost.
 		 */
 		name: string;
 		/**
-		 * The return-type of a function or type of a property, variable
+		 * The signature without the return type. Render after `name`.
+		 */
+		signature?: string;
+		/**
+		 * The fully qualified name, like package name or file path. Rendered after `signature`.
+		 */
+		qualifier?: string;
+		/**
+		 * The return-type of a function or type of a property/variable. Rendered rightmost.
 		 */
 		type?: string;
 	}

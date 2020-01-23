@@ -26,15 +26,19 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
+
 	private actions: IAction[] | undefined;
+
+	// Override the instantiation service to use to be the scoped one
 	private scopedInstantiationService: IInstantiationService;
-	private _focus = false;
+	protected get instantiationService(): IInstantiationService { return this.scopedInstantiationService; }
+	protected set instantiationService(instantiationService: IInstantiationService) { }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly baseConfigurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private readonly outputService: IOutputService,
@@ -44,12 +48,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	) {
 		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 
+		// Initially, the scoped instantiation service is the global
+		// one until the editor is created later on
 		this.scopedInstantiationService = instantiationService;
-	}
-
-	protected get instantiationService(): IInstantiationService {
-		// Override instantiation service with our scoped service
-		return this.scopedInstantiationService;
 	}
 
 	getId(): string {
@@ -63,10 +64,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(SwitchOutputAction),
-				this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
-				this.instantiationService.createInstance(ToggleOrSetOutputScrollLockAction, ToggleOrSetOutputScrollLockAction.ID, ToggleOrSetOutputScrollLockAction.LABEL),
-				this.instantiationService.createInstance(OpenLogOutputFile)
+				this.scopedInstantiationService.createInstance(SwitchOutputAction),
+				this.scopedInstantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
+				this.scopedInstantiationService.createInstance(ToggleOrSetOutputScrollLockAction, ToggleOrSetOutputScrollLockAction.ID, ToggleOrSetOutputScrollLockAction.LABEL),
+				this.scopedInstantiationService.createInstance(OpenLogOutputFile)
 			];
 
 			this.actions.forEach(a => this._register(a));
@@ -77,7 +78,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 
 	getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
-			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
+			return this.scopedInstantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
 
 		return super.getActionViewItem(action);
@@ -95,7 +96,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 
-		const outputConfig = this.baseConfigurationService.getValue<any>('[Log]');
+		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
@@ -115,9 +116,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		this._focus = !(options && options.preserveFocus);
+		const focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		if (this.input) {
@@ -125,7 +126,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			this.input.dispose();
 		}
 		await super.setInput(input, options, token);
-		if (this._focus) {
+		if (focus) {
 			this.focus();
 		}
 		this.revealLastLine();
@@ -140,15 +141,17 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
+
 		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
+
 		super.createEditor(parent);
 
 		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 
 		const codeEditor = <ICodeEditor>this.getControl();
-		codeEditor.onDidChangeCursorPosition((e) => {
+		this._register(codeEditor.onDidChangeCursorPosition((e) => {
 			if (e.reason !== CursorChangeReason.Explicit) {
 				return;
 			}
@@ -161,6 +164,6 @@ export class OutputPanel extends AbstractTextResourceEditor {
 				const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
 				lockAction.run(newLockState);
 			}
-		});
+		}));
 	}
 }

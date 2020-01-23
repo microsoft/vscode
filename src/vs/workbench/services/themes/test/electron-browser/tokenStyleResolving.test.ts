@@ -152,7 +152,7 @@ suite('Themes - TokenStyleResolving', () => {
 			'type': ts(undefined, undefinedStyle),
 			'function': ts(undefined, undefinedStyle),
 			'string': ts('#a31515', undefinedStyle),
-			'number': ts('#09885a', undefinedStyle),
+			'number': ts('#098658', undefinedStyle),
 			'keyword': ts('#0000ff', undefinedStyle)
 		});
 

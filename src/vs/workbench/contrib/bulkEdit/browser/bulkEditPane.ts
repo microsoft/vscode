@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bulkEdit';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator2, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -46,7 +46,9 @@ export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
 
+	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
+
 	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
 
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
@@ -54,9 +56,11 @@ export class BulkEditPane extends ViewPane {
 	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
 	private _message!: HTMLSpanElement;
 
+	private readonly _ctxHasCategories: IContextKey<boolean>;
+	private readonly _ctxGroupByFile: IContextKey<boolean>;
+
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _ctxGroupByFile: IContextKey<boolean>;
 	private _currentResolve?: (edit?: WorkspaceEdit) => void;
 	private _currentInput?: BulkFileOperations;
 
@@ -82,6 +86,7 @@ export class BulkEditPane extends ViewPane {
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
+		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
 	}
 
@@ -126,7 +131,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 
-		const navigator = new TreeResourceNavigator2(this._tree, { openOnFocus: true });
+		const navigator = new TreeResourceNavigator(this._tree, { openOnFocus: true });
 		this._disposables.add(navigator);
 		this._disposables.add(navigator.onDidOpenResource(e => this._openElementAsEditor(e)));
 
@@ -162,6 +167,11 @@ export class BulkEditPane extends ViewPane {
 		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
 		this._sessionDisposables.add(provider);
 		this._sessionDisposables.add(input);
+
+		//
+		const hasCategories = input.categories.length > 1;
+		this._ctxHasCategories.set(hasCategories);
+		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
 
 		this._currentInput = input;
 
@@ -228,7 +238,9 @@ export class BulkEditPane extends ViewPane {
 
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
-		if (first instanceof FileElement || first instanceof TextEditElement) {
+		if (first instanceof FileElement) {
+			first.edit.updateChecked(!first.edit.isChecked());
+		} else if (first instanceof TextEditElement && first.parent.edit.isChecked()) {
 			first.edit.updateChecked(!first.edit.isChecked());
 		}
 	}

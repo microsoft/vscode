@@ -139,14 +139,12 @@ export class UserDataSyncStoreError extends Error {
 
 export interface IUserDataSyncStore {
 	url: string;
-	name: string;
-	account: string;
 	authenticationProviderId: string;
 }
 
 export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
 	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
-	return value && value.url && value.name && value.account && value.authenticationProviderId ? value : undefined;
+	return value && value.url && value.authenticationProviderId ? value : undefined;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
@@ -225,7 +223,6 @@ export interface IUserDataSyncUtilService {
 	updateConfigurationValue(key: string, value: any): Promise<void>;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
-	ignoreExtensionsToSync(extensionIdentifiers: IExtensionIdentifier[]): Promise<void>;
 }
 
 export const IUserDataAuthTokenService = createDecorator<IUserDataAuthTokenService>('IUserDataAuthTokenService');

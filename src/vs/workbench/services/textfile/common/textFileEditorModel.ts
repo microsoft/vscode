@@ -19,11 +19,12 @@ import { timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { SaveSequentializer } from 'vs/workbench/services/textfile/common/saveSequenzializer';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IBackupMetaData {
 	mtime: number;
@@ -74,6 +75,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	readonly capabilities = 0;
 
+	readonly name = basename(this.labelService.getUriLabel(this.resource));
+
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
 	private versionId = 0;
@@ -103,7 +106,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(modelService, modeService);
 
@@ -286,7 +290,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Load with backup
 		this.loadFromContent({
 			resource: this.resource,
-			name: basename(this.resource),
+			name: this.name,
 			mtime: backup.meta ? backup.meta.mtime : Date.now(),
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
@@ -784,7 +788,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			const notificationService = this.notificationService;
 			TextFileEditorModel.setSaveErrorHandler({
 				onSaveError(error: Error, model: TextFileEditorModel): void {
-					notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.resource), toErrorMessage(error, false)));
+					notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
 				}
 			});
 		}

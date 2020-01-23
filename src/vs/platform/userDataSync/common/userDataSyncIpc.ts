@@ -9,7 +9,6 @@ import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, I
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -124,7 +123,6 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 			case 'resolveUserKeybindings': return this.service.resolveUserBindings(args[0]);
 			case 'resolveFormattingOptions': return this.service.resolveFormattingOptions(URI.revive(args[0]));
 			case 'updateConfigurationValue': return this.service.updateConfigurationValue(args[0], args[1]);
-			case 'ignoreExtensionsToSync': return this.service.ignoreExtensionsToSync(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -147,10 +145,6 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 	async updateConfigurationValue(key: string, value: any): Promise<void> {
 		return this.channel.call('updateConfigurationValue', [key, value]);
-	}
-
-	async ignoreExtensionsToSync(extensionIdentifiers: IExtensionIdentifier[]): Promise<void> {
-		return this.channel.call('ignoreExtensionsToSync', [extensionIdentifiers]);
 	}
 
 }

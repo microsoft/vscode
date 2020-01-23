@@ -28,6 +28,10 @@ export interface IBackupFileService {
 
 	/**
 	 * Finds out if the provided resource with the given version is backed up.
+	 *
+	 * Note: if the backup service has not been initialized yet, this may return
+	 * the wrong result. Always use `resolve()` if you can do a long running
+	 * operation.
 	 */
 	hasBackupSync(resource: URI, versionId?: number): boolean;
 
@@ -64,10 +68,4 @@ export interface IBackupFileService {
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
 	discardBackup(resource: URI): Promise<void>;
-
-	/**
-	 * Discards all backups associated with the current workspace and prevents further backups from
-	 * being made.
-	 */
-	discardBackups(): Promise<void>;
 }

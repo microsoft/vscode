@@ -36,8 +36,7 @@ import { INewUntitledTextEditorOptions } from 'vs/workbench/services/untitled/co
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
@@ -77,12 +76,13 @@ class TestBackupTracker extends NativeBackupTracker {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@INotificationService notificationService: INotificationService,
+		@IDialogService dialogService: IDialogService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IElectronService electronService: IElectronService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, notificationService, contextService, electronService, logService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, dialogService, contextService, electronService, logService, editorService);
 
 		// Reduce timeout for tests
 		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
@@ -279,14 +279,13 @@ suite('BackupTracker', () => {
 
 		let veto = event.value;
 		if (typeof veto === 'boolean') {
-			assert.ok(accessor.backupFileService.didDiscardAllWorkspaceBackups);
+			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
 			assert.ok(!veto);
-			return;
+		} else {
+			veto = await veto;
+			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
+			assert.ok(!veto);
 		}
-
-		veto = await veto;
-		assert.ok(accessor.backupFileService.didDiscardAllWorkspaceBackups);
-		assert.ok(!veto);
 
 		part.dispose();
 		tracker.dispose();
@@ -453,7 +452,7 @@ suite('BackupTracker', () => {
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			const veto = await (<Promise<boolean>>event.value);
-			assert.ok(!accessor.backupFileService.didDiscardAllWorkspaceBackups); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.equal(veto, shouldVeto);
 
 			part.dispose();

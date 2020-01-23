@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?ed926e87ee4e27771159d875e877f74a") format("truetype");
+	src: url("./codicon.ttf?be537a78617db0869caa4b4cc683a24a") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -119,6 +119,7 @@
 .codicon-github:before { content: "\ea84" }
 .codicon-terminal:before { content: "\ea85" }
 .codicon-console:before { content: "\ea85" }
+.codicon-repl:before { content: "\ea85" }
 .codicon-zap:before { content: "\ea86" }
 .codicon-symbol-event:before { content: "\ea86" }
 .codicon-error:before { content: "\ea87" }
@@ -410,4 +411,6 @@
 .codicon-menu:before { content: "\eb94" }
 .codicon-expand-all:before { content: "\eb95" }
 .codicon-feedback:before { content: "\eb96" }
+.codicon-group-by-ref-type:before { content: "\eb97" }
+.codicon-ungroup-by-ref-type:before { content: "\eb98" }
 .codicon-debug-alt:before { content: "\f101" }

@@ -18,16 +18,20 @@ import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCop
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { basenameOrAuthority } from 'vs/base/common/resources';
+import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
+	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 50;
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeFirstLine = this._register(new Emitter<void>());
-	readonly onDidChangeFirstLine = this._onDidChangeFirstLine.event;
+	private readonly _onDidChangeName = this._register(new Emitter<void>());
+	readonly onDidChangeName = this._onDidChangeName.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -36,6 +40,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
+
+	private cachedModelFirstLineWords: string | undefined = undefined;
+	get name(): string {
+		// Take name from first line if present and only if
+		// we have no associated file path. In that case we
+		// prefer the file name as title.
+		if (!this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
+			return this.cachedModelFirstLineWords;
+		}
+
+		// Otherwise fallback to resource
+		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
+	}
 
 	private dirty = false;
 	private versionId = 0;
@@ -158,6 +175,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.updateTextEditorModel(untitledContents, this.preferredMode);
 		}
 
+		// Name
+		if (backup || this.initialValue) {
+			this.updateNameFromFirstLine();
+		}
+
 		// Encoding
 		this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
@@ -174,7 +196,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// as the appropiate events to the outside.
 		if (backup || this.initialValue) {
 			this._onDidChangeContent.fire();
-			this._onDidChangeFirstLine.fire();
 		}
 
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
@@ -198,12 +219,35 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(true);
 		}
 
+		// Check for name change if first line changed
+		if (e.changes.some(change => change.range.startLineNumber === 1 || change.range.endLineNumber === 1)) {
+			this.updateNameFromFirstLine();
+		}
+
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
+	}
 
-		// Emit as first line change event depending on actual change
-		if (e.changes.some(change => change.range.startLineNumber === 1 || change.range.endLineNumber === 1)) {
-			this._onDidChangeFirstLine.fire();
+	private updateNameFromFirstLine(): void {
+		if (this.hasAssociatedFilePath) {
+			return; // not in case of an associated file path
+		}
+
+		// Determine the first words of the model following these rules:
+		// - cannot be only whitespace (so we trim())
+		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
+		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
+
+		let modelFirstWordsCandidate: string | undefined = undefined;
+
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH }).trim();
+		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
+			modelFirstWordsCandidate = firstLineText;
+		}
+
+		if (modelFirstWordsCandidate !== this.cachedModelFirstLineWords) {
+			this.cachedModelFirstLineWords = modelFirstWordsCandidate;
+			this._onDidChangeName.fire();
 		}
 	}
 

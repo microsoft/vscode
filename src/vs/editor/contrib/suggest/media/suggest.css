@@ -132,13 +132,29 @@
 	opacity: 1;
 }
 
+/** signature, qualifier, type/details opacity **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .signature-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
+	opacity: 0.7;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label {
+	margin-left: 4px;
+	opacity: 0.4;
+	font-size: 90%;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	line-height: 17px;
+	align-self: center;
+}
+
 /** Type Info and icon next to the label in the focused completion item **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
 	margin-left: 0.8em;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	opacity: 0.7;
 	white-space: nowrap;
 }
 
@@ -169,9 +185,18 @@
 	width: calc(100% - 26px);
 }
 
-/** ReadMore: show on hover **/
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left {
+	flex-shrink: 1;
+	overflow: hidden;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .monaco-icon-label {
+	flex-shrink: 0;
+}
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
 	overflow: hidden;
+	margin-left: 16px;
+	flex-shrink: 0;
+	max-width: 45%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {

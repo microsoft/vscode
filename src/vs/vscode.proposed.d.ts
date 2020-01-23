@@ -50,13 +50,7 @@ declare module 'vscode' {
 		export const onDidRegisterAuthenticationProvider: Event<string>;
 		export const onDidUnregisterAuthenticationProvider: Event<string>;
 
-		/**
-		 * Fires with the provider id that changed sessions.
-		 */
-		export const onDidChangeSessions: Event<string>;
-		export function login(providerId: string): Promise<Session>;
-		export function logout(providerId: string, accountId: string): Promise<void>;
-		export function getSessions(providerId: string): Promise<ReadonlyArray<Session>>;
+		export const providers: ReadonlyArray<AuthenticationProvider>;
 	}
 
 	//#endregion
@@ -286,7 +280,7 @@ declare module 'vscode' {
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
 		 */
-		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens>;
 
 		/**
 		 * Instead of always returning all the tokens in a file, it is possible for a `DocumentSemanticTokensProvider` to implement
@@ -1386,18 +1380,24 @@ declare module 'vscode' {
 	}
 
 	export interface CompletionItemLabel {
-
 		/**
-		 * The function or variable
+		 * The function or variable. Rendered leftmost.
 		 */
 		name: string;
 
-		// The signature, without the return type. is render directly after `name`
-		// signature?: string; // parameters
-		// The fully qualified name, like package name, file path etc
-		// qualifier?: string;
+		/**
+		 * The signature without the return type. Render after `name`.
+		 */
+		signature?: string;
 
-		// The return-type of a function or type of a property, variable etc
+		/**
+		 * The fully qualified name, like package name or file path. Rendered after `signature`.
+		 */
+		qualifier?: string;
+
+		/**
+		 * The return-type of a function or type of a property/variable. Rendered rightmost.
+		 */
 		type?: string;
 	}
 

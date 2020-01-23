@@ -416,11 +416,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted after composition has started.
 	 */
-	onCompositionStart(listener: () => void): IDisposable;
+	onDidCompositionStart(listener: () => void): IDisposable;
 	/**
 	 * An event emitted after composition has ended.
 	 */
-	onCompositionEnd(listener: () => void): IDisposable;
+	onDidCompositionEnd(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event

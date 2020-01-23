@@ -148,9 +148,11 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string): void;
+	$registerAuthenticationProvider(id: string, displayName: string): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$onDidChangeSessions(id: string): void;
+	$getSessionsPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
+	$loginPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -1028,11 +1030,17 @@ export interface ISuggestDataDto {
 	x?: ChainedCacheId;
 }
 
+export const enum ISuggestResultDtoField {
+	defaultRanges = 'a',
+	completions = 'b',
+	isIncomplete = 'c'
+}
+
 export interface ISuggestResultDto {
+	[ISuggestResultDtoField.defaultRanges]: { insert: IRange, replace: IRange; };
+	[ISuggestResultDtoField.completions]: ISuggestDataDto[];
+	[ISuggestResultDtoField.isIncomplete]: undefined | true;
 	x?: number;
-	a: { insert: IRange, replace: IRange; };
-	b: ISuggestDataDto[];
-	c?: true;
 }
 
 export interface ISignatureHelpDto {
