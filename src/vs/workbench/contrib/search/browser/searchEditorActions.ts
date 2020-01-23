@@ -13,25 +13,33 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
-import { getOrMakeSearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorInput';
+import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorInput';
 import { serializeSearchResultForEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
+
 
 export const openNewSearchEditor =
 	async (editorService: IEditorService, instantiationService: IInstantiationService) => {
 		const activeEditor = editorService.activeTextEditorWidget;
 		let activeModel: ICodeEditor | undefined;
-		if (isDiffEditor(activeEditor)) {
-			if (activeEditor.getOriginalEditor().hasTextFocus()) {
-				activeModel = activeEditor.getOriginalEditor();
+		let selected = '';
+		if (activeEditor) {
+			if (isDiffEditor(activeEditor)) {
+				if (activeEditor.getOriginalEditor().hasTextFocus()) {
+					activeModel = activeEditor.getOriginalEditor();
+				} else {
+					activeModel = activeEditor.getModifiedEditor();
+				}
 			} else {
-				activeModel = activeEditor.getModifiedEditor();
+				activeModel = activeEditor as ICodeEditor;
 			}
+			const selection = activeModel?.getSelection();
+			selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
 		} else {
-			activeModel = activeEditor as ICodeEditor | undefined;
+			if (editorService.activeEditor instanceof SearchEditorInput) {
+				const active = editorService.activeControl as SearchEditor;
+				selected = active.getSelected();
+			}
 		}
-		const selection = activeModel?.getSelection();
-		let selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
-
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration({ query: selected }) });
 		await editorService.openEditor(input, { pinned: true });
