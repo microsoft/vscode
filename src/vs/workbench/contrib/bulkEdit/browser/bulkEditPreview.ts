@@ -60,7 +60,6 @@ export const enum BulkFileOperationType {
 
 export class BulkFileOperation extends CheckedObject {
 
-	type: BulkFileOperationType = 0;
 	textEdits: BulkTextEdit[] = [];
 	originalEdits = new Map<number, WorkspaceTextEdit | WorkspaceFileEdit>();
 	newUri?: URI;
@@ -72,14 +71,13 @@ export class BulkFileOperation extends CheckedObject {
 		super(parent._onDidChangeCheckedState);
 	}
 
-	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit, ) {
-		this.type |= type;
+	addEdit(index: number, edit: WorkspaceTextEdit | WorkspaceFileEdit, ) {
 		this.originalEdits.set(index, edit);
 		if (WorkspaceTextEdit.is(edit)) {
 			this.textEdits.push(new BulkTextEdit(this, edit, this._emitter));
 
 		} else {
-			if (type === BulkFileOperationType.Rename) {
+			if (WorkspaceFileEdit.isRename(edit)) {
 				this.newUri = edit.newUri;
 			}
 			// one needsConfirmation is enough to uncheck this item
@@ -87,6 +85,28 @@ export class BulkFileOperation extends CheckedObject {
 				this.updateChecked(false);
 			}
 		}
+	}
+
+	get isTextEdit(): boolean {
+		return this.textEdits.length > 0;
+	}
+
+	get isRename(): boolean {
+		let value = false;
+		this.originalEdits.forEach(edit => value = value || WorkspaceFileEdit.isRename(edit));
+		return value;
+	}
+
+	get isCreate(): boolean {
+		let value = false;
+		this.originalEdits.forEach(edit => value = value || WorkspaceFileEdit.isCreate(edit));
+		return value;
+	}
+
+	get isDelete(): boolean {
+		let value = false;
+		this.originalEdits.forEach(edit => value = value || WorkspaceFileEdit.isDelete(edit));
+		return value;
 	}
 }
 
@@ -161,14 +181,12 @@ export class BulkFileOperations {
 			const edit = this._bulkEdit.edits[idx];
 
 			let uri: URI;
-			let type: BulkFileOperationType;
 
 			if (WorkspaceTextEdit.is(edit)) {
-				type = BulkFileOperationType.TextEdit;
 				uri = edit.resource;
 
 			} else if (edit.newUri && edit.oldUri) {
-				type = BulkFileOperationType.Rename;
+				// rename
 				uri = edit.oldUri;
 				if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
 					// noop -> "soft" rename to something that already exists
@@ -179,7 +197,7 @@ export class BulkFileOperations {
 				newToOldUri.set(edit.newUri.toString(), uri.toString());
 
 			} else if (edit.oldUri) {
-				type = BulkFileOperationType.Delete;
+				// delete
 				uri = edit.oldUri;
 				if (edit.options?.ignoreIfNotExists && !await this._fileService.exists(uri)) {
 					// noop -> "soft" delete something that doesn't exist
@@ -187,7 +205,7 @@ export class BulkFileOperations {
 				}
 
 			} else if (edit.newUri) {
-				type = BulkFileOperationType.Create;
+				// create
 				uri = edit.newUri;
 				if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
 					// noop -> "soft" create something that already exists
@@ -213,7 +231,7 @@ export class BulkFileOperations {
 					operation = new BulkFileOperation(uri, this);
 					map.set(key, operation);
 				}
-				operation.addEdit(idx, type, edit);
+				operation.addEdit(idx, edit);
 			};
 
 			insert(operationByResource);

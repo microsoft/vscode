@@ -1268,6 +1268,24 @@ export namespace WorkspaceFileEdit {
 	export function is(thing: any): thing is WorkspaceFileEdit {
 		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
 	}
+	/**
+	 * @internal
+	 */
+	export function isRename(edit: WorkspaceFileEdit): boolean {
+		return URI.isUri(edit.newUri) && URI.isUri(edit.oldUri);
+	}
+	/**
+	 * @internal
+	 */
+	export function isCreate(edit: WorkspaceFileEdit): boolean {
+		return URI.isUri(edit.newUri) && !edit.oldUri;
+	}
+	/**
+	 * @internal
+	 */
+	export function isDelete(edit: WorkspaceFileEdit): boolean {
+		return !edit.newUri && URI.isUri(edit.oldUri);
+	}
 }
 
 /**

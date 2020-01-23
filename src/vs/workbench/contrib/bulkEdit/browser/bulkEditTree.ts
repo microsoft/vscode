@@ -15,7 +15,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations, BulkFileOperation, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -140,19 +140,19 @@ export class BulkEditAccessibilityProvider implements IAccessibilityProvider<Bul
 	getAriaLabel(element: BulkEditElement): string | null {
 		if (element instanceof FileElement) {
 			if (element.edit.textEdits.length > 0) {
-				if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
+				if (element.edit.isRename && element.edit.newUri) {
 					return localize(
 						'aria.renameAndEdit', "Renaming {0} to {1}, also making text edits",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Create) {
+				} else if (element.edit.isCreate) {
 					return localize(
 						'aria.createAndEdit', "Creating {0}, also making text edits",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Delete) {
+				} else if (element.edit.isDelete) {
 					return localize(
 						'aria.deleteAndEdit', "Deleting {0}, also making text edits",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
@@ -165,19 +165,19 @@ export class BulkEditAccessibilityProvider implements IAccessibilityProvider<Bul
 				}
 
 			} else {
-				if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
+				if (element.edit.isRename && element.edit.newUri) {
 					return localize(
 						'aria.rename', "Renaming {0} to {1}",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Create) {
+				} else if (element.edit.isCreate) {
 					return localize(
 						'aria.create', "Creating {0}",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Delete) {
+				} else if (element.edit.isDelete) {
 					return localize(
 						'aria.delete', "Deleting {0}",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
@@ -324,13 +324,13 @@ class FileElementTemplate {
 		this._localDisposables.clear();
 		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
 
-		if (element.edit.type === BulkFileOperationType.TextEdit && element.edit.textEdits.every(edit => !edit.isChecked())) {
+		if (element.edit.isTextEdit && element.edit.textEdits.every(edit => !edit.isChecked())) {
 			this._checkbox.checked = false;
 		} else {
 			this._checkbox.checked = element.edit.isChecked();
 		}
 
-		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
+		if (element.edit.isRename && element.edit.newUri) {
 			// rename: NEW NAME (old name)
 			this._label.setFile(element.edit.newUri, {
 				matches: createMatches(score),
@@ -351,9 +351,9 @@ class FileElementTemplate {
 				fileDecorations: { colors: true, badges: false },
 			});
 
-			if (element.edit.type & BulkFileOperationType.Create) {
+			if (element.edit.isCreate) {
 				this._details.innerText = localize('detail.create', "(creating)");
-			} else if (element.edit.type & BulkFileOperationType.Delete) {
+			} else if (element.edit.isDelete) {
 				this._details.innerText = localize('detail.del', "(deleting)");
 			} else {
 				this._details.innerText = '';

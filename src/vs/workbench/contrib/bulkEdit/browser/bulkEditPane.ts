@@ -14,7 +14,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -305,7 +305,7 @@ export class BulkEditPane extends ViewPane {
 		}
 
 		let leftResource: URI | undefined;
-		if (fileElement.edit.type & BulkFileOperationType.TextEdit) {
+		if (fileElement.edit.isTextEdit) {
 			try {
 				(await this._textModelService.createModelReference(fileElement.uri)).dispose();
 				leftResource = fileElement.uri;
@@ -327,11 +327,11 @@ export class BulkEditPane extends ViewPane {
 		} else {
 			// show 'normal' editor
 			let typeLabel: string | undefined;
-			if (fileElement.edit.type & BulkFileOperationType.Rename) {
+			if (fileElement.edit.isRename) {
 				typeLabel = localize('rename', "rename");
-			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
+			} else if (fileElement.edit.isCreate) {
 				typeLabel = localize('create', "create");
-			} else if (fileElement.edit.type & BulkFileOperationType.Delete) {
+			} else if (fileElement.edit.isDelete) {
 				typeLabel = localize('delete', "delete");
 			}
 
