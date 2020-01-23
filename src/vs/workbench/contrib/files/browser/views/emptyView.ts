@@ -52,6 +52,8 @@ export class EmptyView extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		DOM.addClass(container, 'explorer-empty-view');
 		container.tabIndex = 0;
 

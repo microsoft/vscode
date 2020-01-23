@@ -200,6 +200,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'explorer-open-editors');
 		dom.addClass(container, 'show-file-icons');
 

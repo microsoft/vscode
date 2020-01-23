@@ -256,6 +256,7 @@ export class SearchView extends ViewPane {
 	}
 
 	renderBody(parent: HTMLElement): void {
+		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));

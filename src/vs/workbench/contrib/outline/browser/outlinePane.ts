@@ -294,6 +294,8 @@ export class OutlinePane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		this._domNode = container;
 		this._domNode.tabIndex = 0;
 		dom.addClass(container, 'outline-pane');

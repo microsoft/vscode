@@ -137,6 +137,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	}
 
 	public renderBody(parent: HTMLElement): void {
+		super.renderBody(parent);
 
 		dom.addClass(parent, 'markers-panel');
 
@@ -193,7 +194,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			return;
 		}
 
-		if (this.isEmpty() && this.messageBoxContainer) {
+		if (this.hasNoProblems() && this.messageBoxContainer) {
 			this.messageBoxContainer.focus();
 		} else if (this.tree) {
 			this.tree.getHTMLElement().focus();
@@ -533,7 +534,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		}
 	}
 
-	private isEmpty(): boolean {
+	private hasNoProblems(): boolean {
 		const { total, filtered } = this.getFilterStats();
 		return total === 0 || filtered === 0;
 	}
@@ -542,7 +543,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.cachedFilterStats = undefined;
 		this.resetTree();
 		if (this.tree) {
-			this.tree.toggleVisibility(this.isEmpty());
+			this.tree.toggleVisibility(this.hasNoProblems());
 		}
 		this.renderMessage();
 	}

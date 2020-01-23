@@ -192,6 +192,8 @@ export class MainPane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };

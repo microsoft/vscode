@@ -439,6 +439,8 @@ export class Repl extends ViewPane implements IPrivateReplService, IHistoryNavig
 	// --- Creation
 
 	protected renderBody(parent: HTMLElement): void {
+		super.renderBody(parent);
+
 		this.container = dom.append(parent, $('.repl'));
 		const treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);

@@ -149,6 +149,8 @@ export class CallStackView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'debug-call-stack');
 		const treeContainer = renderViewTree(container);
 

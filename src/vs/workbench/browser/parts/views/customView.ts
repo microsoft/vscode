@@ -72,6 +72,8 @@ export class CustomTreeViewPane extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		if (this.treeView instanceof CustomTreeView) {
 			this.treeView.show(container);
 		}

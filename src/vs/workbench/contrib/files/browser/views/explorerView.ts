@@ -240,6 +240,8 @@ export class ExplorerView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 
 		this.styleElement = DOM.createStyleSheet(treeContainer);

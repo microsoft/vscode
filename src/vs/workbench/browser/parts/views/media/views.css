@@ -71,6 +71,16 @@
 	display: none;
 }
 
+.monaco-workbench .pane > .pane-body > .empty-view {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .pane > .pane-body > .empty-view,
+.monaco-workbench .pane > .pane-body.empty > :not(.empty-view) {
+	display: none;
+}
+
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
 	display: none;
 }

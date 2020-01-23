@@ -459,6 +459,8 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
 		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
 		dom.addClass(treeContainer, 'file-icon-themable-tree');

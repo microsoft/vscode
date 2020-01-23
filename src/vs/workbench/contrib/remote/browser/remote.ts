@@ -377,6 +377,8 @@ class HelpPanel extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'remote-help');
 		const treeContainer = document.createElement('div');
 		dom.addClass(treeContainer, 'remote-help-content');

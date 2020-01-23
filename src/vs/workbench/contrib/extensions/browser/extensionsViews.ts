@@ -123,6 +123,8 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const extensionsList = append(container, $('.extensions-list'));
 		const messageContainer = append(container, $('.message-container'));
 		const messageSeverityIcon = append(messageContainer, $(''));

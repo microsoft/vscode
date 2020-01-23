@@ -70,6 +70,9 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
+	protected _onDidChangeEmptyState = this._register(new Emitter<void>());
+	readonly onDidChangeEmptyState: Event<void> = this._onDidChangeEmptyState.event;
+
 	private focusedViewContextKey: IContextKey<string>;
 
 	private _isVisible: boolean = false;
@@ -84,6 +87,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
+	private emptyViewContainer?: HTMLElement;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -190,6 +194,11 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
+	protected renderBody(container: HTMLElement): void {
+		this.emptyViewContainer = append(container, $('.empty-view', { tabIndex: 0 }));
+		this.emptyViewContainer.textContent = 'this view is empty';
+	}
+
 	focus(): void {
 		if (this.element) {
 			this.element.focus();
@@ -242,6 +251,10 @@ export abstract class ViewPane extends Pane implements IView {
 
 	saveState(): void {
 		// Subclasses to implement for saving state
+	}
+
+	isEmpty(): boolean {
+		return false;
 	}
 }
 

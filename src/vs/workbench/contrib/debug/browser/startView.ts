@@ -154,6 +154,8 @@ export class StartView extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		this.firstMessageContainer = $('.top-section');
 		container.appendChild(this.firstMessageContainer);
 
