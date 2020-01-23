@@ -85,6 +85,9 @@ function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): 
 	if (isWorkspaceFolder(scope)) {
 		return { resource: scope.uri };
 	}
+	if (scope === null) {
+		return { resource: null };
+	}
 	return undefined;
 }
 
