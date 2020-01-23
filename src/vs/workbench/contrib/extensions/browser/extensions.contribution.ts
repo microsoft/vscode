@@ -228,26 +228,26 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.installExtension.extensionId.name', "Extension id or VSIX resource uri"),
+				name: localize('workbench.extensions.installExtension.args.name', "Extension id or VSIX resource uri"),
 				schema: {
 					'type': ['object', 'string']
 				}
 			}
 		]
 	},
-	handler: async (accessor, extensionId: string | UriComponents) => {
+	handler: async (accessor, arg: string | UriComponents) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
-			if (typeof extensionId === 'string') {
-				const extension = await extensionGalleryService.getCompatibleExtension({ id: extensionId });
+			if (typeof arg === 'string') {
+				const extension = await extensionGalleryService.getCompatibleExtension({ id: arg });
 				if (extension) {
 					await extensionManagementService.installFromGallery(extension);
 				} else {
-					throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
+					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}
 			} else {
-				const vsix = URI.revive(extensionId);
+				const vsix = URI.revive(arg);
 				await extensionManagementService.install(vsix);
 			}
 		} catch (e) {
@@ -263,22 +263,22 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.uninstallExtension.extensionId.name', "Id of the extension to uninstall"),
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
 				schema: {
 					'type': 'string'
 				}
 			}
 		]
 	},
-	handler: async (accessor, extensionId: string) => {
-		if (!extensionId) {
+	handler: async (accessor, id: string) => {
+		if (!id) {
 			throw new Error(localize('id required', "Extension id required."));
 		}
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
-		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
+		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 		if (!extensionToUninstall) {
-			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", extensionId));
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id));
 		}
 
 		try {
