@@ -377,7 +377,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 						promise = this.executeTask(dependencyTask, resolver, trigger, alreadyResolved);
 					}
 					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
-						promise = Promise.resolve(await promise);
+						const promiseResult = await promise;
+						if (promiseResult.exitCode === 0) {
+							promise = Promise.resolve(promiseResult);
+						} else {
+							promise = Promise.reject(promiseResult);
+							break;
+						}
 					}
 					promises.push(promise);
 				} else {
