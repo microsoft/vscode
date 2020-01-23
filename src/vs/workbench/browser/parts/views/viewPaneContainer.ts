@@ -397,10 +397,13 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			viewDescriptor = Registry.as<IViewsRegistry>(ViewsExtensions.ViewsRegistry).getView(viewId)!;
 		}
 
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewsExtensions.ViewContainersRegistry);
+		const currentLocation = viewContainerRegistry.getViewContainerLocation(this.viewContainer);
+
 		const result: IAction[] = [];
 		if (viewDescriptor) {
-
-			if (!this.isViewMergedWithContainer()) {
+			// For now, restrict any additional actions to the sidebar only
+			if (!this.isViewMergedWithContainer() && currentLocation === ViewContainerLocation.Sidebar) {
 				result.push(<IAction>{
 					id: `${viewDescriptor.id}.removeView`,
 					label: nls.localize('hideView', "Hide"),
@@ -410,28 +413,33 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 
 			if (viewDescriptor.canMoveView) {
+				const newLocation = currentLocation === ViewContainerLocation.Panel ? ViewContainerLocation.Sidebar : ViewContainerLocation.Panel;
 				result.push(<IAction>{
-					id: `${viewDescriptor.id}.removeView`,
-					label: this.isViewMergedWithContainer() ? nls.localize('toggleSpecificViewLocation', "Toggle {0} View Location", viewDescriptor.name) : nls.localize('toggleViewLocation', "Toggle View Location"),
+					id: `${viewDescriptor.id}.moveView`,
+					label: newLocation === ViewContainerLocation.Sidebar ? nls.localize('moveViewToSidebar', "Move to Sidebar") : nls.localize('moveViewToPanel', "Move to Panel"),
 					enabled: true,
-					run: () => this.moveView(viewDescriptor!)
+					run: () => this.moveView(viewDescriptor!, newLocation)
 				});
 			}
 		}
 
-		const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewsModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility,
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
+		// For now, restrict any additional actions to the sidebar only
+		if (currentLocation === ViewContainerLocation.Sidebar) {
+			const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
+				id: `${viewDescriptor.id}.toggleVisibility`,
+				label: viewDescriptor.name,
+				checked: this.viewsModel.isVisible(viewDescriptor.id),
+				enabled: viewDescriptor.canToggleVisibility,
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			}));
 
-		if (result.length && viewToggleActions.length) {
-			result.push(new Separator());
+			if (result.length && viewToggleActions.length) {
+				result.push(new Separator());
+			}
+
+			result.push(...viewToggleActions);
 		}
 
-		result.push(...viewToggleActions);
 		return result;
 	}
 
@@ -673,10 +681,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.viewsModel.setVisible(viewId, visible);
 	}
 
-	protected moveView(viewDescriptor: IViewDescriptor): void {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewsExtensions.ViewContainersRegistry);
-		const currentLocation = viewContainerRegistry.getViewContainerLocation(this.viewContainer);
-		this.viewDescriptorService.moveViewToLocation(viewDescriptor, currentLocation === ViewContainerLocation.Sidebar ? ViewContainerLocation.Panel : ViewContainerLocation.Sidebar);
+	protected moveView(viewDescriptor: IViewDescriptor, location: ViewContainerLocation): void {
+		this.viewDescriptorService.moveViewToLocation(viewDescriptor, location);
 		this.viewsService.openView(viewDescriptor.id, true);
 	}
 

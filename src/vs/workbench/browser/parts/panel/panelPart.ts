@@ -131,13 +131,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
 			getContextMenuActions: () => [
-				...this.getContextMenuActions(),
 				...PositionPanelActionConfigs
 					// show the contextual menu item if it is not in that position
 					.filter(({ when }) => contextKeyService.contextMatchesRules(when))
 					.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
 				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 			] as Action[],
+			getContextMenuActionsForCompositeId: (compositeId: string) => this.getContextMenuActionsForCompositeId(compositeId) as Action[],
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			compositeSize: 0,
@@ -161,14 +161,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.onDidRegisterPanels([...this.getPanels()]);
 	}
 
-	private getContextMenuActions(): readonly IAction[] {
-		const activePanel = this.getActivePanel();
+	private getContextMenuActionsForCompositeId(compositeId: string): readonly IAction[] {
+		const panel = this.getActivePanel();
 
-		if (!activePanel) {
+		if (!panel || panel.getId() !== compositeId) {
 			return [];
 		}
 
-		return activePanel.getContextMenuActions();
+		return panel.getContextMenuActions();
 	}
 
 	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
