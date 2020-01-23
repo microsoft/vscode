@@ -56,7 +56,7 @@ import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/ex
 import { assertType } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { SearchEditorInput, SearchEditorInputFactory, SearchEditorContribution } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
+import { SearchEditorInput, SearchEditorInputFactory, SearchEditorContribution } from 'vs/workbench/contrib/search/browser/searchEditorInput';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
