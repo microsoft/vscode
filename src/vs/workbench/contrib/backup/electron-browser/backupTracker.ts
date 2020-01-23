@@ -143,18 +143,25 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				break;
 		}
 
-
-		// Backup all working copies. The backup file service is clever
-		// enough to not backup a dirty working copy again if there is
-		// already a backup for the given content version.
+		// Perform a backup of all dirty working copies unless a backup already exists
 		const backups: IWorkingCopy[] = [];
 		if (doBackup) {
 			await Promise.all(workingCopies.map(async workingCopy => {
-				if (typeof workingCopy.backup === 'function') {
-					const backup = await workingCopy.backup();
-					await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
+				const contentVersion = this.getContentVersion(workingCopy);
 
+				// Backup exists
+				if (this.backupFileService.hasBackupSync(workingCopy.resource, contentVersion)) {
 					backups.push(workingCopy);
+				}
+
+				// Backup does not exist
+				else {
+					if (typeof workingCopy.backup === 'function') {
+						const backup = await workingCopy.backup();
+						await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
+
+						backups.push(workingCopy);
+					}
 				}
 			}));
 		}
@@ -164,16 +171,13 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 	private async confirmBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<boolean> {
 
-		// Show confirm dialog for all dirty working copies
-		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.name));
-
 		// Save
+		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.name));
 		if (confirm === ConfirmResult.SAVE) {
 			const dirtyCount = this.workingCopyService.dirtyCount;
 			await this.doSaveAllBeforeShutdown(workingCopies, SaveReason.EXPLICIT);
 
 			const savedWorkingCopies = dirtyCount - this.workingCopyService.dirtyCount;
-
 			if (savedWorkingCopies < workingCopies.length) {
 				return true; // veto (save failed or was canceled)
 			}
@@ -217,7 +221,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// If we still have dirty working copies, save those directly
 		// unless the save was not successful (e.g. cancelled)
 		if (result !== false) {
-			await Promise.all(workingCopies.map(workingCopy => workingCopy.save(saveOptions)));
+			await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 		}
 	}
 
@@ -235,7 +239,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// If we still have dirty working copies, revert those directly
 		// unless the revert operation was not successful (e.g. cancelled)
 		if (result !== false) {
-			await Promise.all(workingCopies.map(workingCopy => workingCopy.revert(revertOptions)));
+			await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve(true)));
 		}
 	}
 
