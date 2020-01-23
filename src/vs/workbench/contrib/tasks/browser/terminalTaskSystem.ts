@@ -208,16 +208,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
 		let terminalData = this.activeTasks[task.getMapKey()];
 		if (terminalData && terminalData.promise) {
-			let reveal = RevealKind.Always;
-			let focus = false;
-			if (CustomTask.is(task) || ContributedTask.is(task)) {
-				reveal = task.command.presentation!.reveal;
-				focus = task.command.presentation!.focus;
-			}
-			if (reveal === RevealKind.Always || focus) {
-				this.terminalService.setActiveInstance(terminalData.terminal);
-				this.terminalService.showPanel(focus);
-			}
 			this.lastTask = this.currentTask;
 			return { kind: TaskExecuteKind.Active, task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}
@@ -256,14 +246,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	public revealTask(task: Task): boolean {
+	public isTaskVisible(task: Task): boolean {
 		let terminalData = this.activeTasks[task.getMapKey()];
 		if (!terminalData) {
 			return false;
 		}
 		const activeTerminalInstance = this.terminalService.getActiveInstance();
 		const isPanelShowingTerminal = this.panelService.getActivePanel()?.getId() === TERMINAL_PANEL_ID;
-		if (isPanelShowingTerminal && (activeTerminalInstance === terminalData.terminal)) {
+		return isPanelShowingTerminal && (activeTerminalInstance?.id === terminalData.terminal.id);
+	}
+
+
+	public revealTask(task: Task): boolean {
+		let terminalData = this.activeTasks[task.getMapKey()];
+		if (!terminalData) {
+			return false;
+		}
+		if (this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {
 					this.terminalService.setActiveInstance(this.previousTerminalInstance);
