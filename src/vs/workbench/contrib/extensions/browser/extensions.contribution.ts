@@ -228,7 +228,7 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.installExtension.args.name', "Extension id or VSIX resource uri"),
+				name: localize('workbench.extensions.installExtension.arg.name', "Extension id or VSIX resource uri"),
 				schema: {
 					'type': ['object', 'string']
 				}
