@@ -1072,34 +1072,21 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
-		await this.fetchFrom({ silent: options.silent });
+		await this.run(Operation.Fetch, () => this.repository.fetch(options));
 	}
 
 	@throttle
 	async fetchPrune(): Promise<void> {
-		await this.fetchFrom({ prune: true });
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
 	}
 
 	@throttle
 	async fetchAll(): Promise<void> {
-		await this.fetchFrom({ all: true });
+		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
 	}
 
 	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this.fetchFrom({ remote, ref, depth });
-	}
-
-	private async fetchFrom(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
-		await this.run(Operation.Fetch, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const prune = config.get<boolean>('pruneOnFetch');
-
-			if (prune) {
-				options.prune = prune;
-			}
-
-			this.repository.fetch(options);
-		});
+		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }));
 	}
 
 	@throttle

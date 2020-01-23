@@ -1548,12 +1548,6 @@
           "default": false,
           "description": "%config.fetchOnPull%"
         },
-        "git.pruneOnFetch": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%config.pruneOnFetch%"
-        },
         "git.pullTags": {
           "type": "boolean",
           "scope": "resource",
