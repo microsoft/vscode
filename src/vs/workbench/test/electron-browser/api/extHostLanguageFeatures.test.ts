@@ -879,7 +879,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.equal(value[0].container.incomplete, undefined);
+		assert.equal(value[0].container.incomplete, false);
 	});
 
 	test('Suggest, CompletionList', async () => {
