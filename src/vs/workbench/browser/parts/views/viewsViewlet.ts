@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
