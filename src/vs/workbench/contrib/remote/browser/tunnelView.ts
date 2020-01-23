@@ -390,11 +390,17 @@ class TunnelItem implements ITunnelItem {
 	}
 }
 
+function isHostAndPort(address: string | undefined): boolean {
+	const result = address ? address.match(/^(localhost|([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)|([0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+)):[0-9]+$/) : [];
+	return (!!result && result.length > 0);
+}
+
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
 export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false);
 const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false);
 const TunnelViewSelectionKeyName = 'tunnelViewSelection';
 const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
+const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false);
 
 export class TunnelPanel extends ViewPane {
 	static readonly ID = '~remote.forwardedPorts';
@@ -404,6 +410,7 @@ export class TunnelPanel extends ViewPane {
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
 	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
+	private portChangableContextKey: IContextKey<boolean>;
 
 	private titleActions: IAction[] = [];
 	private readonly titleActionsDisposable = this._register(new MutableDisposable());
@@ -430,6 +437,7 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
+		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
 		scopedContextKeyService.createKey('view', TunnelPanel.ID);
@@ -536,10 +544,12 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelViewSelectionContext.set(item);
 			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
+			this.portChangableContextKey.set(isHostAndPort(item.localAddress));
 		} else {
 			this.tunnelTypeContext.reset();
 			this.tunnelViewSelectionContext.reset();
 			this.tunnelCloseableContext.reset();
+			this.portChangableContextKey.reset();
 		}
 	}
 
@@ -557,9 +567,11 @@ export class TunnelPanel extends ViewPane {
 			this.tree!.setFocus([node]);
 			this.tunnelTypeContext.set(node.tunnelType);
 			this.tunnelCloseableContext.set(!!node.closeable);
+			this.portChangableContextKey.set(isHostAndPort(node.localAddress));
 		} else {
 			this.tunnelTypeContext.set(TunnelType.Add);
 			this.tunnelCloseableContext.set(false);
+			this.portChangableContextKey.set(false);
 		}
 
 		const actions: IAction[] = [];
@@ -642,6 +654,8 @@ namespace LabelTunnelAction {
 	}
 }
 
+const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Port number is invalid");
+
 namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
@@ -658,7 +672,7 @@ namespace ForwardPortAction {
 
 	function validateInput(value: string): string | null {
 		if (!parseInput(value)) {
-			return nls.localize('remote.tunnelsView.portNumberValid', "Port number is invalid");
+			return invalidPortString;
 		}
 		return null;
 	}
@@ -836,6 +850,38 @@ namespace RefreshTunnelViewAction {
 	}
 }
 
+namespace ChangeLocalPortAction {
+	export const ID = 'remote.tunnel.changeLocalPort';
+	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Port");
+
+	function validateInput(value: string): string | null {
+		if (!value.match(/^[0-9]+$/)) {
+			return invalidPortString;
+		}
+		return null;
+	}
+
+	export function handler(): ICommandHandler {
+		return async (accessor, arg) => {
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
+			if (context instanceof TunnelItem) {
+				remoteExplorerService.setEditable(context, {
+					onFinish: async (value, success) => {
+						remoteExplorerService.setEditable(context, null);
+						if (success) {
+							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
+							await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, Number(value));
+						}
+					},
+					validationMessage: validateInput,
+					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
+				});
+			}
+		};
+	}
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LabelTunnelAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -870,6 +916,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(RefreshTunnelViewAction.ID, RefreshTunnelViewAction.handler());
+CommandsRegistry.registerCommand(ChangeLocalPortAction.ID, ChangeLocalPortAction.handler());
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
 	command: {
@@ -938,6 +985,15 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '1_manage',
+	order: 0,
+	command: {
+		id: ChangeLocalPortAction.ID,
+		title: ChangeLocalPortAction.LABEL,
+	},
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 1,
 	command: {
@@ -947,8 +1003,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Add))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '0_manage',
-	order: 3,
+	group: '1_manage',
+	order: 1,
 	command: {
 		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,
