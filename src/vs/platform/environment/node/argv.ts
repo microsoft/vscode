@@ -119,6 +119,8 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'nolazy': { type: 'boolean' }, // node inspect
 	'force-device-scale-factor': { type: 'string' },
 	'force-renderer-accessibility': { type: 'boolean' },
+	'ignore-certificate-error': { type: 'boolean' },
+	'allow-insecure-localhost': { type: 'boolean' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments

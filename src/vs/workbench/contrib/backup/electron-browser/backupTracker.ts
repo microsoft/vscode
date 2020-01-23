@@ -70,18 +70,15 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 	private async handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
 
 		// Trigger backup if configured
-		let didBackup: boolean | undefined = undefined;
 		let backupError: Error | undefined = undefined;
 		if (this.filesConfigurationService.isHotExitEnabled) {
 			try {
-				didBackup = await this.backupBeforeShutdown(workingCopies, reason);
+				if (await this.backupBeforeShutdown(workingCopies, reason)) {
+					return this.noVeto({ discardAllBackups: false }); // no veto (backup was successful)
+				}
 			} catch (error) {
 				backupError = error;
 			}
-		}
-
-		if (didBackup) {
-			return this.noVeto({ discardAllBackups: false }); // no veto (backup was successful)
 		}
 
 		// we ran a backup but received an error that we show to the user
@@ -169,7 +166,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			await this.doSaveAllBeforeShutdown(true /* includeUntitled */, SaveReason.EXPLICIT);
 
 			if (this.workingCopyService.hasDirty) {
-				return true; // veto if any save failed or was canceled
+				return true; // veto (save failed or was canceled)
 			}
 
 			return this.noVeto({ discardAllBackups: true }); // no veto (dirty saved)
@@ -194,10 +191,11 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// First save through the editor service to benefit
 		// from some extras like switching to untitled dirty
 		// editors before saving.
-		await this.editorService.saveAll({ includeUntitled, ...saveOptions });
+		const result = await this.editorService.saveAll({ includeUntitled, ...saveOptions });
 
 		// If we still have dirty working copies, save those directly
-		if (this.workingCopyService.hasDirty) {
+		// unless the save was not successful (e.g. cancelled)
+		if (result) {
 			await Promise.all(this.workingCopyService.dirtyWorkingCopies.map(async workingCopy => {
 				if (!includeUntitled && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
 					return; // skip untitled unless explicitly included
@@ -214,10 +212,11 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		const revertOptions = { soft: true };
 
 		// First revert through the editor service
-		await this.editorService.revertAll(revertOptions);
+		const result = await this.editorService.revertAll(revertOptions);
 
 		// If we still have dirty working copies, revert those directly
-		if (this.workingCopyService.hasDirty) {
+		// unless the revert operation was not successful (e.g. cancelled)
+		if (result) {
 			await Promise.all(this.workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.revert(revertOptions)));
 		}
 	}
