@@ -15,8 +15,8 @@ import { toBase64UrlEncoding } from './utils';
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const resourceId = 'https://management.core.windows.net/';
-const tenant = 'common';
+const scope = 'https://management.core.windows.net/.default offline_access';
+const tenant = 'organizations';
 
 interface IToken {
 	expiresIn: string; // How long access token is valid, in seconds
@@ -40,7 +40,11 @@ export class AzureActiveDirectoryService {
 	public async initialize(): Promise<void> {
 		const existingRefreshToken = await keychain.getToken();
 		if (existingRefreshToken) {
-			await this.refreshToken(existingRefreshToken);
+			try {
+				await this.refreshToken(existingRefreshToken);
+			} catch (e) {
+				await this.logout();
+			}
 		}
 
 		this.pollForChange();
@@ -112,7 +116,7 @@ export class AzureActiveDirectoryService {
 
 			const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
 			const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
-			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(resourceId)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scopes.join(' '))}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
 
 			await redirectReq.res.writeHead(302, { Location: loginUrl });
 			redirectReq.res.end();
@@ -169,12 +173,12 @@ export class AzureActiveDirectoryService {
 					grant_type: 'authorization_code',
 					code: code,
 					client_id: clientId,
-					resource: resourceId,
+					scope: scope,
 					code_verifier: codeVerifier,
 					redirect_uri: redirectUrl
 				});
 
-				const tokenUrl = vscode.Uri.parse(`${loginEndpointUrl}${tenant}/oauth2/token`);
+				const tokenUrl = vscode.Uri.parse(`${loginEndpointUrl}${tenant}/oauth2/v2.0/token`);
 
 				const post = https.request({
 					host: tokenUrl.authority,
@@ -224,12 +228,12 @@ export class AzureActiveDirectoryService {
 				refresh_token: refreshToken,
 				client_id: clientId,
 				grant_type: 'refresh_token',
-				resource: resourceId
+				scope: scope
 			});
 
 			const post = https.request({
 				host: 'login.microsoftonline.com',
-				path: `/${tenant}/oauth2/token`,
+				path: `/${tenant}/oauth2/v2.0/token`,
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
