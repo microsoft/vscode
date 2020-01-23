@@ -230,7 +230,7 @@ export enum EditorOption {
 	overviewRulerBorder = 62,
 	overviewRulerLanes = 63,
 	parameterHints = 64,
-	peekWidgetFocusInlineEditor = 65,
+	peekWidgetDefaultFocus = 65,
 	quickSuggestions = 66,
 	quickSuggestionsDelay = 67,
 	readOnly = 68,

@@ -165,7 +165,7 @@ export abstract class ReferencesController implements IEditorContribution {
 					let selection = this._model.nearestReference(uri, pos);
 					if (selection) {
 						return this._widget.setSelection(selection).then(() => {
-							if (this._widget && this._editor.getOption(EditorOption.peekWidgetFocusInlineEditor)) {
+							if (this._widget && this._editor.getOption(EditorOption.peekWidgetDefaultFocus) === 'editor') {
 								this._widget.focusOnPreviewEditor();
 							}
 						});
