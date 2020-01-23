@@ -188,6 +188,10 @@ export interface IViewDescriptor {
 
 	readonly canToggleVisibility?: boolean;
 
+	readonly canMoveView?: boolean;
+
+	readonly containerIcon?: string | URI;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
@@ -361,11 +365,17 @@ export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
-	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 
+	getViewDescriptor(viewId: string): IViewDescriptor | null;
+
 	getViewContainer(viewId: string): ViewContainer | null;
+
+	getDefaultContainer(viewId: string): ViewContainer | null;
 }
 
 // Custom views

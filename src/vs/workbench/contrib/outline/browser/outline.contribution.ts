@@ -4,61 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { OutlinePane } from './outlinePane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionsExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 // import './outlineNavigation';
 
 export const PANEL_ID = 'panel.view.outline';
 
-export class OutlineViewPaneContainer extends ViewPaneContainer {
-	constructor(
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IStorageService protected storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-	) {
-		super(PANEL_ID, `${PANEL_ID}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
-	}
-}
-
-export const VIEW_CONTAINER_PANEL: ViewContainer =
-	Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-		id: PANEL_ID,
-		ctorDescriptor: new SyncDescriptor(OutlineViewPaneContainer),
-		name: localize('name', "Outline"),
-		hideIfEmpty: true
-	}, ViewContainerLocation.Panel);
-
-
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
+	canMoveView: true,
 	hideByDefault: false,
 	collapsed: true,
 	order: 2,
@@ -67,37 +30,6 @@ const _outlineDesc = <IViewDescriptor>{
 };
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([_outlineDesc], VIEW_CONTAINER);
-
-export class ToggleOutlinePositionAction extends Action {
-
-	static ID = 'outline.view.togglePosition';
-	static LABEL = 'Toggle Outline View Position';
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, '', true);
-	}
-
-	async run(): Promise<void> {
-		const inPanel = this.viewDescriptorService.getViewContainer(_outlineDesc.id) === VIEW_CONTAINER_PANEL;
-		if (!inPanel) {
-			this.viewDescriptorService.moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
-			this.viewsService.openView(OutlineViewId, true);
-		} else {
-			this.viewDescriptorService.moveViews([_outlineDesc], VIEW_CONTAINER);
-			this.viewsService.openView(OutlineViewId, true);
-		}
-
-	}
-}
-
-Registry.as<IWorkbenchActionRegistry>(ActionsExtensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.create(ToggleOutlinePositionAction, ToggleOutlinePositionAction.ID, ToggleOutlinePositionAction.LABEL), 'Show Release Notes');
-
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'outline',
