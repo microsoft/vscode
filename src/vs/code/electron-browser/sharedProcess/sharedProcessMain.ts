@@ -12,8 +12,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementChannel, GlobalExtensionEnablementServiceClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -185,6 +185,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IUserDataAuthTokenService, new SyncDescriptor(UserDataAuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', activeWindowRouter)));
+		services.set(IGlobalExtensionEnablementService, new GlobalExtensionEnablementServiceClient(server.getChannel('globalExtensionEnablement', activeWindowRouter)));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
 		services.set(ISettingsSyncService, new SyncDescriptor(SettingsSynchroniser));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
