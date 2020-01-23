@@ -182,15 +182,14 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				return true; // veto (save failed or was canceled)
 			}
 
-			return this.noVeto(dirtyCount === workingCopies.length ? true /* all */ : workingCopies); // no veto (dirty saved)
+			return this.noVeto(workingCopies); // no veto (dirty saved)
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			const dirtyCount = this.workingCopyService.dirtyCount;
 			await this.doRevertAllBeforeShutdown(workingCopies);
 
-			return this.noVeto(dirtyCount === workingCopies.length ? true /* all */ : workingCopies); // no veto (dirty reverted)
+			return this.noVeto(workingCopies); // no veto (dirty reverted)
 		}
 
 		// Cancel
@@ -243,7 +242,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		}
 	}
 
-	private noVeto(backupsToDiscardOrAll: IWorkingCopy[] | boolean): boolean | Promise<boolean> {
+	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
 		if (this.lifecycleService.phase < LifecyclePhase.Restored) {
 			return false; // if editors have not restored, we are not up to speed with backups and thus should not discard them
 		}
@@ -252,16 +251,6 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false; // extension development does not track any backups
 		}
 
-		if (backupsToDiscardOrAll === true) {
-			// discard all backups
-			return this.backupFileService.discardAllBackups().then(() => false, () => false);
-		}
-
-		if (Array.isArray(backupsToDiscardOrAll)) {
-			// otherwise, discard individually
-			return Promise.all(backupsToDiscardOrAll.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
-		}
-
-		return false;
+		return Promise.all(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
 	}
 }

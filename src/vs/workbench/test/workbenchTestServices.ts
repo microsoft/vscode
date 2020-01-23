@@ -1209,10 +1209,6 @@ export class TestBackupFileService implements IBackupFileService {
 	discardBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
-
-	discardAllBackups(): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 export class TestCodeEditorService implements ICodeEditorService {
