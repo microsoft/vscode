@@ -549,7 +549,7 @@ export interface IEditorOptions {
 	 * Controls whether to focus the inline editor in the peek widget by default.
 	 * Defaults to false.
 	 */
-	peekWidgetFocusInlineEditor?: boolean;
+	peekWidgetDefaultFocus?: 'tree' | 'editor';
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3160,7 +3160,7 @@ export const enum EditorOption {
 	overviewRulerBorder,
 	overviewRulerLanes,
 	parameterHints,
-	peekWidgetFocusInlineEditor,
+	peekWidgetDefaultFocus,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3539,9 +3539,17 @@ export const EditorOptions = {
 		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
-	peekWidgetFocusInlineEditor: register(new EditorBooleanOption(
-		EditorOption.peekWidgetFocusInlineEditor, 'peekWidgetFocusInlineEditor', false,
-		{ description: nls.localize('peekWidgetFocusInlineEditor', "Controls whether to focus the inline editor in the peek widget by default.") }
+	peekWidgetDefaultFocus: register(new EditorStringEnumOption(
+		EditorOption.peekWidgetDefaultFocus, 'peekWidgetDefaultFocus',
+		'tree' as 'tree' | 'editor',
+		['tree', 'editor'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('peekWidgetDefaultFocus.tree', "Focus the tree when openeing peek"),
+				nls.localize('peekWidgetDefaultFocus.editor', "Focus the editor when opening peek")
+			],
+			description: nls.localize('peekWidgetDefaultFocus', "Controls whether to focus the inline editor or the tree in the peek widget.")
+		}
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(

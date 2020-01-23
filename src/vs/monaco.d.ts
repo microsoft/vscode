@@ -3023,7 +3023,7 @@ declare namespace monaco.editor {
 		 * Controls whether to focus the inline editor in the peek widget by default.
 		 * Defaults to false.
 		 */
-		peekWidgetFocusInlineEditor?: boolean;
+		peekWidgetDefaultFocus?: 'tree' | 'editor';
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3745,7 +3745,7 @@ declare namespace monaco.editor {
 		overviewRulerBorder = 62,
 		overviewRulerLanes = 63,
 		parameterHints = 64,
-		peekWidgetFocusInlineEditor = 65,
+		peekWidgetDefaultFocus = 65,
 		quickSuggestions = 66,
 		quickSuggestionsDelay = 67,
 		readOnly = 68,
@@ -3856,7 +3856,7 @@ declare namespace monaco.editor {
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
-		peekWidgetFocusInlineEditor: IEditorOption<EditorOption.peekWidgetFocusInlineEditor, boolean>;
+		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;

@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -161,6 +161,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 	// Should always be set in run
 	private currentTask!: VerifiedTask;
 	private isRerun: boolean = false;
+	private previousPanelId: string | undefined;
+	private previousTerminalInstance: ITerminalInstance | undefined;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -259,9 +261,28 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		this.terminalService.setActiveInstance(terminalData.terminal);
-		if (CustomTask.is(task) || ContributedTask.is(task)) {
-			this.terminalService.showPanel(task.command.presentation!.focus);
+		const activeTerminalInstance = this.terminalService.getActiveInstance();
+		const isPanelShowingTerminal = this.panelService.getActivePanel()?.getId() === TERMINAL_PANEL_ID;
+		if (isPanelShowingTerminal && (activeTerminalInstance === terminalData.terminal)) {
+			if (this.previousPanelId) {
+				if (this.previousTerminalInstance) {
+					this.terminalService.setActiveInstance(this.previousTerminalInstance);
+				}
+				this.panelService.openPanel(this.previousPanelId);
+			} else {
+				this.panelService.hideActivePanel();
+			}
+			this.previousPanelId = undefined;
+			this.previousTerminalInstance = undefined;
+		} else {
+			this.previousPanelId = this.panelService.getActivePanel()?.getId();
+			if (this.previousPanelId === TERMINAL_PANEL_ID) {
+				this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+			}
+			this.terminalService.setActiveInstance(terminalData.terminal);
+			if (CustomTask.is(task) || ContributedTask.is(task)) {
+				this.terminalService.showPanel(task.command.presentation!.focus);
+			}
 		}
 		return true;
 	}

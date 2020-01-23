@@ -66,6 +66,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const workingCopyAdapter: IWorkingCopy = {
 			resource: this.resource,
+			name: basename(this.resource.path),
 			capabilities: this.resource.scheme === 'search-editor' ? WorkingCopyCapabilities.Untitled : 0,
 			onDidChangeDirty: this.onDidChangeDirty,
 			onDidChangeContent: this.onDidChangeDirty,

@@ -52,6 +52,7 @@ export function setup() {
 
 			await app.workbench.scm.stage('app.js');
 			await app.workbench.scm.openChange('app.js');
+			await new Promise(c => setTimeout(c, 1000));
 			await app.workbench.scm.unstage('app.js');
 		});
 
