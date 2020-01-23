@@ -392,6 +392,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		const child = this._removeChild(from);
 		this._addChild(child, to);
+
+		this.onDidChildrenChange();
 	}
 
 	swapChildren(from: number, to: number): void {
@@ -408,6 +410,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.splitview.swapViews(from, to);
 		[this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash, this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash] = [this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash, this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash];
 		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
+
+		this.onDidChildrenChange();
 	}
 
 	resizeChild(index: number, size: number): void {

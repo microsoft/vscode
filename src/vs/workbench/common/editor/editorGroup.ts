@@ -10,8 +10,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
-import { isEqual } from 'vs/base/common/resources';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -573,7 +571,7 @@ export class EditorGroup extends Disposable {
 		return this.editors[index];
 	}
 
-	contains(candidate: EditorInput | IResourceInput, searchInSideBySideEditors?: boolean): boolean {
+	contains(candidate: EditorInput, searchInSideBySideEditors?: boolean): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate)) {
 				return true;
@@ -589,18 +587,12 @@ export class EditorGroup extends Disposable {
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | IResourceInput | null): boolean {
+	private matches(editor: IEditorInput | null, candidate: IEditorInput | null): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}
 
-		if (candidate instanceof EditorInput) {
-			return editor.matches(candidate);
-		}
-
-		const resource = editor.getResource();
-
-		return !!(resource && isEqual(resource, (candidate as IResourceInput).resource));
+		return editor.matches(candidate);
 	}
 
 	clone(): EditorGroup {

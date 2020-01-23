@@ -9,25 +9,26 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType, IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
-	ViewCursorStateChanged = 2,
-	ViewDecorationsChanged = 3,
-	ViewFlushed = 4,
-	ViewFocusChanged = 5,
-	ViewLineMappingChanged = 6,
-	ViewLinesChanged = 7,
-	ViewLinesDeleted = 8,
-	ViewLinesInserted = 9,
-	ViewRevealRangeRequest = 10,
-	ViewScrollChanged = 11,
-	ViewTokensChanged = 12,
-	ViewTokensColorsChanged = 13,
-	ViewZonesChanged = 14,
-	ViewThemeChanged = 15,
-	ViewLanguageConfigurationChanged = 16
+	ViewContentSizeChanged = 2,
+	ViewCursorStateChanged = 3,
+	ViewDecorationsChanged = 4,
+	ViewFlushed = 5,
+	ViewFocusChanged = 6,
+	ViewLanguageConfigurationChanged = 7,
+	ViewLineMappingChanged = 8,
+	ViewLinesChanged = 9,
+	ViewLinesDeleted = 10,
+	ViewLinesInserted = 11,
+	ViewRevealRangeRequest = 12,
+	ViewScrollChanged = 13,
+	ViewThemeChanged = 14,
+	ViewTokensChanged = 15,
+	ViewTokensColorsChanged = 16,
+	ViewZonesChanged = 17,
 }
 
 export class ViewConfigurationChangedEvent {
@@ -45,17 +46,35 @@ export class ViewConfigurationChangedEvent {
 	}
 }
 
+export class ViewContentSizeChangedEvent implements IContentSizeChangedEvent {
+
+	public readonly type = ViewEventType.ViewContentSizeChanged;
+
+	public readonly contentWidth: number;
+	public readonly contentHeight: number;
+
+	public readonly contentWidthChanged: boolean;
+	public readonly contentHeightChanged: boolean;
+
+	constructor(source: IContentSizeChangedEvent) {
+		this.contentWidth = source.contentWidth;
+		this.contentHeight = source.contentHeight;
+
+		this.contentWidthChanged = source.contentWidthChanged;
+		this.contentHeightChanged = source.contentHeightChanged;
+	}
+}
+
 export class ViewCursorStateChangedEvent {
 
 	public readonly type = ViewEventType.ViewCursorStateChanged;
 
-	/**
-	 * The primary selection is always at index 0.
-	 */
 	public readonly selections: Selection[];
+	public readonly modelSelections: Selection[];
 
-	constructor(selections: Selection[]) {
+	constructor(selections: Selection[], modelSelections: Selection[]) {
 		this.selections = selections;
+		this.modelSelections = modelSelections;
 	}
 }
 
@@ -86,6 +105,11 @@ export class ViewFocusChangedEvent {
 	constructor(isFocused: boolean) {
 		this.isFocused = isFocused;
 	}
+}
+
+export class ViewLanguageConfigurationEvent {
+
+	public readonly type = ViewEventType.ViewLanguageConfigurationChanged;
 }
 
 export class ViewLineMappingChangedEvent {
@@ -221,6 +245,11 @@ export class ViewScrollChangedEvent {
 	}
 }
 
+export class ViewThemeChangedEvent {
+
+	public readonly type = ViewEventType.ViewThemeChanged;
+}
+
 export class ViewTokensChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensChanged;
@@ -241,11 +270,6 @@ export class ViewTokensChangedEvent {
 	}
 }
 
-export class ViewThemeChangedEvent {
-
-	public readonly type = ViewEventType.ViewThemeChanged;
-}
-
 export class ViewTokensColorsChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensColorsChanged;
@@ -264,28 +288,24 @@ export class ViewZonesChangedEvent {
 	}
 }
 
-export class ViewLanguageConfigurationEvent {
-
-	public readonly type = ViewEventType.ViewLanguageConfigurationChanged;
-}
-
 export type ViewEvent = (
 	ViewConfigurationChangedEvent
+	| ViewContentSizeChangedEvent
 	| ViewCursorStateChangedEvent
 	| ViewDecorationsChangedEvent
 	| ViewFlushedEvent
 	| ViewFocusChangedEvent
-	| ViewLinesChangedEvent
+	| ViewLanguageConfigurationEvent
 	| ViewLineMappingChangedEvent
+	| ViewLinesChangedEvent
 	| ViewLinesDeletedEvent
 	| ViewLinesInsertedEvent
 	| ViewRevealRangeRequestEvent
 	| ViewScrollChangedEvent
+	| ViewThemeChangedEvent
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
-	| ViewThemeChangedEvent
-	| ViewLanguageConfigurationEvent
 );
 
 export interface IViewEventListener {

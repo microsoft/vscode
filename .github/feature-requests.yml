@@ -1,0 +1,34 @@
+{
+  typeLabel: {
+    name: 'feature-request'
+  },
+  candidateMilestone: {
+    number: 107,
+    name: 'Backlog Candidates'
+  },
+  approvedMilestone: {
+    number: 8,
+    name: 'Backlog'
+  },
+  onLabeled: {
+    delay: 60,
+    perform: true
+  },
+  onCandidateMilestoned: {
+    candidatesComment: "This feature request is now a candidate for our backlog. The community has 60 days to upvote the issue. If it receives 20 upvotes we will move it to our backlog. If not, we will close it. To learn more about how we handle feature requests, please see our [documentation](https://aka.ms/vscode-issue-lifecycle).\n\nHappy Coding!",
+    perform: true
+  },
+  onMonitorUpvotes: {
+    upvoteThreshold: 20,
+    acceptanceComment: ":slightly_smiling_face: This feature request received a sufficient number of community upvotes and we moved it to our backlog. To learn more about how we handle feature requests, please see our [documentation](https://aka.ms/vscode-issue-lifecycle).\n\nHappy Coding!",
+    perform: true
+  },
+  onMonitorDaysOnCandidateMilestone: {
+    daysOnMilestone: 60,
+    warningPeriod: 10,
+    numberOfCommentsToPreventAutomaticRejection: 20,
+    rejectionComment: ":slightly_frowning_face: In the last 60 days, this feature request has received less than 20 community upvotes and we closed it. Still a big Thank You to you for taking the time to create this issue! To learn more about how we handle feature requests, please see our [documentation](https://aka.ms/vscode-issue-lifecycle).\n\nHappy Coding!",
+    warningComment: "This feature request has not yet received the 20 community upvotes it takes to make to our backlog. 10 days to go. To learn more about how we handle feature requests, please see our [documentation](https://aka.ms/vscode-issue-lifecycle).\n\nHappy Coding",
+    perform: true
+  }
+}

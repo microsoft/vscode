@@ -10,7 +10,7 @@ import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IInputValidator, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
@@ -170,6 +170,7 @@ export class PatternInputWidget extends Widget {
 			case KeyCode.Escape:
 				this._onCancel.fire();
 				return;
+			case KeyCode.Tab: case KeyCode.Tab | KeyMod.Shift: return;
 			default:
 				if (this.searchConfig.searchOnType) {
 					this._onCancel.fire();

@@ -58,7 +58,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		this._onDidChangeStorage.fire({ key, scope });
 	}
 
-	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+	initialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = this.doInitialize(payload);
 		}
@@ -66,12 +66,12 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		return this.initializePromise;
 	}
 
-	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+	private async doInitialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
 
 		// Init all storage locations
 		await Promise.all([
 			this.initializeGlobalStorage(),
-			this.initializeWorkspaceStorage(payload)
+			payload ? this.initializeWorkspaceStorage(payload) : Promise.resolve()
 		]);
 
 		// On some OS we do not get enough time to persist state on shutdown (e.g. when
@@ -196,6 +196,10 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		this.getStorage(scope).delete(key);
 	}
 
+	private getStorage(scope: StorageScope): IStorage {
+		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
+	}
+
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner
@@ -227,13 +231,9 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Do it
 		await Promise.all([
-			this.getStorage(StorageScope.GLOBAL).close(),
-			this.getStorage(StorageScope.WORKSPACE).close()
+			this.globalStorage.close(),
+			this.workspaceStorage ? this.workspaceStorage.close() : Promise.resolve()
 		]);
-	}
-
-	private getStorage(scope: StorageScope): IStorage {
-		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
 	}
 
 	async logStorage(): Promise<void> {

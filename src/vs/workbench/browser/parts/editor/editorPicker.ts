@@ -23,7 +23,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	constructor(
 		private editor: IEditorInput,
-		private _group: IEditorGroup,
+		public readonly group: IEditorGroup,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService
 	) {
@@ -33,7 +33,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
-			italic: !this._group.isPinned(this.editor)
+			italic: !this.group.isPinned(this.editor)
 		};
 	}
 
@@ -43,10 +43,6 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	getIcon(): string {
 		return this.editor.isDirty() && !this.editor.isSaving() ? 'codicon codicon-circle-filled' : '';
-	}
-
-	get group(): IEditorGroup {
-		return this._group;
 	}
 
 	getResource() {
@@ -70,7 +66,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IEntryRunContext): boolean {
-		this._group.openEditor(this.editor);
+		this.group.openEditor(this.editor);
 
 		return true;
 	}

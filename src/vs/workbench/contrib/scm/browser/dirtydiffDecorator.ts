@@ -1123,6 +1123,8 @@ export class DirtyDiffModel extends Disposable {
 				this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 				return originalUri;
+			}).catch(error => {
+				return null; // possibly invalid reference
 			});
 		});
 

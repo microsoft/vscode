@@ -5,7 +5,7 @@
 
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
@@ -46,7 +46,7 @@ type ConfigurationInspect<T> = {
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
 
-	languages?: string[];
+	languageIds?: string[];
 };
 
 function isUri(thing: any): thing is vscode.Uri {
@@ -267,7 +267,7 @@ export class ExtHostConfigProvider {
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 
-						languages: config.overrideIdentifiers
+						languageIds: config.overrideIdentifiers
 					};
 				}
 				return undefined;

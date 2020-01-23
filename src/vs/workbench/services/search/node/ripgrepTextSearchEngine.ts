@@ -532,7 +532,7 @@ export type IRgBytesOrText = { bytes: string } | { text: string };
 
 export function fixRegexNewline(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceeded by none or even number of literal \
+	// Match $ preceded by none or even number of literal \
 	return pattern.replace(/(?<=[^\\]|^)(\\\\)*\\n/g, '$1\\r?\\n');
 }
 

@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IAuthTokenService } from 'vs/platform/auth/common/auth';
 import { Event } from 'vs/base/common/event';
 import { UserDataAutoSync as BaseUserDataAutoSync } from 'vs/platform/userDataSync/common/userDataAutoSync';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,18 +17,19 @@ export class UserDataAutoSync extends BaseUserDataAutoSync {
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IAuthTokenService authTokenService: IAuthTokenService,
+		@IUserDataAuthTokenService authTokenService: IUserDataAuthTokenService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService,
+		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
-		super(configurationService, userDataSyncService, logService, authTokenService);
+		super(configurationService, userDataSyncService, logService, authTokenService, userDataSyncUtilService);
 
 		// Sync immediately if there is a local change.
 		this._register(Event.debounce(Event.any<any>(
 			userDataSyncService.onDidChangeLocal,
 			instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync,
 			hostService.onDidChangeFocus
-		), () => undefined, 500)(() => this.sync(false)));
+		), () => undefined, 500)(() => this.triggerAutoSync()));
 	}
 
 }

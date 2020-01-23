@@ -78,7 +78,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.configurationService.getValue(undefined, 'workbench.editor.restoreViewState');
+		this.restoreViewState = this.textResourceConfigurationService.getValue(undefined, 'workbench.editor.restoreViewState');
 	}
 
 	getTitle(): string {
@@ -238,10 +238,10 @@ export class TextFileEditor extends BaseTextEditor {
 		const inputName = this.input?.getName();
 
 		let ariaLabel: string;
-		if (inputName) {
-			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
+		if (this.input?.isReadonly()) {
+			ariaLabel = inputName ? nls.localize('readonlyFileEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyFileEditorAriaLabel', "Readonly editor");
 		} else {
-			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
+			ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('fileEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;

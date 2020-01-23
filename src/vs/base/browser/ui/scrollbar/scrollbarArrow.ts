@@ -93,6 +93,8 @@ export class ScrollbarArrow extends Widget {
 		this._mousedownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
 
 		this._mouseMoveMonitor.startMonitoring(
+			e.target,
+			e.buttons,
 			standardMouseMoveMerger,
 			(mouseMoveData: IStandardMouseMoveEventData) => {
 				/* Intentional empty */

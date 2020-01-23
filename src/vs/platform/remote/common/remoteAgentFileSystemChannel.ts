@@ -15,6 +15,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { newWriteableStream, ReadableStreamEvents, ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remotefilesystem';
 
@@ -32,13 +33,13 @@ export class RemoteFileSystemProvider extends Disposable implements
 	private readonly session: string = generateUuid();
 
 	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChange.event;
+	readonly onDidChangeFile = this._onDidChange.event;
 
-	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
+	private _onDidWatchErrorOccur = this._register(new Emitter<string>());
+	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
 
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
-	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private _capabilities!: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
@@ -117,14 +118,29 @@ export class RemoteFileSystemProvider extends Disposable implements
 
 		// Reading as file stream goes through an event to the remote side
 		const listener = this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
+
+			// data
 			if (dataOrErrorOrEnd instanceof VSBuffer) {
-
-				// data: forward into the stream
 				stream.write(dataOrErrorOrEnd.buffer);
-			} else {
+			}
 
-				// error / end: always end the stream on errors too
-				stream.end(dataOrErrorOrEnd === 'end' ? undefined : dataOrErrorOrEnd);
+			// end or error
+			else {
+				if (dataOrErrorOrEnd === 'end') {
+					stream.end();
+				} else {
+
+					// Since we receive data through a IPC channel, it is likely
+					// that the error was not serialized, or only partially. To
+					// ensure our API use is correct, we convert the data to an
+					// error here to forward it properly.
+					let error = dataOrErrorOrEnd;
+					if (!(error instanceof Error)) {
+						error = new Error(toErrorMessage(error));
+					}
+
+					stream.end(error);
+				}
 
 				// Signal to the remote side that we no longer listen
 				listener.dispose();

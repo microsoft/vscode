@@ -13,6 +13,8 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -28,10 +30,13 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	static readonly ID = 'workbench.editorinputs.defaultpreferences';
-	constructor(defaultSettingsResource: URI,
-		@ITextModelService textModelResolverService: ITextModelService
+	constructor(
+		defaultSettingsResource: URI,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService, textFileService, editorService);
 	}
 
 	getTypeId(): string {

@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncStore, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { IAuthTokenService } from 'vs/platform/auth/common/auth';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
@@ -22,7 +21,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
+		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -35,6 +34,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', key, 'latest').toString();
 		const headers: IHeaders = {};
+		// Disable caching as they are cached by synchronisers
+		headers['Cache-Control'] = 'no-cache';
 		if (oldValue) {
 			headers['If-None-Match'] = oldValue.ref;
 		}
@@ -87,6 +88,21 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return newRef;
 	}
 
+	async clear(): Promise<void> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource').toString();
+		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+
+		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
+		}
+	}
+
 	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		const authToken = await this.authTokenService.getToken();
 		if (!authToken) {
@@ -98,7 +114,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const context = await this.requestService.request(options, token);
 
 		if (context.res.statusCode === 401) {
-			this.authTokenService.refreshToken();
 			// Throw Unauthorized Error
 			throw new UserDataSyncStoreError('Unauthorized', UserDataSyncStoreErrorCode.Unauthroized);
 		}

@@ -200,7 +200,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const explorerService = accessor.get(IExplorerService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, explorerService);
@@ -212,7 +212,7 @@ CommandsRegistry.registerCommand({
 			});
 		}
 
-		return Promise.resolve(true);
+		return true;
 	}
 });
 
@@ -358,7 +358,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 
 		// Check that the resource of the model was not saved already
 		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
-			const model = textFileService.models.get(resource);
+			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
 				await textFileService.save(resource, options);
 			}

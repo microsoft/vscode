@@ -271,13 +271,15 @@ suite('Workbench editor groups', () => {
 
 		const input3 = input(undefined, true, URI.parse('foo://bar'));
 
+		const input4 = input(undefined, true, URI.parse('foo://barsomething'));
+
 		group.openEditor(input3, { pinned: true, active: true });
-		assert.equal(group.contains({ resource: URI.parse('foo://barsomething') }), false);
-		assert.equal(group.contains({ resource: URI.parse('foo://bar') }), true);
+		assert.equal(group.contains(input4), false);
+		assert.equal(group.contains(input3), true);
 
 		group.closeEditor(input3);
 
-		assert.equal(group.contains({ resource: URI.parse('foo://bar') }), false);
+		assert.equal(group.contains(input3), false);
 	});
 
 	test('group serialization', function () {
