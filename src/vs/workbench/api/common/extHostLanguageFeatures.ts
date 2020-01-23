@@ -874,14 +874,14 @@ class SuggestAdapter {
 			let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
 			if (typeof _mustNotChangeIndex === 'string') {
 				this._logService.warn(`[${this._extension.identifier.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extension.identifier.value, kind: 'must', index: _mustNotChangeIndex });
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'must', index: _mustNotChangeIndex });
 				this._didWarnMust = true;
 			}
 
 			let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
 			if (typeof _mayNotChangeIndex === 'string') {
 				this._logService.info(`[${this._extension.identifier.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extension.identifier.value, kind: 'should', index: _mayNotChangeIndex });
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'should', index: _mayNotChangeIndex });
 				this._didWarnShould = true;
 			}
 
