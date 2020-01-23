@@ -1358,8 +1358,8 @@ export enum CompletionItemTag {
 
 export interface CompletionItemLabel {
 	name: string;
-	// signature?: string; // parameters
-	// qualifier?: string;
+	signature?: string;
+	qualifier?: string;
 	type?: string;
 }
 
@@ -1838,6 +1838,7 @@ export class Task implements vscode.Task2 {
 	private static EmptyType: string = '$empty';
 
 	private __id: string | undefined;
+	private __deprecated: boolean = false;
 
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
@@ -1862,6 +1863,7 @@ export class Task implements vscode.Task2 {
 			this._source = this.source = arg3;
 			this.execution = arg4;
 			problemMatchers = arg5;
+			this.__deprecated = true;
 		} else if (arg2 === TaskScope.Global || arg2 === TaskScope.Workspace) {
 			this.target = arg2;
 			this._name = this.name = arg3;
@@ -1896,6 +1898,10 @@ export class Task implements vscode.Task2 {
 
 	set _id(value: string | undefined) {
 		this.__id = value;
+	}
+
+	get _deprecated(): boolean {
+		return this.__deprecated;
 	}
 
 	private clear(): void {

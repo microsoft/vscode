@@ -117,7 +117,8 @@ export function activate(context: ExtensionContext) {
 		documentSelector,
 		initializationOptions: {
 			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
-			provideFormatter: false // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
+			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
+			customCapabilities: { rangeFormatting: { editLimit: 1000 } }
 		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server

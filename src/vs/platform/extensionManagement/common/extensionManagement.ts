@@ -207,6 +207,18 @@ export interface IExtensionManagementService {
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 }
 
+export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
+export const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
+export const IGlobalExtensionEnablementService = createDecorator<IGlobalExtensionEnablementService>('IGlobalExtensionEnablementService');
+
+export interface IGlobalExtensionEnablementService {
+	_serviceBrand: undefined;
+	readonly onDidChangeEnablement: Event<readonly IExtensionIdentifier[]>;
+	getDisabledExtensions(): IExtensionIdentifier[];
+	enableExtension(extension: IExtensionIdentifier): Promise<boolean>;
+	disableExtension(extension: IExtensionIdentifier): Promise<boolean>;
+}
+
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");

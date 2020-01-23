@@ -113,6 +113,9 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.add(logService);
 	logService.info('main', JSON.stringify(configuration));
 
+	const mainProcessService = new MainProcessService(server, mainRouter);
+	services.set(IMainProcessService, mainProcessService);
+
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	disposables.add(configurationService);
 	await configurationService.initialize();
@@ -124,8 +127,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
-	const mainProcessService = new MainProcessService(server, mainRouter);
-	services.set(IMainProcessService, mainProcessService);
 
 	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
 	services.set(IElectronService, electronService);

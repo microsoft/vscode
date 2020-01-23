@@ -66,8 +66,7 @@ export interface IBackupFileService {
 	discardBackup(resource: URI): Promise<void>;
 
 	/**
-	 * Discards all backups associated with the current workspace and prevents further backups from
-	 * being made.
+	 * Discards all backups that exist.
 	 */
-	discardBackups(): Promise<void>;
+	discardAllBackups(): Promise<void>;
 }

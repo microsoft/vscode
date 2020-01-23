@@ -10,6 +10,7 @@ import * as querystring from 'querystring';
 import { keychain } from './keychain';
 import { toBase64UrlEncoding } from './utils';
 import { createServer, startServer } from './authServer';
+import Logger from './logger';
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -82,6 +83,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	public async login(): Promise<void> {
+		Logger.info('Logging in...');
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const { server, redirectPromise, codePromise } = createServer(nonce);
 
@@ -120,9 +122,11 @@ export class AzureActiveDirectoryService {
 				}
 				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier);
 				this.setToken(token);
+				Logger.info('Login successful');
 				res.writeHead(302, { Location: '/' });
 				res.end();
 			} catch (err) {
+				Logger.error(err.message);
 				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 				res.end();
 			}
@@ -155,6 +159,7 @@ export class AzureActiveDirectoryService {
 
 	private async exchangeCodeForToken(code: string, codeVerifier: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
+			Logger.info('Exchanging login code for token');
 			try {
 				const postData = querystring.stringify({
 					grant_type: 'authorization_code',
@@ -202,6 +207,7 @@ export class AzureActiveDirectoryService {
 				});
 
 			} catch (e) {
+				Logger.error(e.message);
 				reject(e);
 			}
 		});
@@ -209,6 +215,7 @@ export class AzureActiveDirectoryService {
 
 	private async refreshToken(refreshToken: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
+			Logger.info('Refreshing token...');
 			const postData = querystring.stringify({
 				refresh_token: refreshToken,
 				client_id: clientId,
@@ -238,9 +245,11 @@ export class AzureActiveDirectoryService {
 							refreshToken: json.refresh_token
 						};
 						this.setToken(token);
+						Logger.info('Token refresh success');
 						resolve(token);
 					} else {
 						await this.logout();
+						Logger.error('Refreshing token failed');
 						reject(new Error('Refreshing token failed.'));
 					}
 				});
@@ -250,12 +259,14 @@ export class AzureActiveDirectoryService {
 
 			post.end();
 			post.on('error', err => {
+				Logger.error(err.message);
 				reject(err);
 			});
 		});
 	}
 
 	public async logout() {
+		Logger.info('Logging out');
 		delete this._token;
 		await keychain.deleteToken();
 		if (this._refreshTimeout) {

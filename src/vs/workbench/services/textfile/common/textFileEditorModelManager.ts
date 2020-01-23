@@ -44,7 +44,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
 
-	private readonly modelLoadQueue = new ResourceQueue();
+	private readonly modelLoadQueue = this._register(new ResourceQueue());
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,

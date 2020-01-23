@@ -31,7 +31,10 @@ export class FileElement {
 
 	readonly uri: URI;
 
-	constructor(readonly edit: BulkFileOperation) {
+	constructor(
+		readonly parent: BulkCategory | undefined,
+		readonly edit: BulkFileOperation
+	) {
 		this.uri = edit.uri;
 	}
 }
@@ -70,13 +73,13 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		// root -> file/text edits
 		if (element instanceof BulkFileOperations) {
 			return this.groupByFile
-				? element.fileOperations.map(op => new FileElement(op))
+				? element.fileOperations.map(op => new FileElement(undefined, op))
 				: element.categories;
 		}
 
 		// category
 		if (element instanceof BulkCategory) {
-			return element.fileOperations.map(op => new FileElement(op));
+			return element.fileOperations.map(op => new FileElement(element, op));
 		}
 
 		// file: text edit
@@ -206,7 +209,7 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 
 	getId(element: BulkEditElement): { toString(): string; } {
 		if (element instanceof FileElement) {
-			return element.uri;
+			return element.uri + JSON.stringify(element.parent?.metadata);
 		} else if (element instanceof TextEditElement) {
 			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
 		} else {
@@ -320,7 +323,12 @@ class FileElementTemplate {
 	set(element: FileElement, score: FuzzyScore | undefined) {
 		this._localDisposables.clear();
 		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
-		this._checkbox.checked = element.edit.isChecked();
+
+		if (element.edit.type === BulkFileOperationType.TextEdit && element.edit.textEdits.every(edit => !edit.isChecked())) {
+			this._checkbox.checked = false;
+		} else {
+			this._checkbox.checked = element.edit.isChecked();
+		}
 
 		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
 			// rename: NEW NAME (old name)
@@ -404,8 +412,20 @@ class TextEditElementTemplate {
 
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => element.edit.updateChecked(this._checkbox.checked)));
-		this._checkbox.checked = element.edit.isChecked();
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
+			if (element.parent.edit.isChecked()) {
+				element.edit.updateChecked(this._checkbox.checked);
+			}
+		}));
+
+		if (element.parent.edit.isChecked()) {
+			this._checkbox.checked = element.edit.isChecked();
+			this._checkbox.disabled = false;
+		} else {
+			this._checkbox.checked = element.edit.isChecked();
+			this._checkbox.disabled = true;
+		}
+
 		dom.toggleClass(this._checkbox, 'disabled', !element.edit.parent.isChecked());
 
 		let value = '';
