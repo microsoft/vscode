@@ -165,7 +165,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 	private async confirmBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<boolean> {
 
 		// Show confirm dialog for all dirty working copies
-		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.resource));
+		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.name));
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
@@ -213,7 +213,6 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
 			result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
 		}
-
 
 		// If we still have dirty working copies, save those directly
 		// unless the save was not successful (e.g. cancelled)

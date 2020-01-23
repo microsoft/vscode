@@ -44,6 +44,8 @@ export interface IWorkingCopy {
 
 	readonly resource: URI;
 
+	readonly name: string;
+
 	readonly capabilities: WorkingCopyCapabilities;
 
 
