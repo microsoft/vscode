@@ -560,7 +560,11 @@ export class OpenSearchEditorAction extends Action {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label);
+		super(id, label, 'codicon-new-file');
+	}
+
+	update() {
+		// pass
 	}
 
 	get enabled(): boolean {

@@ -60,6 +60,7 @@ import { SearchEditorInput, SearchEditorInputFactory, SearchEditorContribution }
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import product from 'vs/platform/product/common/product';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -854,7 +855,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.enableSearchEditorPreview': {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			description: nls.localize('search.enableSearchEditorPreview', "Experimental: When enabled, allows opening workspace search results in an editor.")
 		},
 		'search.searchEditorPreview.doubleClickBehaviour': {
