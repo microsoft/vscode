@@ -285,20 +285,20 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						// If there is no label defined, use value as label
 						const item: IQuickPickItem = {
 							label: label ? label : value,
-							description: label ? value : undefined
+							detail: label ? value : undefined
 						};
 
-						if (pickOption === info.default) {
+						if (value === info.default) {
 							item.description = nls.localize('inputVariable.defaultInputValue', "Default");
 							picks.unshift(item);
 						} else {
 							picks.push(item);
 						}
 					});
-					const pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: info.description, matchOnDescription: true };
+					const pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: info.description, matchOnDetail: true };
 					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
 						if (resolvedInput) {
-							return Types.isString(resolvedInput.description) ? resolvedInput.description : resolvedInput.label;
+							return Types.isString(resolvedInput.detail) ? resolvedInput.detail : resolvedInput.label;
 						}
 						return undefined;
 					});
