@@ -29,7 +29,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TreeResourceNavigator2, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
@@ -481,7 +481,7 @@ export class LoadedScriptsView extends ViewPane {
 		}, 300);
 		this._register(this.changeScheduler);
 
-		const loadedScriptsNavigator = new TreeResourceNavigator2(this.tree);
+		const loadedScriptsNavigator = new TreeResourceNavigator(this.tree);
 		this._register(loadedScriptsNavigator);
 		this._register(loadedScriptsNavigator.onDidOpenResource(e => {
 			if (e.element instanceof BaseTreeItem) {

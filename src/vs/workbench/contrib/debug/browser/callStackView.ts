@@ -24,7 +24,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
@@ -201,7 +201,7 @@ export class CallStackView extends ViewPane {
 
 		this.tree.setInput(this.debugService.getModel());
 
-		const callstackNavigator = new TreeResourceNavigator2(this.tree);
+		const callstackNavigator = new TreeResourceNavigator(this.tree);
 		this._register(callstackNavigator);
 		this._register(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {

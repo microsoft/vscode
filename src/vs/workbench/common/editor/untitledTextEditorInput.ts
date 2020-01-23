@@ -18,7 +18,6 @@ import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverServ
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -29,13 +28,10 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private static readonly FIRST_LINE_MAX_TITLE_LENGTH = 50;
-
 	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
 
 	private cachedModel: UntitledTextEditorModel | null = null;
-	private cachedModelFirstWords: string | undefined = undefined;
 
 	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
 
@@ -76,15 +72,10 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	getName(): string {
-
-		// Take name from first words if present and only if
-		// we have no associated file path. In that case we
-		// prefer the file name as title.
-		if (!this._hasAssociatedFilePath && this.cachedModelFirstWords) {
-			return this.cachedModelFirstWords;
+		if (this.cachedModel) {
+			return this.cachedModel.name;
 		}
 
-		// Otherwise fallback to resource
 		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
@@ -294,32 +285,7 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		// re-emit some events from the model
 		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
-
-		// listen for first line change events if we use it for the label
-		// by checking the contents of the first line has changed
-		if (!this._hasAssociatedFilePath) {
-			this._register(model.onDidChangeFirstLine(() => this.onDidChangeFirstLine(model)));
-		}
-	}
-
-	private onDidChangeFirstLine(model: UntitledTextEditorModel): void {
-
-		// Determine the first words of the model following these rules:
-		// - cannot be only whitespace (so we trim())
-		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
-		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
-
-		let modelFirstWordsCandidate: string | undefined = undefined;
-
-		const firstLineText = model.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorInput.FIRST_LINE_MAX_TITLE_LENGTH }).trim();
-		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
-			modelFirstWordsCandidate = firstLineText;
-		}
-
-		if (modelFirstWordsCandidate !== this.cachedModelFirstWords) {
-			this.cachedModelFirstWords = modelFirstWordsCandidate;
-			this._onDidChangeLabel.fire();
-		}
+		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
 	}
 
 	matches(otherInput: unknown): boolean {

@@ -236,7 +236,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authenticationState.get() === AuthStatus.SignedOut) {
-				const handle = this.notificationService.prompt(Severity.Info, localize('sign in message', "Please sign in with your {0} account to continue sync", this.userDataSyncStore!.account),
+				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
+				const handle = this.notificationService.prompt(Severity.Info, localize('sign in message', "Please sign in with your {0} account to continue sync", displayName),
 					[
 						{
 							label: localize('Sign in', "Sign in"),
@@ -284,7 +285,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (this.authenticationState.get() === AuthStatus.SignedIn) {
 				quickPick.customLabel = localize('turn on', "Turn on");
 			} else {
-				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", this.userDataSyncStore!.account);
+				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
+				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
 			}
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");

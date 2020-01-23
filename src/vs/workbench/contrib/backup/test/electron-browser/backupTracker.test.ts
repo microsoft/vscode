@@ -281,12 +281,11 @@ suite('BackupTracker', () => {
 		if (typeof veto === 'boolean') {
 			assert.ok(accessor.backupFileService.didDiscardAllBackups);
 			assert.ok(!veto);
-			return;
+		} else {
+			veto = await veto;
+			assert.ok(accessor.backupFileService.didDiscardAllBackups);
+			assert.ok(!veto);
 		}
-
-		veto = await veto;
-		assert.ok(accessor.backupFileService.didDiscardAllBackups);
-		assert.ok(!veto);
 
 		part.dispose();
 		tracker.dispose();

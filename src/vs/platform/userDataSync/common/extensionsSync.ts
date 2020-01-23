@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -53,6 +53,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -285,6 +286,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					try {
 						await this.extensionManagementService.installFromGallery(extension);
 						removeFromSkipped.push(extension.identifier);
+						if (e.enabled) {
+							await this.extensionEnablementService.enableExtension(extension.identifier);
+						} else {
+							await this.extensionEnablementService.disableExtension(extension.identifier);
+						}
 					} catch (error) {
 						addToSkipped.push(e);
 						this.logService.error(error);
@@ -312,8 +318,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const disabledExtensions = await this.extensionEnablementService.getDisabledExtensionsAsync();
 		return installedExtensions
-			.map(({ identifier }) => ({ identifier, enabled: true }));
+			.map(({ identifier }) => ({ identifier, enabled: !disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier)) }));
 	}
 
 	private async getLastSyncUserData(): Promise<ILastSyncUserData | null> {

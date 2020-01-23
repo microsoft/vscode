@@ -367,14 +367,14 @@ suite('Workbench untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('model#onDidChangeFirstLine and input name', async function () {
+	test('model#onDidChangeName and input name', async function () {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
 		let counter = 0;
 
 		let model = await input.resolve();
-		model.onDidChangeFirstLine(() => counter++);
+		model.onDidChangeName(() => counter++);
 
 		model.textEditorModel.setValue('foo');
 		assert.equal(input.getName(), 'foo');
@@ -396,10 +396,10 @@ suite('Workbench untitled text editors', () => {
 		model.textEditorModel.setValue('([]}hello   '); // require actual words
 		assert.equal(input.getName(), '([]}hello');
 
-		assert.equal(counter, 6);
+		assert.equal(counter, 4);
 
 		model.textEditorModel.setValue('Hello\nWorld');
-		assert.equal(counter, 7);
+		assert.equal(counter, 5);
 
 		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 			let range = new Range(
@@ -418,7 +418,7 @@ suite('Workbench untitled text editors', () => {
 		}
 
 		model.textEditorModel.applyEdits([createSingleEditOp('hello', 2, 2)]);
-		assert.equal(counter, 7); // change was not on first line
+		assert.equal(counter, 5); // change was not on first line
 
 		input.dispose();
 		model.dispose();

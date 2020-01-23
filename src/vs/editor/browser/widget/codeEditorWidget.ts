@@ -156,11 +156,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidType = this._onDidType.event;
 
-	private readonly _onCompositionStart: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onCompositionStart = this._onCompositionStart.event;
+	private readonly _onDidCompositionStart: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidCompositionStart = this._onDidCompositionStart.event;
 
-	private readonly _onCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onCompositionEnd = this._onCompositionEnd.event;
+	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidCompositionEnd = this._onDidCompositionEnd.event;
 
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
@@ -956,13 +956,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
-		if (handlerId === editorCommon.Handler.CompositionStart) {
-			this._onCompositionStart.fire();
-		}
-		if (handlerId === editorCommon.Handler.CompositionEnd) {
-			this._onCompositionEnd.fire();
-		}
-
 		const action = this.getAction(handlerId);
 		if (action) {
 			Promise.resolve(action.run()).then(undefined, onUnexpectedError);
@@ -978,6 +971,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		this._modelData.cursor.trigger(source, handlerId, payload);
+
+		if (handlerId === editorCommon.Handler.CompositionStart) {
+			this._onDidCompositionStart.fire();
+		}
+		if (handlerId === editorCommon.Handler.CompositionEnd) {
+			this._onDidCompositionEnd.fire();
+		}
 	}
 
 	private _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean {

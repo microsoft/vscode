@@ -10,6 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { basename } from 'vs/base/common/resources';
 
 suite('WorkingCopyService', () => {
 
@@ -25,6 +26,8 @@ suite('WorkingCopyService', () => {
 		readonly onDispose = this._onDispose.event;
 
 		readonly capabilities = 0;
+
+		readonly name = basename(this.resource);
 
 		private dirty = false;
 

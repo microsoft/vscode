@@ -8,12 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import { ICustomEditorModel, ICustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditorModel';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class CustomEditorModelManager implements ICustomEditorModelManager {
 	private readonly _models = new Map<string, { readonly model: CustomEditorModel, readonly disposables: DisposableStore }>();
 
 	constructor(
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@ILabelService private readonly _labelService: ILabelService
 	) { }
 
 
@@ -27,7 +29,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			return existing;
 		}
 
-		const model = new CustomEditorModel(viewType, resource);
+		const model = new CustomEditorModel(viewType, resource, this._labelService);
 		const disposables = new DisposableStore();
 		disposables.add(this._workingCopyService.registerWorkingCopy(model));
 		this._models.set(this.key(resource, viewType), { model, disposables });
