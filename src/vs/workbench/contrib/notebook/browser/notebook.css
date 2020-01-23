@@ -32,6 +32,30 @@
 	width: 100%;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table {
+	border-spacing: 0;
+	border-collapse: collapse;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table th,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table td {
+	padding: 6px 13px;
+	border: 1px solid #dfe2e5;
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table th,
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table td {
+	border: 1px solid #80808059;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table tr {
+	border-top: 1px solid #c6cbd1;
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table tr {
+	border-top: 1px solid #80808059;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .output {
 	padding-left: 8px;
 	padding-right: 8px;
@@ -60,6 +84,7 @@
 	max-width: 100%;
 }
 
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row {
 	overflow: visible !important;
 }
@@ -84,9 +109,14 @@
 	visibility: visible;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover {
+/* .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover {
 	outline: none !important;
-}
+} */
+
+/* .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused {
+	outline: none !important;
+} */
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu:hover {
 	cursor: pointer;
 }

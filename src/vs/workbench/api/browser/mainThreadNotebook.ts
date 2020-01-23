@@ -148,8 +148,17 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 		return;
 	}
 
-	async removeCell(viewType: string, uri: URI, index: number): Promise<boolean> {
-		return true;
+	async deleteCell(uri: URI, index: number): Promise<boolean> {
+		let deleteExtHostCell = await this._proxy.$deleteCell(this.viewType, uri, index);
+		if (deleteExtHostCell) {
+			let cell = this.cells[index];
+			this._cellListeners.get(cell.handle)?.dispose();
+			this._cellListeners.delete(cell.handle);
+			this.cells.splice(index, 1);
+			return true;
+		}
+
+		return false;
 	}
 
 	async save(): Promise<boolean> {
@@ -181,6 +190,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this._register(this._notebookService.onDidChangeActiveEditor(e => {
+			this._proxy.$updateActiveEditor(e.viewType, e.uri);
+		}));
 	}
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void> {
@@ -335,6 +347,16 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 
 		return;
+	}
+
+	async deleteCell(uri: URI, index: number): Promise<boolean> {
+		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
+
+		if (mainthreadNotebook) {
+			return mainthreadNotebook.deleteCell(uri, index);
+		}
+
+		return false;
 	}
 
 	executeNotebookActiveCell(uri: URI): void {

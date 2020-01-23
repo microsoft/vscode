@@ -1411,7 +1411,9 @@ export interface ExtHostNotebookShape {
 	$executeNotebook(viewType: string, uri: URI): Promise<void>;
 	$executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void>;
 	$createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<modes.ICell | undefined>;
+	$deleteCell(viewType: string, uri: URI, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: URI): Promise<boolean>;
+	$updateActiveEditor(viewType: string, uri: URI): Promise<void>;
 }
 
 export interface ExtHostStorageShape {

@@ -103,6 +103,13 @@ export class NotebookContribution implements IWorkbenchContribution {
 		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 
 		this.registerCommands();
+
+		this.editorService.onDidActiveEditorChange(() => {
+			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
+				let editorInput = this.editorService.activeEditor! as NotebookEditorInput;
+				this.notebookService.updateActiveNotebookDocument(editorInput.viewType!, editorInput.getResource()!);
+			}
+		});
 	}
 
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {

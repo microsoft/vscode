@@ -139,6 +139,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				keyboardSupport: false,
 				mouseSupport: true,
 				multipleSelectionSupport: false,
+				enableKeyboardNavigation: true,
 				overrideStyles: {
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
@@ -380,6 +381,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		if (type === 'markdown') {
 			newCell.isEditing = true;
 		}
+
+		DOM.scheduleAtNextAnimationFrame(() => {
+			this.list?.reveal(insertIndex, 0.33);
+		});
 	}
 
 	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void {
@@ -390,9 +395,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		cell.isEditing = false;
 	}
 
-	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell) {
+	async deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): Promise<void> {
 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 
+		// await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
+		await this.notebookService.deleteNotebookCell(this.viewType!, this.notebook!.uri, index);
 		this.viewCells!.splice(index, 1);
 		this.model!.deleteCell(cell.cell);
 		this.list?.splice(index, 1);

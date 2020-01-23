@@ -566,6 +566,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	// Render
 
 	private render(renderTop: number, renderHeight: number, renderLeft: number, scrollWidth: number): void {
+		this.isRendering = true;
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
@@ -597,6 +598,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
+		this.isRendering = false;
 	}
 
 	// DOM operations

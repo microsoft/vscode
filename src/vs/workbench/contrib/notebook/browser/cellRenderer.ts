@@ -131,7 +131,7 @@ export class ViewCell extends Disposable {
 	}
 
 	setText(strs: string[]) {
-		this.cell.source = strs.map(str => str + '\n');
+		this.cell.source = strs;
 		this._html = null;
 	}
 
@@ -180,7 +180,7 @@ export class ViewCell extends Disposable {
 	private getMDRenderer() {
 
 		if (!this._mdRenderer) {
-			this._mdRenderer = new marked.Renderer();
+			this._mdRenderer = new marked.Renderer({ gfm: true });
 		}
 
 		return this._mdRenderer;
@@ -393,7 +393,7 @@ class StatefullMarkdownCell extends Disposable {
 
 				const lineNum = viewCell.lineCount;
 				const lineHeight = handler.getFontInfo()?.lineHeight ?? 18;
-				const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
+				const totalHeight = Math.max(lineNum, 1) * lineHeight;
 
 				if (this.editor) {
 					// not first time, we don't need to create editor or bind listeners
@@ -432,7 +432,22 @@ class StatefullMarkdownCell extends Disposable {
 					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 
 					model.onDidChangeContent(() => {
+						let oldLineCnt = viewCell.lineCount;
 						viewCell.setText(model.getLinesContent());
+						let newLineCnt = model.getLineCount();
+
+						if (newLineCnt !== oldLineCnt) {
+							let width = this.editor!.getLayoutInfo().width;
+							let height = newLineCnt * lineHeight;
+
+							this.editor!.layout(
+								{
+									width: width,
+									height: height
+								}
+							);
+						}
+
 						templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 
 						const clientHeight = templateData.cellContainer.clientHeight;

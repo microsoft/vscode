@@ -53,7 +53,7 @@ export class JupyterNotebook {
 		private _extensionPath: string,
 		public document: vscode.NotebookDocument,
 		editor: vscode.NotebookEditor,
-		notebookJSON: any,
+		public notebookJSON: any,
 		private fillOutputs: boolean
 	) {
 		let cells = notebookJSON.cells.map(((raw_cell: any) => {
@@ -88,7 +88,7 @@ export class JupyterNotebook {
 
 			let managedCell = editor.createCell(
 				raw_cell.source ? raw_cell.source.join('') : '',
-				notebookJSON.metadata.language_info.name,
+				notebookJSON?.metadata?.language_info?.name ?? 'python',
 				raw_cell.cell_type,
 				outputs
 			);
@@ -97,7 +97,7 @@ export class JupyterNotebook {
 			return managedCell;
 		}));
 
-		editor.document.languages = ['javascript'];
+		editor.document.languages = ['python'];
 		editor.document.cells = cells;
 	}
 
@@ -188,7 +188,20 @@ export class NotebookProvider implements vscode.NotebookProvider {
 
 		try {
 			let content = await vscode.workspace.fs.readFile(editor.document.uri);
-			let jupyterNotebook = new JupyterNotebook(this._extensionPath, editor.document, editor, JSON.parse(content.toString()), this.fillOutputs);
+			let json: any = {};
+			try {
+				json = JSON.parse(content.toString());
+			} catch {
+				json = {
+					cells: [{
+						cell_type: 'markdown',
+						source: [
+							'# header'
+						]
+					}]
+				};
+			}
+			let jupyterNotebook = new JupyterNotebook(this._extensionPath, editor.document, editor, json, this.fillOutputs);
 			this._notebooks.set(editor.document.uri.toString(), jupyterNotebook);
 		} catch {
 
@@ -204,6 +217,44 @@ export class NotebookProvider implements vscode.NotebookProvider {
 	}
 
 	async save(document: vscode.NotebookDocument): Promise<boolean> {
+		let cells: any[] = [];
+
+		for (let i = 0; i < document.cells.length; i++) {
+			if (document.cells[i].cell_type === 'markdown') {
+				cells.push({
+					source: document.cells[i].getContent().split(/\r|\n|\r\n/g).map(str => str + '\n'),
+					metadata: {
+						language_info: {
+							name: document.cells[i].language ?? 'markdown'
+						}
+					},
+					cell_type: document.cells[i].cell_type
+				});
+			} else {
+				cells.push({
+					source: document.cells[i].getContent().split(/\r|\n|\r\n/g).map(str => str + '\n'),
+					metadata: {
+						language_info: {
+							name: document.cells[i].language ?? 'markdown'
+						}
+					},
+					cell_type: document.cells[i].cell_type,
+					outputs: []
+				});
+			}
+		}
+
+		let raw = this._notebooks.get(document.uri.toString());
+
+		if (raw) {
+			raw.notebookJSON.cells = cells;
+			let content = JSON.stringify(raw.notebookJSON, null, 4);
+			await vscode.workspace.fs.writeFile(document.uri, new TextEncoder().encode(content));
+		} else {
+			let content = JSON.stringify({ cells: cells }, null, 4);
+			await vscode.workspace.fs.writeFile(document.uri, new TextEncoder().encode(content));
+		}
+
 		return true;
 	}
 }

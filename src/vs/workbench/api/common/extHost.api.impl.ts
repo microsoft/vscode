@@ -556,6 +556,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
 				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
 			},
+			get activeNotebookDocument(): vscode.NotebookDocument | undefined {
+				return extHostNotebook.activeNotebookDocument;
+			},
 			get activeColorTheme(): vscode.ColorTheme {
 				checkProposedApiEnabled(extension);
 				return extHostTheming.activeColorTheme;

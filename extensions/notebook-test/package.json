@@ -22,6 +22,12 @@
     "*"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "notebook.saveToMarkdown",
+        "title": "Notebook: Save to Markdown"
+      }
+    ],
     "notebookProvider": [
       {
         "viewType": "jupyter",

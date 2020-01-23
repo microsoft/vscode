@@ -74,6 +74,8 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 	private _cells: ExtHostCell[] = [];
 
+	private _cellDisposableMapping = new Map<number, DisposableStore>();
+
 	get cells() {
 		return this._cells;
 	}
@@ -81,7 +83,12 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	set cells(newCells: ExtHostCell[]) {
 		this._cells = newCells;
 		this._cells.forEach(cell => {
-			cell.onDidChangeOutputs(() => {
+			if (!this._cellDisposableMapping.has(cell.handle)) {
+				this._cellDisposableMapping.set(cell.handle, new DisposableStore());
+			}
+
+			let store = this._cellDisposableMapping.get(cell.handle)!;
+			store.add(cell.onDidChangeOutputs(() => {
 				this._proxy.$updateNotebookCell(this.viewType, this.uri, {
 					handle: cell.handle,
 					source: cell.source,
@@ -90,7 +97,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 					outputs: cell.outputs,
 					isDirty: false
 				});
-			});
+			}));
 		});
 	}
 
@@ -130,7 +137,14 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 	insertRawCell(index: number, cell: ExtHostCell) {
 		this.cells.splice(index, 0, cell);
-		cell.onDidChangeOutputs(() => {
+
+		if (!this._cellDisposableMapping.has(cell.handle)) {
+			this._cellDisposableMapping.set(cell.handle, new DisposableStore());
+		}
+
+		let store = this._cellDisposableMapping.get(cell.handle)!;
+
+		store.add(cell.onDidChangeOutputs(() => {
 			this._proxy.$updateNotebookCell(this.viewType, this.uri, {
 				handle: cell.handle,
 				source: cell.source,
@@ -139,7 +153,20 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 				outputs: cell.outputs,
 				isDirty: false
 			});
-		});
+		}));
+	}
+
+	deleteCell(index: number): boolean {
+		if (index >= this.cells.length) {
+			return false;
+		}
+
+		let cell = this.cells[index];
+		this._cellDisposableMapping.get(cell.handle)?.dispose();
+		this._cellDisposableMapping.delete(cell.handle);
+
+		this.cells.splice(index, 1);
+		return true;
 	}
 
 	getActiveCell(cellHandle: number) {
@@ -246,6 +273,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	}
 
+	private _activeNotebookDocument: ExtHostNotebookDocument | undefined;
+
+	get activeNotebookDocument() {
+		return this._activeNotebookDocument;
+	}
+
 	public registerNotebookProvider(
 		extension: IExtensionDescription,
 		viewType: string,
@@ -319,7 +352,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				return provider.provider.executeCell(document!, cell!);
 			}
 		}
-
 	}
 
 	async $createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
@@ -344,6 +376,22 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return;
 	}
 
+	async $deleteCell(viewType: string, uri: URI, index: number): Promise<boolean> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			let document = this._documents.get(URI.revive(uri).toString());
+
+			if (document) {
+				return document.deleteCell(index);
+			}
+
+			return false;
+		}
+
+		return false;
+	}
+
 	async $saveNotebook(viewType: string, uri: URI): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 		let document = this._documents.get(URI.revive(uri).toString());
@@ -353,6 +401,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		return false;
+	}
+
+	async $updateActiveEditor(viewType: string, uri: URI): Promise<void> {
+		let document = this._documents.get(URI.revive(uri).toString());
+
+		if (document) {
+			this._activeNotebookDocument = document;
+		} else {
+			this._activeNotebookDocument = undefined;
+		}
 	}
 
 }

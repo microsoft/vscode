@@ -1359,6 +1359,8 @@ declare module 'vscode' {
 			notebookType: string,
 			provider: NotebookProvider
 		): Disposable;
+
+		export let activeNotebookDocument: NotebookDocument | undefined;
 	}
 
 	//#endregion

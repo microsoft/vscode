@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { notebookExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
+import { Emitter, Event } from 'vs/base/common/event';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -23,12 +24,14 @@ export interface IMainNotebookController {
 	updateNotebook(uri: URI, notebook: INotebook): void;
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
 	createRawCell(uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
+	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
 	destoryNotebookDocument(notebook: INotebook): void;
 }
 
 export interface INotebookService {
 	_serviceBrand: undefined;
+	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
@@ -38,7 +41,9 @@ export interface INotebookService {
 	getNotebookProviderResourceRoots(): URI[];
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
 	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
+	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean>;
 	destoryNotebookDocument(viewType: string, notebook: INotebook): void;
+	updateActiveNotebookDocument(viewType: string, resource: URI): void;
 }
 
 export class NotebookInfoStore {
@@ -87,6 +92,8 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	public notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
+	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
+	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
 
 	constructor() {
 		super();
@@ -157,6 +164,16 @@ export class NotebookService extends Disposable implements INotebookService {
 		return;
 	}
 
+	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.deleteCell(resource, index);
+		}
+
+		return false;
+	}
+
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
@@ -194,6 +211,10 @@ export class NotebookService extends Disposable implements INotebookService {
 		if (provider) {
 			provider.controller.destoryNotebookDocument(notebook);
 		}
+	}
+
+	updateActiveNotebookDocument(viewType: string, resource: URI): void {
+		this._onDidChangeActiveEditor.fire({ viewType, uri: resource });
 	}
 
 	private _onWillDispose(model: INotebook): void {
