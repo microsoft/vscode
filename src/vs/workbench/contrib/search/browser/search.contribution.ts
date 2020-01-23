@@ -17,7 +17,7 @@ import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKe
 import * as nls from 'vs/nls';
 import { ICommandAction, MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -28,28 +28,25 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, IExplorerService, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
 import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, ExpandAllAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorWholeWordCommand, toggleSearchEditorRegexCommand, toggleSearchEditorContextLinesCommand } from 'vs/workbench/contrib/search/browser/searchActions';
-import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
-import { SearchView, SearchViewPosition } from 'vs/workbench/contrib/search/browser/searchView';
+import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { VIEWLET_ID, VIEW_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -76,7 +73,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: Constants.SearchViewVisibleKey,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			searchView.toggleQueryDetails();
 		}
@@ -89,7 +86,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FirstMatchFocusKey),
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			searchView.focusPreviousInputBox();
 		}
@@ -105,7 +102,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
 			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
@@ -119,7 +116,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, WorkbenchListFocusContextKey),
 	primary: KeyCode.Escape,
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			searchView.cancelSearch();
 		}
@@ -135,7 +132,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	},
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]!).run();
@@ -149,7 +146,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
 	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus()[0] as Match, searchView).run();
@@ -164,7 +161,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(ReplaceAllAction, searchView, tree.getFocus()[0] as FileMatch).run();
@@ -179,7 +176,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()[0] as FolderMatch).run();
@@ -363,31 +360,6 @@ const ClearSearchHistoryCommand: ICommandAction = {
 MenuRegistry.addCommand(ClearSearchHistoryCommand);
 
 CommandsRegistry.registerCommand({
-	id: Constants.ToggleSearchViewPositionCommandId,
-	handler: (accessor) => {
-		const configurationService = accessor.get(IConfigurationService);
-		const currentValue = configurationService.getValue<ISearchConfigurationProperties>('search').location;
-		const toggleValue = currentValue === 'sidebar' ? 'panel' : 'sidebar';
-
-		configurationService.updateValue('search.location', toggleValue);
-	}
-});
-
-const toggleSearchViewPositionLabel = nls.localize('toggleSearchViewPositionLabel', "Toggle Search View Position");
-const ToggleSearchViewPositionCommand: ICommandAction = {
-	id: Constants.ToggleSearchViewPositionCommandId,
-	title: toggleSearchViewPositionLabel,
-	category
-};
-MenuRegistry.addCommand(ToggleSearchViewPositionCommand);
-MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: ToggleSearchViewPositionCommand,
-	when: Constants.SearchViewVisibleKey,
-	group: 'search_9',
-	order: 1
-});
-
-CommandsRegistry.registerCommand({
 	id: Constants.FocusSearchListCommandID,
 	handler: focusSearchListCommand
 });
@@ -402,13 +374,11 @@ MenuRegistry.addCommand(FocusSearchListCommand);
 
 const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const listService = accessor.get(IListService);
-	const viewletService = accessor.get(IViewletService);
-	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
-	const configurationService = accessor.get(IConfigurationService);
+	const viewsService = accessor.get(IViewsService);
 	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
 
-	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
+	return openSearchView(viewsService, true).then(searchView => {
 		if (resources && resources.length && searchView) {
 			return fileService.resolveAll(resources.map(resource => ({ resource }))).then(results => {
 				const folders: URI[] = [];
@@ -454,7 +424,7 @@ const FIND_IN_WORKSPACE_ID = 'filesExplorer.findInWorkspace';
 CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
 	handler: (accessor) => {
-		return openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(IConfigurationService), true).then(searchView => {
+		return openSearchView(accessor.get(IViewsService), true).then(searchView => {
 			if (searchView) {
 				searchView.searchInFolders();
 			}
@@ -522,51 +492,43 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	order: 1
 }, ViewContainerLocation.Sidebar);
 
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-	SearchPanel,
-	PANEL_ID,
-	nls.localize('name', "Search"),
-	'search',
-	10
-));
+const viewDescriptor = { id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView), canToggleVisibility: false, canMoveView: true };
 
+// Register search default location to sidebar
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
+
+
+// Migrate search location setting to new model
 class RegisterSearchViewContribution implements IWorkbenchContribution {
-
 	constructor(
-		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
-		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		const updateSearchViewLocation = (open: boolean) => {
-			const config = configurationService.getValue<ISearchConfiguration>();
-			if (config.search.location === 'panel') {
-				viewsRegistry.deregisterViews(viewsRegistry.getViews(viewContainer), viewContainer);
-				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-					SearchPanel,
-					PANEL_ID,
-					nls.localize('name', "Search"),
-					'search',
-					10
-				));
-				if (open) {
-					panelService.openPanel(PANEL_ID);
-				}
-			} else {
-				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(PANEL_ID);
-				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView, [SearchViewPosition.SideBar]), canToggleVisibility: false }], viewContainer);
-				if (open) {
-					viewletService.openViewlet(VIEWLET_ID);
-				}
-			}
-		};
-		configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('search.location')) {
-				updateSearchViewLocation(true);
-			}
-		});
+		const data = configurationService.inspect('search.location');
 
-		updateSearchViewLocation(false);
+		if (data.value === 'panel') {
+			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
+		}
+
+		if (data.userValue) {
+			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER);
+		}
+
+		if (data.userLocalValue) {
+			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER_LOCAL);
+		}
+
+		if (data.userRemoteValue) {
+			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER_REMOTE);
+		}
+
+		if (data.workspaceFolderValue) {
+			configurationService.updateValue('search.location', undefined, ConfigurationTarget.WORKSPACE_FOLDER);
+		}
+
+		if (data.workspaceValue) {
+			configurationService.updateValue('search.location', undefined, ConfigurationTarget.WORKSPACE);
+		}
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
@@ -664,7 +626,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
 	handler: (accessor, args: any) => {
-		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
 			searchView.openEditorWithMultiCursor(<FileMatchOrMatch>tree.getFocus()[0]);

@@ -36,6 +36,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const enum State {
 	Data = 'data',
@@ -76,13 +77,14 @@ export class BulkEditPane extends ViewPane {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
 			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, _contextKeyService, _instaService
+			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
