@@ -4,24 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'crypto';
-import * as vscode from 'vscode';
 import * as https from 'https';
 import * as querystring from 'querystring';
-import { keychain } from './keychain';
-import { toBase64UrlEncoding } from './utils';
+import * as vscode from 'vscode';
 import { createServer, startServer } from './authServer';
+import { keychain } from './keychain';
 import Logger from './logger';
+import { toBase64UrlEncoding } from './utils';
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const scope = 'https://management.core.windows.net/.default offline_access';
+const resourceId = 'https://management.core.windows.net/';
 const tenant = 'common';
 
 interface IToken {
 	expiresIn: string; // How long access token is valid, in seconds
 	accessToken: string;
 	refreshToken: string;
+}
+
+interface ITokenClaims {
+	email?: string;
+	unique_name?: string;
+	oid?: string;
+	altsecid?: string;
 }
 
 export const onDidChangeSessions = new vscode.EventEmitter<void>();
@@ -59,23 +66,20 @@ export class AzureActiveDirectoryService {
 	}
 
 	private tokenToAccount(token: IToken): vscode.Session {
+		const claims = this.getTokenClaims(token.accessToken);
 		return {
-			id: '',
+			id: claims?.oid || claims?.altsecid || '',
 			accessToken: token.accessToken,
-			displayName: this.getDisplayNameFromToken(token.accessToken)
+			displayName: claims?.email || claims?.unique_name || 'user@example.com'
 		};
 	}
 
-	private getDisplayNameFromToken(accessToken: string): string {
-		let displayName = 'user@example.com';
+	private getTokenClaims(accessToken: string): ITokenClaims | undefined {
 		try {
-			// TODO fixme
-			displayName = JSON.parse(atob(accessToken.split('.')[1]));
+			return JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
 		} catch (e) {
-			// Fall back to example display name
+			Logger.error(e.message);
 		}
-
-		return displayName;
 	}
 
 	get sessions(): vscode.Session[] {
@@ -108,7 +112,7 @@ export class AzureActiveDirectoryService {
 
 			const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
 			const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
-			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(resourceId)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
 
 			await redirectReq.res.writeHead(302, { Location: loginUrl });
 			redirectReq.res.end();
@@ -165,12 +169,12 @@ export class AzureActiveDirectoryService {
 					grant_type: 'authorization_code',
 					code: code,
 					client_id: clientId,
-					scope: scope,
+					resource: resourceId,
 					code_verifier: codeVerifier,
 					redirect_uri: redirectUrl
 				});
 
-				const tokenUrl = vscode.Uri.parse(`${loginEndpointUrl}${tenant}/oauth2/v2.0/token`);
+				const tokenUrl = vscode.Uri.parse(`${loginEndpointUrl}${tenant}/oauth2/token`);
 
 				const post = https.request({
 					host: tokenUrl.authority,
@@ -220,12 +224,12 @@ export class AzureActiveDirectoryService {
 				refresh_token: refreshToken,
 				client_id: clientId,
 				grant_type: 'refresh_token',
-				scope: scope
+				resource: resourceId
 			});
 
 			const post = https.request({
 				host: 'login.microsoftonline.com',
-				path: `/${tenant}/oauth2/v2.0/token`,
+				path: `/${tenant}/oauth2/token`,
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',

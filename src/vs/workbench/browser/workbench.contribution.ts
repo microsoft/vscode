@@ -133,8 +133,7 @@ import { URI } from 'vs/base/common/uri';
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
 				'description': nls.localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
-				'default': true,
-				'included': !isMacintosh
+				'default': true
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
