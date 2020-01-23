@@ -336,6 +336,14 @@ export class SearchEditor extends BaseEditor {
 		this.queryEditorWidget.focus();
 	}
 
+	getSelected() {
+		const selection = this.searchResultEditor.getSelection();
+		if (selection) {
+			return this.searchResultEditor.getModel()?.getValueInRange(selection) ?? '';
+		}
+		return '';
+	}
+
 	private reLayout() {
 		if (this.dimension) {
 			this.queryEditorWidget.setWidth(this.dimension.width - 28 /* container margin */);

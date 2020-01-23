@@ -16,18 +16,17 @@ import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textM
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { TestWindowConfiguration } from 'vs/workbench/test/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const appSettingsHome = path.join(userdataDir, 'User');
@@ -49,7 +48,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(u
 class TestBackupEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
-		super({ ...parseArgs(process.argv, OPTIONS), ...{ backupPath, 'user-data-dir': userdataDir } } as IWindowConfiguration, process.execPath, 0);
+		super({ ...TestWindowConfiguration, backupPath, 'user-data-dir': userdataDir }, TestWindowConfiguration.execPath, TestWindowConfiguration.windowId);
 	}
 }
 
