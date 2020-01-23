@@ -1030,11 +1030,17 @@ export interface ISuggestDataDto {
 	x?: ChainedCacheId;
 }
 
+export const enum ISuggestResultDtoField {
+	defaultRanges = 'a',
+	completions = 'b',
+	isIncomplete = 'c'
+}
+
 export interface ISuggestResultDto {
+	[ISuggestResultDtoField.defaultRanges]: { insert: IRange, replace: IRange; };
+	[ISuggestResultDtoField.completions]: ISuggestDataDto[];
+	[ISuggestResultDtoField.isIncomplete]: undefined | true;
 	x?: number;
-	a: { insert: IRange, replace: IRange; };
-	b: ISuggestDataDto[];
-	c?: true;
 }
 
 export interface ISignatureHelpDto {
