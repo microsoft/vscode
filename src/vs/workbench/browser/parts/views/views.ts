@@ -13,18 +13,16 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex, move } from 'vs/base/common/arrays';
 import { isUndefinedOrNull, isUndefined } from 'vs/base/common/types';
-import { MenuId, MenuRegistry, ICommandAction } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { values } from 'vs/base/common/map';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { toggleClass, addClass } from 'vs/base/browser/dom';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-
-
+import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -472,14 +470,14 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onViewContainerRegistered(viewContainer: ViewContainer): void {
 		const viewDescriptorCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
-		this.onViewsRegistered(viewDescriptorCollection.allViewDescriptors, viewContainer);
+		this.onViewsAdded(viewDescriptorCollection.allViewDescriptors, viewContainer);
 		this._register(viewDescriptorCollection.onDidChangeViews(({ added, removed }) => {
-			this.onViewsRegistered(added, viewContainer);
-			this.onViewsDeregistered(removed);
+			this.onViewsAdded(added, viewContainer);
+			this.onViewsRemoved(removed);
 		}));
 	}
 
-	private onViewsRegistered(views: IViewDescriptor[], container: ViewContainer): void {
+	private onViewsAdded(views: IViewDescriptor[], container: ViewContainer): void {
 		const location = this.viewContainersRegistry.getViewContainerLocation(container);
 		if (location === undefined) {
 			return;
@@ -488,38 +486,57 @@ export class ViewsService extends Disposable implements IViewsService {
 		const composite = this.getComposite(container.id, location);
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
-			const command: ICommandAction = {
-				id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-				title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
-				category: composite ? composite.name : localize('view category', "View"),
-			};
-			const when = ContextKeyExpr.has(`${viewDescriptor.id}.active`);
-
-			disposables.add(CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true)));
-
-			disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-				command,
-				when
+			disposables.add(registerAction2(class FocusViewAction extends Action2 {
+				constructor() {
+					super({
+						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
+						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
+						category: composite ? composite.name : localize('view category', "View"),
+						menu: [{
+							id: MenuId.CommandPalette,
+						}],
+						keybinding: {
+							when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
+							weight: KeybindingWeight.WorkbenchContrib,
+							primary: viewDescriptor.focusCommand?.keybindings?.primary,
+							secondary: viewDescriptor.focusCommand?.keybindings?.secondary,
+							linux: viewDescriptor.focusCommand?.keybindings?.linux,
+							mac: viewDescriptor.focusCommand?.keybindings?.mac,
+							win: viewDescriptor.focusCommand?.keybindings?.win
+						}
+					});
+				}
+				run(accessor: ServicesAccessor): any {
+					accessor.get(IViewsService).openView(viewDescriptor.id, true);
+				}
 			}));
 
-			if (viewDescriptor.focusCommand && viewDescriptor.focusCommand.keybindings) {
-				KeybindingsRegistry.registerKeybindingRule({
-					id: command.id,
-					when,
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: viewDescriptor.focusCommand.keybindings.primary,
-					secondary: viewDescriptor.focusCommand.keybindings.secondary,
-					linux: viewDescriptor.focusCommand.keybindings.linux,
-					mac: viewDescriptor.focusCommand.keybindings.mac,
-					win: viewDescriptor.focusCommand.keybindings.win
-				});
-			}
+			const newLocation = location === ViewContainerLocation.Panel ? ViewContainerLocation.Sidebar : ViewContainerLocation.Panel;
+			disposables.add(registerAction2(class MoveViewAction extends Action2 {
+				constructor() {
+					super({
+						id: `${viewDescriptor.id}.moveView`,
+						title: {
+							original: newLocation === ViewContainerLocation.Sidebar ? 'Move to Sidebar' : 'Move to Panel',
+							value: newLocation === ViewContainerLocation.Sidebar ? localize('moveViewToSidebar', "Move to Sidebar") : localize('moveViewToPanel', "Move to Panel")
+						},
+						menu: [{
+							id: MenuId.ViewTitleContext,
+							when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewDescriptor.id), ContextKeyExpr.has(`${viewDescriptor.id}.canMove`)),
+						}],
+					});
+				}
+				run(accessor: ServicesAccessor): any {
+					accessor.get(IViewDescriptorService).moveViewToLocation(viewDescriptor, newLocation);
+					accessor.get(IViewsService).openView(viewDescriptor.id);
+				}
+			}));
 
 			this.viewDisposable.set(viewDescriptor, disposables);
 		}
 	}
 
-	private onViewsDeregistered(views: IViewDescriptor[]): void {
+	private onViewsRemoved(views: IViewDescriptor[]): void {
 		for (const view of views) {
 			const disposable = this.viewDisposable.get(view);
 			if (disposable) {

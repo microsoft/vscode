@@ -463,7 +463,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
-		private compositeMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
+		private compositeContextMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
@@ -598,9 +598,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	private showContextMenu(container: HTMLElement): void {
 		const actions: Action[] = [this.toggleCompositePinnedAction];
 
-		const compositeSpecificActions = this.compositeMenuActionsProvider(this.activity.id);
-		if (compositeSpecificActions.length) {
-			actions.push(...compositeSpecificActions);
+		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
+		if (compositeContextMenuActions.length) {
+			actions.push(...compositeContextMenuActions);
 		}
 
 		if ((<any>this.compositeActivityAction.activity).extensionId) {

@@ -40,7 +40,7 @@ export interface ICompositeBarOptions {
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
 	getContextMenuActions: () => Action[];
-	getContextMenuActionsForCompositeId?: (compositeId: string) => Action[];
+	getContextMenuActionsForComposite: (compositeId: string) => Action[];
 	openComposite: (compositeId: string) => Promise<any>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => void;
@@ -103,7 +103,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem, action as ActivityAction, item.pinnedAction,
-					(compositeId: string) => { return this.options.getContextMenuActionsForCompositeId === undefined ? [] : this.options.getContextMenuActionsForCompositeId(compositeId); },
+					(compositeId: string) => this.options.getContextMenuActionsForComposite(compositeId),
 					() => this.getContextMenuActions() as Action[],
 					this.options.colors,
 					this.options.icon,

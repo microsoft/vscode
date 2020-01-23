@@ -183,6 +183,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
+	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
 
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
@@ -215,6 +216,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
+		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -280,7 +282,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// check if we should generate this container
 			if (containerInfo.sourceViewId && containerInfo.location !== undefined) {
-				const sourceView = this.viewsRegistry.getView(containerInfo.sourceViewId);
+				const sourceView = this.getViewDescriptor(containerInfo.sourceViewId);
 
 				if (sourceView) {
 					this.registerViewContainerForSingleView(sourceView, containerInfo.location);
@@ -290,7 +292,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// check if view has been registered to default location
 			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
-			const viewDescriptor = this.viewsRegistry.getView(viewId);
+			const viewDescriptor = this.getViewDescriptor(viewId);
 			if (viewContainer && viewDescriptor) {
 				this.addViews(viewContainer, [viewDescriptor]);
 			}
@@ -306,12 +308,15 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// Once they are grouped, try registering them which occurs
 		// if the container has already been registered within this service
 		this.registerGroupedViews(regroupedViews);
+
+		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
 	}
 
 	private onDidDeregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
 		// When views are registered, we need to regroup them based on the cache
 		const regroupedViews = this.regroupViews(viewContainer.id, views);
 		this.deregisterGroupedViews(regroupedViews);
+		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
 	}
 
 	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, IViewDescriptor[]> {
@@ -326,6 +331,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		});
 
 		return ret;
+	}
+
+	getViewDescriptor(viewId: string): IViewDescriptor | null {
+		return this.viewsRegistry.getView(viewId);
 	}
 
 	getViewContainer(viewId: string): ViewContainer | null {
@@ -408,7 +417,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				const prevViewContainer = this.getViewContainer(viewId);
 				const newViewContainer = this.viewContainersRegistry.get(newCachedPositions.get(viewId)!.containerId);
 				if (prevViewContainer && newViewContainer && newViewContainer !== prevViewContainer) {
-					const viewDescriptor = this.viewsRegistry.getView(viewId);
+					const viewDescriptor = this.getViewDescriptor(viewId);
 					if (viewDescriptor) {
 						// We don't call move views to avoid sending intermediate
 						// cached data to the window that gave us this information
@@ -470,7 +479,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				continue;
 			}
 
-			const viewDescriptor = this.viewsRegistry.getView(viewId);
+			const viewDescriptor = this.getViewDescriptor(viewId);
 			if (viewDescriptor) {
 				result.push(viewDescriptor);
 			}
@@ -498,6 +507,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const viewsToRegister = this.getViewsByContainer(viewContainer);
 			if (viewsToRegister.length) {
 				this.addViews(viewContainer, viewsToRegister);
+				viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
 			}
 		}
 
@@ -522,8 +532,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
-		const viewDescriptorCollection = this.getViewDescriptors(container);
-		viewDescriptorCollection.removeViews(views);
+		this.getViewDescriptors(container).removeViews(views);
 	}
 
 	private getOrCreateActiveViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
@@ -532,6 +541,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (!contextKey) {
 			contextKey = new RawContextKey(activeContextKeyId, false).bindTo(this.contextKeyService);
 			this.activeViewContextKeys.set(activeContextKeyId, contextKey);
+		}
+		return contextKey;
+	}
+
+	private getOrCreateMovableViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
+		const movableViewContextKeyId = `${viewDescriptor.id}.canMove`;
+		let contextKey = this.movableViewContextKeys.get(movableViewContextKeyId);
+		if (!contextKey) {
+			contextKey = new RawContextKey(movableViewContextKeyId, false).bindTo(this.contextKeyService);
+			this.movableViewContextKeys.set(movableViewContextKeyId, contextKey);
 		}
 		return contextKey;
 	}

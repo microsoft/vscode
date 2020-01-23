@@ -34,6 +34,8 @@ import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 
 interface ICachedPanel {
 	id: string;
@@ -137,7 +139,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 					.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
 				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 			] as Action[],
-			getContextMenuActionsForCompositeId: (compositeId: string) => this.getContextMenuActionsForCompositeId(compositeId) as Action[],
+			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			compositeSize: 0,
@@ -161,14 +163,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.onDidRegisterPanels([...this.getPanels()]);
 	}
 
-	private getContextMenuActionsForCompositeId(compositeId: string): readonly IAction[] {
-		const panel = this.getActivePanel();
-
-		if (!panel || panel.getId() !== compositeId) {
-			return [];
+	private getContextMenuActionsForComposite(compositeId: string): readonly IAction[] {
+		const result: IAction[] = [];
+		const container = this.getViewContainer(compositeId);
+		if (container) {
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(container);
+			if (viewDescriptors.allViewDescriptors.length === 1) {
+				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewDescriptors.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
+				result.push(...viewMenuActions.getContextMenuActions());
+				viewMenuActions.dispose();
+			}
 		}
-
-		return panel.getContextMenuActions();
+		return result;
 	}
 
 	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
