@@ -60,7 +60,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		console.log(`GitTimelineProvider.provideTimeline: commits=${commits.length}`);
 
-		return commits.map<TimelineItem>(c => {
+		const items = commits.map<TimelineItem>(c => {
 			let message = c.message;
 
 			const index = message.indexOf('\n');
@@ -82,6 +82,26 @@ export class GitTimelineProvider implements TimelineProvider {
 				}
 			};
 		});
+
+		const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+		if (index) {
+			items.push({
+				id: '~',
+				// TODO: Fix the date
+				date: Date.now(),
+				iconPath: new ThemeIcon('git-commit'),
+				label: 'Staged Changes',
+				description: '',
+				detail: '',
+				command: {
+					title: 'Open Diff',
+					command: 'git.openDiff',
+					arguments: [uri, '~']
+				}
+			});
+		}
+
+		return items;
 	}
 
 	@debounce(500)
