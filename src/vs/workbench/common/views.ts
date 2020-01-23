@@ -365,9 +365,9 @@ export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
-	moveView(view: IViewDescriptor, location: ViewContainerLocation): void;
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 
-	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 

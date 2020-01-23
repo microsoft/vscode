@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 
 
 export class SearchViewPaneContainer extends ViewPaneContainer {
@@ -30,9 +30,10 @@ export class SearchViewPaneContainer extends ViewPaneContainer {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IViewsService viewsService: IViewsService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, viewsService);
 	}
 
 	getSearchView(): SearchView | undefined {

@@ -10,13 +10,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Registry } from 'vs/platform/registry/common/platform';
 import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -279,10 +272,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private onDidRegisterExtensions(): void {
 		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
-			if (!containerInfo) {
-				continue;
-			}
-
 			const containerId = containerInfo.containerId;
 			// check if cached view container is registered
 			if (this.viewContainersRegistry.get(containerId)) {
@@ -301,8 +290,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// check if view has been registered to default location
 			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
-			if (viewContainer) {
-				this.addViews(viewContainer, [this.viewsRegistry.getView(viewId)!]);
+			const viewDescriptor = this.viewsRegistry.getView(viewId);
+			if (viewContainer && viewDescriptor) {
+				this.addViews(viewContainer, [viewDescriptor]);
 			}
 		}
 
@@ -353,7 +343,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.getOrRegisterViewDescriptorCollection(container);
 	}
 
-	moveView(view: IViewDescriptor, location: ViewContainerLocation): void {
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
 		const previousContainer = this.getViewContainer(view.id);
 		if (previousContainer && this.viewContainersRegistry.getViewContainerLocation(previousContainer) === location) {
 			return;
@@ -364,10 +354,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			container = this.registerViewContainerForSingleView(view, location);
 		}
 
-		this.moveViews([view], container);
+		this.moveViewsToContainer([view], container);
 	}
 
-	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void {
 		if (!views.length) {
 			return;
 		}
@@ -385,26 +375,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private registerViewContainerForSingleView(sourceView: IViewDescriptor, location: ViewContainerLocation): ViewContainer {
 		const id = this.generateContainerIdFromSourceViewId(sourceView.id, location);
 
-		class MovedViewPanelViewPaneContainer extends ViewPaneContainer {
-			constructor(
-				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-				@IStorageService protected storageService: IStorageService,
-				@IConfigurationService configurationService: IConfigurationService,
-				@IInstantiationService protected instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService,
-				@IViewDescriptorService viewDescriptorService: IViewDescriptorService
-			) {
-				super(id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
-			}
-		}
-
 		return this.viewContainersRegistry.registerViewContainer({
 			id,
-			ctorDescriptor: new SyncDescriptor(MovedViewPanelViewPaneContainer),
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]),
 			name: sourceView.name,
 			icon: sourceView.containerIcon,
 			hideIfEmpty: true
@@ -412,7 +385,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private getCachedViewPositions(): Map<string, ICachedViewContainerInfo> {
-		return new Map<string, ICachedViewContainerInfo>(JSON.parse(this.cachedViewPositionsValue));
+		const result = new Map<string, ICachedViewContainerInfo>(JSON.parse(this.cachedViewPositionsValue));
+
+		// Sanitize cache
+		for (const [viewId, containerInfo] of result.entries()) {
+			if (!containerInfo) {
+				result.delete(viewId);
+			}
+		}
+
+		return result;
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {

@@ -19,7 +19,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -442,9 +442,10 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IViewsService viewsService: IViewsService
 	) {
-		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService, viewsService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];

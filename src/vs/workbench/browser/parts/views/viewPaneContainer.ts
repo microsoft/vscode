@@ -308,7 +308,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IThemeService protected themeService: IThemeService,
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
+		@IViewsService protected viewsService: IViewsService
 	) {
 
 		super(id, themeService, storageService);
@@ -675,12 +676,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	protected moveView(viewDescriptor: IViewDescriptor): void {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewsExtensions.ViewContainersRegistry);
 		const currentLocation = viewContainerRegistry.getViewContainerLocation(this.viewContainer);
-		this.viewDescriptorService.moveView(viewDescriptor, currentLocation === ViewContainerLocation.Sidebar ? ViewContainerLocation.Panel : ViewContainerLocation.Sidebar);
-
-		this.instantiationService.invokeFunction(accessor => {
-			const viewsService = accessor.get(IViewsService);
-			viewsService.openView(viewDescriptor.id, true);
-		});
+		this.viewDescriptorService.moveViewToLocation(viewDescriptor, currentLocation === ViewContainerLocation.Sidebar ? ViewContainerLocation.Panel : ViewContainerLocation.Sidebar);
+		this.viewsService.openView(viewDescriptor.id, true);
 	}
 
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {

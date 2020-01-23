@@ -33,7 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { StartView } from 'vs/workbench/contrib/debug/browser/startView';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -61,9 +61,10 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IViewsService viewsService: IViewsService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, viewsService);
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
