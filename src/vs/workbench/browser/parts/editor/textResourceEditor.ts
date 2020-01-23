@@ -24,7 +24,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import type { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -214,6 +214,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
 		if (!e.mode || e.mode === PLAINTEXT_MODE_ID) {
 			return; // require a specific mode
+		}
+
+		if (codeEditor.getOption(EditorOption.readOnly)) {
+			return; // not for readonly editors
 		}
 
 		const textModel = codeEditor.getModel();
