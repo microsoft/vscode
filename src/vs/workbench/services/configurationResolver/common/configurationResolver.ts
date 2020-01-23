@@ -55,7 +55,7 @@ export interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
-	options: string[];
+	options: (string | { value: string, name?: string })[];
 	default?: string;
 }
 
