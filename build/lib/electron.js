@@ -81,7 +81,7 @@ exports.config = {
     linuxExecutableName: product.applicationName,
     winIcon: 'resources/win32/code.ico',
     token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined,
-    repo: 'Microsoft/vscode-electron-prebuilt'
+    repo: 'deepak1556/electron-debug-version'
 };
 function getElectron(arch) {
     return () => {
