@@ -356,7 +356,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: undefined;
 
-	getActiveViewById(id: string): IView | null;
+	getActiveViewWithId(id: string): IView | null;
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 }

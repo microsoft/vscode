@@ -566,7 +566,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return undefined;
 	}
 
-	getActiveViewById(id: string): IView | null {
+	getActiveViewWithId(id: string): IView | null {
 		const viewContainer = this.viewDescriptorService.getViewContainer(id);
 		if (viewContainer) {
 			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);

@@ -54,7 +54,7 @@ export function openSearchView(viewsService: IViewsService, focus?: boolean): Pr
 }
 
 export function getSearchView(viewsService: IViewsService): SearchView | undefined {
-	return viewsService.getActiveViewById(VIEW_ID) as SearchView ?? undefined;
+	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView ?? undefined;
 }
 
 function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding | undefined): string {
