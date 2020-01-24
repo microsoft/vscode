@@ -42,12 +42,9 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { flatten } from 'vs/base/common/arrays';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Position } from 'vs/editor/common/core/position';
 
 const expandSuggestionDocsByDefault = false;
-
-const READ_MORE_TEXT = nls.localize('suggestWidget.readMore', 'Read more... (⌃Space)');
-const READ_LESS_TEXT = nls.localize('suggestWidget.readLess', 'Read less... (⌃Space)');
-const INSERT_REPLACE_TEXT = nls.localize('suggestWidget.insertOrReplace', 'Enter to insert, Tab to replace');
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -306,7 +303,7 @@ class SuggestionDetails {
 		private readonly widget: SuggestWidget,
 		private readonly editor: ICodeEditor,
 		private readonly markdownRenderer: MarkdownRenderer,
-		private readonly triggerKeybindingLabel: string,
+		private readonly kbToggleDetails: string,
 	) {
 		this.disposables = new DisposableStore();
 
@@ -321,7 +318,7 @@ class SuggestionDetails {
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.codicon.codicon-close'));
-		this.close.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
+		this.close.title = nls.localize('readLess', "Read less...{0}", this.kbToggleDetails);
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
@@ -473,6 +470,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
+	private readonly msgDetailMore: string;
+	private readonly msgDetailsLess: string;
+
 	private state: State | null = null;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
@@ -525,17 +525,19 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
-		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
 		const markdownRenderer = this.toDispose.add(new MarkdownRenderer(editor, modeService, openerService));
+
+		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
+		this.msgDetailsLess = nls.localize('detail.less', "{0} for less...", kbToggleDetails);
+		this.msgDetailMore = nls.localize('detail.more', "{0} for more...", kbToggleDetails);
 
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -558,15 +560,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.statusBarLeftSpan = append(this.statusBarElement, $('span'));
 		this.statusBarRightSpan = append(this.statusBarElement, $('span'));
 
-		this.setStatusBarLeftText(INSERT_REPLACE_TEXT);
+		this.setStatusBarLeftText('');
 		this.setStatusBarRightText('');
 
-		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
+		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, kbToggleDetails);
 
 		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
-		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, triggerKeybindingLabel);
+		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, kbToggleDetails);
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
@@ -730,6 +732,22 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item !== this.focusedItem) {
 
+			// update statusbar
+			// todo@joh,pine -> this should a toolbar with actions so that these things become
+			// mouse clickable and fit for accessibility...
+			const wantsInsert = this.editor.getOption(EditorOption.suggest).insertMode === 'insert';
+			const kbAccept = this.keybindingService.lookupKeybinding('acceptSelectedSuggestion')?.getLabel();
+			const kbAcceptAlt = this.keybindingService.lookupKeybinding('acceptAlternativeSelectedSuggestion')?.getLabel();
+			if (!Position.equals(item.editInsertEnd, item.editReplaceEnd)) {
+				// insert AND replace
+				if (wantsInsert) {
+					this.setStatusBarLeftText(nls.localize('insert', "{0} to insert, {1} to replace", kbAccept, kbAcceptAlt));
+				} else {
+					this.setStatusBarLeftText(nls.localize('replace', "{0} to replace, {1} to insert", kbAccept, kbAcceptAlt));
+				}
+			} else {
+				this.setStatusBarLeftText(nls.localize('accept', "{0} to accept", kbAccept));
+			}
 
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
@@ -767,9 +785,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 				if (canExpandCompletionItem(this.focusedItem)) {
 					if (this.expandDocsSettingFromStorage()) {
-						this.setStatusBarRightText(READ_LESS_TEXT);
+						this.setStatusBarRightText(this.msgDetailsLess);
 					} else {
-						this.setStatusBarRightText(READ_MORE_TEXT);
+						this.setStatusBarRightText(this.msgDetailMore);
 					}
 				} else {
 					this.statusBarRightSpan.innerText = '';
@@ -1044,7 +1062,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
-			this.setStatusBarRightText(READ_MORE_TEXT);
+			this.setStatusBarRightText(this.msgDetailMore);
 			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 		} else {
 			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
@@ -1053,7 +1071,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
-			this.setStatusBarRightText(READ_LESS_TEXT);
+			this.setStatusBarRightText(this.msgDetailsLess);
 			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
