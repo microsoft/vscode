@@ -717,8 +717,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getHTMLToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): string | null {
-		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
+	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
+		const languageId = this.model.getLanguageIdentifier();
+		if (languageId.id === LanguageId.PlainText) {
 			return null;
 		}
 
@@ -741,19 +742,22 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		const colorMap = this._getColorMap();
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return (
-			`<div style="`
-			+ `color: ${colorMap[ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
-			+ `font-family: ${fontFamily};`
-			+ `font-weight: ${fontInfo.fontWeight};`
-			+ `font-size: ${fontInfo.fontSize}px;`
-			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this._getHTMLToCopy(range, colorMap)
-			+ '</div>'
-		);
+		return {
+			mode: languageId.language,
+			html: (
+				`<div style="`
+				+ `color: ${colorMap[ColorId.DefaultForeground]};`
+				+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
+				+ `font-family: ${fontFamily};`
+				+ `font-weight: ${fontInfo.fontWeight};`
+				+ `font-size: ${fontInfo.fontSize}px;`
+				+ `line-height: ${fontInfo.lineHeight}px;`
+				+ `white-space: pre;`
+				+ `">`
+				+ this._getHTMLToCopy(range, colorMap)
+				+ '</div>'
+			)
+		};
 	}
 
 	private _getHTMLToCopy(modelRange: Range, colorMap: string[]): string {

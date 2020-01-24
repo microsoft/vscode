@@ -158,16 +158,22 @@ export class TextAreaHandler extends ViewPart {
 				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
 
 				let html: string | null | undefined = undefined;
+				let mode: string | null = null;
 				if (generateHTML) {
 					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-						html = this._context.model.getHTMLToCopy(this._modelSelections, this._emptySelectionClipboard);
+						const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+						if (richText) {
+							html = richText.html;
+							mode = richText.mode;
+						}
 					}
 				}
 				return {
 					isFromEmptySelection,
 					multicursorText,
 					text,
-					html
+					html,
+					mode
 				};
 			},
 
@@ -221,11 +227,13 @@ export class TextAreaHandler extends ViewPart {
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
 			if (e.metadata) {
 				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
+				mode = e.metadata.mode;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText);
+			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {

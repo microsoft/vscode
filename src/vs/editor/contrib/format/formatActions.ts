@@ -191,7 +191,7 @@ class FormatOnPaste implements IEditorContribution {
 			return;
 		}
 
-		this._callOnModel.add(this.editor.onDidPaste(range => this._trigger(range)));
+		this._callOnModel.add(this.editor.onDidPaste(({ range }) => this._trigger(range)));
 	}
 
 	private _trigger(range: Range): void {
