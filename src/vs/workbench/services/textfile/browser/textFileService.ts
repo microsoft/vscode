@@ -192,12 +192,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];
-		const conflictingModels: ITextFileEditorModel[] = [];
+		const targetModels: ITextFileEditorModel[] = [];
 		for (const model of this.getFileModels()) {
 			const resource = model.resource;
 
 			if (isEqualOrParent(resource, target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
-				conflictingModels.push(model);
+				targetModels.push(model);
 			}
 
 			if (isEqualOrParent(resource, source)) {
@@ -232,10 +232,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			modelsToRestore.push(modelToRestore);
 		}
 
-		// in order to move and copy, we need to soft revert all dirty models,
-		// both from the source as well as the target if any
-		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.doRevertFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		// handle dirty models depending on the operation:
+		// - move: revert both source and target (if any)
+		// - copy: revert target (if any)
+		const dirtyModelsToRevert = (move ? [...sourceModels, ...targetModels] : [...targetModels]).filter(model => model.isDirty());
+		await this.doRevertFiles(dirtyModelsToRevert.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -248,7 +249,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		} catch (error) {
 
 			// in case of any error, ensure to set dirty flag back
-			dirtyModels.forEach(dirtyModel => dirtyModel.makeDirty());
+			dirtyModelsToRevert.forEach(dirtyModel => dirtyModel.makeDirty());
 
 			throw error;
 		}

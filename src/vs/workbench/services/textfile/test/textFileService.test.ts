@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService, TestFileDialogService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -126,6 +126,19 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
+	test('create', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+		await model.load();
+		model!.textEditorModel!.setValue('foo');
+		assert.ok(accessor.textFileService.isDirty(model.resource));
+
+
+		await accessor.textFileService.create(model.resource, 'Foo');
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
+	});
+
 	test('delete - dirty file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
@@ -139,14 +152,22 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('move - dirty file', async function () {
-		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'));
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
 	});
 
 	test('move - dirty file (target exists and is dirty)', async function () {
-		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true, true);
 	});
 
-	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
+	test('copy - dirty file', async function () {
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), false);
+	});
+
+	test('copy - dirty file (target exists and is dirty)', async function () {
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), false, true);
+	});
+
+	async function testMoveOrCopy(source: URI, target: URI, move: boolean, targetDirty?: boolean): Promise<void> {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
 		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
@@ -162,11 +183,19 @@ suite('Files - TextFileService', () => {
 			assert.ok(accessor.textFileService.isDirty(targetModel.resource));
 		}
 
-		await accessor.textFileService.move(sourceModel.resource, targetModel.resource, true);
+		if (move) {
+			await accessor.textFileService.move(sourceModel.resource, targetModel.resource, true);
+		} else {
+			await accessor.textFileService.copy(sourceModel.resource, targetModel.resource, true);
+		}
 
 		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
 
-		assert.ok(!accessor.textFileService.isDirty(sourceModel.resource));
+		if (move) {
+			assert.ok(!accessor.textFileService.isDirty(sourceModel.resource));
+		} else {
+			assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
+		}
 		assert.ok(accessor.textFileService.isDirty(targetModel.resource));
 
 		sourceModel.dispose();
