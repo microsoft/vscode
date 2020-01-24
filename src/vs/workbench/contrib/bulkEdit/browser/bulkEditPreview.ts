@@ -21,6 +21,25 @@ import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflic
 import { values } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 
+class CheckedStates<T extends object> {
+
+	private readonly _onDidChange = new Emitter<T>();
+	readonly onDidChange: Event<T> = this._onDidChange.event;
+
+	private readonly _states = new WeakMap<T, boolean>();
+
+	isChecked(obj: T): boolean {
+		return this._states.get(obj) ?? false;
+	}
+
+	updateChecked(obj: T, value: boolean): void {
+		if (this._states.get(obj) !== value) {
+			this._states.set(obj, value);
+			this._onDidChange.fire(obj);
+		}
+	}
+}
+
 export class CheckedObject {
 
 	private _checked: boolean = true;
@@ -66,7 +85,7 @@ export class BulkFileOperation extends CheckedObject {
 
 	constructor(
 		readonly uri: URI,
-		readonly parent: BulkFileOperations
+		readonly parent: BulkModel
 	) {
 		super(parent._onDidChangeCheckedState);
 	}
@@ -131,15 +150,17 @@ export class BulkCategory {
 	}
 }
 
-export class BulkFileOperations {
+export class BulkModel {
 
-	static async create(accessor: ServicesAccessor, bulkEdit: WorkspaceEdit): Promise<BulkFileOperations> {
-		const result = accessor.get(IInstantiationService).createInstance(BulkFileOperations, bulkEdit);
+	static async create(accessor: ServicesAccessor, bulkEdit: WorkspaceEdit): Promise<BulkModel> {
+		const result = accessor.get(IInstantiationService).createInstance(BulkModel, bulkEdit);
 		return await result._init();
 	}
 
 	readonly _onDidChangeCheckedState = new Emitter<BulkFileOperation | BulkTextEdit>();
 	readonly onDidChangeCheckedState: Event<BulkFileOperation | BulkTextEdit> = this._onDidChangeCheckedState.event;
+
+	readonly checked = new CheckedStates<WorkspaceFileEdit | WorkspaceTextEdit>();
 
 	readonly fileOperations: BulkFileOperation[] = [];
 	readonly categories: BulkCategory[] = [];
@@ -216,6 +237,8 @@ export class BulkFileOperations {
 				// invalid edit -> skip
 				continue;
 			}
+
+			this.checked.updateChecked(edit, !edit.metadata?.needsConfirmation);
 
 			const insert = (map: Map<string, BulkFileOperation>) => {
 				let key = uri.toString();
@@ -311,7 +334,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	private readonly _modelPreviewEdits = new Map<string, IIdentifiedSingleEditOperation[]>();
 
 	constructor(
-		private readonly _operations: BulkFileOperations,
+		private readonly _operations: BulkModel,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService

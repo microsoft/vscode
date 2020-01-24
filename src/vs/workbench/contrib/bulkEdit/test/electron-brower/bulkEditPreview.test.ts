@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import type { WorkspaceEdit } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
-import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkModel } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 
 
 suite('BulkEditPreview', function () {
@@ -54,7 +54,7 @@ suite('BulkEditPreview', function () {
 			]
 		};
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
+		const ops = await instaService.invokeFunction(BulkModel.create, edit);
 		assert.equal(ops.fileOperations.length, 1);
 		assert.equal(ops.fileOperations[0].isChecked(), false);
 	});
@@ -68,7 +68,7 @@ suite('BulkEditPreview', function () {
 			]
 		};
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
+		const ops = await instaService.invokeFunction(BulkModel.create, edit);
 		assert.equal(ops.categories.length, 2);
 		assert.equal(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
 		assert.equal(ops.categories[1].metadata.label, 'uri2');
@@ -83,7 +83,7 @@ suite('BulkEditPreview', function () {
 			]
 		};
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
+		const ops = await instaService.invokeFunction(BulkModel.create, edit);
 		assert.equal(ops.categories.length, 1);
 		assert.equal(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
 		assert.equal(ops.categories[0].metadata.label, 'uri1');
@@ -98,7 +98,7 @@ suite('BulkEditPreview', function () {
 			]
 		};
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
+		const ops = await instaService.invokeFunction(BulkModel.create, edit);
 		assert.equal(ops.categories.length, 2);
 
 		const [first, second] = ops.categories;

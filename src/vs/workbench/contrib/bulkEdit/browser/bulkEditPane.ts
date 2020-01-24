@@ -14,7 +14,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkModel, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -51,7 +51,7 @@ export class BulkEditPane extends ViewPane {
 
 	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
 
-	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<BulkModel, BulkEditElement, FuzzyScore>;
 	private _treeDataSource!: BulkEditDataSource;
 	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
 	private _message!: HTMLSpanElement;
@@ -62,7 +62,7 @@ export class BulkEditPane extends ViewPane {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private _currentResolve?: (edit?: WorkspaceEdit) => void;
-	private _currentInput?: BulkFileOperations;
+	private _currentInput?: BulkModel;
 
 
 	constructor(
@@ -163,7 +163,7 @@ export class BulkEditPane extends ViewPane {
 			this._currentResolve = undefined;
 		}
 
-		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
+		const input = await this._instaService.invokeFunction(BulkModel.create, edit);
 		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
 		this._sessionDisposables.add(provider);
 		this._sessionDisposables.add(input);
@@ -189,7 +189,7 @@ export class BulkEditPane extends ViewPane {
 		});
 	}
 
-	private async _setTreeInput(input: BulkFileOperations) {
+	private async _setTreeInput(input: BulkModel) {
 
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
 		await this._tree.setInput(input, viewState);
@@ -307,21 +307,21 @@ export class BulkEditPane extends ViewPane {
 		let leftResource: URI | undefined;
 		if (fileElement.edit.isTextEdit) {
 			try {
-				(await this._textModelService.createModelReference(fileElement.uri)).dispose();
-				leftResource = fileElement.uri;
+				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
+				leftResource = fileElement.edit.uri;
 			} catch {
 				leftResource = BulkEditPreviewProvider.emptyPreview;
 			}
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.uri);
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
 
 		if (leftResource) {
 			// show diff editor
 			this._editorService.openEditor({
 				leftResource,
 				rightResource: previewUri,
-				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.uri)),
+				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.edit.uri)),
 				options
 			});
 		} else {
@@ -336,7 +336,7 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.uri), typeLabel),
+				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel),
 				resource: previewUri,
 				options
 			});

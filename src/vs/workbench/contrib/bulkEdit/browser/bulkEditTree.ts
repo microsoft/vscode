@@ -7,7 +7,6 @@ import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/t
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkModel, BulkFileOperation, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -29,14 +28,10 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class FileElement {
 
-	readonly uri: URI;
-
 	constructor(
 		readonly parent: BulkCategory | undefined,
 		readonly edit: BulkFileOperation
-	) {
-		this.uri = edit.uri;
-	}
+	) { }
 }
 
 export class TextEditElement {
@@ -52,13 +47,13 @@ export type BulkEditElement = BulkCategory | FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
-export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, BulkEditElement> {
+export class BulkEditDataSource implements IAsyncDataSource<BulkModel, BulkEditElement> {
 
 	public groupByFile: boolean = true;
 
 	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
 
-	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
+	hasChildren(element: BulkModel | BulkEditElement): boolean {
 		if (element instanceof FileElement) {
 			return element.edit.textEdits.length > 0;
 		}
@@ -68,10 +63,10 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		return true;
 	}
 
-	async getChildren(element: BulkFileOperations | BulkEditElement): Promise<BulkEditElement[]> {
+	async getChildren(element: BulkModel | BulkEditElement): Promise<BulkEditElement[]> {
 
 		// root -> file/text edits
-		if (element instanceof BulkFileOperations) {
+		if (element instanceof BulkModel) {
 			return this.groupByFile
 				? element.fileOperations.map(op => new FileElement(undefined, op))
 				: element.categories;
@@ -209,9 +204,9 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 
 	getId(element: BulkEditElement): { toString(): string; } {
 		if (element instanceof FileElement) {
-			return element.uri + JSON.stringify(element.parent?.metadata);
+			return element.edit.uri + JSON.stringify(element.parent?.metadata);
 		} else if (element instanceof TextEditElement) {
-			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
+			return element.parent.edit.uri.toString() + JSON.stringify(element.edit.textEdit);
 		} else {
 			return JSON.stringify(element.metadata);
 		}
@@ -340,12 +335,12 @@ class FileElementTemplate {
 
 			this._details.innerText = localize(
 				'detail.rename', "(renaming from {0})",
-				this._labelService.getUriLabel(element.uri, { relative: true })
+				this._labelService.getUriLabel(element.edit.uri, { relative: true })
 			);
 
 		} else {
 			// create, delete, edit: NAME
-			this._label.setFile(element.uri, {
+			this._label.setFile(element.edit.uri, {
 				matches: createMatches(score),
 				fileKind: FileKind.FILE,
 				fileDecorations: { colors: true, badges: false },
@@ -489,7 +484,7 @@ export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvid
 
 	getKeyboardNavigationLabel(element: BulkEditElement) {
 		if (element instanceof FileElement) {
-			return basename(element.uri);
+			return basename(element.edit.uri);
 		} else if (element instanceof BulkCategory) {
 			return element.metadata.label;
 		}
