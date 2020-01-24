@@ -48,6 +48,6 @@ export class ElectronWebviewService implements IWebviewService {
 	}
 
 	setIcons(id: string, iconPath: WebviewIcons | undefined): void {
-		this._iconManager.setIcons(id, iconPath);
+		this._configService.getValue('workbench.iconTheme') ? this._iconManager.setIcons(id, iconPath) : this._iconManager.setIcons(id, undefined);
 	}
 }
