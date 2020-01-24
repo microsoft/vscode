@@ -163,10 +163,6 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.discardBackup(resource);
 	}
 
-	discardAllBackups(): Promise<void> {
-		return this.impl.discardAllBackups();
-	}
-
 	getBackups(): Promise<URI[]> {
 		return this.impl.getBackups();
 	}
@@ -275,21 +271,6 @@ class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 
 			model.remove(backupResource);
 		});
-	}
-
-	async discardAllBackups(): Promise<void> {
-
-		// Discard each backup and clear model
-		// We go through the doDiscardBackup()
-		// method to benefit from the IO queue
-		const model = await this.ready;
-		await Promise.all(model.get().map(backupResource => this.doDiscardBackup(backupResource)));
-		model.clear();
-
-		// Delete the backup home for this workspace
-		// It will automatically be populated again
-		// once another backup is made
-		await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
 	}
 
 	private async deleteIgnoreFileNotFound(resource: URI): Promise<void> {
@@ -441,10 +422,6 @@ export class InMemoryBackupFileService implements IBackupFileService {
 
 	async discardBackup(resource: URI): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
-	}
-
-	async discardAllBackups(): Promise<void> {
-		this.backups.clear();
 	}
 
 	toBackupResource(resource: URI): URI {

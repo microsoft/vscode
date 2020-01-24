@@ -309,6 +309,14 @@ export interface IPartialEditorMouseEvent {
 }
 
 /**
+ * A paste event originating from the editor.
+ */
+export interface IPasteEvent {
+	readonly range: Range;
+	readonly mode: string | null;
+}
+
+/**
  * An overview ruler
  * @internal
  */
@@ -431,7 +439,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 */
-	onDidPaste(listener: (range: Range) => void): IDisposable;
+	onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event

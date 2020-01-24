@@ -1260,23 +1260,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			let active = executeResult.active;
 			if (active && active.same) {
-				let message;
-				if (active.background) {
-					message = nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode.', executeResult.task.getQualifiedLabel());
+				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
+					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
+					this.notificationService.prompt(Severity.Info, message,
+						[{
+							label: nls.localize('terminateTask', "Terminate Task"),
+							run: () => this.terminate(executeResult.task)
+						},
+						{
+							label: nls.localize('restartTask', "Restart Task"),
+							run: () => this.restart(executeResult.task)
+						}],
+						{ sticky: true }
+					);
 				} else {
-					message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
+					this._taskSystem?.revealTask(executeResult.task);
 				}
-				this.notificationService.prompt(Severity.Info, message,
-					[{
-						label: nls.localize('terminateTask', "Terminate Task"),
-						run: () => this.terminate(executeResult.task)
-					},
-					{
-						label: nls.localize('restartTask', "Restart Task"),
-						run: () => this.restart(executeResult.task)
-					}],
-					{ sticky: true }
-				);
 			} else {
 				throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 			}

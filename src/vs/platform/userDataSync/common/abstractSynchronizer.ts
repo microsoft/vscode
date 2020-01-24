@@ -24,7 +24,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
-		this.syncFolder = joinPath(environmentService.userRoamingDataHome, '.sync', source);
+		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
 		this.cleanUpDelayer = new ThrottledDelayer(50);
 	}
 
