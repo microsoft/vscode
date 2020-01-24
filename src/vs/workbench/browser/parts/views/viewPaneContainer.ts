@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -50,7 +50,6 @@ export interface IViewPaneOptions extends IPaneOptions {
 	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
-	location: ViewContainerLocation;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
@@ -612,9 +611,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panesToAdd: { pane: ViewPane, size: number, index: number }[] = [];
 
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-		const currentLocation = viewContainerRegistry.getViewContainerLocation(this.viewContainer)!;
-
 		for (const { viewDescriptor, collapsed, index, size } of added) {
 			const pane = this.createView(viewDescriptor,
 				{
@@ -622,7 +618,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					title: viewDescriptor.name,
 					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
-					location: currentLocation
 				});
 
 			pane.render();
