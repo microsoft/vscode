@@ -45,6 +45,10 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const expandSuggestionDocsByDefault = false;
 
+const READ_MORE_TEXT = nls.localize('suggestWidget.readMore', 'Read more... (⌃Space)');
+const READ_LESS_TEXT = nls.localize('suggestWidget.readLess', 'Read less... (⌃Space)');
+const INSERT_REPLACE_TEXT = nls.localize('suggestWidget.insertOrReplace', 'Enter to insert, Tab to replace');
+
 interface ISuggestionTemplateData {
 	root: HTMLElement;
 
@@ -554,8 +558,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.statusBarLeftSpan = append(this.statusBarElement, $('span'));
 		this.statusBarRightSpan = append(this.statusBarElement, $('span'));
 
-		this.statusBarLeftSpan.innerText = 'Enter to insert, Tab to replace';
-		this.statusBarRightSpan.innerText = 'Read more... (⌃Space)';
+		this.setStatusBarLeftText(INSERT_REPLACE_TEXT);
+		this.setStatusBarRightText('');
 
 		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
 
@@ -759,6 +763,16 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					this.showDetails(false);
 				} else {
 					removeClass(this.element, 'docs-side');
+				}
+
+				if (canExpandCompletionItem(this.focusedItem)) {
+					if (this.expandDocsSettingFromStorage()) {
+						this.setStatusBarRightText(READ_LESS_TEXT);
+					} else {
+						this.setStatusBarRightText(READ_MORE_TEXT);
+					}
+				} else {
+					this.statusBarRightSpan.innerText = '';
 				}
 
 				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
@@ -1030,6 +1044,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
+			this.setStatusBarRightText(READ_MORE_TEXT);
 			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 		} else {
 			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
@@ -1038,6 +1053,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
+			this.setStatusBarRightText(READ_LESS_TEXT);
 			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
@@ -1241,6 +1257,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private updateExpandDocsSetting(value: boolean) {
 		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+	}
+
+	private setStatusBarLeftText(s: string) {
+		this.statusBarLeftSpan.innerText = s;
+	}
+
+	private setStatusBarRightText(s: string) {
+		this.statusBarRightSpan.innerText = s;
 	}
 
 	dispose(): void {
