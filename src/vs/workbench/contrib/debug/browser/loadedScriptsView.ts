@@ -37,6 +37,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -415,6 +416,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
@@ -423,7 +425,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 

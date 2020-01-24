@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -34,7 +34,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -92,6 +91,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 	) {
 		super(options);
@@ -187,6 +187,14 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 		this.title = title;
 		this._onDidChangeTitleArea.fire();
+	}
+
+	protected getProgressLocation(): string {
+		return this.viewDescriptorService.getViewContainer(this.id)!.id;
+	}
+
+	protected getBackgroundColor(): string {
+		return this.viewDescriptorService.getViewLocation(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
 	}
 
 	focus(): void {
@@ -602,13 +610,14 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panesToAdd: { pane: ViewPane, size: number, index: number }[] = [];
+
 		for (const { viewDescriptor, collapsed, index, size } of added) {
 			const pane = this.createView(viewDescriptor,
 				{
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
 					actionRunner: this.getActionRunner(),
-					expanded: !collapsed
+					expanded: !collapsed,
 				});
 
 			pane.render();

@@ -12,8 +12,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { TestViewletService, TestPanelService } from 'vs/workbench/test/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
-import { IView } from 'vs/workbench/common/views';
+import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 
 class TestViewlet implements IViewlet {
 

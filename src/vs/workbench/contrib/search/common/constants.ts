@@ -33,8 +33,6 @@ export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContex
 export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
 export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
 
-export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
-
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);

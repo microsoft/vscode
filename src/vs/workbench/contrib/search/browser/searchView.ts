@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder, PANEL_ID } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -63,9 +63,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditorActions';
 import { Color, RGBA } from 'vs/base/common/color';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const $ = dom.$;
 
@@ -147,7 +147,6 @@ export class SearchView extends ViewPane {
 	private toggleCollapseStateDelayer: Delayer<void>;
 
 	constructor(
-		private position: SearchViewPosition,
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -156,6 +155,7 @@ export class SearchView extends ViewPane {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
@@ -170,9 +170,9 @@ export class SearchView extends ViewPane {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
-		@IOpenerService private readonly openerService: IOpenerService
-	) {
-		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
+		@IOpenerService private readonly openerService: IOpenerService) {
+
+		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -460,7 +460,7 @@ export class SearchView extends ViewPane {
 			this.refreshTree();
 		}));
 
-		this._register(this.searchWidget.onReplaceValueChanged((value) => {
+		this._register(this.searchWidget.onReplaceValueChanged(() => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 			this.delayedRefresh.trigger(() => this.refreshTree());
 		}));
@@ -593,7 +593,8 @@ export class SearchView extends ViewPane {
 
 		let progressComplete: () => void;
 		let progressReporter: IProgress<IProgressStep>;
-		this.progressService.withProgress({ location: this.position === SearchViewPosition.SideBar ? VIEWLET_ID : PANEL_ID, delay: 100, total: occurrences }, p => {
+
+		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 100, total: occurrences }, p => {
 			progressReporter = p;
 
 			return new Promise(resolve => progressComplete = resolve);
@@ -724,7 +725,7 @@ export class SearchView extends ViewPane {
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
 				overrideStyles: {
-					listBackground: this.position === SearchViewPosition.SideBar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -759,7 +760,7 @@ export class SearchView extends ViewPane {
 			}
 		}));
 
-		this._register(this.tree.onDidBlur(e => {
+		this._register(this.tree.onDidBlur(() => {
 			this.firstMatchFocused.reset();
 			this.fileMatchOrMatchFocused.reset();
 			this.fileMatchFocused.reset();
@@ -1339,13 +1340,13 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 
 		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, options, excludePatternText, includePatternText, triggeredOnType))
+			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType))
 			.then(() => undefined, () => undefined);
 	}
 
-	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
+	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: this.position === SearchViewPosition.SideBar ? VIEWLET_ID : PANEL_ID, delay: triggeredOnType ? 300 : 0 }, _progress => {
+		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
