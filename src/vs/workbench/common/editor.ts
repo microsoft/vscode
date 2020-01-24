@@ -552,8 +552,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	dispose(): void {
-		this.disposed = true;
-		this._onDispose.fire();
+		if (!this.disposed) {
+			this.disposed = true;
+			this._onDispose.fire();
+		}
 
 		super.dispose();
 	}

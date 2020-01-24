@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename, isEqual } from 'vs/base/common/resources';
@@ -15,9 +16,11 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -30,8 +33,6 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CustomFileEditorInput } from './customEditorInput';
-import { Emitter } from 'vs/base/common/event';
-import { ILabelService } from 'vs/platform/label/common/label';
 
 export const defaultEditorId = 'default';
 
@@ -314,12 +315,26 @@ export const customEditorsAssociationsKey = 'workbench.experimental.editorAssoci
 
 export type CustomEditorsAssociations = readonly (CustomEditorSelector & { readonly viewType: string; })[];
 
-export class CustomEditorContribution implements IWorkbenchContribution {
+export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: EditorServiceImpl,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 	) {
-		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+		super();
+
+		this._register(this.editorService.overrideOpenEditor((editor, options, group) => {
+			return this.onEditorOpening(editor, options, group);
+		}));
+
+		this._register(this.editorService.onDidCloseEditor(({ editor }) => {
+			if (!(editor instanceof CustomFileEditorInput)) {
+				return;
+			}
+
+			if (!this.editorService.editors.some(other => other === editor)) {
+				editor.dispose();
+			}
+		}));
 	}
 
 	private onEditorOpening(
@@ -329,7 +344,15 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomFileEditorInput) {
 			if (editor.group === group.id) {
+				// No need to do anything
 				return undefined;
+			} else {
+				// Create a copy of the input.
+				// Unlike normal editor inputs, we do not want to share custom editor inputs
+				// between multiple editors / groups.
+				return {
+					override: this.customEditorService.openWith(editor.getResource(), editor.viewType, options, group)
+				};
 			}
 		}
 
