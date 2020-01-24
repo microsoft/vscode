@@ -136,6 +136,11 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
+	 * Should the editor render validation decorations.
+	 * Defaults to editable.
+	 */
+	renderValidationDecorations?: 'editable' | 'on' | 'off';
+	/**
 	 * Control the behavior and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
@@ -2334,6 +2339,21 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 
 //#endregion
 
+//#region renderValidationDecorations
+
+/**
+ * @internal
+ */
+export function shouldRenderValidationDecorations(options: IComputedEditorOptions): boolean {
+	const renderValidationDecorations = options.get(EditorOption.renderValidationDecorations);
+	if (renderValidationDecorations === 'editable') {
+		return !options.get(EditorOption.readOnly);
+	}
+	return renderValidationDecorations === 'on' ? true : false;
+}
+
+//#endregion
+
 //#region rulers
 
 class EditorRulers extends SimpleEditorOption<EditorOption.rulers, number[]> {
@@ -3168,6 +3188,7 @@ export const enum EditorOption {
 	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
+	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
 	roundedSelection,
@@ -3585,6 +3606,11 @@ export const EditorOptions = {
 			],
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		}
+	)),
+	renderValidationDecorations: register(new EditorStringEnumOption(
+		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
+		'editable' as 'editable' | 'on' | 'off',
+		['editable', 'on', 'off'] as const
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',

@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, shouldRenderValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfiguration, IViewState } from 'vs/editor/common/editorCommon';
@@ -596,7 +596,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
-		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.options.get(EditorOption.readOnly), theme);
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, shouldRenderValidationDecorations(this.configuration.options), theme);
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
