@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -33,6 +33,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { coalesce } from 'vs/base/common/arrays';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -51,16 +52,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#endregion
 
-	readonly files = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
-	private _untitled: IUntitledTextEditorModelManager;
-	get untitled(): IUntitledTextEditorModelManager { return this._untitled; }
+	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
 
 	abstract get encoding(): IResourceEncodings;
 
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService private untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -75,8 +75,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
-
-		this._untitled = untitledTextEditorService;
 
 		this.registerListeners();
 	}
@@ -350,15 +348,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
-	private getFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
+	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
 		if (Array.isArray(resources)) {
-			const models: ITextFileEditorModel[] = [];
-			resources.forEach(resource => models.push(...this.getFileModels(resource)));
-
-			return models;
+			return coalesce(resources.map(resource => this.files.get(resource)));
 		}
 
-		return this.files.getAll(resources);
+		return this.files.getAll();
 	}
 
 	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[] {
@@ -637,19 +632,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region dirty
 
 	isDirty(resource: URI): boolean {
-
-		// Check for dirty untitled
-		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
-			if (model) {
-				return model.isDirty();
-			}
-
-			return false;
+		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
+		if (model) {
+			return model.isDirty();
 		}
 
-		// Check for dirty file
-		return this.files.getAll(resource).some(model => model.isDirty());
+		return false;
 	}
 
 	//#endregion

@@ -356,6 +356,7 @@ export interface ITextFileEditorModelManager {
 	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
+	getAll(): ITextFileEditorModel[];
 
 	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
