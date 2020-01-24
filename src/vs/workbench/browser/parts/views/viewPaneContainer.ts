@@ -85,7 +85,6 @@ export abstract class ViewPane extends Pane implements IView {
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
-	private location: ViewContainerLocation;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -103,7 +102,6 @@ export abstract class ViewPane extends Pane implements IView {
 		this.actionRunner = options.actionRunner;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
-		this.location = options.location;
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
@@ -197,7 +195,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected getBackgroundColor(): string {
-		return this.location === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
+		return this.viewDescriptorService.getViewLocation(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
 	}
 
 	focus(): void {

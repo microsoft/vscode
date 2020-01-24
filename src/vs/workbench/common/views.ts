@@ -376,6 +376,8 @@ export interface IViewDescriptorService {
 
 	getViewContainer(viewId: string): ViewContainer | null;
 
+	getViewLocation(viewId: string): ViewContainerLocation | null;
+
 	getDefaultContainer(viewId: string): ViewContainer | null;
 }
 
