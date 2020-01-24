@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/timelinePane';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -26,12 +26,21 @@ import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { basename } from 'vs/base/common/path';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
 
 type TreeElement = TimelineItem;
 
+// TODO[ECA]: Localize all the strings
+
 export class TimelinePane extends ViewPane {
 	static readonly ID = 'timeline';
-	static readonly TITLE = nls.localize('timeline', 'Timeline');
+	static readonly TITLE = localize('timeline', 'Timeline');
+
+	private _container!: HTMLElement;
+	private _messageElement!: HTMLDivElement;
+	private _treeElement!: HTMLDivElement;
 	private _tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
 	private _tokenSource: CancellationTokenSource | undefined;
 	private _visibilityDisposables: DisposableStore | undefined;
@@ -46,6 +55,7 @@ export class TimelinePane extends ViewPane {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
 		@ICommandService protected commandService: ICommandService,
+		@IProgressService private readonly progressService: IProgressService,
 		@ITimelineService protected timelineService: ITimelineService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
@@ -62,39 +72,82 @@ export class TimelinePane extends ViewPane {
 			uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		}
 
-		console.log(`TimelinePane.onActiveEditorChanged: uri=${uri?.toString(true)}`);
-
 		this.updateUri(uri);
 	}
 
 	private onProvidersChanged() {
-		console.log(`TimelinePane.onProvidersChanged`);
-
 		this.refresh();
 	}
 
 	private onTimelineChanged(uri: URI | undefined) {
-		console.log(`TimelinePane.onTimelineChanged: uri=${uri?.toString(true)} this._uri=${this._uri?.toString(true)}`);
-
 		// eslint-disable-next-line eqeqeq
 		if (uri == null || uri.toString(true) !== this._uri?.toString(true)) {
 			this.refresh();
 		}
 	}
 
+	private _message: string | undefined;
+	get message(): string | undefined {
+		return this._message;
+	}
+
+	set message(message: string | undefined) {
+		this._message = message;
+		this.updateMessage();
+	}
+
+	private updateMessage(): void {
+		if (this._message) {
+			this.showMessage(this._message);
+		} else {
+			this.hideMessage();
+		}
+	}
+
+	private showMessage(message: string): void {
+		DOM.removeClass(this._messageElement, 'hide');
+		this.resetMessageElement();
+
+		this._messageElement.textContent = message;
+	}
+
+	private hideMessage(): void {
+		this.resetMessageElement();
+		DOM.addClass(this._messageElement, 'hide');
+	}
+
+	private resetMessageElement(): void {
+		DOM.clearNode(this._messageElement);
+	}
+
 	private async refresh() {
 		this._tokenSource?.cancel();
 		this._tokenSource = new CancellationTokenSource();
 
-		console.log(`TimelinePane.refresh: uri=${this._uri?.toString(true)}`);
-
-		// TODO: Deal with no uri -- use a view title? or keep the last one cached?
-		// TODO: Deal with no items -- use a view title?
-
 		let children;
-		if (this._uri) {
-			const items = await this.timelineService.getTimeline(this._uri, 0, this._tokenSource.token);
+
+		const uri = this._uri;
+		// TODO[ECA]: Fix the list of schemes here
+		if (uri && (uri.scheme === 'file' || uri.scheme === 'git' || uri.scheme === 'gitlens')) {
+			const messageTimer = setTimeout(() => {
+				this._tree.setChildren(null, undefined);
+				this.message = `Loading timeline for ${basename(uri.fsPath)}...`;
+			}, 500);
+
+			const token = this._tokenSource.token;
+			const items = await this.progressService.withProgress({ location: VIEWLET_ID }, () => this.timelineService.getTimeline(uri, token));
+
+			clearTimeout(messageTimer);
+
 			children = items.map(item => ({ element: item }));
+
+			if (children.length === 0) {
+				this.message = 'No timeline information was provided.';
+			} else {
+				this.message = undefined;
+			}
+		} else {
+			this.message = 'The active editor cannot provide timeline information.';
 		}
 
 		this._tree.setChildren(null, children);
@@ -103,13 +156,11 @@ export class TimelinePane extends ViewPane {
 	private _uri: URI | undefined;
 
 	private updateUri(uri: URI | undefined) {
-		if (uri?.toString(true) === this._uri?.toString(true)) {
-			console.log(`TimelinePane.updateUri(same): uri=${uri?.toString(true)}`);
-
+		// eslint-disable-next-line eqeqeq
+		if (uri?.toString(true) === this._uri?.toString(true) && uri != null) {
 			return;
 		}
 
-		console.log(`TimelinePane.updateUri: uri=${uri?.toString(true)}`);
 		this._uri = uri;
 		this.refresh();
 	}
@@ -120,8 +171,6 @@ export class TimelinePane extends ViewPane {
 	}
 
 	setVisible(visible: boolean): void {
-		console.log(`TimelinePane.setVisible: visible=${visible}`);
-
 		if (visible) {
 			this._visibilityDisposables = new DisposableStore();
 
@@ -140,18 +189,26 @@ export class TimelinePane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-		DOM.addClass(container, '.tree-explorer-viewlet-tree-view');
-		const treeContainer = document.createElement('div');
-		DOM.addClass(treeContainer, 'customview-tree');
-		DOM.addClass(treeContainer, 'file-icon-themable-tree');
-		DOM.addClass(treeContainer, 'show-file-icons');
-		container.appendChild(treeContainer);
+		this._container = container;
+		DOM.addClass(container, 'tree-explorer-viewlet-tree-view');
+
+		this._messageElement = DOM.append(this._container, DOM.$('.message'));
+		DOM.addClass(this._messageElement, 'timeline-subtle');
+
+		this.message = 'The active editor cannot provide timeline information.';
+
+		this._treeElement = document.createElement('div');
+		DOM.addClass(this._treeElement, 'customview-tree');
+		DOM.addClass(this._treeElement, 'file-icon-themable-tree');
+		DOM.addClass(this._treeElement, 'hide-arrows');
+		// DOM.addClass(this._treeElement, 'show-file-icons');
+		container.appendChild(this._treeElement);
 
 		const renderer = this.instantiationService.createInstance(TimelineTreeRenderer);
 		this._tree = this.instantiationService.createInstance<
 			typeof WorkbenchObjectTree,
 			WorkbenchObjectTree<TreeElement, FuzzyScore>
-		>(WorkbenchObjectTree, 'TimelinePane', treeContainer, new TimelineListVirtualDelegate(), [renderer], {
+		>(WorkbenchObjectTree, 'TimelinePane', this._treeElement, new TimelineListVirtualDelegate(), [renderer], {
 			identityProvider: new TimelineIdentityProvider(),
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider()
 		});
@@ -186,7 +243,7 @@ export class TimelineElementTemplate {
 
 export class TimelineIdentityProvider implements IIdentityProvider<TimelineItem> {
 	getId(item: TimelineItem): { toString(): string } {
-		return `${item.id}|${item.date}`;
+		return `${item.id}|${item.timestamp}`;
 	}
 }
 

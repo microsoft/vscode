@@ -803,7 +803,7 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$unregisterTimelineProvider(source: string): void;
 	$emitTimelineChangeEvent(source: string, uri: UriComponents | undefined): void;
 
-	$getTimeline(uri: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(uri: UriComponents, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // -- extension host
@@ -1451,7 +1451,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(source: string, uri: UriComponents, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // --- proxy identifiers
