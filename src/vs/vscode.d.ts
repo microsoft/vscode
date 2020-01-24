@@ -7767,6 +7767,13 @@ declare module 'vscode' {
 		 * button.
 		 */
 		cancellable?: boolean;
+
+		/**
+		 * Controls if cancel event should be fired on notification close.
+		 * Note that currently only `ProgressLocation.Notification` is supporting
+		 * cancellation.
+		 */
+		cancelOnClose?: boolean;
 	}
 
 	/**

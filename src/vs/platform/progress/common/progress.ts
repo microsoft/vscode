@@ -58,6 +58,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly primaryActions?: ReadonlyArray<IAction>;
 	readonly secondaryActions?: ReadonlyArray<IAction>;
 	delay?: number;
+	cancelOnClose?: boolean;
 }
 
 export interface IProgressWindowOptions extends IProgressOptions {

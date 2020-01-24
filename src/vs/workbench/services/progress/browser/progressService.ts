@@ -203,6 +203,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			updateProgress(handle, increment);
 
 			Event.once(handle.onDidClose)(() => {
+				if (options.cancelOnClose && options.cancellable && typeof onDidCancel === 'function') {
+					onDidCancel();
+				}
 				toDispose.dispose();
 			});
 
