@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
-	$getTimeline(source: string, uri: UriComponents, since: number, token: vscode.CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(source: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItem[]>;
 }
 
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
@@ -33,9 +33,9 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTimeline);
 	}
 
-	async $getTimeline(source: string, uri: UriComponents, since: number, token: vscode.CancellationToken): Promise<TimelineItem[]> {
+	async $getTimeline(source: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItem[]> {
 		const provider = this._providers.get(source);
-		return provider?.provideTimeline(URI.revive(uri), since, token) ?? [];
+		return provider?.provideTimeline(URI.revive(uri), token) ?? [];
 	}
 
 	registerTimelineProvider(provider: vscode.TimelineProvider, commandConverter: CommandsConverter): IDisposable {
@@ -45,16 +45,15 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 		let disposable: IDisposable | undefined;
 		if (provider.onDidChange) {
-			console.log(`ExtHostTimeline#registerTimelineProvider: provider=${provider.source} hooking up onDidChange`);
 			disposable = provider.onDidChange(this.emitTimelineChangeEvent(provider.source), this);
 		}
 
 		return this.registerTimelineProviderCore({
 			...provider,
-			async provideTimeline(uri: URI, since: number, token: CancellationToken) {
+			async provideTimeline(uri: URI, token: CancellationToken) {
 				timelineDisposables.clear();
 
-				const results = await provider.provideTimeline(uri, since, token);
+				const results = await provider.provideTimeline(uri, token);
 				// eslint-disable-next-line eqeqeq
 				return results != null
 					? results.map(item => convertTimelineItem(item))
@@ -100,13 +99,12 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 	private emitTimelineChangeEvent(source: string) {
 		return (uri: vscode.Uri | undefined) => {
-			console.log(`ExtHostTimeline#registerTimelineProvider: provider=${source} onDidChange fired; uri=${uri?.toString(true)}`);
 			this._proxy.$emitTimelineChangeEvent(source, uri);
 		};
 	}
 
 	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable {
-		console.log(`ExtHostTimeline#registerTimelineProvider: provider=${provider.source}`);
+		// console.log(`ExtHostTimeline#registerTimelineProvider: source=${provider.source}`);
 
 		const existing = this._providers.get(provider.source);
 		if (existing && !existing.replaceable) {

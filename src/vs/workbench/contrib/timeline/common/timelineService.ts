@@ -23,33 +23,31 @@ export class TimelineService implements ITimelineService {
 	private readonly _providerSubscriptions = new Map<string, IDisposable>();
 
 	constructor(@ILogService private readonly logService: ILogService) {
-		this.registerTimelineProvider({
-			source: 'local-history',
-			sourceDescription: 'Local History',
-			async provideTimeline(uri: URI, since: number, token: CancellationToken) {
-				return [
-					{
-						id: '1',
-						label: 'Undo Timeline1',
-						description: uri.toString(true),
-						date: Date.now()
-					},
-					{
-						id: '2',
-						label: 'Undo Timeline2',
-						description: uri.toString(true),
-						date: Date.now() - 100
-					}
-				];
-			},
-			dispose() { }
-		});
+		// this.registerTimelineProvider({
+		// 	source: 'local-history',
+		// 	sourceDescription: 'Local History',
+		// 	async provideTimeline(uri: URI, token: CancellationToken) {
+		// 		return [
+		// 			{
+		// 				id: '1',
+		// 				label: 'Undo Timeline1',
+		// 				description: uri.toString(true),
+		// 				date: Date.now()
+		// 			},
+		// 			{
+		// 				id: '2',
+		// 				label: 'Undo Timeline2',
+		// 				description: uri.toString(true),
+		// 				date: Date.now() - 100
+		// 			}
+		// 		];
+		// 	},
+		// 	dispose() { }
+		// });
 	}
 
-	async getTimeline(uri: URI, since: number, token: CancellationToken, sources?: Set<string>) {
-		this.logService.trace(`TimelineService#getTimeline: uri=${uri.toString(true)}`);
-
-		console.log(`TimelineService.getTimeline providers=${this._providers.size}`);
+	async getTimeline(uri: URI, token: CancellationToken, sources?: Set<string>) {
+		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)})`);
 
 		const requests = new Map<string, Promise<TimelineItem[] | CancellationErrorWithId<string>>>();
 
@@ -58,21 +56,18 @@ export class TimelineService implements ITimelineService {
 				continue;
 			}
 
-			requests.set(provider.source, provider.provideTimeline(uri, since, token));
+			requests.set(provider.source, provider.provideTimeline(uri, token));
 		}
 
+		// TODO[ECA]: What should the timeout be for waiting for individual providers?
 		const timelines = await raceAll(requests /*, 5000*/);
-
-		console.log(`TimelineService.getTimeline timelines=${timelines.size}`);
 
 		const timeline = [];
 		for (const [source, items] of timelines) {
 			if (items instanceof CancellationError) {
-				console.log(`TimelineService.getTimeline source=${source} cancelled`);
+				this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)}) source=${source} cancelled`);
 				continue;
 			}
-
-			console.log(`TimelineService.getTimeline source=${source} items=${items.length}`);
 
 			if (items.length === 0) {
 				continue;
@@ -81,12 +76,12 @@ export class TimelineService implements ITimelineService {
 			timeline.push(...items.map(item => ({ ...item, source: source })));
 		}
 
-		timeline.sort((a, b) => b.date - a.date);
+		timeline.sort((a, b) => b.timestamp - a.timestamp);
 		return timeline;
 	}
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable {
-		this.logService.trace(`TimelineService#registerTimelineProvider: provider=${provider.source}`);
+		this.logService.trace(`TimelineService#registerTimelineProvider: source=${provider.source}`);
 
 		const source = provider.source;
 
@@ -110,7 +105,7 @@ export class TimelineService implements ITimelineService {
 	}
 
 	unregisterTimelineProvider(source: string): void {
-		this.logService.trace('TimelineService#unregisterTimelineProvider');
+		this.logService.trace(`TimelineService#unregisterTimelineProvider: source=${source}`);
 
 		if (!this._providers.has(source)) {
 			return;
@@ -122,7 +117,7 @@ export class TimelineService implements ITimelineService {
 	}
 
 	private onProviderTimelineChanged(source: string, uri: URI | undefined) {
-		console.log(`TimelineService.onProviderTimelineChanged: source=${source} uri=${uri?.toString(true)}`);
+		// console.log(`TimelineService.onProviderTimelineChanged: source=${source} uri=${uri?.toString(true)}`);
 
 		this._onDidChangeTimeline.fire(uri);
 	}

@@ -16,7 +16,7 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 }
 
 export interface TimelineItem {
-	date: number;
+	timestamp: number;
 	label: string;
 	id?: string;
 	icon?: URI,
@@ -35,7 +35,7 @@ export interface TimelineItemWithSource extends TimelineItem {
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<URI | undefined>;
 
-	provideTimeline(uri: URI, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+	provideTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 export interface TimelineProviderDescriptor {
@@ -55,7 +55,7 @@ export interface ITimelineService {
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(source: string): void;
 
-	getTimeline(uri: URI, since: number, token: CancellationToken): Promise<TimelineItem[]>;
+	getTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

@@ -1474,9 +1474,9 @@ declare module 'vscode' {
 
 	export class TimelineItem {
 		/**
-		 * A date for when the timeline item occurred
+		 * A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
 		 */
-		date: number;
+		timestamp: number;
 
 		/**
 		 * A human-readable string describing the timeline item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -1515,40 +1515,13 @@ declare module 'vscode' {
 
 		/**
 		 * @param label A human-readable string describing the timeline item
-		 * @param date A date for when the timeline item occurred
+		 * @param timestamp A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
 		 * @param source A human-readable string describing the source of the timeline item
 		 */
-		constructor(label: string, date: number, source: string);
+		constructor(label: string, timestamp: number, source: string);
 	}
 
-	// export interface TimelimeAddEvent {
-	// 	/**
-	// 	 * An array of timeline items which have been added.
-	// 	 */
-	// 	readonly items: readonly TimelineItem[];
-
-	// 	/**
-	// 	 * The uri of the file to which the timeline items belong.
-	// 	 */
-	// 	readonly uri: Uri;
-	// }
-
-	// export interface TimelimeChangeEvent {
-	// 	/**
-	// 	 * The date after which the timeline has changed. If `undefined` the entire timeline will be reset.
-	// 	 */
-	// 	readonly since?: Date;
-
-	// 	/**
-	// 	 * The uri of the file to which the timeline changed.
-	// 	 */
-	// 	readonly uri: Uri;
-	// }
-
 	export interface TimelineProvider {
-		// onDidAdd?: Event<TimelimeAddEvent>;
-		// onDidChange?: Event<TimelimeChangeEvent>;
-
 		onDidChange?: Event<Uri | undefined>;
 
 		/**
@@ -1564,15 +1537,14 @@ declare module 'vscode' {
 		replaceable?: boolean;
 
 		/**
-		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri) after a particular date.
+		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
 		 *
 		 * @param uri The uri of the file to provide the timeline for.
-		 * @param since A date after which timeline items should be provided.
 		 * @param token A cancellation token.
 		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, since: number, token: CancellationToken): ProviderResult<TimelineItem[]>;
+		provideTimeline(uri: Uri, token: CancellationToken): ProviderResult<TimelineItem[]>;
 	}
 
 	export namespace workspace {
@@ -1586,7 +1558,7 @@ declare module 'vscode' {
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A timeline provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
+		*/
 		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
 	}
 

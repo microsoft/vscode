@@ -121,14 +121,6 @@ export interface LogOptions {
 	readonly maxEntries?: number;
 }
 
-/**
- * Log file options.
- */
-export interface LogFileOptions {
-	/** Max number of log entries to retrieve. If not specified, the default is 32. */
-	readonly maxEntries?: number;
-}
-
 export interface Repository {
 
 	readonly rootUri: Uri;

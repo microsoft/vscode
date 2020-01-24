@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
 import { MainContext, MainThreadTimelineShape, IExtHostContext, ExtHostTimelineShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITimelineService, TimelineItem, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadTimeline)
 export class MainThreadTimeline implements MainThreadTimelineShape {
@@ -17,17 +18,18 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 
 	constructor(
 		context: IExtHostContext,
+		@ILogService private readonly logService: ILogService,
 		@ITimelineService private readonly _timelineService: ITimelineService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostTimeline);
 	}
 
-	$getTimeline(uri: URI, since: number, token: CancellationToken): Promise<TimelineItem[]> {
-		return this._timelineService.getTimeline(uri, since, token);
+	$getTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]> {
+		return this._timelineService.getTimeline(uri, token);
 	}
 
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void {
-		console.log(`MainThreadTimeline#registerTimelineProvider: provider=${provider.source}`);
+		this.logService.trace(`MainThreadTimeline#registerTimelineProvider: source=${provider.source}`);
 
 		const proxy = this._proxy;
 
@@ -42,8 +44,8 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		this._timelineService.registerTimelineProvider({
 			...provider,
 			onDidChange: onDidChange.event,
-			provideTimeline(uri: URI, since: number, token: CancellationToken) {
-				return proxy.$getTimeline(provider.source, uri, since, token);
+			provideTimeline(uri: URI, token: CancellationToken) {
+				return proxy.$getTimeline(provider.source, uri, token);
 			},
 			dispose() {
 				emitters.delete(provider.source);
@@ -53,12 +55,13 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 	}
 
 	$unregisterTimelineProvider(source: string): void {
-		console.log(`MainThreadTimeline#unregisterTimelineProvider: source=${source}`);
+		this.logService.trace(`MainThreadTimeline#unregisterTimelineProvider: source=${source}`);
+
 		this._timelineService.unregisterTimelineProvider(source);
 	}
 
 	$emitTimelineChangeEvent(source: string, uri: URI | undefined): void {
-		console.log(`MainThreadTimeline#emitChangeEvent: source=${source} uri=${uri?.toString(true)}`);
+		this.logService.trace(`MainThreadTimeline#emitChangeEvent: source=${source}, uri=${uri?.toString(true)}`);
 
 		const emitter = this._providerEmitters.get(source);
 		emitter?.fire(uri);
