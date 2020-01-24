@@ -709,7 +709,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		// We only support text based editors
 		if (editorWidget) {
-			const screenReaderDetected = (this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled);
+			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
 			if (screenReaderDetected) {
 				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {

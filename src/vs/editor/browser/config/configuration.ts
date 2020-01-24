@@ -14,7 +14,7 @@ import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/c
 import { EditorOption, IEditorConstructionOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 class CSSBasedConfigurationCache {
 
@@ -338,7 +338,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 
 		this._recomputeOptions();
 	}
@@ -379,7 +379,7 @@ export class Configuration extends CommonEditorConfiguration {
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: this.accessibilityService.getAccessibilitySupport()
+			accessibilitySupport: this.accessibilityService.isScreenReaderOptimized() ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled
 		};
 	}
 

@@ -331,10 +331,10 @@ export class TestAccessibilityService implements IAccessibilityService {
 
 	_serviceBrand: undefined;
 
-	onDidChangeAccessibilitySupport = Event.None;
+	onDidChangeScreenReaderOptimized = Event.None;
 
+	isScreenReaderOptimized(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 }
 
