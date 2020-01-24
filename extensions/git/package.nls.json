@@ -128,6 +128,7 @@
 	"config.confirmEmptyCommits": "Always confirm the creation of empty commits for the 'Git: Commit Empty' command.",
 	"config.fetchOnPull": "Fetch all branches when pulling or just the current one.",
 	"config.pullTags": "Fetch all tags when pulling.",
+	"config.pruneOnFetch": "Always prune when fetching.",
 	"config.autoStash": "Stash any changes before pulling and restore them after successful pull.",
 	"config.allowForcePush": "Controls whether force push (with or without lease) is enabled.",
 	"config.useForcePushWithLease": "Controls whether force pushing uses the safer force-with-lease variant.",
