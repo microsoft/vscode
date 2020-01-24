@@ -366,6 +366,8 @@ export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
@@ -443,9 +445,7 @@ export interface IRevealOptions {
 }
 
 export interface ITreeViewDescriptor extends IViewDescriptor {
-
-	readonly treeView: ITreeView;
-
+	treeView: ITreeView;
 }
 
 export type TreeViewItemHandleArg = {
