@@ -439,8 +439,10 @@ export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 	handle: number;
 }
 
-export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
+export interface TransferQuickInputButton {
 	handle: number;
+	iconPath: { dark: URI; light?: URI; } | { id: string; };
+	tooltip?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
