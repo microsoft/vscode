@@ -7,7 +7,6 @@ import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/t
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
@@ -27,16 +26,20 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // --- VIEW MODEL
 
-export class FileElement {
-
-	readonly uri: URI;
+export class CategoryElement {
 
 	constructor(
-		readonly parent: BulkCategory | undefined,
+		readonly parent: BulkFileOperations,
+		readonly category: BulkCategory
+	) { }
+}
+
+export class FileElement {
+
+	constructor(
+		readonly parent: CategoryElement | BulkFileOperations,
 		readonly edit: BulkFileOperation
-	) {
-		this.uri = edit.uri;
-	}
+	) { }
 }
 
 export class TextEditElement {
@@ -48,7 +51,7 @@ export class TextEditElement {
 	) { }
 }
 
-export type BulkEditElement = BulkCategory | FileElement | TextEditElement;
+export type BulkEditElement = CategoryElement | FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
@@ -73,13 +76,13 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		// root -> file/text edits
 		if (element instanceof BulkFileOperations) {
 			return this.groupByFile
-				? element.fileOperations.map(op => new FileElement(undefined, op))
-				: element.categories;
+				? element.fileOperations.map(op => new FileElement(element, op))
+				: element.categories.map(cat => new CategoryElement(element, cat));
 		}
 
 		// category
-		if (element instanceof BulkCategory) {
-			return element.fileOperations.map(op => new FileElement(element, op));
+		if (element instanceof CategoryElement) {
+			return element.category.fileOperations.map(op => new FileElement(element, op));
 		}
 
 		// file: text edit
@@ -209,11 +212,11 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 
 	getId(element: BulkEditElement): { toString(): string; } {
 		if (element instanceof FileElement) {
-			return element.uri + JSON.stringify(element.parent?.metadata);
+			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
 		} else if (element instanceof TextEditElement) {
-			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
+			return element.parent.edit.uri.toString() + JSON.stringify(element.edit.textEdit);
 		} else {
-			return JSON.stringify(element.metadata);
+			return JSON.stringify(element.category.metadata);
 		}
 	}
 }
@@ -248,7 +251,7 @@ class CategoryElementTemplate {
 	}
 }
 
-export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, FuzzyScore, CategoryElementTemplate> {
+export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, FuzzyScore, CategoryElementTemplate> {
 
 	static readonly id: string = 'CategoryElementRenderer';
 
@@ -258,12 +261,12 @@ export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, Fuzz
 		return new CategoryElementTemplate(container);
 	}
 
-	renderElement(node: ITreeNode<BulkCategory, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
+	renderElement(node: ITreeNode<CategoryElement, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
 
 		template.icon.style.setProperty('--background-dark', null);
 		template.icon.style.setProperty('--background-light', null);
 
-		const { metadata } = node.element;
+		const { metadata } = node.element.category;
 		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
 			// css
 			const className = ThemeIcon.asClassName(metadata.iconPath);
@@ -340,12 +343,12 @@ class FileElementTemplate {
 
 			this._details.innerText = localize(
 				'detail.rename', "(renaming from {0})",
-				this._labelService.getUriLabel(element.uri, { relative: true })
+				this._labelService.getUriLabel(element.edit.uri, { relative: true })
 			);
 
 		} else {
 			// create, delete, edit: NAME
-			this._label.setFile(element.uri, {
+			this._label.setFile(element.edit.uri, {
 				matches: createMatches(score),
 				fileKind: FileKind.FILE,
 				fileDecorations: { colors: true, badges: false },
@@ -489,9 +492,9 @@ export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvid
 
 	getKeyboardNavigationLabel(element: BulkEditElement) {
 		if (element instanceof FileElement) {
-			return basename(element.uri);
-		} else if (element instanceof BulkCategory) {
-			return element.metadata.label;
+			return basename(element.edit.uri);
+		} else if (element instanceof CategoryElement) {
+			return element.category.metadata.label;
 		}
 		return undefined;
 	}

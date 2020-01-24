@@ -6,7 +6,7 @@
 import 'vs/css!./media/bulkEdit';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -14,7 +14,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -206,7 +206,7 @@ export class BulkEditPane extends ViewPane {
 			if (element instanceof FileElement) {
 				await this._tree.expand(element, true);
 			}
-			if (element instanceof BulkCategory) {
+			if (element instanceof CategoryElement) {
 				await this._tree.expand(element, true);
 				expand.push(...this._tree.getNode(element).children);
 			}
@@ -307,21 +307,21 @@ export class BulkEditPane extends ViewPane {
 		let leftResource: URI | undefined;
 		if (fileElement.edit.type & BulkFileOperationType.TextEdit) {
 			try {
-				(await this._textModelService.createModelReference(fileElement.uri)).dispose();
-				leftResource = fileElement.uri;
+				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
+				leftResource = fileElement.edit.uri;
 			} catch {
 				leftResource = BulkEditPreviewProvider.emptyPreview;
 			}
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.uri);
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
 
 		if (leftResource) {
 			// show diff editor
 			this._editorService.openEditor({
 				leftResource,
 				rightResource: previewUri,
-				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.uri)),
+				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.edit.uri)),
 				options
 			});
 		} else {
@@ -336,7 +336,7 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.uri), typeLabel),
+				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel),
 				resource: previewUri,
 				options
 			});
