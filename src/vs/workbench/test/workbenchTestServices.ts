@@ -1111,11 +1111,11 @@ export class TestFileService implements IFileService {
 	}
 
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
+		return Promise.resolve(null!);
 	}
 
 	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
+		return Promise.resolve(null!);
 	}
 
 	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {
