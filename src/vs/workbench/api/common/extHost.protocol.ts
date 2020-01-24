@@ -612,6 +612,8 @@ export interface ExtHostWebviewsShape {
 
 	$onSave(resource: UriComponents, viewType: string): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
+
+	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

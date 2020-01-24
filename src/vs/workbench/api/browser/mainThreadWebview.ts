@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -355,7 +356,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		});
 
 		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SupportsHotExit)) {
-			// TODO: Hook up hot exit / backup logic
+			model.onBackup(() => {
+				return createCancelablePromise(token =>
+					this._proxy.$backup(model.resource.toJSON(), viewType, token));
+			});
 		}
 
 		return model;

@@ -18,6 +18,7 @@ import type * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewEditorCapabilities, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -478,6 +479,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return provider?.editingDelegate?.saveAs(URI.revive(resource), URI.revive(targetResource));
 	}
 
+	async $backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean> {
+		const provider = this.getEditorProvider(viewType);
+		if (!provider?.editingDelegate?.backup) {
+			return false;
+		}
+		return provider.editingDelegate.backup(URI.revive(resource), cancellation);
+	}
+
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {
 		return this._webviewPanels.get(handle);
 	}
@@ -490,6 +499,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const declaredCapabilites: WebviewEditorCapabilities[] = [];
 		if (capabilities.editingDelegate) {
 			declaredCapabilites.push(WebviewEditorCapabilities.Editable);
+		}
+		if (capabilities.editingDelegate?.backup) {
+			declaredCapabilites.push(WebviewEditorCapabilities.SupportsHotExit);
 		}
 		return declaredCapabilites;
 	}
