@@ -201,7 +201,7 @@ class ExtHostTreeView<T> extends Disposable {
 		private proxy: MainThreadTreeViewsShape,
 		private commands: CommandsConverter,
 		private logService: ILogService,
-		private extension: IExtensionDescription,
+		private extension: IExtensionDescription
 	) {
 		super();
 		if (extension.contributes && extension.contributes.views) {
