@@ -220,9 +220,18 @@ export class NotebookProvider implements vscode.NotebookProvider {
 		let cells: any[] = [];
 
 		for (let i = 0; i < document.cells.length; i++) {
+			let lines = document.cells[i].getContent().split(/\r|\n|\r\n/g);
+			let source = lines.map((value, index) => {
+				if (index !== lines.length - 1) {
+					return value + '\n';
+				} else {
+					return value;
+				}
+			});
+
 			if (document.cells[i].cell_type === 'markdown') {
 				cells.push({
-					source: document.cells[i].getContent().split(/\r|\n|\r\n/g).map(str => str + '\n'),
+					source: source,
 					metadata: {
 						language_info: {
 							name: document.cells[i].language ?? 'markdown'
@@ -232,7 +241,7 @@ export class NotebookProvider implements vscode.NotebookProvider {
 				});
 			} else {
 				cells.push({
-					source: document.cells[i].getContent().split(/\r|\n|\r\n/g).map(str => str + '\n'),
+					source: source,
 					metadata: {
 						language_info: {
 							name: document.cells[i].language ?? 'markdown'
