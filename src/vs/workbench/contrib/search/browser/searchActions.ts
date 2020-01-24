@@ -522,7 +522,6 @@ export class OpenSearchEditorAction extends Action {
 	static readonly LABEL = nls.localize('search.openNewEditor', "Open new Search Editor");
 
 	constructor(id: string, label: string,
-		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -539,7 +538,7 @@ export class OpenSearchEditorAction extends Action {
 
 	async run() {
 		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await openNewSearchEditor(this.editorService, this.instantiationService);
+			await this.instantiationService.invokeFunction(openNewSearchEditor);
 		}
 	}
 }
@@ -551,8 +550,6 @@ export class OpenResultsInEditorAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewsService private viewsService: IViewsService,
-		@ILabelService private labelService: ILabelService,
-		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -571,7 +568,7 @@ export class OpenResultsInEditorAction extends Action {
 	async run() {
 		const searchView = getSearchView(this.viewsService);
 		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
+			await this.instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
 		}
 	}
 }

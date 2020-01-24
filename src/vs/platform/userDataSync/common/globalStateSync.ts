@@ -22,7 +22,7 @@ const argvProperties: string[] = ['locale'];
 interface ISyncPreviewResult {
 	readonly local: IGlobalState | undefined;
 	readonly remote: IGlobalState | undefined;
-	readonly remoteUserData: IUserData | null;
+	readonly remoteUserData: IUserData;
 }
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
@@ -102,7 +102,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.setStatus(SyncStatus.Syncing);
 
 			const remote = await this.getLocalGlobalState();
-			await this.apply({ local: undefined, remote, remoteUserData: null });
+			const remoteUserData = await this.getRemoteUserData();
+			await this.apply({ local: undefined, remote, remoteUserData }, true);
 
 			this.logService.info('UI State: Finished pushing UI State.');
 		} finally {
@@ -111,15 +112,15 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	}
 
-	async sync(): Promise<boolean> {
+	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
 			this.logService.trace('UI State: Skipping synchronizing UI state as it is disabled.');
-			return false;
+			return;
 		}
 
 		if (this.status !== SyncStatus.Idle) {
 			this.logService.trace('UI State: Skipping synchronizing ui state as it is running already.');
-			return false;
+			return;
 		}
 
 		this.logService.trace('UI State: Started synchronizing ui state...');
@@ -129,7 +130,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			const result = await this.getPreview();
 			await this.apply(result);
 			this.logService.trace('UI State: Finished synchronizing ui state.');
-			return true;
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
@@ -143,7 +143,15 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	stop(): void { }
+	async stop(): Promise<void> { }
+
+	async restart(): Promise<void> {
+		throw new Error('UI State: Conflicts should not occur');
+	}
+
+	resolveConflicts(content: string): Promise<void> {
+		throw new Error('UI State: Conflicts should not occur');
+	}
 
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
@@ -191,7 +199,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return { local, remote, remoteUserData };
 	}
 
-	private async apply({ local, remote, remoteUserData }: ISyncPreviewResult): Promise<void> {
+	private async apply({ local, remote, remoteUserData }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
 		if (local) {
 			// update local
 			this.logService.info('UI State: Updating local ui state...');
@@ -201,10 +209,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (remote) {
 			// update remote
 			this.logService.info('UI State: Updating remote ui state...');
-			remoteUserData = await this.writeToRemote(remote, remoteUserData ? remoteUserData.ref : null);
+			remoteUserData = await this.writeToRemote(remote, forcePush ? null : remoteUserData.ref);
 		}
 
-		if (remoteUserData?.content) {
+		if (remoteUserData.content) {
 			// update last sync
 			this.logService.info('UI State: Updating last synchronised ui state...');
 			await this.updateLastSyncValue(remoteUserData);

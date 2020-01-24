@@ -451,7 +451,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
-		this.callOnModel.add(this.editor.onDidPaste((range: Range) => {
+		this.callOnModel.add(this.editor.onDidPaste(({ range }) => {
 			this.trigger(range);
 		}));
 	}

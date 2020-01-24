@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -33,6 +33,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { coalesce } from 'vs/base/common/arrays';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -51,16 +52,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#endregion
 
-	readonly files = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
-	private _untitled: IUntitledTextEditorModelManager;
-	get untitled(): IUntitledTextEditorModelManager { return this._untitled; }
+	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
 
 	abstract get encoding(): IResourceEncodings;
 
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService private untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -76,8 +76,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	) {
 		super();
 
-		this._untitled = untitledTextEditorService;
-
 		this.registerListeners();
 	}
 
@@ -87,7 +85,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	//#region text file IO primitives (read, create, move, delete, update)
+	//#region text file read / write
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		const content = await this.fileService.readFile(resource, options);
@@ -143,6 +141,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
+	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
+	}
+
+	//#endregion
+
+	//#region text file IO primitives (create, move, copy, delete)
+
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// before event
@@ -169,24 +175,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
-	}
-
-	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-
-		// before event
-		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
-
-		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
-		await this.doRevertFiles(dirtyFiles, { soft: true });
-
-		await this.fileService.del(resource, options);
-
-		// after event
-		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
-	}
-
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopy(source, target, true, overwrite);
 	}
@@ -202,12 +190,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];
-		const conflictingModels: ITextFileEditorModel[] = [];
+		const targetModels: ITextFileEditorModel[] = [];
 		for (const model of this.getFileModels()) {
 			const resource = model.resource;
 
 			if (isEqualOrParent(resource, target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
-				conflictingModels.push(model);
+				targetModels.push(model);
 			}
 
 			if (isEqualOrParent(resource, source)) {
@@ -242,10 +230,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			modelsToRestore.push(modelToRestore);
 		}
 
-		// in order to move and copy, we need to soft revert all dirty models,
-		// both from the source as well as the target if any
-		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.doRevertFiles(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		// handle dirty models depending on the operation:
+		// - move: revert both source and target (if any)
+		// - copy: revert target (if any)
+		const dirtyModelsToRevert = (move ? [...sourceModels, ...targetModels] : [...targetModels]).filter(model => model.isDirty());
+		await this.doRevertFiles(dirtyModelsToRevert.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -258,7 +247,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		} catch (error) {
 
 			// in case of any error, ensure to set dirty flag back
-			dirtyModels.forEach(dirtyModel => dirtyModel.makeDirty());
+			dirtyModelsToRevert.forEach(dirtyModel => dirtyModel.makeDirty());
 
 			throw error;
 		}
@@ -285,6 +274,24 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this._onDidRunOperation.fire(new FileOperationDidRunEvent(move ? FileOperation.MOVE : FileOperation.COPY, target, source));
 
 		return stat;
+	}
+
+	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
+
+		// before event
+		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
+
+		// Check for any existing dirty file model for the resource
+		// and do a soft revert before deleting to be able to close
+		// any opened editor with these files
+		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
+		await this.doRevertFiles(dirtyFiles, { soft: true });
+
+		// Now actually delete from disk
+		await this.fileService.del(resource, options);
+
+		// after event
+		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
 	}
 
 	//#endregion
@@ -341,15 +348,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
-	private getFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
+	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
 		if (Array.isArray(resources)) {
-			const models: ITextFileEditorModel[] = [];
-			resources.forEach(resource => models.push(...this.getFileModels(resource)));
-
-			return models;
+			return coalesce(resources.map(resource => this.files.get(resource)));
 		}
 
-		return this.files.getAll(resources);
+		return this.files.getAll();
 	}
 
 	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[] {
@@ -628,19 +632,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region dirty
 
 	isDirty(resource: URI): boolean {
-
-		// Check for dirty untitled
-		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
-			if (model) {
-				return model.isDirty();
-			}
-
-			return false;
+		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
+		if (model) {
+			return model.isDirty();
 		}
 
-		// Check for dirty file
-		return this.files.getAll(resource).some(model => model.isDirty());
+		return false;
 	}
 
 	//#endregion

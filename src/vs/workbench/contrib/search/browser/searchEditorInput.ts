@@ -254,10 +254,12 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
 		const { resource, dirty, config } = JSON.parse(serializedEditorInput);
-
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration(config), uri: URI.parse(resource) });
-		input.setDirty(dirty);
-		return input;
+		if (config && (config.query !== undefined)) {
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration(config), uri: URI.parse(resource) });
+			input.setDirty(dirty);
+			return input;
+		}
+		return undefined;
 	}
 }
 

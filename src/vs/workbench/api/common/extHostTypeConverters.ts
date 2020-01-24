@@ -127,11 +127,19 @@ export namespace DiagnosticTag {
 
 export namespace Diagnostic {
 	export function from(value: vscode.Diagnostic): IMarkerData {
+		let code: string | { value: string; link: URI } | undefined = isString(value.code) || isNumber(value.code) ? String(value.code) : undefined;
+		if (value.code2) {
+			code = {
+				value: String(value.code2.value),
+				link: value.code2.link
+			};
+		}
+
 		return {
 			...Range.from(value.range),
 			message: value.message,
 			source: value.source,
-			code: isString(value.code) || isNumber(value.code) ? String(value.code) : undefined,
+			code,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? coalesce(value.tags.map(DiagnosticTag.from)) : undefined,
@@ -141,7 +149,7 @@ export namespace Diagnostic {
 	export function to(value: IMarkerData): vscode.Diagnostic {
 		const res = new types.Diagnostic(Range.to(value), value.message, DiagnosticSeverity.to(value.severity));
 		res.source = value.source;
-		res.code = value.code;
+		res.code = isString(value.code) ? value.code : value.code?.value;
 		res.relatedInformation = value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.to);
 		res.tags = value.tags && coalesce(value.tags.map(DiagnosticTag.to));
 		return res;

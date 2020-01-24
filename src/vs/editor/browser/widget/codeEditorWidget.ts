@@ -22,7 +22,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, IEditorConstructionOptions, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { CursorColumns, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -162,7 +162,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidCompositionEnd = this._onDidCompositionEnd.event;
 
-	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
+	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new Emitter<editorBrowser.IPasteEvent>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
 	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
@@ -950,7 +950,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const endPosition = this._modelData.cursor.getSelection().getStartPosition();
 			if (source === 'keyboard') {
 				this._onDidPaste.fire(
-					new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column)
+					{
+						range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+						mode: payload.mode
+					}
 				);
 			}
 			return;
@@ -1061,7 +1064,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, this._configuration.options.get(EditorOption.readOnly));
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(this._configuration.options));
 	}
 
 	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
@@ -1445,8 +1448,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
 					editorCommand.runCoreEditorCommand(cursor, args);
 				},
-				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null) => {
-					this.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
+				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+					this.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText, mode });
 				},
 				type: (source: string, text: string) => {
 					this.trigger(source, editorCommon.Handler.Type, { text });
@@ -1469,11 +1472,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
 					editorCommand.runCoreEditorCommand(cursor, args);
 				},
-				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null) => {
+				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					this._commandService.executeCommand(editorCommon.Handler.Paste, {
 						text: text,
 						pasteOnNewLine: pasteOnNewLine,
-						multicursorText: multicursorText
+						multicursorText: multicursorText,
+						mode
 					});
 				},
 				type: (source: string, text: string) => {

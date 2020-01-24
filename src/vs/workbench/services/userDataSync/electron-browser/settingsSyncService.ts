@@ -55,12 +55,17 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('push');
 	}
 
-	sync(_continue?: boolean): Promise<boolean> {
-		return this.channel.call('sync', [_continue]);
+	sync(): Promise<void> {
+		return this.channel.call('sync');
 	}
 
-	stop(): void {
-		this.channel.call('stop');
+	stop(): Promise<void> {
+		return this.channel.call('stop');
+	}
+
+	async restart(): Promise<void> {
+		const status = await this.channel.call<SyncStatus>('restart');
+		await this.updateStatus(status);
 	}
 
 	resetLocal(): Promise<void> {
@@ -79,7 +84,11 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('hasLocalData');
 	}
 
-	resolveConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
+	resolveConflicts(content: string): Promise<void> {
+		return this.channel.call('resolveConflicts', [content]);
+	}
+
+	resolveSettingsConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		return this.channel.call('resolveConflicts', [conflicts]);
 	}
 

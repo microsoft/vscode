@@ -3,25 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, CustomEditorEdit, CustomEditorSaveAsEvent, CustomEditorSaveEvent } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { CustomEditorEdit, CustomEditorSaveAsEvent, CustomEditorSaveEvent, ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename } from 'vs/base/common/path';
+
+namespace HotExitState {
+	export const enum Type {
+		NotSupported,
+		Allowed,
+		NotAllowed,
+		Pending,
+	}
+
+	export const NotSupported = Object.freeze({ type: Type.NotSupported } as const);
+	export const Allowed = Object.freeze({ type: Type.Allowed } as const);
+	export const NotAllowed = Object.freeze({ type: Type.NotAllowed } as const);
+
+	export class Pending {
+		readonly type = Type.Pending;
+
+		constructor(
+			public readonly operation: CancelablePromise<boolean>,
+		) { }
+	}
+
+	export type State = typeof NotSupported | typeof Allowed | typeof NotAllowed | Pending;
+}
 
 export class CustomEditorModel extends Disposable implements ICustomEditorModel {
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<CustomEditorEdit> = [];
+	private _hotExitState: HotExitState.State = HotExitState.NotSupported;
 
 	constructor(
 		public readonly viewType: string,
 		private readonly _resource: URI,
-		private readonly labelService: ILabelService
+		private readonly labelService: ILabelService,
 	) {
 		super();
 	}
@@ -72,7 +97,20 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
 	readonly onWillSaveAs = this._onWillSaveAs.event;
 
-	public pushEdit(edit: CustomEditorEdit, trigger: any): void {
+	private _onBackup: undefined | (() => CancelablePromise<boolean>);
+
+	public onBackup(f: () => CancelablePromise<boolean>) {
+		if (this._onBackup) {
+			throw new Error('Backup already implemented');
+		}
+		this._onBackup = f;
+
+		if (this._hotExitState === HotExitState.NotSupported) {
+			this._hotExitState = this.isDirty() ? HotExitState.NotAllowed : HotExitState.Allowed;
+		}
+	}
+
+	public pushEdit(edit: CustomEditorEdit, trigger: any) {
 		this.spliceEdits(edit);
 
 		this._currentEditIndex = this._edits.length - 1;
@@ -195,5 +233,37 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		this.updateDirty();
 		this.updateContentChanged();
+	}
+
+	public async backup(): Promise<IWorkingCopyBackup> {
+		if (this._hotExitState === HotExitState.NotSupported) {
+			throw new Error('Not supported');
+		}
+
+		if (this._hotExitState.type === HotExitState.Type.Pending) {
+			this._hotExitState.operation.cancel();
+		}
+		this._hotExitState = HotExitState.NotAllowed;
+
+		const pendingState = new HotExitState.Pending(this._onBackup!());
+		this._hotExitState = pendingState;
+
+		try {
+			this._hotExitState = await pendingState.operation ? HotExitState.Allowed : HotExitState.NotAllowed;
+		} catch (e) {
+			// Make sure state has not changed in the meantime
+			if (this._hotExitState === pendingState) {
+				this._hotExitState = HotExitState.NotAllowed;
+			}
+		}
+
+		if (this._hotExitState === HotExitState.Allowed) {
+			return {
+				meta: {
+					viewType: this.viewType,
+				}
+			};
+		}
+		throw new Error('Cannot back up in this state');
 	}
 }

@@ -41,12 +41,14 @@ export interface ClipboardDataToCopy {
 	multicursorText: string[] | null | undefined;
 	text: string;
 	html: string | null | undefined;
+	mode: string | null;
 }
 
 export interface ClipboardStoredMetadata {
 	version: 1;
 	isFromEmptySelection: boolean | undefined;
 	multicursorText: string[] | null | undefined;
+	mode: string | null;
 }
 
 export interface ITextAreaInputHost {
@@ -550,7 +552,8 @@ export class TextAreaInput extends Disposable {
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText
+			multicursorText: dataToCopy.multicursorText,
+			mode: dataToCopy.mode
 		};
 		InMemoryClipboardMetadataManager.INSTANCE.set(
 			// When writing "LINE\r\n" to the clipboard and then pasting,

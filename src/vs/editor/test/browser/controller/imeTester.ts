@@ -91,7 +91,8 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 				isFromEmptySelection: false,
 				multicursorText: null,
 				text: '',
-				html: undefined
+				html: undefined,
+				mode: null
 			};
 		},
 		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
