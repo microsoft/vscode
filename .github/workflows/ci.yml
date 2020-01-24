@@ -24,6 +24,20 @@ jobs:
         sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
       name: Setup Build Environment
     - run: |
+        sudo wget -q https://launchpadlibrarian.net/445014413/libglapi-mesa_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          wget -q https://launchpadlibrarian.net/445014412/libgl1-mesa-dri_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          wget -q https://launchpadlibrarian.net/445014393/libgl1-mesa-glx_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          wget -q https://launchpadlibrarian.net/445014414/libglx-mesa0_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          wget -q https://launchpadlibrarian.net/445014418/mesa-va-drivers_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          wget -q https://launchpadlibrarian.net/445014419/mesa-vdpau-drivers_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          dpkg -i libglapi-mesa_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          dpkg -i libgl1-mesa-dri_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          dpkg -i libgl1-mesa-glx_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          dpkg -i libglx-mesa0_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          dpkg -i mesa-va-drivers_19.0.8-0ubuntu0~18.04.3_amd64.deb &&\
+          dpkg -i mesa-vdpau-drivers_19.0.8-0ubuntu0~18.04.3_amd64.deb
+      name: Setup Display 0
+    - run: |
         sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       name: Setup Display 1
     - run: |
