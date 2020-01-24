@@ -85,12 +85,6 @@ export interface ITextFileService extends IDisposable {
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean>;
 
 	/**
-	 * Create a file. If the file exists it will be overwritten with the contents if
-	 * the options enable to overwrite.
-	 */
-	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
-
-	/**
 	 * Read the contents of a file identified by the resource.
 	 */
 	read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;
@@ -106,9 +100,10 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
+	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * the options enable to overwrite.
 	 */
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
+	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
@@ -119,6 +114,11 @@ export interface ITextFileService extends IDisposable {
 	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
+	 */
+	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 }
 
 export interface FileOperationWillRunEvent extends IWaitUntil {

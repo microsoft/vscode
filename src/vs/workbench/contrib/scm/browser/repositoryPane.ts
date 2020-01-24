@@ -62,7 +62,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
@@ -1068,6 +1068,29 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 }
 
 registerThemingParticipant((theme, collector) => {
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	if (inputBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .monaco-editor-background,
+		.scm-viewlet .scm-editor-container .monaco-editor,
+		.scm-viewlet .scm-editor-container .monaco-editor .margin
+		{ background-color: ${inputBackgroundColor}; }`);
+	}
+
+	const inputForegroundColor = theme.getColor(inputForeground);
+	if (inputForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
+	}
+
+	const inputBorderColor = theme.getColor(inputBorder);
+	if (inputBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+	}
+
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
+	}
+
 	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
 	if (inputPlaceholderForegroundColor) {
 		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
