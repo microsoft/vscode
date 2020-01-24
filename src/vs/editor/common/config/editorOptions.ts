@@ -2344,12 +2344,12 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 /**
  * @internal
  */
-export function shouldRenderValidationDecorations(options: IComputedEditorOptions): boolean {
+export function filterValidationDecorations(options: IComputedEditorOptions): boolean {
 	const renderValidationDecorations = options.get(EditorOption.renderValidationDecorations);
 	if (renderValidationDecorations === 'editable') {
-		return !options.get(EditorOption.readOnly);
+		return options.get(EditorOption.readOnly);
 	}
-	return renderValidationDecorations === 'on' ? true : false;
+	return renderValidationDecorations === 'on' ? false : true;
 }
 
 //#endregion
