@@ -23,8 +23,14 @@ import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 
 // --- VIEW MODEL
+
+export interface ICheckable {
+	isChecked(): boolean;
+	setChecked(value: boolean): void;
+}
 
 export class CategoryElement {
 
@@ -34,21 +40,116 @@ export class CategoryElement {
 	) { }
 }
 
-export class FileElement {
+export class FileElement implements ICheckable {
 
 	constructor(
 		readonly parent: CategoryElement | BulkFileOperations,
 		readonly edit: BulkFileOperation
 	) { }
+
+	isChecked(): boolean {
+		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+
+		let checked = true;
+
+		// only text edit children -> reflect children state
+		if (this.edit.type === BulkFileOperationType.TextEdit) {
+			checked = !this.edit.textEdits.every(edit => !model.checked.isChecked(edit.textEdit));
+		}
+
+		// multiple file edits -> reflect single state
+		this.edit.originalEdits.forEach(edit => {
+			if (WorkspaceFileEdit.is(edit)) {
+				checked = checked && model.checked.isChecked(edit);
+			}
+		});
+
+		// multiple categories and text change -> read all elements
+		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
+			for (let category of model.categories) {
+				for (let file of category.fileOperations) {
+					if (file.uri.toString() === this.edit.uri.toString()) {
+						file.originalEdits.forEach(edit => {
+							if (WorkspaceFileEdit.is(edit)) {
+								checked = checked && model.checked.isChecked(edit);
+							}
+						});
+					}
+				}
+			}
+		}
+
+		return checked;
+	}
+
+	setChecked(value: boolean): void {
+		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+		this.edit.originalEdits.forEach(edit => {
+			model.checked.updateChecked(edit, value);
+		});
+
+		// multiple categories and file change -> update all elements
+		if (this.parent instanceof CategoryElement && this.edit.type !== BulkFileOperationType.TextEdit) {
+			for (let category of model.categories) {
+				for (let file of category.fileOperations) {
+					if (file.uri.toString() === this.edit.uri.toString()) {
+						file.originalEdits.forEach(edit => {
+							model.checked.updateChecked(edit, value);
+						});
+					}
+				}
+			}
+		}
+	}
+
+	isDisabled(): boolean {
+		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
+			let model = this.parent.parent;
+			let checked = true;
+			for (let category of model.categories) {
+				for (let file of category.fileOperations) {
+					if (file.uri.toString() === this.edit.uri.toString()) {
+						file.originalEdits.forEach(edit => {
+							if (WorkspaceFileEdit.is(edit)) {
+								checked = checked && model.checked.isChecked(edit);
+							}
+						});
+					}
+				}
+			}
+			return !checked;
+		}
+		return false;
+	}
 }
 
-export class TextEditElement {
+export class TextEditElement implements ICheckable {
 
 	constructor(
 		readonly parent: FileElement,
 		readonly edit: BulkTextEdit,
 		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
 	) { }
+
+	isChecked(): boolean {
+		let model = this.parent.parent;
+		if (model instanceof CategoryElement) {
+			model = model.parent;
+		}
+		return model.checked.isChecked(this.edit.textEdit);
+	}
+
+	setChecked(value: boolean): void {
+		let model = this.parent.parent;
+		if (model instanceof CategoryElement) {
+			model = model.parent;
+		}
+		return model.checked.updateChecked(this.edit.textEdit, value);
+	}
+
+	isDisabled(): boolean {
+		return this.parent.isDisabled();
+	}
 }
 
 export type BulkEditElement = CategoryElement | FileElement | TextEditElement;
@@ -325,13 +426,12 @@ class FileElementTemplate {
 
 	set(element: FileElement, score: FuzzyScore | undefined) {
 		this._localDisposables.clear();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
 
-		if (element.edit.type === BulkFileOperationType.TextEdit && element.edit.textEdits.every(edit => !edit.isChecked())) {
-			this._checkbox.checked = false;
-		} else {
-			this._checkbox.checked = element.edit.isChecked();
-		}
+		this._checkbox.checked = element.isChecked();
+		this._checkbox.disabled = element.isDisabled();
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
+			element.setChecked(this._checkbox.checked);
+		}));
 
 		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
 			// rename: NEW NAME (old name)
@@ -415,21 +515,18 @@ class TextEditElementTemplate {
 
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
-			if (element.parent.edit.isChecked()) {
-				element.edit.updateChecked(this._checkbox.checked);
-			}
-		}));
 
-		if (element.parent.edit.isChecked()) {
-			this._checkbox.checked = element.edit.isChecked();
-			this._checkbox.disabled = false;
+		if (element.parent.isChecked()) {
+			this._checkbox.checked = element.isChecked();
+			this._checkbox.disabled = element.isDisabled();
+			this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', e => {
+				element.setChecked(this._checkbox.checked);
+				e.preventDefault();
+			}));
 		} else {
-			this._checkbox.checked = element.edit.isChecked();
-			this._checkbox.disabled = true;
+			this._checkbox.checked = element.isChecked();
+			this._checkbox.disabled = element.isDisabled();
 		}
-
-		dom.toggleClass(this._checkbox, 'disabled', !element.edit.parent.isChecked());
 
 		let value = '';
 		value += element.prefix;

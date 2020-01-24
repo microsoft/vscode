@@ -183,7 +183,7 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// refresh when check state changes
-			this._sessionDisposables.add(input.onDidChangeCheckedState(() => {
+			this._sessionDisposables.add(input.checked.onDidChange(() => {
 				this._tree.updateChildren();
 			}));
 		});
@@ -238,10 +238,8 @@ export class BulkEditPane extends ViewPane {
 
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
-		if (first instanceof FileElement) {
-			first.edit.updateChecked(!first.edit.isChecked());
-		} else if (first instanceof TextEditElement && first.parent.edit.isChecked()) {
-			first.edit.updateChecked(!first.edit.isChecked());
+		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
+			first.setChecked(!first.isChecked());
 		}
 	}
 
@@ -277,7 +275,7 @@ export class BulkEditPane extends ViewPane {
 
 	private _done(accept: boolean): void {
 		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.asWorkspaceEdit() : undefined);
+			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 			this._currentInput = undefined;
 		}
 		this._setState(State.Message);
