@@ -191,7 +191,8 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
 export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
-	if (hasTrailingPathSeparator(resource, sep)) {
+	// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
+	if (hasTrailingPathSeparator(resource, sep) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath))) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
 	return resource;
