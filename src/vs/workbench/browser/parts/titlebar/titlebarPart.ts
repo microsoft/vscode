@@ -41,6 +41,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
 // eslint-disable-next-line code-layering, code-import-patterns
@@ -105,6 +106,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@optional(IElectronService) private electronService: IElectronService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
@@ -124,6 +126,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
+		this._register(this.accessibilityService.onDidChangeAccessibilitySupport(() => this.titleUpdater.schedule()));
 	}
 
 	private onBlur(): void {
@@ -209,7 +212,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (!trim(nativeTitle)) {
 			nativeTitle = this.productService.nameLong;
 		}
-		window.document.title = nativeTitle;
+		const accessilibitySupport = this.accessibilityService.getAccessibilitySupport();
+		if (accessilibitySupport === AccessibilitySupport.Enabled) {
+			// Use a whitespace character for the title so the screen reader does not read too much when window gets focused
+			window.document.title = '\u200B';
+		} else {
+			window.document.title = nativeTitle;
+		}
 
 		// Apply custom title if we can
 		if (this.title) {
