@@ -25,7 +25,7 @@ interface ISyncPreviewResult {
 	readonly removed: IExtensionIdentifier[];
 	readonly updated: ISyncExtension[];
 	readonly remote: ISyncExtension[] | null;
-	readonly remoteUserData: IUserData | null;
+	readonly remoteUserData: IUserData;
 	readonly skippedExtensions: ISyncExtension[];
 }
 
@@ -122,7 +122,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 			const localExtensions = await this.getLocalExtensions();
 			const { added, removed, updated, remote } = merge(localExtensions, null, null, [], this.getIgnoredExtensions());
-			await this.apply({ added, removed, updated, remote, remoteUserData: null, skippedExtensions: [] });
+			const remoteUserData = await this.getRemoteUserData();
+			await this.apply({ added, removed, updated, remote, remoteUserData, skippedExtensions: [] }, true);
 
 			this.logService.info('Extensions: Finished pushing extensions.');
 		} finally {
@@ -131,18 +132,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	}
 
-	async sync(): Promise<boolean> {
+	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
 			this.logService.trace('Extensions: Skipping synchronizing extensions as it is disabled.');
-			return false;
+			return;
 		}
 		if (!this.extensionGalleryService.isEnabled()) {
 			this.logService.trace('Extensions: Skipping synchronizing extensions as gallery is disabled.');
-			return false;
+			return;
 		}
 		if (this.status !== SyncStatus.Idle) {
 			this.logService.trace('Extensions: Skipping synchronizing extensions as it is running already.');
-			return false;
+			return;
 		}
 
 		this.logService.trace('Extensions: Started synchronizing extensions...');
@@ -163,10 +164,17 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		this.logService.trace('Extensions: Finished synchronizing extensions.');
 		this.setStatus(SyncStatus.Idle);
-		return true;
 	}
 
-	stop(): void { }
+	async stop(): Promise<void> { }
+
+	async restart(): Promise<void> {
+		throw new Error('Extensions: Conflicts should not occur');
+	}
+
+	resolveConflicts(content: string): Promise<void> {
+		throw new Error('Extensions: Conflicts should not occur');
+	}
 
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
@@ -241,7 +249,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
 	}
 
-	private async apply({ added, removed, updated, remote, remoteUserData, skippedExtensions }: ISyncPreviewResult): Promise<void> {
+	private async apply({ added, removed, updated, remote, remoteUserData, skippedExtensions }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
 		if (!added.length && !removed.length && !updated.length && !remote) {
 			this.logService.trace('Extensions: No changes found during synchronizing extensions.');
 		}
@@ -254,10 +262,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		if (remote) {
 			// update remote
 			this.logService.info('Extensions: Updating remote extensions...');
-			remoteUserData = await this.writeToRemote(remote, remoteUserData ? remoteUserData.ref : null);
+			remoteUserData = await this.writeToRemote(remote, forcePush ? null : remoteUserData.ref);
 		}
 
-		if (remoteUserData?.content) {
+		if (remoteUserData.content) {
 			// update last sync
 			this.logService.info('Extensions: Updating last synchronised extensions...');
 			await this.updateLastSyncValue({ ...remoteUserData, skippedExtensions });

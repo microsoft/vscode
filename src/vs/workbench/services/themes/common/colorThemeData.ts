@@ -23,6 +23,7 @@ import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getToken
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/modes';
+import { CharCode } from 'vs/base/common/charCode';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -80,8 +81,8 @@ export class ColorThemeData implements IColorTheme {
 			const background = this.getColor(editorBackground) || this.getDefault(editorBackground)!;
 			result.push({
 				settings: {
-					foreground: Color.Format.CSS.formatHexA(foreground, true),
-					background: Color.Format.CSS.formatHexA(background, true)
+					foreground: normalizeColor(foreground),
+					background: normalizeColor(background)
 				}
 			});
 
@@ -92,7 +93,7 @@ export class ColorThemeData implements IColorTheme {
 					if (rule.scope === 'token.info-token') {
 						hasDefaultTokens = true;
 					}
-					result.push(rule);
+					result.push({ scope: rule.scope, settings: { foreground: normalizeColor(rule.settings.foreground), background: normalizeColor(rule.settings.background), fontStyle: rule.settings.fontStyle } });
 				}
 			}
 
@@ -726,11 +727,11 @@ class TokenColorIndex {
 		this._color2id = Object.create(null);
 	}
 
-	public add(color: string | Color | undefined | null): number {
-		if (color === null || color === undefined) {
+	public add(color: string | Color | undefined): number {
+		color = normalizeColor(color);
+		if (color === undefined) {
 			return 0;
 		}
-		color = normalizeColorForIndex(color);
 
 		let value = this._color2id[color];
 		if (value) {
@@ -743,10 +744,10 @@ class TokenColorIndex {
 	}
 
 	public get(color: string | Color | undefined): number {
+		color = normalizeColor(color);
 		if (color === undefined) {
 			return 0;
 		}
-		color = normalizeColorForIndex(color);
 		let value = this._color2id[color];
 		if (value) {
 			return value;
@@ -761,11 +762,45 @@ class TokenColorIndex {
 
 }
 
-function normalizeColorForIndex(color: string | Color): string {
+function normalizeColor(color: string | Color | undefined | null): string | undefined {
+	if (!color) {
+		return undefined;
+	}
 	if (typeof color !== 'string') {
 		color = Color.Format.CSS.formatHexA(color, true);
 	}
-	return color.toUpperCase();
+	if (color.charCodeAt(0) !== CharCode.Hash) {
+		return undefined;
+	}
+	let result = [CharCode.Hash];
+	const len = color.length;
+	for (let i = 1; i < len; i++) {
+		const upper = hexUpper(color.charCodeAt(i));
+		if (!upper) {
+			return undefined;
+		}
+		result.push(upper);
+		if (len === 3 || len === 4) {
+			result.push(upper);
+		}
+	}
+
+	if (result.length === 9 && result[7] === CharCode.F && result[8] === CharCode.F) {
+		result.length = 7;
+	}
+	if (result.length === 7) {
+		return String.fromCharCode(...result);
+	}
+	return undefined;
+}
+
+function hexUpper(charCode: CharCode): number {
+	if (charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9 || charCode >= CharCode.A && charCode <= CharCode.F) {
+		return charCode;
+	} else if (charCode >= CharCode.a && charCode <= CharCode.f) {
+		return charCode - CharCode.a + CharCode.A;
+	}
+	return 0;
 }
 
 function toMetadata(fontStyle: FontStyle, foreground: ColorId | number, background: ColorId | number) {

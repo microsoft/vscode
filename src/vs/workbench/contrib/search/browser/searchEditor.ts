@@ -87,9 +87,12 @@ export class SearchEditor extends BaseEditor {
 	createEditor(parent: HTMLElement) {
 		DOM.addClass(parent, 'search-editor');
 
-		// Query
-		this.queryEditorContainer = DOM.append(parent, DOM.$('.query-container'));
+		this.createQueryEditor(parent);
+		this.createResultsEditor(parent);
+	}
 
+	private createQueryEditor(parent: HTMLElement) {
+		this.queryEditorContainer = DOM.append(parent, DOM.$('.query-container'));
 		this.queryEditorWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.queryEditorContainer, { _hideReplaceToggle: true, showContextToggle: true }));
 		this._register(this.queryEditorWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.queryEditorWidget.onDidHeightChange(() => this.reLayout()));
@@ -99,6 +102,7 @@ export class SearchEditor extends BaseEditor {
 
 		// Includes/Excludes Dropdown
 		this.includesExcludesContainer = DOM.append(this.queryEditorContainer, DOM.$('.includes-excludes'));
+
 		// // Toggle query details button
 		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand.codicon.codicon-ellipsis', { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
@@ -107,7 +111,6 @@ export class SearchEditor extends BaseEditor {
 		}));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
-
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e);
 				this.toggleIncludesExcludes();
@@ -115,11 +118,11 @@ export class SearchEditor extends BaseEditor {
 		}));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
-
 			if (event.equals(KeyMod.Shift | KeyCode.Tab)) {
 				if (this.queryEditorWidget.isReplaceActive()) {
 					this.queryEditorWidget.focusReplaceAllAction();
-				} else {
+				}
+				else {
 					this.queryEditorWidget.isReplaceShown() ? this.queryEditorWidget.replaceInput.focusOnPreserve() : this.queryEditorWidget.focusRegexAction();
 				}
 				DOM.EventHelper.stop(e);
@@ -127,11 +130,9 @@ export class SearchEditor extends BaseEditor {
 		}));
 
 		// // Includes
-
 		const folderIncludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.includes'));
 		const filesToIncludeTitle = localize('searchScope.includes', "files to include");
 		DOM.append(folderIncludesList, DOM.$('h4', undefined, filesToIncludeTitle));
-
 		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(PatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
 		}));
@@ -141,15 +142,14 @@ export class SearchEditor extends BaseEditor {
 		const excludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.excludes'));
 		const excludesTitle = localize('searchScope.excludes', "files to exclude");
 		DOM.append(excludesList, DOM.$('h4', undefined, excludesTitle));
-
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
 		}));
-
 		this.inputPatternExcludes.onSubmit(_triggeredOnType => this.runSearch());
 		this.inputPatternExcludes.onChangeIgnoreBox(() => this.runSearch());
+	}
 
-		// Editor
+	private createResultsEditor(parent: HTMLElement) {
 		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
 		const configuration: IEditorOptions = this.configurationService.getValue('editor', { overrideIdentifier: 'search-result' });
 		const options: ICodeEditorWidgetOptions = {};
@@ -168,6 +168,8 @@ export class SearchEditor extends BaseEditor {
 				}
 			}
 		});
+
+
 
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
@@ -363,7 +365,6 @@ export class SearchEditor extends BaseEditor {
 
 		const { model } = await newInput.reloadModel();
 		this.searchResultEditor.setModel(model);
-		this.hideHeader();
 
 		this.pauseSearching = true;
 		const { query } = await newInput.reloadModel();

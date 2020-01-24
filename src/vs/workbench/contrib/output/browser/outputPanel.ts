@@ -95,6 +95,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		options.scrollBeyondLastLine = false;
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
+		options.renderValidationDecorations = 'editable';
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {

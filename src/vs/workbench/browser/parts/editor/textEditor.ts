@@ -109,7 +109,10 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			readOnly: this.input?.isReadonly()
+			readOnly: this.input?.isReadonly(),
+			// render problems even in readonly editors
+			// https://github.com/microsoft/vscode/issues/89057
+			renderValidationDecorations: 'on'
 		};
 	}
 
