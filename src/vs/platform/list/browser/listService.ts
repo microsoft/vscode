@@ -807,6 +807,11 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
 	}
+
+	updateOptions(options: IWorkbenchAsyncDataTreeOptions<T, TFilterData> = {}): void {
+		super.updateOptions(options);
+		this.internals.updateStyleOverrides(options.overrideStyles);
+	}
 }
 
 export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IAsyncDataTreeOptions<T, TFilterData> {
