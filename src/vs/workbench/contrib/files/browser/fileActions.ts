@@ -232,13 +232,10 @@ async function deleteFiles(workingCopyService: IWorkingCopyService, textFileServ
 		});
 	}
 
-
-
 	// Check for confirmation checkbox
 	if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 	}
-
 
 	// Check for confirmation
 	if (!confirmation.confirmed) {

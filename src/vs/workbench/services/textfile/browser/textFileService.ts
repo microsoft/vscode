@@ -87,7 +87,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	//#region text file IO primitives (read, create, move, delete, update)
+	//#region text file read / write
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		const content = await this.fileService.readFile(resource, options);
@@ -143,6 +143,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
+	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
+	}
+
+	//#endregion
+
+	//#region text file IO primitives (create, move, copy, delete)
+
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// before event
@@ -167,24 +175,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	protected doCreate(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
-	}
-
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
-	}
-
-	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-
-		// before event
-		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
-
-		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
-		await this.doRevertFiles(dirtyFiles, { soft: true });
-
-		await this.fileService.del(resource, options);
-
-		// after event
-		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
 	}
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -285,6 +275,20 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this._onDidRunOperation.fire(new FileOperationDidRunEvent(move ? FileOperation.MOVE : FileOperation.COPY, target, source));
 
 		return stat;
+	}
+
+	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
+
+		// before event
+		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
+
+		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
+		await this.doRevertFiles(dirtyFiles, { soft: true });
+
+		await this.fileService.del(resource, options);
+
+		// after event
+		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
 	}
 
 	//#endregion
