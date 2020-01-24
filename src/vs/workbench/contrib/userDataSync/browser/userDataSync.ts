@@ -415,7 +415,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async signIn(): Promise<void> {
 		try {
-			this.activeAccount = await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId);
+			this.activeAccount = await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']);
 		} catch (e) {
 			this.notificationService.error(e);
 			throw e;

@@ -908,8 +908,8 @@ export interface ExtHostLabelServiceShape {
 
 export interface ExtHostAuthenticationShape {
 	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
-	$login(id: string): Promise<modes.Session>;
-	$logout(id: string, accountId: string): Promise<void>;
+	$login(id: string, scopes: string[]): Promise<modes.Session>;
+	$logout(id: string, sessionId: string): Promise<void>;
 }
 
 export interface ExtHostSearchShape {

@@ -15,53 +15,120 @@ import { toBase64UrlEncoding } from './utils';
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const scope = 'https://management.core.windows.net/.default offline_access';
 const tenant = 'organizations';
 
 interface IToken {
 	expiresIn: string; // How long access token is valid, in seconds
 	accessToken: string;
 	refreshToken: string;
+
+	displayName: string;
+	scope: string;
+	sessionId: string; // The account id + the scope
 }
 
 interface ITokenClaims {
+	tid: string;
 	email?: string;
 	unique_name?: string;
 	oid?: string;
 	altsecid?: string;
+	scp: string;
+}
+
+interface IStoredSession {
+	id: string;
+	refreshToken: string;
+	scope: string; // Scopes are alphabetized and joined with a space
 }
 
 export const onDidChangeSessions = new vscode.EventEmitter<void>();
 
 export class AzureActiveDirectoryService {
-	private _token: IToken | undefined;
-	private _refreshTimeout: NodeJS.Timeout | undefined;
+	private _tokens: IToken[] = [];
+	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
 
 	public async initialize(): Promise<void> {
-		const existingRefreshToken = await keychain.getToken();
-		if (existingRefreshToken) {
+		const storedData = await keychain.getToken();
+		if (storedData) {
 			try {
-				await this.refreshToken(existingRefreshToken);
+				const sessions = this.parseStoredData(storedData);
+				const refreshes = sessions.map(async session => {
+					try {
+						await this.refreshToken(session.refreshToken, session.scope);
+					} catch (e) {
+						await this.logout(session.id);
+					}
+				});
+
+				await Promise.all(refreshes);
 			} catch (e) {
-				await this.logout();
+				await this.clearSessions();
 			}
 		}
 
 		this.pollForChange();
 	}
 
+	private parseStoredData(data: string): IStoredSession[] {
+		return JSON.parse(data);
+	}
+
+	private async storeTokenData(): Promise<void> {
+		const serializedData: IStoredSession[] = this._tokens.map(token => {
+			return {
+				id: token.sessionId,
+				refreshToken: token.refreshToken,
+				scope: token.scope
+			};
+		});
+
+		await keychain.setToken(JSON.stringify(serializedData));
+	}
+
 	private pollForChange() {
 		setTimeout(async () => {
-			const refreshToken = await keychain.getToken();
-			// Another window has logged in, generate access token for this instance.
-			if (refreshToken && !this._token) {
-				await this.refreshToken(refreshToken);
-				onDidChangeSessions.fire();
+			let didChange = false;
+			const storedData = await keychain.getToken();
+			if (storedData) {
+				try {
+					const sessions = this.parseStoredData(storedData);
+					let promises = sessions.map(async session => {
+						const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
+						if (!matchesExisting) {
+							try {
+								await this.refreshToken(session.refreshToken, session.scope);
+								didChange = true;
+							} catch (e) {
+								await this.logout(session.id);
+							}
+						}
+					});
+
+					promises = promises.concat(this._tokens.map(async token => {
+						const matchesExisting = sessions.some(session => token.scope === session.scope && token.sessionId === session.id);
+						if (!matchesExisting) {
+							await this.logout(token.sessionId);
+							didChange = true;
+						}
+					}));
+
+					await Promise.all(promises);
+				} catch (e) {
+					Logger.error(e.message);
+					// if data is improperly formatted, remove all of it and send change event
+					this.clearSessions();
+					didChange = true;
+				}
+			} else {
+				if (this._tokens.length) {
+					// Log out all
+					await this.clearSessions();
+					didChange = true;
+				}
 			}
 
-			// Another window has logged out
-			if (!refreshToken && this._token) {
-				await this.logout();
+			if (didChange) {
 				onDidChangeSessions.fire();
 			}
 
@@ -69,28 +136,29 @@ export class AzureActiveDirectoryService {
 		}, 1000 * 30);
 	}
 
-	private tokenToAccount(token: IToken): vscode.Session {
-		const claims = this.getTokenClaims(token.accessToken);
+	private convertToSession(token: IToken): vscode.Session {
 		return {
-			id: claims?.oid || claims?.altsecid || '',
+			id: token.sessionId,
 			accessToken: token.accessToken,
-			displayName: claims?.email || claims?.unique_name || 'user@example.com'
+			displayName: token.displayName,
+			scopes: token.scope.split(' ')
 		};
 	}
 
-	private getTokenClaims(accessToken: string): ITokenClaims | undefined {
+	private getTokenClaims(accessToken: string): ITokenClaims {
 		try {
 			return JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
 		} catch (e) {
 			Logger.error(e.message);
+			throw new Error('Unable to read token claims');
 		}
 	}
 
 	get sessions(): vscode.Session[] {
-		return this._token ? [this.tokenToAccount(this._token)] : [];
+		return this._tokens.map(token => this.convertToSession(token));
 	}
 
-	public async login(): Promise<void> {
+	public async login(scope: string): Promise<void> {
 		Logger.info('Logging in...');
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const { server, redirectPromise, codePromise } = createServer(nonce);
@@ -116,7 +184,7 @@ export class AzureActiveDirectoryService {
 
 			const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
 			const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
-			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scopes.join(' '))}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
 
 			await redirectReq.res.writeHead(302, { Location: loginUrl });
 			redirectReq.res.end();
@@ -128,8 +196,8 @@ export class AzureActiveDirectoryService {
 				if ('err' in codeRes) {
 					throw codeRes.err;
 				}
-				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier);
-				this.setToken(token);
+				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
+				this.setToken(token, scope);
 				Logger.info('Login successful');
 				res.writeHead(302, { Location: '/' });
 				res.end();
@@ -145,27 +213,46 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async setToken(token: IToken): Promise<void> {
-		this._token = token;
-
-		if (this._refreshTimeout) {
-			clearTimeout(this._refreshTimeout);
+	private async setToken(token: IToken, scope: string): Promise<void> {
+		const existingToken = this._tokens.findIndex(t => t.sessionId === token.sessionId);
+		if (existingToken) {
+			this._tokens.splice(existingToken, 1, token);
+		} else {
+			this._tokens.push(token);
 		}
 
-		this._refreshTimeout = setTimeout(async () => {
+		const existingTimeout = this._refreshTimeouts.get(token.sessionId);
+		if (existingTimeout) {
+			clearTimeout(existingTimeout);
+		}
+
+		this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 			try {
-				await this.refreshToken(token.refreshToken);
+				await this.refreshToken(token.refreshToken, scope);
 			} catch (e) {
-				await this.logout();
+				await this.logout(token.sessionId);
 			} finally {
 				onDidChangeSessions.fire();
 			}
-		}, 1000 * (parseInt(token.expiresIn) - 10));
+		}, 1000 * (parseInt(token.expiresIn) - 10)));
 
-		await keychain.setToken(token.refreshToken);
+		this.storeTokenData();
 	}
 
-	private async exchangeCodeForToken(code: string, codeVerifier: string): Promise<IToken> {
+	private getTokenFromResponse(buffer: Buffer[], scope: string): IToken {
+		const json = JSON.parse(Buffer.concat(buffer).toString());
+		const claims = this.getTokenClaims(json.access_token);
+		return {
+			expiresIn: json.expires_in,
+			accessToken: json.access_token,
+			refreshToken: json.refresh_token,
+			scope,
+			sessionId: claims.tid + (claims.oid || claims.altsecid) + scope,
+			displayName: claims.email || claims.unique_name || 'user@example.com'
+		};
+	}
+
+	private async exchangeCodeForToken(code: string, codeVerifier: string, scope: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
 			Logger.info('Exchanging login code for token');
 			try {
@@ -195,12 +282,7 @@ export class AzureActiveDirectoryService {
 					});
 					result.on('end', () => {
 						if (result.statusCode === 200) {
-							const json = JSON.parse(Buffer.concat(buffer).toString());
-							resolve({
-								expiresIn: json.expires_in,
-								accessToken: json.access_token,
-								refreshToken: json.refresh_token
-							});
+							resolve(this.getTokenFromResponse(buffer, scope));
 						} else {
 							reject(new Error('Unable to login.'));
 						}
@@ -221,7 +303,7 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	private async refreshToken(refreshToken: string): Promise<IToken> {
+	private async refreshToken(refreshToken: string, scope: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
 			Logger.info('Refreshing token...');
 			const postData = querystring.stringify({
@@ -246,17 +328,11 @@ export class AzureActiveDirectoryService {
 				});
 				result.on('end', async () => {
 					if (result.statusCode === 200) {
-						const json = JSON.parse(Buffer.concat(buffer).toString());
-						const token = {
-							expiresIn: json.expires_in,
-							accessToken: json.access_token,
-							refreshToken: json.refresh_token
-						};
-						this.setToken(token);
+						const token = this.getTokenFromResponse(buffer, scope);
+						this.setToken(token, scope);
 						Logger.info('Token refresh success');
 						resolve(token);
 					} else {
-						await this.logout();
 						Logger.error('Refreshing token failed');
 						reject(new Error('Refreshing token failed.'));
 					}
@@ -273,12 +349,35 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	public async logout() {
-		Logger.info('Logging out');
-		delete this._token;
-		await keychain.deleteToken();
-		if (this._refreshTimeout) {
-			clearTimeout(this._refreshTimeout);
+	public async logout(sessionId: string) {
+		Logger.info(`Logging out of session '${sessionId}'`);
+		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
+		if (tokenIndex > -1) {
+			this._tokens.splice(tokenIndex, 1);
 		}
+
+		if (this._tokens.length === 0) {
+			await keychain.deleteToken();
+		} else {
+			this.storeTokenData();
+		}
+
+		const timeout = this._refreshTimeouts.get(sessionId);
+		if (timeout) {
+			clearTimeout(timeout);
+			this._refreshTimeouts.delete(sessionId);
+		}
+	}
+
+	public async clearSessions() {
+		Logger.info('Logging out of all sessions');
+		this._tokens = [];
+		await keychain.deleteToken();
+
+		this._refreshTimeouts.forEach(timeout => {
+			clearTimeout(timeout);
+		});
+
+		this._refreshTimeouts.clear();
 	}
 }

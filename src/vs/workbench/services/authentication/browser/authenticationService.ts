@@ -25,7 +25,7 @@ export interface IAuthenticationService {
 	readonly onDidChangeSessions: Event<string>;
 	getSessions(providerId: string): Promise<ReadonlyArray<Session> | undefined>;
 	getDisplayName(providerId: string): string;
-	login(providerId: string): Promise<Session>;
+	login(providerId: string, scopes: string[]): Promise<Session>;
 	logout(providerId: string, accountId: string): Promise<void>;
 }
 
@@ -79,10 +79,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async login(id: string): Promise<Session> {
+	async login(id: string, scopes: string[]): Promise<Session> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.login();
+			return authProvider.login(scopes);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

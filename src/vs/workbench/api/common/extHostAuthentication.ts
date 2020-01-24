@@ -37,13 +37,13 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 		return this._provider.getSessions();
 	}
 
-	async login(): Promise<vscode.Session> {
+	async login(scopes: string[]): Promise<vscode.Session> {
 		const isAllowed = await this._proxy.$loginPrompt(this._provider.id, this.displayName, ExtensionIdentifier.toKey(this._requestingExtension.identifier), this._requestingExtension.displayName || this._requestingExtension.name);
 		if (!isAllowed) {
 			throw new Error('User did not consent to login.');
 		}
 
-		return this._provider.login();
+		return this._provider.login(scopes);
 	}
 
 	logout(sessionId: string): Promise<void> {
@@ -93,10 +93,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$login(providerId: string): Promise<modes.Session> {
+	$login(providerId: string, scopes: string[]): Promise<modes.Session> {
 		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
-			return Promise.resolve(authProvider.login());
+			return Promise.resolve(authProvider.login(scopes));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${0}`);
