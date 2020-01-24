@@ -232,6 +232,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getWhitespaces();
 	}
 
+	public getLinesTotalHeight(): number {
+		let result = this._linesLayout.getLinesTotalHeight();
+		return result;
+	}
+
 	// ---- IScrollingProvider
 
 

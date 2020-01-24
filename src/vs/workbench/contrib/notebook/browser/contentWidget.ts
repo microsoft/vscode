@@ -235,7 +235,7 @@ export class BackLayerWebView extends Disposable {
 				if (cell) {
 					const lineNum = cell.lineCount;
 					const lineHeight = this.notebookHandler.getFontInfo()?.lineHeight ?? 18;
-					const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
+					const totalHeight = lineNum * lineHeight;
 					cell.setDynamicHeight(totalHeight + 8 /* code cell padding */ + outputHeight);
 					this.notebookHandler.layoutElement(cell, totalHeight + 8 /* code cell padding */ + outputHeight);
 				}

@@ -126,7 +126,7 @@ export class ViewCell extends Disposable {
 		if (this.cellType === 'markdown') {
 			return 100;
 		} else {
-			return Math.max(this.lineCount + 1, 5) * lineHeight + 16;
+			return this.lineCount * lineHeight + 16;
 		}
 	}
 
@@ -417,7 +417,7 @@ class StatefullMarkdownCell extends Disposable {
 					}, {});
 					const model = viewCell.getTextModel();
 					this.editor.setModel(model);
-					let scrollHeight = this.editor!.getScrollHeight();
+					let scrollHeight = this.editor!.getLinesTotalHeight();
 
 					if (scrollHeight !== totalHeight) {
 						this.editor!.layout(
@@ -433,7 +433,7 @@ class StatefullMarkdownCell extends Disposable {
 						height: totalHeight
 					}, () => {
 						let newWidth = cellWidthResizeObserver.getWidth();
-						let scrollHeight = this.editor!.getScrollHeight();
+						let scrollHeight = this.editor!.getLinesTotalHeight();
 						this.editor!.layout(
 							{
 								width: newWidth,
@@ -449,13 +449,12 @@ class StatefullMarkdownCell extends Disposable {
 					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 
 					model.onDidChangeContent(() => {
-						let oldLineCnt = viewCell.lineCount;
 						viewCell.setText(model.getLinesContent());
 
 						let viewLayout = this.editor!.getLayoutInfo();
-						let scrollHeight = this.editor!.getScrollHeight();
+						let scrollHeight = this.editor!.getLinesTotalHeight();
 
-						if (scrollHeight !== oldLineCnt * lineHeight) {
+						if (scrollHeight !== viewLayout.contentHeight) {
 							this.editor!.layout(
 								{
 									width: viewLayout.width,
@@ -638,7 +637,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const lineNum = element.lineCount;
 		const lineHeight = this.handler.getFontInfo()?.lineHeight ?? 18;
-		const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
+		const totalHeight = lineNum * lineHeight;
 		const model = element.getTextModel();
 		templateData.editor?.setModel(model);
 		templateData.editor?.layout(
@@ -648,7 +647,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		);
 
-		let scrollHeight = templateData.editor?.getScrollHeight();
+		let scrollHeight = templateData.editor?.getLinesTotalHeight();
 
 		if (scrollHeight !== undefined && scrollHeight !== totalHeight) {
 			templateData.editor?.layout(
@@ -664,7 +663,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			height: totalHeight
 		}, () => {
 			let newWidth = cellWidthResizeObserver.getWidth();
-			let scrollHeight = templateData.editor!.getScrollHeight();
+			let scrollHeight = templateData.editor!.getLinesTotalHeight();
 			templateData.editor?.layout(
 				{
 					width: newWidth,
@@ -674,6 +673,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		});
 
 		cellWidthResizeObserver.startObserving();
+
+		let contentChangeListener = templateData.editor?.onDidChangeModelContent(() => {
+			let scrollHeight = templateData.editor!.getLinesTotalHeight();
+			let contentHeight = templateData.editor!.getLayoutInfo().contentHeight;
+			let contentWidth = templateData.editor!.getLayoutInfo().width;
+
+			if (scrollHeight !== contentHeight) {
+				templateData.editor!.layout(
+					{
+						width: contentWidth,
+						height: scrollHeight
+					}
+				);
+			}
+		});
 
 		let listener = DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
 			let { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
@@ -739,6 +753,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.disposables.set(templateData.cellContainer, {
 			dispose: () => {
 				listener.dispose();
+				contentChangeListener?.dispose();
 				rerenderOutput.dispose();
 				cellWidthResizeObserver.stopObserving();
 				cellWidthResizeObserver.dispose();
