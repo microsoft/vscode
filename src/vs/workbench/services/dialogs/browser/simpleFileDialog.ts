@@ -290,7 +290,12 @@ export class SimpleFileDialog {
 
 			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
-					uri = resources.removeTrailingPathSeparator(uri);
+					// If the uri is only the drive letter, make sure it has the trailing path separator
+					if (/^[a-zA-Z]:(\/$|\\$|$)/.test(uri.fsPath)) {
+						uri = resources.addTrailingPathSeparator(uri);
+					} else {
+						uri = resources.removeTrailingPathSeparator(uri);
+					}
 				}
 				resolve(uri);
 				dialog.contextKey.set(false);
