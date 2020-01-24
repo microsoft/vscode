@@ -52,7 +52,6 @@ import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceL
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -71,10 +70,11 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataAutoSync';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
-registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
+registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ILoggerService, FileLoggerService);

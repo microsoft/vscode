@@ -30,7 +30,7 @@ import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource, ITreeMouseEve
 import { AsyncDataTree, IAsyncDataTreeOptions, CompressibleAsyncDataTree, ITreeCompressionDelegate, ICompressibleAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
 
@@ -905,7 +905,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 		return automaticKeyboardNavigation;
 	};
 
-	const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+	const accessibilityOn = accessibilityService.isScreenReaderOptimized();
 	const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
 	const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 	const openOnSingleClick = useSingleClickToOpen(configurationService);
@@ -968,7 +968,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		const interestingContextKeys = new Set();
 		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
 		const updateKeyboardNavigation = () => {
-			const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+			const accessibilityOn = accessibilityService.isScreenReaderOptimized();
 			const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
 			tree.updateOptions({
 				simpleKeyboardNavigation: keyboardNavigation === 'simple',
@@ -1022,7 +1022,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					tree.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
 				}
 			}),
-			accessibilityService.onDidChangeAccessibilitySupport(() => updateKeyboardNavigation())
+			accessibilityService.onDidChangeScreenReaderOptimized(() => updateKeyboardNavigation())
 		);
 	}
 

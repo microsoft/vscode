@@ -213,7 +213,7 @@ export class ElectronWindow extends Disposable {
 			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
-		// keyboard layout changed event
+		// accessibility support changed event
 		ipc.on('vscode:accessibilitySupportChanged', (event: IpcEvent, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
