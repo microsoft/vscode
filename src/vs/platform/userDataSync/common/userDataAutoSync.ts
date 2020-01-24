@@ -30,20 +30,20 @@ export class UserDataAutoSync extends Disposable implements IUserDataAutoSyncSer
 	}
 
 	private async updateEnablement(stopIfDisabled: boolean, auto: boolean): Promise<void> {
-		const enabled = await this.isSyncEnabled();
+		const enabled = await this.isAutoSyncEnabled();
 		if (this.enabled === enabled) {
 			return;
 		}
 
 		this.enabled = enabled;
 		if (this.enabled) {
-			this.logService.info('Syncing configuration started');
+			this.logService.info('Auto sync started');
 			this.sync(true, auto);
 			return;
 		} else {
 			if (stopIfDisabled) {
 				this.userDataSyncService.stop();
-				this.logService.info('Syncing configuration stopped.');
+				this.logService.info('Auto sync stopped.');
 			}
 		}
 
@@ -57,6 +57,10 @@ export class UserDataAutoSync extends Disposable implements IUserDataAutoSyncSer
 						// Turned off everywhere. Reset & Stop Sync.
 						await this.userDataSyncService.resetLocal();
 						await this.userDataSyncUtilService.updateConfigurationValue('sync.enable', false);
+						return;
+					}
+					if (this.userDataSyncService.status !== SyncStatus.Idle) {
+						this.logService.info('Skipped auto sync as sync is happening');
 						return;
 					}
 				}
@@ -77,7 +81,7 @@ export class UserDataAutoSync extends Disposable implements IUserDataAutoSyncSer
 		return !hasRemote && hasPreviouslySynced;
 	}
 
-	private async isSyncEnabled(): Promise<boolean> {
+	private async isAutoSyncEnabled(): Promise<boolean> {
 		return this.configurationService.getValue<boolean>('sync.enable')
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
 			&& !!(await this.userDataAuthTokenService.getToken());

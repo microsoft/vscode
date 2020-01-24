@@ -187,8 +187,9 @@ export interface ISynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(_continue?: boolean): Promise<boolean>;
-	stop(): void;
+	sync(): Promise<void>;
+	stop(): Promise<void>;
+	restart(): Promise<void>;
 	hasPreviouslySynced(): Promise<boolean>
 	hasRemoteData(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
@@ -198,6 +199,7 @@ export interface ISynchroniser {
 export interface IUserDataSynchroniser extends ISynchroniser {
 	readonly source: SyncSource;
 	getRemoteContent(): Promise<string | null>;
+	resolveConflicts(content: string): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -209,6 +211,7 @@ export interface IUserDataSyncService extends ISynchroniser {
 	resetLocal(): Promise<void>;
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 	getRemoteContent(source: SyncSource): Promise<string | null>;
+	resolveConflictsAndContinueSync(content: string): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -250,7 +253,7 @@ export interface ISettingsSyncService extends IUserDataSynchroniser {
 	_serviceBrand: any;
 	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
 	readonly conflicts: IConflictSetting[];
-	resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
+	resolveSettingsConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
 }
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);

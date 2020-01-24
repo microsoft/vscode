@@ -24,13 +24,15 @@ export class UserDataSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'sync': return this.service.sync(args[0]);
+			case 'sync': return this.service.sync();
+			case 'resolveConflictsAndContinueSync': return this.service.resolveConflictsAndContinueSync(args[0]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
 			case 'removeExtension': return this.service.removeExtension(args[0]);
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'restart': return this.service.restart().then(() => this.service.status);
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
@@ -58,9 +60,11 @@ export class SettingsSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'sync': return this.service.sync(args[0]);
+			case 'sync': return this.service.sync();
+			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
+			case 'restart': return this.service.restart().then(() => this.service.status);
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
 			case 'stop': this.service.stop(); return Promise.resolve();
@@ -68,7 +72,7 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
 			case 'hasRemoteData': return this.service.hasRemoteData();
 			case 'hasLocalData': return this.service.hasLocalData();
-			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
+			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
 			case 'getRemoteContent': return this.service.getRemoteContent();
 		}
 		throw new Error('Invalid call');
