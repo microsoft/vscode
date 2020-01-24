@@ -25,10 +25,16 @@ jobs:
       name: Setup Build Environment
     - run: |
         sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+      name: Setup Display 1
+    - run: |
         sudo chmod +x /etc/init.d/xvfb
+      name: Setup Display 2
+    - run: |
         sudo update-rc.d xvfb defaults
+      name: Setup Display 3
+    - run: |
         sudo service xvfb start
-      name: Setup Display
+      name: Setup Display 4
     - uses: actions/setup-node@v1
       with:
         node-version: 10
