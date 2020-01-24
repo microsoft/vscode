@@ -271,7 +271,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (Types.isArray(info.options)) {
 						info.options.forEach(pickOption => {
 							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
-								missingAttribute('options');
+								missingAttribute('value');
 							}
 						});
 					} else {
@@ -280,7 +280,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					const picks = new Array<IQuickPickItem>();
 					info.options.forEach(pickOption => {
 						const value = Types.isString(pickOption) ? pickOption : pickOption.value;
-						const label = Types.isString(pickOption) ? undefined : pickOption.name;
+						const label = Types.isString(pickOption) ? undefined : pickOption.label;
 
 						// If there is no label defined, use value as label
 						const item: IQuickPickItem = {

@@ -84,9 +84,9 @@ export const inputsSchema: IJSONSchema = {
 											required: ['value'],
 											additionalProperties: false,
 											properties: {
-												name: {
+												label: {
 													type: 'string',
-													description: nls.localize('JsonSchema.input.pickString.optionName', "Display name for the option.")
+													description: nls.localize('JsonSchema.input.pickString.optionLabel', "Label for the option.")
 												},
 												value: {
 													type: 'string',
