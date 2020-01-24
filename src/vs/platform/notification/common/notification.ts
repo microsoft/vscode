@@ -64,7 +64,7 @@ export interface INeverShowAgainOptions {
 	isSecondary?: boolean;
 
 	/**
-	 * Wether to persist the choice in the current workspace or for all workspaces. By
+	 * Whether to persist the choice in the current workspace or for all workspaces. By
 	 * default it will be persisted for all workspaces.
 	 */
 	scope?: NeverShowAgainScope;
@@ -192,7 +192,7 @@ export interface IPromptChoice {
 	isSecondary?: boolean;
 
 	/**
-	 * Wether to keep the notification open after the choice was selected
+	 * Whether to keep the notification open after the choice was selected
 	 * by the user. By default, will close the notification upon click.
 	 */
 	keepOpen?: boolean;

@@ -174,7 +174,7 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	overwriteReadonly?: boolean;
 
 	/**
-	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
 	 * ask the user to authenticate as super user.
 	 */
 	writeElevated?: boolean;
@@ -255,7 +255,7 @@ export const enum ModelState {
 
 	/**
 	 * Any error that happens during a save that is not causing the CONFLICT state.
-	 * Models in error mode are always diry.
+	 * Models in error mode are always dirty.
 	 */
 	ERROR
 }
