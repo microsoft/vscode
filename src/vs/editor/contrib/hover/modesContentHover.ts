@@ -39,8 +39,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
@@ -194,8 +192,6 @@ const markerCodeActionTrigger: CodeActionTrigger = {
 	filter: { include: CodeActionKind.QuickFix }
 };
 
-type ModifierKey = 'meta' | 'ctrl' | 'alt';
-
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
@@ -209,7 +205,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 
-	private _clickModifierKey: ModifierKey;
 	private _codeLink?: HTMLElement;
 
 	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
@@ -221,7 +216,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService = NullOpenerService,
-		private readonly _configurationService: IConfigurationService
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 
@@ -258,16 +252,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				this._renderMessages(this._lastRange, this._messages);
 			}
 		}));
-
-		this._clickModifierKey = this._getClickModifierKey();
-		this._register((this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.multiCursorModifier')) {
-				this._clickModifierKey = this._getClickModifierKey();
-				if (this._codeLink) {
-					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
-				}
-			}
-		})));
 	}
 
 	dispose(): void {
@@ -532,15 +516,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						sourceElement.innerText = source;
 					}
 					this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
 					this._codeLink.setAttribute('href', code.link.toString());
 
 					this._codeLink.onclick = (e) => {
+						this._openerService.open(code.link);
 						e.preventDefault();
-						if ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)) {
-							this._openerService.open(code.link);
-							e.stopPropagation();
-						}
+						e.stopPropagation();
 					};
 
 					const codeElement = dom.append(this._codeLink, $('span'));
@@ -671,31 +652,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
-
-	private _getClickModifierKey(): ModifierKey {
-		const value = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
-		if (value === 'ctrlCmd') {
-			return 'alt';
-		} else {
-			if (OS === OperatingSystem.Macintosh) {
-				return 'meta';
-			} else {
-				return 'ctrl';
-			}
-		}
-	}
-
-	private _getCodelinkTooltip(): string {
-		const tooltipLabel = nls.localize('links.navigate.follow', 'Follow link');
-		const tooltipKeybinding = this._clickModifierKey === 'ctrl'
-			? nls.localize('links.navigate.kb.meta', 'ctrl + click')
-			:
-			this._clickModifierKey === 'meta'
-				? OS === OperatingSystem.Macintosh ? nls.localize('links.navigate.kb.meta.mac', 'cmd + click') : nls.localize('links.navigate.kb.meta', 'ctrl + click')
-				: OS === OperatingSystem.Macintosh ? nls.localize('links.navigate.kb.alt.mac', 'option + click') : nls.localize('links.navigate.kb.alt', 'alt + click');
-
-		return `${tooltipLabel} (${tooltipKeybinding})`;
-	}
 }
 
 function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
