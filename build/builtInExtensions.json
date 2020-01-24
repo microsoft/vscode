@@ -43,5 +43,21 @@
 			},
 			"publisherDisplayName": "Microsoft"
 		}
+	},
+	{
+		"name": "ms-vscode.js-debug-nightly",
+		"version": "latest",
+		"forQualities": ["insider"],
+		"repo": "https://github.com/Microsoft/vscode-js-debug",
+		"metadata": {
+			"id": "7acbb4ce-c85a-49d4-8d95-a8054406ae97",
+			"publisherId": {
+				"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+				"publisherName": "ms-vscode",
+				"displayName": "Microsoft",
+				"flags": "verified"
+			},
+			"publisherDisplayName": "Microsoft"
+		}
 	}
 ]
