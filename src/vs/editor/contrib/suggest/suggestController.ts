@@ -43,7 +43,7 @@ import { SuggestRangeHighlighter } from 'vs/editor/contrib/suggest/suggestRangeH
  * Stop suggest widget from disappearing when clicking into other areas
  * For development purpose only
  */
-const _sticky = false;
+const _sticky = true;
 
 class LineSuffix {
 
