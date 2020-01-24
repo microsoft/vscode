@@ -85,6 +85,21 @@ registerMineTypeRenderer(['error'], {
 	}
 });
 
+// Display Order
+//
+// application/json
+// application/javascript
+// text/html
+// image/svg+xml
+// text/markdown
+// text/latex
+// image/svg+xml
+// image/gif
+// image/png
+// image/jpeg
+// application/pdf
+// text/plain
+
 class RichDisplayRenderer implements IMimeRenderer {
 	render(output: any, themeService: IThemeService, webviewService: IWebviewService, notebookHandler: NotebookHandler): IRenderOutput {
 		const display = document.createElement('div');
@@ -92,21 +107,35 @@ class RichDisplayRenderer implements IMimeRenderer {
 		let hasDynamicHeight = false;
 		DOM.addClasses(display, 'display');
 
-		if (output.data && output.data['image/png']) {
-			const image = document.createElement('img');
-			image.src = `data:image/png;base64,${output.data['image/png']}`;
-			display.appendChild(image);
-			outputNode.appendChild(display);
-			hasDynamicHeight = true;
-		} else if (output.data && output.data['text/html']) {
-			let data = output.data['text/html'];
-			let str = isArray(data) ? data.join('') : data;
-			hasDynamicHeight = false;
-			return {
-				element: outputNode,
-				shadowContent: str,
-				hasDynamicHeight
-			};
+		if (output.data) {
+			if (output.data['text/html']) {
+				let data = output.data['text/html'];
+				let str = isArray(data) ? data.join('') : data;
+				hasDynamicHeight = false;
+				return {
+					element: outputNode,
+					shadowContent: str,
+					hasDynamicHeight
+				};
+			} else if (output.data['image/png']) {
+				const image = document.createElement('img');
+				image.src = `data:image/png;base64,${output.data['image/png']}`;
+				display.appendChild(image);
+				outputNode.appendChild(display);
+				hasDynamicHeight = true;
+			} else if (output.data['image/jpeg']) {
+				const image = document.createElement('img');
+				image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
+				display.appendChild(image);
+				outputNode.appendChild(display);
+				hasDynamicHeight = true;
+			} else if (output.data['text/plain']) {
+				let data = output.data['text/plain'];
+				let str = isArray(data) ? data.join('') : data;
+				const contentNode = document.createElement('p');
+				contentNode.innerText = str;
+				outputNode.appendChild(contentNode);
+			}
 		}
 
 		return {
@@ -114,8 +143,6 @@ class RichDisplayRenderer implements IMimeRenderer {
 			hasDynamicHeight
 		};
 	}
-
-
 }
 
 registerMineTypeRenderer(['display_data', 'execute_result'], new RichDisplayRenderer());

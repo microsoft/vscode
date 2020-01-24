@@ -164,7 +164,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		return;
 	}
 
-	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean> {
+	async deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
