@@ -76,7 +76,7 @@
 	height: 100%;
 }
 
-.monaco-workbench .pane > .pane-body > .empty-view,
+.monaco-workbench .pane > .pane-body:not(.empty) > .empty-view,
 .monaco-workbench .pane > .pane-body.empty > :not(.empty-view) {
 	display: none;
 }

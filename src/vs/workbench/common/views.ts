@@ -233,7 +233,9 @@ export interface IViewsRegistry {
 
 	getViewContainer(id: string): ViewContainer | null;
 
+	readonly onDidChangeEmptyViewContent: Event<string>;
 	registerEmptyViewContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
+	getEmptyViewContent(id: string): IViewContentDescriptor[];
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -246,6 +248,9 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 
 	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
+
+	private readonly _onDidChangeEmptyViewContent: Emitter<string> = this._register(new Emitter<string>());
+	readonly onDidChangeEmptyViewContent: Event<string> = this._onDidChangeEmptyViewContent.event;
 
 	private _viewContainers: ViewContainer[] = [];
 	private _views: Map<ViewContainer, IViewDescriptor[]> = new Map<ViewContainer, IViewDescriptor[]>();
@@ -301,7 +306,18 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 
 	registerEmptyViewContent(id: string, viewContent: IViewContentDescriptor): IDisposable {
 		this._emptyViewContents.add(id, viewContent);
-		return toDisposable(() => this._emptyViewContents.delete(id, viewContent));
+		this._onDidChangeEmptyViewContent.fire(id);
+
+		return toDisposable(() => {
+			this._emptyViewContents.delete(id, viewContent);
+			this._onDidChangeEmptyViewContent.fire(id);
+		});
+	}
+
+	getEmptyViewContent(id: string): IViewContentDescriptor[] {
+		const result: IViewContentDescriptor[] = [];
+		this._emptyViewContents.forEach(id, descriptor => result.push(descriptor));
+		return result;
 	}
 
 	private addViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
