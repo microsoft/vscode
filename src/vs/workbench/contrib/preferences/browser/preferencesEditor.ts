@@ -1021,6 +1021,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.minimap = {
 				enabled: false
 			};
+			options.renderValidationDecorations = 'editable';
 		}
 		return options;
 	}

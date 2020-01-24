@@ -63,6 +63,7 @@ export class LogViewer extends AbstractTextResourceEditor {
 		options.wordWrap = 'off'; // all log viewers do not wrap
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
+		options.renderValidationDecorations = 'editable';
 		return options;
 	}
 }
