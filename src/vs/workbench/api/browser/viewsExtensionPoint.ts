@@ -37,7 +37,6 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-// import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;

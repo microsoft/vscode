@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions, IViewDescriptorService, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ITreeItemLabel, Extensions, IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -162,8 +162,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		@IProgressService private readonly progressService: IProgressService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 		this.root = new Root();
@@ -174,8 +174,21 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.doRefresh([this.root]); /** soft refresh **/
 			}
 		}));
+		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+			if (views.some(v => v.id === this.id)) {
+				this.tree?.updateOptions({ overrideStyles: { listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND } });
+			}
+		}));
 
 		this.create();
+	}
+
+	get viewContainer(): ViewContainer {
+		return this.viewDescriptorService.getViewContainer(this.id)!;
+	}
+
+	get viewLocation(): ViewContainerLocation {
+		return this.viewDescriptorService.getViewLocation(this.id)!;
 	}
 
 	private _dataProvider: ITreeViewDataProvider | undefined;
@@ -356,7 +369,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			},
 			multipleSelectionSupport: this.canSelectMany,
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;

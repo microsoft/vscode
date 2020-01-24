@@ -184,6 +184,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
 
+	private readonly _onDidChangeLocation: Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>());
+	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }> = this._onDidChangeLocation.event;
+
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
@@ -298,6 +301,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const viewDescriptor = this.getViewDescriptor(viewId);
 			if (viewContainer && viewDescriptor) {
 				this.addViews(viewContainer, [viewDescriptor]);
+
+				const newLocation = this.viewContainersRegistry.getViewContainerLocation(viewContainer)!;
+				if (containerInfo.location && containerInfo.location !== newLocation) {
+					this._onDidChangeLocation.fire({ views: [viewDescriptor], from: containerInfo.location, to: newLocation });
+				}
 			}
 		}
 
@@ -399,6 +407,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (from && to && from !== to) {
 			this.removeViews(from, views);
 			this.addViews(to, views);
+
+			const oldLocation = this.viewContainersRegistry.getViewContainerLocation(from)!;
+			const newLocation = this.viewContainersRegistry.getViewContainerLocation(to)!;
+
+			if (oldLocation !== newLocation) {
+				this._onDidChangeLocation.fire({ views, from: oldLocation, to: newLocation });
+			}
+
 			this._onDidChangeContainer.fire({ views, from, to });
 			this.saveViewPositionsToCache();
 		}

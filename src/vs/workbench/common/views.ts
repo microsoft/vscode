@@ -349,9 +349,7 @@ export interface IViewsViewlet extends IViewlet {
 
 }
 
-export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 export const IViewsService = createDecorator<IViewsService>('viewsService');
-
 
 export interface IViewsService {
 	_serviceBrand: undefined;
@@ -361,12 +359,14 @@ export interface IViewsService {
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 }
 
+export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
 export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 
