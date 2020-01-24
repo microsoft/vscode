@@ -123,15 +123,18 @@ export interface IUserData {
 	content: string | null;
 }
 
-export enum UserDataSyncStoreErrorCode {
+export enum UserDataSyncErrorCode {
+	TooLarge = 'TooLarge',
 	Unauthroized = 'Unauthroized',
 	Rejected = 'Rejected',
-	Unknown = 'Unknown'
+	Unknown = 'Unknown',
+	TooManyFailures = 'TooManyFailures',
+	ConnectionRefused = 'ConnectionRefused'
 }
 
-export class UserDataSyncStoreError extends Error {
+export class UserDataSyncError extends Error {
 
-	constructor(message: string, public readonly code: UserDataSyncStoreErrorCode) {
+	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly source?: SyncSource) {
 		super(message);
 	}
 
@@ -151,8 +154,8 @@ export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreServi
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
-	write(key: string, content: string, ref: string | null): Promise<string>;
+	read(key: string, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData>;
+	write(key: string, content: string, ref: string | null, source?: SyncSource): Promise<string>;
 	clear(): Promise<void>;
 }
 
@@ -217,6 +220,7 @@ export interface IUserDataSyncService extends ISynchroniser {
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
+	onError: Event<{ code: UserDataSyncErrorCode, source?: SyncSource }>;
 	triggerAutoSync(): Promise<void>;
 }
 

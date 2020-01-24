@@ -84,6 +84,9 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	constructor(private readonly service: IUserDataAutoSyncService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onError': return this.service.onError;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 

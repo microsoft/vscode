@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -44,6 +44,8 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { areSame } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsSync';
 import type { IEditorInput } from 'vs/workbench/common/editor';
+import { Action } from 'vs/base/common/actions';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -91,6 +93,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -104,6 +107,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => this.onDidRegisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this.onDidUnregisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidChangeSessions(e => this.onDidChangeSessions(e)));
+			this._register(userDataAutoSyncService.onError(({ code, source }) => this.onAutoSyncError(code, source)));
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
 				if (isWeb) {
@@ -243,6 +247,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		} else {
 			this.signInNotificationDisposable.clear();
+		}
+	}
+
+	private onAutoSyncError(code: UserDataSyncErrorCode, source?: SyncSource): void {
+		switch (code) {
+			case UserDataSyncErrorCode.TooManyFailures:
+				this.disableSync();
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('too many errors', "Turned off sync because of too many failure attempts. Please open Sync log to check the failures and turn on sync."),
+					actions: {
+						primary: [new Action('open sync log', localize('open log', "Show logs"), undefined, true, () => this.showSyncLog())]
+					}
+				});
+				return;
+			case UserDataSyncErrorCode.TooLarge:
+				if (source === SyncSource.Keybindings || source === SyncSource.Settings) {
+					const sourceArea = getSyncAreaLabel(source);
+					this.disableSync();
+					this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('too large', "Turned off sync because size of the {0} file to sync is larger than {1}. Please open the file and reduce the size and turn on sync", sourceArea, '1MB'),
+						actions: {
+							primary: [new Action('open sync log', localize('open file', "Show {0} file", sourceArea), undefined, true,
+								() => source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+						}
+					});
+				}
+				return;
 		}
 	}
 
@@ -406,11 +439,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		});
 		if (result.confirmed) {
-			await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, undefined, ConfigurationTarget.USER);
+			await this.disableSync();
 			if (result.checkboxChecked) {
 				await this.userDataSyncService.reset();
 			}
 		}
+	}
+
+	private disableSync(): Promise<void> {
+		return this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, undefined, ConfigurationTarget.USER);
 	}
 
 	private async signIn(): Promise<void> {
