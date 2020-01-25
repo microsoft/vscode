@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
