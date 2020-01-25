@@ -412,7 +412,9 @@ export class SearchEditor extends BaseEditor {
 
 		if (this.searchResultEditor.hasWidgetFocus()) {
 			const viewState = this.searchResultEditor.saveViewState();
-			input.viewState = { focused: 'editor', state: assertIsDefined(withNullAsUndefined(viewState)) };
+			if (viewState) {
+				input.viewState = { focused: 'editor', state: viewState };
+			}
 		} else {
 			input.viewState = { focused: 'input' };
 		}
