@@ -234,7 +234,7 @@ export class SearchEditor extends BaseEditor {
 		this.queryEditorWidget.toggleContextLines();
 	}
 
-	private async runSearch(instant = false) {
+	async runSearch(instant = false) {
 		if (!this.pauseSearching) {
 			this.runSearchDelayer.trigger(() => this.doRunSearch(), instant ? 0 : undefined);
 		}
