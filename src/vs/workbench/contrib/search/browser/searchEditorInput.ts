@@ -85,6 +85,10 @@ export class SearchEditorInput extends EditorInput {
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
 	}
 
+	getResource() {
+		return this.resource;
+	}
+
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
 		if (this.resource.scheme === 'search-editor') {
 			const path = await this.promptForPath(this.resource, await this.suggestFileName(), options?.availableFileSystems);
