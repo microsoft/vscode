@@ -227,10 +227,6 @@ export class DynamicMarkdownPreview extends Disposable {
 			}
 		}));
 
-		this._register(vscode.workspace.onDidChangeConfiguration(_ => {
-			this.doUpdate(true);
-		}));
-
 		this.doUpdate();
 	}
 
