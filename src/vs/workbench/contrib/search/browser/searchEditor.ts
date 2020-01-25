@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -169,7 +169,7 @@ export class SearchEditor extends BaseEditor {
 			}
 		});
 
-
+		this._register(this.onDidBlur(() => this.saveViewState()));
 
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
@@ -181,6 +181,10 @@ export class SearchEditor extends BaseEditor {
 				this._register(tracker.onDidFocus(() => setTimeout(() => this.inputFocusContextKey.set(true), 0)));
 				this._register(tracker.onDidBlur(() => this.inputFocusContextKey.set(false)));
 			});
+	}
+
+	focus() {
+		this.restoreViewState();
 	}
 
 	focusNextInput() {
@@ -334,10 +338,6 @@ export class SearchEditor extends BaseEditor {
 		this.reLayout();
 	}
 
-	focusInput() {
-		this.queryEditorWidget.focus();
-	}
-
 	getSelected() {
 		const selection = this.searchResultEditor.getSelection();
 		if (selection) {
@@ -360,6 +360,8 @@ export class SearchEditor extends BaseEditor {
 	}
 
 	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		this.saveViewState();
+
 		await super.setInput(newInput, options, token);
 		this.inSearchEditorContextKey.set(true);
 
@@ -379,7 +381,7 @@ export class SearchEditor extends BaseEditor {
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(query.useIgnores);
 		this.toggleIncludesExcludes(query.showIncludesExcludes);
 
-		this.focusInput();
+		this.restoreViewState();
 		this.pauseSearching = false;
 	}
 
@@ -404,7 +406,30 @@ export class SearchEditor extends BaseEditor {
 		return this.searchResultEditor.getModel();
 	}
 
+	private saveViewState() {
+		const input = this.getInput();
+		if (!input) { return; }
+
+		if (this.searchResultEditor.hasWidgetFocus()) {
+			const viewState = this.searchResultEditor.saveViewState();
+			input.viewState = { focused: 'editor', state: assertIsDefined(withNullAsUndefined(viewState)) };
+		} else {
+			input.viewState = { focused: 'input' };
+		}
+	}
+
+	private restoreViewState() {
+		const input = this.getInput();
+		if (input && input.viewState && input.viewState.focused === 'editor') {
+			this.searchResultEditor.restoreViewState(input.viewState.state);
+			this.searchResultEditor.focus();
+		} else {
+			this.queryEditorWidget.focus();
+		}
+	}
+
 	clearInput() {
+		this.saveViewState();
 		super.clearInput();
 		this.inSearchEditorContextKey.set(false);
 	}

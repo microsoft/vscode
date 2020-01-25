@@ -27,6 +27,7 @@ import { IWorkingCopyService, WorkingCopyCapabilities, IWorkingCopy, IWorkingCop
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { assertIsDefined } from 'vs/base/common/types';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
+import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 
 export type SearchConfiguration = {
 	query: string,
@@ -40,12 +41,17 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
+type SearchEditorViewState =
+	| { focused: 'input' }
+	| { focused: 'editor', state: ICodeEditorViewState };
+
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
 	private dirty: boolean = false;
 	private readonly model: Promise<ITextModel>;
 	private resolvedModel?: { model: ITextModel, query: SearchConfiguration };
+	viewState: SearchEditorViewState = { focused: 'input' };
 
 	constructor(
 		public readonly resource: URI,
@@ -249,13 +255,14 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 
 		const config = input.getConfigSync();
 
-		return JSON.stringify({ resource, dirty: input.isDirty(), config });
+		return JSON.stringify({ resource, dirty: input.isDirty(), config, viewState: input.viewState });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, viewState } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration(config), uri: URI.parse(resource) });
+			input.viewState = viewState;
 			input.setDirty(dirty);
 			return input;
 		}
