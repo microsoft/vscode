@@ -60,7 +60,7 @@ function getSyncAreaLabel(source: SyncSource): string {
 		case SyncSource.Settings: return localize('settings', "Settings");
 		case SyncSource.Keybindings: return localize('keybindings', "Keybindings");
 		case SyncSource.Extensions: return localize('extensions', "Extensions");
-		case SyncSource.UIState: return localize('ui state label', "UI State");
+		case SyncSource.GlobalState: return localize('ui state label', "UI State");
 	}
 }
 
@@ -367,7 +367,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			label: getSyncAreaLabel(SyncSource.Extensions)
 		}, {
 			id: 'sync.enableUIState',
-			label: getSyncAreaLabel(SyncSource.UIState),
+			label: getSyncAreaLabel(SyncSource.GlobalState),
 			description: localize('ui state description', "Display Language (Only)")
 		}];
 	}

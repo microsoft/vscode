@@ -9,7 +9,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -253,10 +252,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.info('Completed resetting local cache');
 	}
 
-	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
-		return this.extensionsSynchroniser.removeExtension(identifier);
-	}
-
 	private updateStatus(): void {
 		const status = this.computeStatus();
 		if (this._status !== status) {
@@ -309,7 +304,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (synchroniser instanceof ExtensionsSynchroniser) {
 			return SyncSource.Extensions;
 		}
-		return SyncSource.UIState;
+		return SyncSource.GlobalState;
 	}
 
 	private onDidChangeAuthTokenStatus(token: string | undefined): void {
