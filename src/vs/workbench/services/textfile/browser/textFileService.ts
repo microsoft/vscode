@@ -598,26 +598,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		});
 
 		await Promise.all(fileModels.map(async model => {
-			try {
-				await model.revert(options);
+			await model.revert(options);
 
-				// If model is still dirty, mark the resulting operation as error
-				if (model.isDirty()) {
-					const result = mapResourceToResult.get(model.resource);
-					if (result) {
-						result.error = true;
-					}
-				}
-			} catch (error) {
-
-				// FileNotFound means the file got deleted meanwhile, so ignore it
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					return;
-				}
-
-				// Otherwise bubble up the error
-				else {
-					throw error;
+			// If model is still dirty, mark the resulting operation as error
+			if (model.isDirty()) {
+				const result = mapResourceToResult.get(model.resource);
+				if (result) {
+					result.error = true;
 				}
 			}
 		}));
