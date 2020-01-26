@@ -11,6 +11,7 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { isArray } from 'vs/base/common/types';
 import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IOutput } from 'vs/editor/common/modes';
+import * as marked from 'vs/base/common/marked/marked';
 
 export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
 	types.forEach(type => {
@@ -101,6 +102,8 @@ registerMineTypeRenderer(['error'], {
 // text/plain
 
 class RichDisplayRenderer implements IMimeRenderer {
+	private _mdRenderer: marked.Renderer = new marked.Renderer({ gfm: true });;
+
 	render(output: any, themeService: IThemeService, webviewService: IWebviewService, notebookHandler: NotebookHandler): IRenderOutput {
 		const display = document.createElement('div');
 		const outputNode = document.createElement('div');
@@ -117,6 +120,13 @@ class RichDisplayRenderer implements IMimeRenderer {
 					shadowContent: str,
 					hasDynamicHeight
 				};
+			} else if (output.data['text/markdown']) {
+				let data = output.data['text/markdown'];
+				const str = isArray(data) ? data.join('') : data;
+				const mdOutput = document.createElement('div');
+				mdOutput.innerHTML = marked(str, { renderer: this._mdRenderer });
+				outputNode.appendChild(mdOutput);
+				hasDynamicHeight = true;
 			} else if (output.data['image/png']) {
 				const image = document.createElement('img');
 				image.src = `data:image/png;base64,${output.data['image/png']}`;
