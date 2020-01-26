@@ -268,7 +268,7 @@ export class TestTextFileService extends NativeTextFileService {
 		};
 	}
 
-	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
+	promptForPath(_resource: URI, availableFileSystems?: string[]): Promise<URI> {
 		return Promise.resolve(this.promptPath);
 	}
 }

@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextEditorInput, GroupIdentifier, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextEditorInput } from 'vs/workbench/common/editor';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
@@ -166,16 +166,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		return this.hasAssociatedFilePath;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		if (this.cachedModel) {
-			this.cachedModel.revert();
-		}
-
-		this.dispose(); // a reverted untitled text editor is no longer valid, so we dispose it
-
-		return true;
-	}
-
 	getEncoding(): string | undefined {
 		if (this.cachedModel) {
 			return this.cachedModel.getEncoding();
@@ -246,6 +236,9 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
+
+		// a disposed untitled text editor model renders this input disposed
+		this._register(model.onDispose(() => this.dispose()));
 	}
 
 	matches(otherInput: unknown): boolean {

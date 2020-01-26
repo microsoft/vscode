@@ -43,11 +43,12 @@ suite('Workbench untitled text editors', () => {
 		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
 	});
 
-	test('basics', async (done) => {
+	test('basics', async () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
 		const input1 = service.create();
+		await input1.resolve();
 		assert.equal(input1, service.create({ untitledResource: input1.getResource() }));
 		assert.equal(service.get(input1.getResource()), input1);
 
@@ -62,51 +63,57 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(service.get(input2.getResource()), input2);
 
 		// revert()
-		input1.revert(0);
+		await input1.revert(0);
 		assert.ok(input1.isDisposed());
 		assert.ok(!service.get(input1.getResource()));
 
 		// dirty
 		const model = await input2.resolve();
 		assert.equal(await service.resolve({ untitledResource: input2.getResource() }), model);
+		assert.ok(service.exists(model.resource));
 
 		assert.ok(!input2.isDirty());
 
-		const listener = service.onDidChangeDirty(resource => {
-			listener.dispose();
-
-			assert.equal(resource.toString(), input2.getResource().toString());
-
-			assert.ok(input2.isDirty());
-
-			assert.ok(workingCopyService.isDirty(input2.getResource()));
-			assert.equal(workingCopyService.dirtyCount, 1);
-
-			input1.revert(0);
-			input2.revert(0);
-			assert.ok(!service.get(input1.getResource()));
-			assert.ok(!service.get(input2.getResource()));
-			assert.ok(!input2.isDirty());
-			assert.ok(!model.isDirty());
-
-			assert.ok(!workingCopyService.isDirty(input2.getResource()));
-			assert.equal(workingCopyService.dirtyCount, 0);
-
-			assert.ok(input1.revert(0));
-			assert.ok(input1.isDisposed());
-			assert.ok(!service.exists(input1.getResource()));
-
-			input2.dispose();
-			assert.ok(!service.exists(input2.getResource()));
-
-			done();
-		});
+		const resourcePromise = awaitDidChangeDirty(accessor.untitledTextEditorService);
 
 		model.textEditorModel.setValue('foo bar');
-		model.dispose();
-		input1.dispose();
+
+		const resource = await resourcePromise;
+
+		assert.equal(resource.toString(), input2.getResource().toString());
+
+		assert.ok(input2.isDirty());
+
+		assert.ok(workingCopyService.isDirty(input2.getResource()));
+		assert.equal(workingCopyService.dirtyCount, 1);
+
+		await input1.revert(0);
+		await input2.revert(0);
+		assert.ok(!service.get(input1.getResource()));
+		assert.ok(!service.get(input2.getResource()));
+		assert.ok(!input2.isDirty());
+		assert.ok(!model.isDirty());
+
+		assert.ok(!workingCopyService.isDirty(input2.getResource()));
+		assert.equal(workingCopyService.dirtyCount, 0);
+
+		assert.equal(await input1.revert(0), false);
+		assert.ok(input1.isDisposed());
+		assert.ok(!service.exists(input1.getResource()));
+
 		input2.dispose();
+		assert.ok(!service.exists(input2.getResource()));
 	});
+
+	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
+		return new Promise(c => {
+			const listener = service.onDidChangeDirty(async resource => {
+				listener.dispose();
+
+				c(resource);
+			});
+		});
+	}
 
 	test('associated resource is dirty', () => {
 		const service = accessor.untitledTextEditorService;
@@ -357,6 +364,23 @@ suite('Workbench untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+	});
+
+	test('model#onDispose when reverted', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		const model = await input.resolve();
+		model.onDispose(() => counter++);
+
+		model.textEditorModel.setValue('foo');
+
+		await model.revert();
+
+		assert.ok(input.isDisposed());
+		assert.ok(counter > 1);
 	});
 
 	test('model#onDidChangeName and input name', async function () {

@@ -593,9 +593,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
+			const model = this.untitled.exists(resource) ? await this.untitled.resolve({ untitledResource: resource }) : undefined;
 			if (model) {
-				return model.revert(0, options);
+				return model.revert(options);
 			}
 
 			return false;
@@ -616,6 +616,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		});
 
 		await Promise.all(fileModels.map(async model => {
+
+			// Revert through model
 			await model.revert(options);
 
 			// If model is still dirty, mark the resulting operation as error

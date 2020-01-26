@@ -123,6 +123,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
+	isReadonly(): boolean {
+		return false;
+	}
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
@@ -144,6 +148,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	async revert(): Promise<boolean> {
 		this.setDirty(false);
+
+		// A reverted untitled model is invalid because it has
+		// no actual source on disk to revert to. As such we
+		// dispose the model.
+		this.dispose();
 
 		return true;
 	}
@@ -251,9 +260,5 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.cachedModelFirstLineWords = modelFirstWordsCandidate;
 			this._onDidChangeName.fire();
 		}
-	}
-
-	isReadonly(): boolean {
-		return false;
 	}
 }
