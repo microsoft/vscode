@@ -81,7 +81,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.ok(res);
+		assert.equal(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -94,7 +94,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.ok(res);
+		assert.equal(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 

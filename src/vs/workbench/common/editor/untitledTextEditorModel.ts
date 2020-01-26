@@ -136,8 +136,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this._onDidChangeDirty.fire();
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	async save(options?: ISaveOptions): Promise<boolean> {
+		const target = await this.textFileService.save(this.resource, options);
+
+		return !!target;
 	}
 
 	async revert(): Promise<boolean> {

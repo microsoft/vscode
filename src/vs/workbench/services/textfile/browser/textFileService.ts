@@ -298,7 +298,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region save
 
-	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
@@ -318,9 +318,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Save as if target provided
 				if (targetUri) {
-					await this.saveAs(resource, targetUri, options);
-
-					return true;
+					return this.saveAs(resource, targetUri, options);
 				}
 			}
 		}
@@ -333,11 +331,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Save with options
 				await model.save(options);
 
-				return !model.isDirty();
+				return !model.isDirty() ? resource : undefined;
 			}
 		}
 
-		return false;
+		return undefined;
 	}
 
 	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
@@ -378,9 +376,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Just save if target is same as models own resource
 		if (source.toString() === target.toString()) {
-			await this.save(source, options);
-
-			return source;
+			return this.save(source, options);
 		}
 
 		// Do it

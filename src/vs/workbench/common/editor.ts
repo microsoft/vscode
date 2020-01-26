@@ -26,6 +26,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isEqual } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
+import { Schemas } from 'vs/base/common/network';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -430,14 +431,14 @@ export interface IEditorInput extends IDisposable {
 	 * to e.g. preserve view state of the editor and re-open it
 	 * in the correct group after saving.
 	 */
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
 
 	/**
 	 * Saves the editor to a different location. The provided groupId
 	 * helps implementors to e.g. preserve view state of the editor
 	 * and re-open it in the correct group after saving.
 	 */
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
 
 	/**
 	 * Reverts this input from the provided group.
@@ -534,11 +535,11 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return false;
 	}
 
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		return true;
 	}
 
-	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		return true;
 	}
 
@@ -586,26 +587,36 @@ export abstract class TextEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+		return this.doSave(group, options, false);
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options));
+		return this.doSave(group, options, true);
 	}
 
-	protected async doSaveAs(group: GroupIdentifier, options: ISaveOptions | undefined, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
+	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<boolean> {
+		const isUntitled = this.resource.scheme === Schemas.untitled;
 
-		// Preserve view state by opening the editor first. In addition
-		// this allows the user to review the contents of the editor.
+		// Preserve view state by opening the editor first if the editor
+		// is untitled or we "Save As" and we are not closing editors.
+		// In addition this allows the user to review the contents of the editor.
 		let viewState: IEditorViewState | undefined = undefined;
-		const editor = await this.editorService.openEditor(this, undefined, group);
-		if (isTextEditor(editor)) {
-			viewState = editor.getViewState();
+		if (options?.context !== SaveContext.EDITOR_CLOSE && (saveAs || isUntitled)) {
+			const editor = await this.editorService.openEditor(this, undefined, group);
+			if (isTextEditor(editor)) {
+				viewState = editor.getViewState();
+			}
 		}
 
-		// Save as
-		const target = await saveRunnable();
+		// Save / Save As
+		let target: URI | undefined;
+		if (saveAs) {
+			target = await this.textFileService.saveAs(this.resource, undefined, options);
+		} else {
+			target = await this.textFileService.save(this.resource, options);
+		}
+
 		if (!target) {
 			return false; // save cancelled
 		}
@@ -616,7 +627,7 @@ export abstract class TextEditorInput extends EditorInput {
 		// (because in that case we do not want to open a different editor anyway)
 		if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(target, this.resource)) {
 			const replacement = this.editorService.createInput({ resource: target });
-			const targetGroups = replaceAllEditors ? this.editorGroupService.groups.map(group => group.id) : [group];
+			const targetGroups = isUntitled ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [group];
 			for (const group of targetGroups) {
 				await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true, viewState } }], group);
 			}
@@ -749,12 +760,12 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isSaving();
 	}
 
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return this.master.save(groupId, options);
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		return this.master.save(group, options);
 	}
 
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return this.master.saveAs(groupId, options);
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		return this.master.saveAs(group, options);
 	}
 
 	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
