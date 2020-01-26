@@ -33,6 +33,7 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { coalesce } from 'vs/base/common/arrays';
+import { suggestFilename } from 'vs/base/common/mime';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -306,12 +307,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Untitled with associated file path don't need to prompt
 				if (model.hasAssociatedFilePath) {
-					targetUri = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
+					targetUri = this.suggestSavePath(resource);
 				}
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.promptForPath(resource, this.suggestUntitledFilePath(resource));
+					targetUri = await this.promptForPath(resource, options?.availableFileSystems);
 				}
 
 				// Save as if target provided
@@ -336,12 +337,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return undefined;
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+	protected async promptForPath(resource: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
-		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
+		return this.fileDialogService.pickFileToSave(this.suggestSavePath(resource), availableFileSystems);
 	}
 
 	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
@@ -360,12 +361,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Get to target resource
 		if (!target) {
-			let dialogPath = source;
-			if (source.scheme === Schemas.untitled) {
-				dialogPath = this.suggestUntitledFilePath(source);
-			}
-
-			target = await this.promptForPath(source, dialogPath, options?.availableFileSystems);
+			target = await this.promptForPath(source, options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -544,27 +540,49 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
-	private suggestUntitledFilePath(untitledResource: URI): URI {
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const targetScheme = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+	private suggestSavePath(resource: URI): URI {
 
-		// Untitled with associated file path
-		const model = this.untitledTextEditorService.get(untitledResource);
-		if (model?.hasAssociatedFilePath) {
-			return untitledResource.with({ scheme: targetScheme });
+		// Just take the resource as is if the file service can handle it
+		if (this.fileService.canHandleResource(resource)) {
+			return resource;
 		}
 
-		// Untitled without associated file path
-		const untitledFileName = model?.suggestFileName() ?? basename(untitledResource);
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+
+		// Otherwise try to suggest a path that can be saved
+		let suggestedFilename: string | undefined = undefined;
+		if (resource.scheme === Schemas.untitled) {
+			const model = this.untitledTextEditorService.get(resource);
+			if (model) {
+
+				// Untitled with associated file path
+				if (model.hasAssociatedFilePath) {
+					return toLocalResource(resource, remoteAuthority);
+				}
+
+				// Untitled without associated file path
+				const mode = model.getMode();
+				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
+					suggestedFilename = suggestFilename(mode, model.getName());
+				} else {
+					suggestedFilename = model.getName();
+				}
+			}
+		}
+
+		// Fallback to basename of resource
+		if (!suggestedFilename) {
+			suggestedFilename = basename(resource);
+		}
 
 		// Try to place where last active file was if any
-		const defaultFilePath = this.fileDialogService.defaultFilePath(targetScheme);
+		const defaultFilePath = this.fileDialogService.defaultFilePath();
 		if (defaultFilePath) {
-			return joinPath(defaultFilePath, untitledFileName);
+			return joinPath(defaultFilePath, suggestedFilename);
 		}
 
 		// Finally fallback to suggest just the file name
-		return untitledResource.with({ scheme: targetScheme, path: untitledFileName });
+		return toLocalResource(resource.with({ path: suggestedFilename }), remoteAuthority);
 	}
 
 	//#endregion

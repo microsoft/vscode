@@ -168,14 +168,6 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('suggest name', function () {
-		const service = accessor.untitledTextEditorService;
-		const input = service.create();
-
-		assert.ok(input.suggestFileName().length > 0);
-		input.dispose();
-	});
-
 	test('associated path remains dirty when content gets empty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));

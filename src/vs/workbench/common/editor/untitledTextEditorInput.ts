@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { suggestFilename } from 'vs/base/common/mime';
 import { createMemoizer } from 'vs/base/common/decorators';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextEditorInput, GroupIdentifier, IRevertOptions } from 'vs/workbench/common/editor';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
@@ -176,19 +174,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		this.dispose(); // a reverted untitled text editor is no longer valid, so we dispose it
 
 		return true;
-	}
-
-	suggestFileName(): string {
-		if (!this.hasAssociatedFilePath) {
-			if (this.cachedModel) {
-				const mode = this.cachedModel.getMode();
-				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					return suggestFilename(mode, this.getName());
-				}
-			}
-		}
-
-		return this.getName();
 	}
 
 	getEncoding(): string | undefined {
