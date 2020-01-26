@@ -802,7 +802,7 @@ export class SearchView extends ViewPane {
 		}
 
 		// Expand until first child is a Match
-		while (!(next instanceof Match)) {
+		while (next && !(next instanceof Match)) {
 			if (this.tree.isCollapsed(next)) {
 				this.tree.expand(next);
 			}
