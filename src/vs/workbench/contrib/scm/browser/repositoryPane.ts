@@ -367,20 +367,24 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 	}
 }
 
+function getSCMResourceId(element: TreeElement): string {
+	if (ResourceTree.isResourceNode(element)) {
+		const group = element.context;
+		return `${group.provider.contextValue}/${group.id}/$FOLDER/${element.uri.toString()}`;
+	} else if (isSCMResource(element)) {
+		const group = element.resourceGroup;
+		const provider = group.provider;
+		return `${provider.contextValue}/${group.id}/${element.sourceUri.toString()}`;
+	} else {
+		const provider = element.provider;
+		return `${provider.contextValue}/${element.id}`;
+	}
+}
+
 class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 
 	getId(element: TreeElement): string {
-		if (ResourceTree.isResourceNode(element)) {
-			const group = element.context;
-			return `${group.provider.contextValue}/${group.id}/$FOLDER/${element.uri.toString()}`;
-		} else if (isSCMResource(element)) {
-			const group = element.resourceGroup;
-			const provider = group.provider;
-			return `${provider.contextValue}/${group.id}/${element.sourceUri.toString()}`;
-		} else {
-			const provider = element.provider;
-			return `${provider.contextValue}/${element.id}`;
-		}
+		return getSCMResourceId(element);
 	}
 }
 
@@ -391,19 +395,31 @@ interface IGroupItem {
 	readonly disposable: IDisposable;
 }
 
-function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompressedTreeElement<TreeElement> {
-	const children = mode === ViewModelMode.List
-		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
-		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
-
-	return { element: item.group, children, incompressible: true, collapsible: true };
+interface IViewState {
+	readonly expanded: Set<string>;
 }
 
-function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean): ICompressedTreeElement<TreeElement> {
+function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode, viewState?: IViewState): ICompressedTreeElement<TreeElement> {
+	const children = mode === ViewModelMode.List
+		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
+		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true, viewState));
+
+	const element = item.group;
+	const collapsed = viewState ? !viewState.expanded.has(getSCMResourceId(element)) : false;
+
+	return { element, children, incompressible: true, collapsed, collapsible: true };
+}
+
+function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean, viewState?: IViewState): ICompressedTreeElement<TreeElement> {
+	const element = (node.childrenCount === 0 && node.element) ? node.element : node;
+	const collapsed = viewState ? !viewState.expanded.has(getSCMResourceId(element)) : false;
+
 	return {
-		element: (node.childrenCount === 0 && node.element) ? node.element : node,
-		children: Iterator.map(node.children, node => asTreeElement(node, false)),
-		incompressible: !!node.element || forceIncompressible
+		element,
+		children: Iterator.map(node.children, node => asTreeElement(node, false, viewState)),
+		incompressible: !!node.element || forceIncompressible,
+		collapsed,
+		collapsible: node.childrenCount > 0
 	};
 }
 
@@ -439,6 +455,7 @@ class ViewModel {
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private firstVisible = true;
+	private viewState: IViewState | undefined;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -449,7 +466,7 @@ class ViewModel {
 		@IConfigurationService protected configurationService: IConfigurationService,
 	) { }
 
-	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
+	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>, viewState?: IViewState): void {
 		const itemsToInsert: IGroupItem[] = [];
 
 		for (const group of toInsert) {
@@ -477,7 +494,7 @@ class ViewModel {
 			item.disposable.dispose();
 		}
 
-		this.refresh();
+		this.refresh(undefined, viewState);
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
@@ -500,7 +517,8 @@ class ViewModel {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
 			this.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
-			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements });
+			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements }, this.viewState);
+			this.viewState = undefined;
 
 			if (typeof this.scrollTop === 'number') {
 				this.tree.scrollTop = this.scrollTop;
@@ -510,18 +528,36 @@ class ViewModel {
 			this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
 			this.onDidActiveEditorChange();
 		} else {
+			this.updateViewState();
 			this.visibilityDisposables.dispose();
 			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
 			this.scrollTop = this.tree.scrollTop;
 		}
 	}
 
-	private refresh(item?: IGroupItem): void {
+	private refresh(item?: IGroupItem, viewState?: IViewState): void {
 		if (item) {
 			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode).children);
 		} else {
-			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode)));
+			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode, viewState)));
 		}
+	}
+
+	private updateViewState(): void {
+		const expanded = new Set<string>();
+		const visit = (node: ITreeNode<TreeElement | null, FuzzyScore>) => {
+			if (node.element && node.collapsible && !node.collapsed) {
+				expanded.add(getSCMResourceId(node.element));
+			}
+
+			for (const child of node.children) {
+				visit(child);
+			}
+		};
+
+		visit(this.tree.getNode());
+
+		this.viewState = { expanded };
 	}
 
 	private onDidActiveEditorChange(): void {

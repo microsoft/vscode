@@ -49,11 +49,11 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 			break;
 		}
 
-		element = children[0];
-
-		if (element.incompressible) {
+		let childElement: ICompressedTreeElement<T> = children[0];
+		if (childElement.incompressible) {
 			break;
 		}
+		element = childElement;
 
 		elements.push(element.element);
 	}
