@@ -79,7 +79,7 @@ export class SearchEditorInput extends EditorInput {
 			isDirty: () => this.isDirty(),
 			backup: () => this.backup(),
 			save: (options) => this.save(0, options),
-			revert: () => this.revert(),
+			revert: () => this.revert(0),
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
@@ -181,9 +181,9 @@ export class SearchEditorInput extends EditorInput {
 		return false;
 	}
 
-	async revert(options?: IRevertOptions) {
+	async revert(group: GroupIdentifier, options?: IRevertOptions) {
 		// TODO: this should actually revert the contents. But it needs to set dirty false.
-		super.revert(options);
+		super.revert(group, options);
 		this.setDirty(false);
 		return true;
 	}

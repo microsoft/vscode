@@ -80,7 +80,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 		this.gotSavedAs = true;
 		return true;
 	}
-	async revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;

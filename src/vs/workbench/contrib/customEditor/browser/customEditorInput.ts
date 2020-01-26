@@ -149,7 +149,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		return true;
 	}
 
-	public revert(options?: IRevertOptions): Promise<boolean> {
+	public revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		return this._model ? this._model.revert(options) : Promise.resolve(false);
 	}
 

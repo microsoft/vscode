@@ -62,7 +62,7 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(service.get(input2.getResource()), input2);
 
 		// revert()
-		input1.revert();
+		input1.revert(0);
 		assert.ok(input1.isDisposed());
 		assert.ok(!service.get(input1.getResource()));
 
@@ -82,8 +82,8 @@ suite('Workbench untitled text editors', () => {
 			assert.ok(workingCopyService.isDirty(input2.getResource()));
 			assert.equal(workingCopyService.dirtyCount, 1);
 
-			input1.revert();
-			input2.revert();
+			input1.revert(0);
+			input2.revert(0);
 			assert.ok(!service.get(input1.getResource()));
 			assert.ok(!service.get(input2.getResource()));
 			assert.ok(!input2.isDirty());
@@ -92,7 +92,7 @@ suite('Workbench untitled text editors', () => {
 			assert.ok(!workingCopyService.isDirty(input2.getResource()));
 			assert.equal(workingCopyService.dirtyCount, 0);
 
-			assert.ok(input1.revert());
+			assert.ok(input1.revert(0));
 			assert.ok(input1.isDisposed());
 			assert.ok(!service.exists(input1.getResource()));
 

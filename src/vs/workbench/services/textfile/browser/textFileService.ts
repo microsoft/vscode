@@ -579,7 +579,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (resource.scheme === Schemas.untitled) {
 			const model = this.untitled.get(resource);
 			if (model) {
-				return model.revert(options);
+				return model.revert(0, options);
 			}
 
 			return false;

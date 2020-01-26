@@ -737,7 +737,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Use revert as a hint to pin the editor
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
 
-			return editor.revert(options);
+			return editor.revert(groupId, options);
 		}));
 
 		return result.every(success => !!success);

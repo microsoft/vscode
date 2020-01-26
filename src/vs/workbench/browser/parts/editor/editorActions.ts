@@ -543,13 +543,13 @@ export class RevertAndCloseEditorAction extends Action {
 
 			// first try a normal revert where the contents of the editor are restored
 			try {
-				await editor.revert();
+				await editor.revert(group.id);
 			} catch (error) {
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
-				await editor.revert({ soft: true });
+				await editor.revert(group.id, { soft: true });
 			}
 
 			group.closeEditor(editor);

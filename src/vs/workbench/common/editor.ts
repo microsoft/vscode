@@ -363,6 +363,16 @@ export interface IEditorInput extends IDisposable {
 	readonly onDispose: Event<void>;
 
 	/**
+	 * Triggered when this input changes its dirty state.
+	 */
+	readonly onDidChangeDirty: Event<void>;
+
+	/**
+	 * Triggered when this input changes its label
+	 */
+	readonly onDidChangeLabel: Event<void>;
+
+	/**
 	 * Returns the associated resource of this input.
 	 */
 	getResource(): URI | undefined;
@@ -416,9 +426,9 @@ export interface IEditorInput extends IDisposable {
 	isSaving(): boolean;
 
 	/**
-	 * Saves the editor. The provided groupId helps
-	 * implementors to e.g. preserve view state of the editor
-	 * and re-open it in the correct group after saving.
+	 * Saves the editor. The provided groupId helps implementors
+	 * to e.g. preserve view state of the editor and re-open it
+	 * in the correct group after saving.
 	 */
 	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
 
@@ -430,9 +440,9 @@ export interface IEditorInput extends IDisposable {
 	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
 
 	/**
-	 * Reverts this input.
+	 * Reverts this input from the provided group.
 	 */
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -532,7 +542,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return true;
 	}
 
-	async revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		return true;
 	}
 
@@ -613,6 +623,10 @@ export abstract class TextEditorInput extends EditorInput {
 		}
 
 		return true;
+	}
+
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+		return this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -743,8 +757,8 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.saveAs(groupId, options);
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
-		return this.master.revert(options);
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+		return this.master.revert(group, options);
 	}
 
 	getTelemetryDescriptor(): { [key: string]: unknown } {

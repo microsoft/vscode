@@ -193,7 +193,7 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
 	}
 
-	async revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}
