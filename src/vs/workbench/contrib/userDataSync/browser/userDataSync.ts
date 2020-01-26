@@ -41,11 +41,10 @@ import type { IEditorContribution } from 'vs/editor/common/editorCommon';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { areSame } from 'vs/platform/userDataSync/common/settingsMerge';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsSync';
 import type { IEditorInput } from 'vs/workbench/common/editor';
 import { Action } from 'vs/base/common/actions';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -64,6 +63,14 @@ function getSyncAreaLabel(source: SyncSource): string {
 		case SyncSource.UIState: return localize('ui state label', "UI State");
 	}
 }
+
+type FirstTimeSyncClassification = {
+	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
+type SyncErrorClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -92,8 +99,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -253,6 +261,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private onAutoSyncError(code: UserDataSyncErrorCode, source?: SyncSource): void {
 		switch (code) {
 			case UserDataSyncErrorCode.TooManyFailures:
+				this.telemetryService.publicLog2('sync/errorTooMany');
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
@@ -263,6 +272,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 				return;
 			case UserDataSyncErrorCode.TooLarge:
+				this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source: source! });
 				if (source === SyncSource.Keybindings || source === SyncSource.Settings) {
 					const sourceArea = getSyncAreaLabel(source);
 					this.disableSync();
@@ -418,9 +428,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		);
 		switch (result.choice) {
-			case 0: await this.userDataSyncService.sync(); break;
-			case 1: throw canceled();
-			case 2: await this.userDataSyncService.pull(); break;
+			case 0:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
+				await this.userDataSyncService.sync();
+				break;
+			case 1:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
+				throw canceled();
+			case 2:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
+				await this.userDataSyncService.pull();
+				break;
 		}
 	}
 
@@ -441,6 +459,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (result.confirmed) {
 			await this.disableSync();
 			if (result.checkboxChecked) {
+				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
 			}
 		}
@@ -492,7 +511,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 		if (previewResource) {
 			const remoteContentResource = toRemoteContentResource(this.userDataSyncService.conflictsSource!);
-			const editor = await this.editorService.openEditor({
+			await this.editorService.openEditor({
 				leftResource: remoteContentResource,
 				rightResource: previewResource,
 				label,
@@ -502,27 +521,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					revealIfVisible: true,
 				},
 			});
-			if (editor?.input) {
-				const disposable = editor.input.onDispose(async () => {
-					disposable.dispose();
-					const source = getSyncSourceFromRemoteContentResource(remoteContentResource);
-					if (source === undefined || this.userDataSyncService.conflictsSource !== source) {
-						return;
-					}
-
-					const remoteModelRef = await this.textModelResolverService.createModelReference(remoteContentResource);
-					const previewModelRef = await this.textModelResolverService.createModelReference(previewResource!);
-					const remoteModelContent = remoteModelRef.object.textEditorModel.getValue();
-					const preivewContent = previewModelRef.object.textEditorModel.getValue();
-					remoteModelRef.dispose();
-					previewModelRef.dispose();
-					if (remoteModelContent !== preivewContent
-						|| (source === SyncSource.Settings && !areSame(remoteModelContent, preivewContent, getIgnoredSettings(this.configurationService)))) {
-						return;
-					}
-					await this.userDataSyncService.resolveConflictsAndContinueSync(preivewContent);
-				});
-			}
 		}
 	}
 
@@ -682,6 +680,11 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 	}
 }
 
+type SyncConflictsClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
 class AcceptChangesContribution extends Disposable implements IEditorContribution {
 
 	static get(editor: ICodeEditor): AcceptChangesContribution {
@@ -700,6 +703,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -760,6 +764,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 				if (model) {
 					const conflictsSource = this.userDataSyncService.conflictsSource;
 					const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
+					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource!, action: syncSource !== undefined ? 'replaceLocal' : 'apply' });
 					if (syncSource !== undefined) {
 						const syncAreaLabel = getSyncAreaLabel(syncSource);
 						const result = await this.dialogService.confirm({
