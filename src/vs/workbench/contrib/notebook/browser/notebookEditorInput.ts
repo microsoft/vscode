@@ -27,8 +27,10 @@ export class NotebookEditorModel extends EditorModel {
 
 		if (_notebook && _notebook.onDidChangeCells) {
 			this._register(_notebook.onDidChangeDirtyState((newState) => {
-				this._dirty = newState;
-				this._onDidChangeDirty.fire();
+				if (this._dirty !== newState) {
+					this._dirty = newState;
+					this._onDidChangeDirty.fire();
+				}
 			}));
 			this._register(_notebook.onDidChangeCells(() => {
 				this._onDidChangeCells.fire();
