@@ -33,7 +33,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -50,14 +49,13 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService);
 	}
 
 	private _encoding: EncodingOracle | undefined;

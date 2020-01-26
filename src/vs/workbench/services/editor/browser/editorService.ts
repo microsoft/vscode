@@ -681,13 +681,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// editors are potentially bringing up some UI and thus run
 		// sequentially.
 		const editorsToSaveParallel: IEditorIdentifier[] = [];
-		const editorsToSaveAsSequentially: IEditorIdentifier[] = [];
+		const editorsToSaveSequentially: IEditorIdentifier[] = [];
 		if (options?.saveAs) {
-			editorsToSaveAsSequentially.push(...editors);
+			editorsToSaveSequentially.push(...editors);
 		} else {
 			for (const { groupId, editor } of editors) {
 				if (editor.isUntitled()) {
-					editorsToSaveAsSequentially.push({ groupId, editor });
+					editorsToSaveSequentially.push({ groupId, editor });
 				} else {
 					editorsToSaveParallel.push({ groupId, editor });
 				}
@@ -707,10 +707,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}));
 
 		// Editors to save sequentially
-		for (const { groupId, editor } of editorsToSaveAsSequentially) {
+		for (const { groupId, editor } of editorsToSaveSequentially) {
 			if (editor.isDisposed()) {
 				continue; // might have been disposed from from the save already
 			}
+
+			// bring editor to front to help user make a decision about file names
+			await this.openEditor(editor, undefined, groupId);
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 			if (!result) {

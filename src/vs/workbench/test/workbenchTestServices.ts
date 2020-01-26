@@ -202,7 +202,6 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	private promptPath!: URI;
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
@@ -214,7 +213,6 @@ export class TestTextFileService extends NativeTextFileService {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
@@ -230,17 +228,12 @@ export class TestTextFileService extends NativeTextFileService {
 			environmentService,
 			dialogService,
 			fileDialogService,
-			editorService,
 			textResourceConfigurationService,
 			productService,
 			filesConfigurationService,
 			textModelService,
 			codeEditorService
 		);
-	}
-
-	setPromptPath(path: URI): void {
-		this.promptPath = path;
 	}
 
 	setResolveTextContentErrorOnce(error: FileOperationError): void {
@@ -266,10 +259,6 @@ export class TestTextFileService extends NativeTextFileService {
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10
 		};
-	}
-
-	promptForPath(_resource: URI, availableFileSystems?: string[]): Promise<URI> {
-		return Promise.resolve(this.promptPath);
 	}
 }
 
@@ -423,8 +412,12 @@ export class TestFileDialogService implements IFileDialogService {
 	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	private fileToSave!: URI;
+	setPickFileToSave(path: URI): void {
+		this.fileToSave = path;
+	}
 	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		return Promise.resolve(undefined);
+		return Promise.resolve(this.fileToSave);
 	}
 	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);

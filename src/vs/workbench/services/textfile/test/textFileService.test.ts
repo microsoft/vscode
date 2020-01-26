@@ -101,7 +101,7 @@ suite('Files - TextFileService', () => {
 	test('saveAs - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.textFileService.setPromptPath(model.resource);
+		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -115,7 +115,7 @@ suite('Files - TextFileService', () => {
 	test('revert - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.textFileService.setPromptPath(model.resource);
+		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
 		model!.textEditorModel!.setValue('foo');

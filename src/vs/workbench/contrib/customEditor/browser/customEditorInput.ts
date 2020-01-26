@@ -132,7 +132,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 
 		let dialogPath = this._editorResource;
-		const target = await this.promptForPath(this._editorResource, dialogPath, options?.availableFileSystems);
+		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return false; // save cancelled
 		}
@@ -160,14 +160,6 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			this._onDidChangeDirty.fire();
 		}
 		return await super.resolve();
-	}
-
-	private async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-
-		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
-
-		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
 	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {

@@ -22,7 +22,6 @@ import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isEqualOrParent, isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -67,7 +66,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -312,7 +310,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.promptForPath(resource, options?.availableFileSystems);
+					targetUri = await this.fileDialogService.pickFileToSave(this.suggestSavePath(resource), options?.availableFileSystems);
 				}
 
 				// Save as if target provided
@@ -337,14 +335,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return undefined;
 	}
 
-	protected async promptForPath(resource: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-
-		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
-
-		return this.fileDialogService.pickFileToSave(this.suggestSavePath(resource), availableFileSystems);
-	}
-
 	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
 		if (Array.isArray(resources)) {
 			return coalesce(resources.map(resource => this.files.get(resource)));
@@ -361,7 +351,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Get to target resource
 		if (!target) {
-			target = await this.promptForPath(source, options?.availableFileSystems);
+			target = await this.fileDialogService.pickFileToSave(this.suggestSavePath(source), options?.availableFileSystems);
 		}
 
 		if (!target) {
