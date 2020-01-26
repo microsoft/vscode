@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder, isTextEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -27,6 +27,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -712,12 +713,28 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				continue; // might have been disposed from from the save already
 			}
 
-			// bring editor to front to help user make a decision about file names
-			await this.openEditor(editor, undefined, groupId);
+			// Preserve view state by opening the editor first if the editor
+			// is untitled or we "Save As". This also allows the user to review
+			// the contents of the editor before making a decision.
+			let viewState: IEditorViewState | undefined = undefined;
+			const control = await this.openEditor(editor, undefined, groupId);
+			if (isTextEditor(control)) {
+				viewState = control.getViewState();
+			}
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 			if (!result) {
 				return false; // failed or cancelled, abort
+			}
+
+			// Replace editor preserving viewstate (either across all groups or
+			// only selected group) if the resulting editor is different from the
+			// current one.
+			if (!result.matches(editor)) {
+				const targetGroups = editor.isUntitled() ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
+				for (const group of targetGroups) {
+					await this.replaceEditors([{ editor, replacement: result, options: { pinned: true, viewState } }], group);
+				}
 			}
 		}
 

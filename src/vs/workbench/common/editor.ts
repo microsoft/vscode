@@ -26,7 +26,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isEqual } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
-import { Schemas } from 'vs/base/common/network';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -300,26 +299,12 @@ export const enum SaveReason {
 	WINDOW_CHANGE = 4
 }
 
-export const enum SaveContext {
-
-	/**
-	 * Indicates that the editor is saved because it
-	 * is being closed by the user.
-	 */
-	EDITOR_CLOSE = 1,
-}
-
 export interface ISaveOptions {
 
 	/**
 	 * An indicator how the save operation was triggered.
 	 */
 	reason?: SaveReason;
-
-	/**
-	 * Additional information about the context of the save.
-	 */
-	context?: SaveContext;
 
 	/**
 	 * Forces to save the contents of the working copy
@@ -430,15 +415,21 @@ export interface IEditorInput extends IDisposable {
 	 * Saves the editor. The provided groupId helps implementors
 	 * to e.g. preserve view state of the editor and re-open it
 	 * in the correct group after saving.
+	 *
+	 * @returns the resulting editor input of this operation. Can
+	 * be the same editor input.
 	 */
-	save(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
 	 * Saves the editor to a different location. The provided groupId
 	 * helps implementors to e.g. preserve view state of the editor
 	 * and re-open it in the correct group after saving.
+	 *
+	 * @returns the resulting editor input of this operation. Typically
+	 * a different editor input.
 	 */
-	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
 	 * Reverts this input from the provided group.
@@ -535,12 +526,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return false;
 	}
 
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return true;
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
 	}
 
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return true;
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
@@ -587,27 +578,15 @@ export abstract class TextEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		return this.doSave(group, options, false);
 	}
 
-	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		return this.doSave(group, options, true);
 	}
 
-	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<boolean> {
-		const isUntitled = this.resource.scheme === Schemas.untitled;
-
-		// Preserve view state by opening the editor first if the editor
-		// is untitled or we "Save As" and we are not closing editors.
-		// In addition this allows the user to review the contents of the editor.
-		let viewState: IEditorViewState | undefined = undefined;
-		if (options?.context !== SaveContext.EDITOR_CLOSE && (saveAs || isUntitled)) {
-			const editor = await this.editorService.openEditor(this, undefined, group);
-			if (isTextEditor(editor)) {
-				viewState = editor.getViewState();
-			}
-		}
+	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;
@@ -618,22 +597,14 @@ export abstract class TextEditorInput extends EditorInput {
 		}
 
 		if (!target) {
-			return false; // save cancelled
+			return undefined; // save cancelled
 		}
 
-		// Replace editor preserving viewstate (either across all groups or
-		// only selected group) if the target is different from the current resource
-		// and if the editor is not being saved because it is being closed
-		// (because in that case we do not want to open a different editor anyway)
-		if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(target, this.resource)) {
-			const replacement = this.editorService.createInput({ resource: target });
-			const targetGroups = isUntitled ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [group];
-			for (const group of targetGroups) {
-				await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true, viewState } }], group);
-			}
+		if (!isEqual(target, this.resource)) {
+			return this.editorService.createInput({ resource: target });
 		}
 
-		return true;
+		return this;
 	}
 
 	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
@@ -760,11 +731,11 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isSaving();
 	}
 
-	save(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this.master.save(group, options);
 	}
 
-	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this.master.saveAs(group, options);
 	}
 

@@ -11,7 +11,7 @@ import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInputFactory, GroupIdentifier, EditorInput, SaveContext, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, GroupIdentifier, EditorInput, IRevertOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -76,7 +76,7 @@ export class SearchEditorInput extends EditorInput {
 			onDidChangeContent: this.onDidChangeDirty,
 			isDirty: () => this.isDirty(),
 			backup: () => this.backup(),
-			save: (options) => this.save(0, options),
+			save: (options) => this.save(0, options).then(editor => !!editor),
 			revert: () => this.revert(0),
 		};
 
@@ -87,25 +87,23 @@ export class SearchEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		if (this.resource.scheme === 'search-editor') {
 			const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 			if (path) {
 				if (await this.textFileService.saveAs(this.resource, path, options)) {
 					this.setDirty(false);
-					if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(path, this.resource)) {
-						const replacement = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
-						await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
-						return true;
-					} else if (options?.context === SaveContext.EDITOR_CLOSE) {
-						return true;
+					if (!isEqual(path, this.resource)) {
+						return this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
 					}
+					return this;
 				}
 			}
-			return false;
+			return undefined;
 		} else {
 			this.setDirty(false);
-			return !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			const res = await !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			return res ? this : undefined;
 		}
 	}
 
