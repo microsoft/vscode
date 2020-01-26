@@ -221,7 +221,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					[
 						{
 							label: localize('show conflicts', "Show Conflicts"),
-							run: () => this.handleConflicts()
+							run: () => {
+								this.telemetryService.publicLog2('sync/showConflicts');
+								this.handleConflicts();
+							}
 						}
 					],
 					{
