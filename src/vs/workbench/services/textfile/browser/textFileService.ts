@@ -18,7 +18,6 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isEqualOrParent, isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
@@ -65,7 +64,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IHistoryService private readonly historyService: IHistoryService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -313,7 +311,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.promptForPath(resource, this.suggestFilePath(resource));
+					targetUri = await this.promptForPath(resource, this.suggestUntitledFilePath(resource));
 				}
 
 				// Save as if target provided
@@ -364,7 +362,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (!target) {
 			let dialogPath = source;
 			if (source.scheme === Schemas.untitled) {
-				dialogPath = this.suggestFilePath(source);
+				dialogPath = this.suggestUntitledFilePath(source);
 			}
 
 			target = await this.promptForPath(source, dialogPath, options?.availableFileSystems);
@@ -546,23 +544,27 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
-	private suggestFilePath(untitledResource: URI): URI {
-		const untitledFileName = this.untitled.get(untitledResource)?.suggestFileName() ?? basename(untitledResource);
+	private suggestUntitledFilePath(untitledResource: URI): URI {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+		const targetScheme = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
-		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
-		if (lastActiveFile) {
-			const lastDir = dirname(lastActiveFile);
-			return joinPath(lastDir, untitledFileName);
+		// Untitled with associated file path
+		const model = this.untitledTextEditorService.get(untitledResource);
+		if (model?.hasAssociatedFilePath) {
+			return untitledResource.with({ scheme: targetScheme });
 		}
 
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		if (lastActiveFolder) {
-			return joinPath(lastActiveFolder, untitledFileName);
+		// Untitled without associated file path
+		const untitledFileName = model?.suggestFileName() ?? basename(untitledResource);
+
+		// Try to place where last active file was if any
+		const defaultFilePath = this.fileDialogService.defaultFilePath(targetScheme);
+		if (defaultFilePath) {
+			return joinPath(defaultFilePath, untitledFileName);
 		}
 
-		return untitledResource.with({ path: untitledFileName });
+		// Finally fallback to suggest just the file name
+		return untitledResource.with({ scheme: targetScheme, path: untitledFileName });
 	}
 
 	//#endregion

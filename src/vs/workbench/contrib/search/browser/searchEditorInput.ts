@@ -18,8 +18,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { dirname, joinPath, isEqual } from 'vs/base/common/resources';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { joinPath, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { basename } from 'vs/base/common/path';
@@ -60,7 +59,6 @@ export class SearchEditorInput extends EditorInput {
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
-		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -203,15 +201,9 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
-		if (lastActiveFile) {
-			const lastDir = dirname(lastActiveFile);
-			return joinPath(lastDir, searchFileName);
-		}
-
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		if (lastActiveFolder) {
-			return joinPath(lastActiveFolder, searchFileName);
+		const defaultFilePath = this.fileDialogService.defaultFilePath(schemeFilter);
+		if (defaultFilePath) {
+			return joinPath(defaultFilePath, searchFileName);
 		}
 
 		return URI.from({ scheme: schemeFilter, path: searchFileName });
