@@ -11,7 +11,7 @@ import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInputFactory, GroupIdentifier, EditorInput, SaveContext, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, GroupIdentifier, EditorInput, IRevertOptions, ISaveOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -81,7 +81,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly onDidChangeContent = input.onDidChangeDirty;
 			isDirty(): boolean { return input.isDirty(); }
 			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
-			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options); }
+			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
 			revert(options?: IRevertOptions): Promise<boolean> { return input.revert(0, options); }
 		};
 
@@ -92,30 +92,28 @@ export class SearchEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		if (this.isUntitled()) {
 			return this.saveAs(group, options);
 		} else {
 			this.setDirty(false);
-			return !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			const res = await !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			return res ? this : undefined;
 		}
 	}
 
-	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
 			if (await this.textFileService.saveAs(this.resource, path, options)) {
 				this.setDirty(false);
-				if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(path, this.resource)) {
-					const replacement = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
-					await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
-					return true;
-				} else if (options?.context === SaveContext.EDITOR_CLOSE) {
-					return true;
+				if (!isEqual(path, this.resource)) {
+					return this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
 				}
+				return this;
 			}
 		}
-		return false;
+		return undefined;
 	}
 
 	getTypeId(): string {
