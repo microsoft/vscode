@@ -466,7 +466,7 @@ class StatefullMarkdownCell extends Disposable {
 						this.cellContainer.innerHTML = viewCell.getHTML() || '';
 
 						const clientHeight = this.cellContainer.clientHeight;
-						handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
+						handler.layoutElement(viewCell, scrollHeight + 32 + clientHeight);
 					});
 				}
 
