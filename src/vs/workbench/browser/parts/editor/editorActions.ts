@@ -1337,40 +1337,10 @@ export class QuickOpenPreviousRecentlyUsedEditorAction extends BaseQuickOpenEdit
 	}
 }
 
-export class QuickOpenNextRecentlyUsedEditorAction extends BaseQuickOpenEditorAction {
-
-	static readonly ID = 'workbench.action.quickOpenNextRecentlyUsedEditor';
-	static readonly LABEL = nls.localize('quickOpenNextRecentlyUsedEditor', "Quick Open Next Recently Used Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
-	}
-}
-
 export class QuickOpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
 	static readonly LABEL = nls.localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
-	}
-}
-
-export class QuickOpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
-
-	static readonly ID = 'workbench.action.quickOpenNextRecentlyUsedEditorInGroup';
-	static readonly LABEL = nls.localize('quickOpenNextRecentlyUsedEditorInGroup', "Quick Open Next Recently Used Editor in Group");
 
 	constructor(
 		id: string,

@@ -30,13 +30,13 @@ import {
 	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, ResetGroupSizesAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, NavigateLastAction, ReopenClosedEditorAction,
 	QuickOpenPreviousRecentlyUsedEditorInGroupAction, QuickOpenPreviousEditorFromHistoryAction, ShowAllEditorsByAppearanceAction, ClearEditorHistoryAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup,
-	OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction, QuickOpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction,
+	OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction, MoveEditorToPreviousGroupAction,
 	MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup,
 	ShowEditorsInActiveGroupByMostRecentlyUsedAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorLeftAction, SplitEditorRightAction,
 	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
-	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction, QuickOpenNextRecentlyUsedEditorAction, QuickOpenPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction
+	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction, QuickOpenPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -428,9 +428,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(EditorLayoutTwoColu
 // Register Quick Editor Actions including built in quick navigate support for some
 const quickOpenNextRecentlyUsedEditorInGroupKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } };
 const quickOpenPreviousRecentlyUsedEditorInGroupKeybinding = { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } };
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenNextRecentlyUsedEditorAction, QuickOpenNextRecentlyUsedEditorAction.ID, QuickOpenNextRecentlyUsedEditorAction.LABEL), 'View: Quick Open Next Recently Used Editor', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorAction, QuickOpenPreviousRecentlyUsedEditorAction.ID, QuickOpenPreviousRecentlyUsedEditorAction.LABEL), 'View: Quick Open Previous Recently Used Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenNextRecentlyUsedEditorInGroupAction, QuickOpenNextRecentlyUsedEditorInGroupAction.ID, QuickOpenNextRecentlyUsedEditorInGroupAction.LABEL, quickOpenNextRecentlyUsedEditorInGroupKeybinding), 'View: Quick Open Next Recently Used Editor in Group', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorInGroupAction, QuickOpenPreviousRecentlyUsedEditorInGroupAction.ID, QuickOpenPreviousRecentlyUsedEditorInGroupAction.LABEL, quickOpenPreviousRecentlyUsedEditorInGroupKeybinding), 'View: Quick Open Previous Recently Used Editor in Group', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousEditorFromHistoryAction, QuickOpenPreviousEditorFromHistoryAction.ID, QuickOpenPreviousEditorFromHistoryAction.LABEL), 'Quick Open Previous Editor from History');
 
