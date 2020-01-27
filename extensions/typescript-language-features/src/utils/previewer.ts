@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 
 function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 	if (!tag.text) {

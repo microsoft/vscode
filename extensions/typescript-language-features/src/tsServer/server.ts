@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ServerResponse, TypeScriptRequests } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
 import { TelemetryReporter } from '../utils/telemetry';

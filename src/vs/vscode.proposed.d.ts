@@ -98,7 +98,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 * Used as part of the ResolverResult if the extension has any candidate,
+	 * published, or forwarded ports.
 	 */
 	export interface TunnelInformation {
 		/**

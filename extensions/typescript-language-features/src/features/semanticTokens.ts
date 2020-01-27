@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient, ExecConfig, ServerResponse } from '../typescriptService';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import API from '../utils/api';
 
