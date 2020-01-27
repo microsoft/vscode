@@ -366,8 +366,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateViewHeaders();
 			}
 		});
-
-		this.focus();
 	}
 
 	getTitle(): string {
