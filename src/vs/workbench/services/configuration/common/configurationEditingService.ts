@@ -170,9 +170,9 @@ export class ConfigurationEditingService {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
 			.then(() => { },
-				error => {
+				async error => {
 					if (!options.donotNotifyError) {
-						return this.onError(error, operation, options.scopes);
+						await this.onError(error, operation, options.scopes);
 					}
 					return Promise.reject(error);
 				})));
