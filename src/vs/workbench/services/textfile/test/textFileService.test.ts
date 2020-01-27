@@ -81,7 +81,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.ok(res);
+		assert.equal(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -94,14 +94,14 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.ok(res);
+		assert.equal(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
 	test('saveAs - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.textFileService.setPromptPath(model.resource);
+		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -115,7 +115,7 @@ suite('Files - TextFileService', () => {
 	test('revert - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.textFileService.setPromptPath(model.resource);
+		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
 		model!.textEditorModel!.setValue('foo');

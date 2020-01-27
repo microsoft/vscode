@@ -18,12 +18,10 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isEqualOrParent, isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -34,6 +32,7 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { coalesce } from 'vs/base/common/arrays';
+import { suggestFilename } from 'vs/base/common/mime';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -65,10 +64,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IHistoryService private readonly historyService: IHistoryService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -298,7 +295,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region save
 
-	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
@@ -308,19 +305,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Untitled with associated file path don't need to prompt
 				if (model.hasAssociatedFilePath) {
-					targetUri = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
+					targetUri = this.suggestSavePath(resource);
 				}
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.promptForPath(resource, this.suggestFilePath(resource));
+					targetUri = await this.fileDialogService.pickFileToSave(this.suggestSavePath(resource), options?.availableFileSystems);
 				}
 
 				// Save as if target provided
 				if (targetUri) {
-					await this.saveAs(resource, targetUri, options);
-
-					return true;
+					return this.saveAs(resource, targetUri, options);
 				}
 			}
 		}
@@ -333,19 +328,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Save with options
 				await model.save(options);
 
-				return !model.isDirty();
+				return !model.isDirty() ? resource : undefined;
 			}
 		}
 
-		return false;
-	}
-
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-
-		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
-
-		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
+		return undefined;
 	}
 
 	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
@@ -364,12 +351,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Get to target resource
 		if (!target) {
-			let dialogPath = source;
-			if (source.scheme === Schemas.untitled) {
-				dialogPath = this.suggestFilePath(source);
-			}
-
-			target = await this.promptForPath(source, dialogPath, options?.availableFileSystems);
+			target = await this.fileDialogService.pickFileToSave(this.suggestSavePath(source), options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -378,9 +360,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Just save if target is same as models own resource
 		if (source.toString() === target.toString()) {
-			await this.save(source, options);
-
-			return source;
+			return this.save(source, options);
 		}
 
 		// Do it
@@ -550,23 +530,49 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
-	private suggestFilePath(untitledResource: URI): URI {
-		const untitledFileName = this.untitled.get(untitledResource)?.suggestFileName() ?? basename(untitledResource);
+	private suggestSavePath(resource: URI): URI {
+
+		// Just take the resource as is if the file service can handle it
+		if (this.fileService.canHandleResource(resource)) {
+			return resource;
+		}
+
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
-		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
-		if (lastActiveFile) {
-			const lastDir = dirname(lastActiveFile);
-			return joinPath(lastDir, untitledFileName);
+		// Otherwise try to suggest a path that can be saved
+		let suggestedFilename: string | undefined = undefined;
+		if (resource.scheme === Schemas.untitled) {
+			const model = this.untitledTextEditorService.get(resource);
+			if (model) {
+
+				// Untitled with associated file path
+				if (model.hasAssociatedFilePath) {
+					return toLocalResource(resource, remoteAuthority);
+				}
+
+				// Untitled without associated file path
+				const mode = model.getMode();
+				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
+					suggestedFilename = suggestFilename(mode, model.getName());
+				} else {
+					suggestedFilename = model.getName();
+				}
+			}
 		}
 
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		if (lastActiveFolder) {
-			return joinPath(lastActiveFolder, untitledFileName);
+		// Fallback to basename of resource
+		if (!suggestedFilename) {
+			suggestedFilename = basename(resource);
 		}
 
-		return untitledResource.with({ path: untitledFileName });
+		// Try to place where last active file was if any
+		const defaultFilePath = this.fileDialogService.defaultFilePath();
+		if (defaultFilePath) {
+			return joinPath(defaultFilePath, suggestedFilename);
+		}
+
+		// Finally fallback to suggest just the file name
+		return toLocalResource(resource.with({ path: suggestedFilename }), remoteAuthority);
 	}
 
 	//#endregion
@@ -577,7 +583,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
+			const model = this.untitled.exists(resource) ? await this.untitled.resolve({ untitledResource: resource }) : undefined;
 			if (model) {
 				return model.revert(options);
 			}
@@ -600,26 +606,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		});
 
 		await Promise.all(fileModels.map(async model => {
-			try {
-				await model.revert(options);
 
-				// If model is still dirty, mark the resulting operation as error
-				if (model.isDirty()) {
-					const result = mapResourceToResult.get(model.resource);
-					if (result) {
-						result.error = true;
-					}
-				}
-			} catch (error) {
+			// Revert through model
+			await model.revert(options);
 
-				// FileNotFound means the file got deleted meanwhile, so ignore it
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					return;
-				}
-
-				// Otherwise bubble up the error
-				else {
-					throw error;
+			// If model is still dirty, mark the resulting operation as error
+			if (model.isDirty()) {
+				const result = mapResourceToResult.get(model.resource);
+				if (result) {
+					result.error = true;
 				}
 			}
 		}));

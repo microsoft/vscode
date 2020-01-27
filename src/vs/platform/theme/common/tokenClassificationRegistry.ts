@@ -104,6 +104,7 @@ export interface TokenStylingDefaultRule {
 export interface TokenStylingRule {
 	match(classification: TokenClassification): number;
 	value: TokenStyle;
+	selector: TokenClassification;
 }
 
 /**
@@ -294,7 +295,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	public getTokenStylingRule(selector: TokenClassification, value: TokenStyle): TokenStylingRule {
 		return {
 			match: this.newMatcher(selector),
-			value
+			value,
+			selector
 		};
 	}
 

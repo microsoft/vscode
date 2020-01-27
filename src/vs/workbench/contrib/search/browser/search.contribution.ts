@@ -38,7 +38,7 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, ExpandAllAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorWholeWordCommand, toggleSearchEditorRegexCommand, toggleSearchEditorContextLinesCommand } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, ExpandAllAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorWholeWordCommand, toggleSearchEditorRegexCommand, toggleSearchEditorContextLinesCommand, ReRunSearchEditorSearchAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -640,6 +640,12 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowAllSymbolsActio
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleSearchOnTypeAction, ToggleSearchOnTypeAction.ID, ToggleSearchOnTypeAction.LABEL), 'Search: Toggle Search on Type', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
+
+
+registry.registerWorkbenchAction(
+	SyncActionDescriptor.create(ReRunSearchEditorSearchAction, ReRunSearchEditorSearchAction.ID, ReRunSearchEditorSearchAction.LABEL),
+	'Search Editor: Rerun search', category, ContextKeyExpr.and(Constants.InSearchEditor)
+);
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,

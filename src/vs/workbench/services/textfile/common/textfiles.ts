@@ -62,9 +62,9 @@ export interface ITextFileService extends IDisposable {
 	 *
 	 * @param resource the resource to save
 	 * @param options optional save options
-	 * @return true if the resource was saved.
+	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	save(resource: URI, options?: ISaveOptions): Promise<boolean>;
+	save(resource: URI, options?: ISaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Saves the provided resource asking the user for a file name or using the provided one.
@@ -72,7 +72,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource to save as.
 	 * @param targetResource the optional target to save to.
 	 * @param options optional save options
-	 * @return Path of the saved resource.
+	 * @return Path of the saved resource or undefined if canceled.
 	 */
 	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined>;
 
@@ -174,7 +174,7 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	overwriteReadonly?: boolean;
 
 	/**
-	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
 	 * ask the user to authenticate as super user.
 	 */
 	writeElevated?: boolean;
@@ -255,7 +255,7 @@ export const enum ModelState {
 
 	/**
 	 * Any error that happens during a save that is not causing the CONFLICT state.
-	 * Models in error mode are always diry.
+	 * Models in error mode are always dirty.
 	 */
 	ERROR
 }

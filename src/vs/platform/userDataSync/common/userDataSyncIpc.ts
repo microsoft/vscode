@@ -30,7 +30,6 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'push': return this.service.push();
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
-			case 'removeExtension': return this.service.removeExtension(args[0]);
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'restart': return this.service.restart().then(() => this.service.status);
 			case 'reset': return this.service.reset();
@@ -84,6 +83,9 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	constructor(private readonly service: IUserDataAutoSyncService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onError': return this.service.onError;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 

@@ -574,6 +574,26 @@ export class OpenResultsInEditorAction extends Action {
 }
 
 
+export class ReRunSearchEditorSearchAction extends Action {
+
+	static readonly ID = 'searchEditor.rerunSerach';
+	static readonly LABEL = nls.localize('search.rerunSearch', "Rerun Search in Editor");
+
+	constructor(id: string, label: string,
+		@IEditorService private readonly editorService: IEditorService) {
+		super(id, label);
+	}
+
+	async run() {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			await (this.editorService.activeControl as SearchEditor).runSearch();
+		}
+	}
+}
+
+
+
 export class FocusNextSearchResultAction extends Action {
 	static readonly ID = 'search.action.focusNextSearchResult';
 	static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");

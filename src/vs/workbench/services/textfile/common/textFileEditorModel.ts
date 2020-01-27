@@ -230,10 +230,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				await this.load({ forceReadFromDisk: true });
 			} catch (error) {
 
-				// Set flags back to previous values, we are still dirty if revert failed
-				undo();
+				// FileNotFound means the file got deleted meanwhile, so ignore it
+				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 
-				throw error;
+					// Set flags back to previous values, we are still dirty if revert failed
+					undo();
+
+					throw error;
+				}
 			}
 		}
 

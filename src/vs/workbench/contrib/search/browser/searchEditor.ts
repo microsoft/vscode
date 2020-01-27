@@ -169,7 +169,7 @@ export class SearchEditor extends BaseEditor {
 			}
 		});
 
-
+		this._register(this.onDidBlur(() => this.saveViewState()));
 
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
@@ -181,6 +181,10 @@ export class SearchEditor extends BaseEditor {
 				this._register(tracker.onDidFocus(() => setTimeout(() => this.inputFocusContextKey.set(true), 0)));
 				this._register(tracker.onDidBlur(() => this.inputFocusContextKey.set(false)));
 			});
+	}
+
+	focus() {
+		this.restoreViewState();
 	}
 
 	focusNextInput() {
@@ -230,7 +234,7 @@ export class SearchEditor extends BaseEditor {
 		this.queryEditorWidget.toggleContextLines();
 	}
 
-	private async runSearch(instant = false) {
+	async runSearch(instant = false) {
 		if (!this.pauseSearching) {
 			this.runSearchDelayer.trigger(() => this.doRunSearch(), instant ? 0 : undefined);
 		}
@@ -334,10 +338,6 @@ export class SearchEditor extends BaseEditor {
 		this.reLayout();
 	}
 
-	focusInput() {
-		this.queryEditorWidget.focus();
-	}
-
 	getSelected() {
 		const selection = this.searchResultEditor.getSelection();
 		if (selection) {
@@ -360,6 +360,8 @@ export class SearchEditor extends BaseEditor {
 	}
 
 	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		this.saveViewState();
+
 		await super.setInput(newInput, options, token);
 		this.inSearchEditorContextKey.set(true);
 
@@ -379,7 +381,7 @@ export class SearchEditor extends BaseEditor {
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(query.useIgnores);
 		this.toggleIncludesExcludes(query.showIncludesExcludes);
 
-		this.focusInput();
+		this.restoreViewState();
 		this.pauseSearching = false;
 	}
 
@@ -404,7 +406,32 @@ export class SearchEditor extends BaseEditor {
 		return this.searchResultEditor.getModel();
 	}
 
+	private saveViewState() {
+		const input = this.getInput();
+		if (!input) { return; }
+
+		if (this.searchResultEditor.hasWidgetFocus()) {
+			const viewState = this.searchResultEditor.saveViewState();
+			if (viewState) {
+				input.viewState = { focused: 'editor', state: viewState };
+			}
+		} else {
+			input.viewState = { focused: 'input' };
+		}
+	}
+
+	private restoreViewState() {
+		const input = this.getInput();
+		if (input && input.viewState && input.viewState.focused === 'editor') {
+			this.searchResultEditor.restoreViewState(input.viewState.state);
+			this.searchResultEditor.focus();
+		} else {
+			this.queryEditorWidget.focus();
+		}
+	}
+
 	clearInput() {
+		this.saveViewState();
 		super.clearInput();
 		this.inSearchEditorContextKey.set(false);
 	}

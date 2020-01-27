@@ -9,11 +9,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+type SyncConflictsClassification = {
+	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -41,6 +45,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@ISettingsSyncService private readonly settingsSynchroniser: ISettingsSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
@@ -247,18 +252,21 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.info('Completed resetting local cache');
 	}
 
-	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
-		return this.extensionsSynchroniser.removeExtension(identifier);
-	}
-
 	private updateStatus(): void {
-		this._conflictsSource = this.computeConflictsSource();
-		this.setStatus(this.computeStatus());
-	}
-
-	private setStatus(status: SyncStatus): void {
+		const status = this.computeStatus();
 		if (this._status !== status) {
+			const oldStatus = this._status;
+			const oldConflictsSource = this._conflictsSource;
+			this._conflictsSource = this.computeConflictsSource();
 			this._status = status;
+			if (status === SyncStatus.HasConflicts) {
+				// Log to telemetry when there is a sync conflict
+				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsDetected', { source: this._conflictsSource! });
+			}
+			if (oldStatus === SyncStatus.HasConflicts && status === SyncStatus.Idle) {
+				// Log to telemetry when conflicts are resolved
+				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsResolved', { source: oldConflictsSource! });
+			}
 			this._onDidChangeStatus.fire(status);
 		}
 	}
@@ -296,7 +304,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (synchroniser instanceof ExtensionsSynchroniser) {
 			return SyncSource.Extensions;
 		}
-		return SyncSource.UIState;
+		return SyncSource.GlobalState;
 	}
 
 	private onDidChangeAuthTokenStatus(token: string | undefined): void {

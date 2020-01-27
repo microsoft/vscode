@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
@@ -27,37 +26,19 @@ interface ISyncPreviewResult {
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	private static EXTERNAL_USER_DATA_GLOBAL_STATE_KEY: string = 'globalState';
-
-	private _status: SyncStatus = SyncStatus.Idle;
-	get status(): SyncStatus { return this._status; }
-	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
-	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
-
-	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
-
-	private readonly lastSyncGlobalStateResource: URI;
-
 	constructor(
 		@IFileService fileService: IFileService,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(SyncSource.UIState, fileService, environmentService);
-		this.lastSyncGlobalStateResource = joinPath(this.syncFolder, '.lastSyncGlobalState');
+		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
 	}
 
-	private setStatus(status: SyncStatus): void {
-		if (this._status !== status) {
-			this._status = status;
-			this._onDidChangStatus.fire(status);
-		}
-	}
+	protected getRemoteDataResourceKey(): string { return 'globalState'; }
 
 	async pull(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
@@ -132,7 +113,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace('UI State: Finished synchronizing ui state.');
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('UI State: Failed to synchronise ui state as there is a new remote version available. Synchronizing again...');
 				return this.sync();
@@ -153,16 +134,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		throw new Error('UI State: Conflicts should not occur');
 	}
 
-	async hasPreviouslySynced(): Promise<boolean> {
-		const lastSyncData = await this.getLastSyncUserData();
-		return !!lastSyncData;
-	}
-
-	async hasRemoteData(): Promise<boolean> {
-		const remoteUserData = await this.getRemoteUserData();
-		return remoteUserData.content !== null;
-	}
-
 	async hasLocalData(): Promise<boolean> {
 		try {
 			const localGloablState = await this.getLocalGlobalState();
@@ -177,12 +148,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	async getRemoteContent(): Promise<string | null> {
 		return null;
-	}
-
-	async resetLocal(): Promise<void> {
-		try {
-			await this.fileService.del(this.lastSyncGlobalStateResource);
-		} catch (e) { /* ignore */ }
 	}
 
 	private async getPreview(): Promise<ISyncPreviewResult> {
@@ -209,13 +174,15 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (remote) {
 			// update remote
 			this.logService.info('UI State: Updating remote ui state...');
-			remoteUserData = await this.writeToRemote(remote, forcePush ? null : remoteUserData.ref);
+			const content = JSON.stringify(remote);
+			const ref = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+			remoteUserData = { ref, content };
 		}
 
 		if (remoteUserData.content) {
 			// update last sync
 			this.logService.info('UI State: Updating last synchronised ui state...');
-			await this.updateLastSyncValue(remoteUserData);
+			await this.updateLastSyncUserData(remoteUserData);
 		}
 	}
 
@@ -243,29 +210,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (argvContent !== content.value.toString()) {
 			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(argvContent));
 		}
-	}
-
-	private async getLastSyncUserData(): Promise<IUserData | null> {
-		try {
-			const content = await this.fileService.readFile(this.lastSyncGlobalStateResource);
-			return JSON.parse(content.value.toString());
-		} catch (error) {
-			return null;
-		}
-	}
-
-	private async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
-		await this.fileService.writeFile(this.lastSyncGlobalStateResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
-	}
-
-	private getRemoteUserData(lastSyncData?: IUserData | null): Promise<IUserData> {
-		return this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, lastSyncData || null);
-	}
-
-	private async writeToRemote(globalState: IGlobalState, ref: string | null): Promise<IUserData> {
-		const content = JSON.stringify(globalState);
-		ref = await this.userDataSyncStoreService.write(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, content, ref);
-		return { content, ref };
 	}
 
 }
