@@ -19,7 +19,6 @@ import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
 		let model1 = createModel('My First LineMy Second LineAnd another one');
@@ -95,10 +94,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(
-			wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters
-		);
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const model = TextModel.createFromString([
 			'int main() {',
@@ -112,9 +108,11 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const linesCollection = new SplitLinesCollection(
 			model,
 			lineBreaksComputerFactory,
+			lineBreaksComputerFactory,
+			fontInfo,
 			model.getOptions().tabSize,
+			'monospace',
 			wrappingInfo.wrappingColumn,
-			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 
@@ -747,17 +745,16 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 
-		const factory = new MonospaceLineBreaksComputerFactory(
-			wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters
-		);
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const linesCollection = new SplitLinesCollection(
 			model,
-			factory,
+			lineBreaksComputerFactory,
+			lineBreaksComputerFactory,
+			fontInfo,
 			model.getOptions().tabSize,
+			'monospace',
 			wrappingInfo.wrappingColumn,
-			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 

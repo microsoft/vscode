@@ -54,6 +54,10 @@ interface ITunnelFactory {
 	(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
 }
 
+interface IShowCandidate {
+	(host: string, port: number, detail: string): Thenable<boolean>;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	/**
@@ -128,6 +132,11 @@ interface IWorkbenchConstructionOptions {
 	 * Support for creating tunnels.
 	 */
 	readonly tunnelFactory?: ITunnelFactory;
+
+	/**
+	 * Support for filtering candidate ports
+	 */
+	readonly showCandidate?: IShowCandidate;
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.

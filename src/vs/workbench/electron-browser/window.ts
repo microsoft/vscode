@@ -21,7 +21,7 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { ipcRenderer as ipc, webFrame, crashReporter, CrashReporterStartOptions, Event as IpcEvent } from 'electron';
+import { ipcRenderer as ipc, webFrame, crashReporter, Event as IpcEvent } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -213,7 +213,7 @@ export class ElectronWindow extends Disposable {
 			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
-		// keyboard layout changed event
+		// accessibility support changed event
 		ipc.on('vscode:accessibilitySupportChanged', (event: IpcEvent, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
@@ -537,13 +537,13 @@ export class ElectronWindow extends Disposable {
 		}
 
 		// base options with product info
-		const options: CrashReporterStartOptions = {
+		const options = {
 			companyName,
 			productName,
 			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
 			extra: {
 				vscode_version: product.version,
-				vscode_commit: product.commit || ''
+				vscode_commit: product.commit
 			}
 		};
 
@@ -608,18 +608,16 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
+		// In wait mode, listen to changes to the editors and wait until the files
+		// are closed that the user wants to wait for. When this happens we delete
+		// the wait marker file to signal to the outside that editing is done.
 		const listener = this.editorService.onDidCloseEditor(async event => {
 			const closedResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
 
-			// In wait mode, listen to changes to the editors and wait until the files
-			// are closed that the user wants to wait for. When this happens we delete
-			// the wait marker file to signal to the outside that editing is done.
-			if (
-				// for https://github.com/microsoft/vscode/issues/75861
-				(resourcesToWaitFor.length === 1 && isEqual(closedResource, resourcesToWaitFor[0])) ||
-				// any other case we simply check for all resources to wait for
-				resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))
-			) {
+			// Remove from resources to wait for
+			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => !isEqual(closedResource, resourceToWaitFor));
+
+			if (resourcesToWaitFor.length === 0) {
 				// If auto save is configured with the default delay (1s) it is possible
 				// to close the editor while the save still continues in the background. As such
 				// we have to also check if the files to wait for are dirty and if so wait

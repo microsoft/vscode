@@ -13,6 +13,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { assertIsDefined } from 'vs/base/common/types';
+import { deepFreeze } from 'vs/base/common/objects';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -144,7 +145,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		}
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
-		this._onDidChangeDocument.fire({
+		this._onDidChangeDocument.fire(deepFreeze({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
 				return {
@@ -154,7 +155,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					text: change.text
 				};
 			})
-		});
+		}));
 	}
 
 	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {

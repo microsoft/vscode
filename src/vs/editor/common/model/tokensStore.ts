@@ -804,7 +804,7 @@ export class TokensStore2 {
 				aIndex++;
 			}
 
-			const aMetadata = aTokens.getMetadata(aIndex - 1 > 0 ? aIndex - 1 : aIndex);
+			const aMetadata = aTokens.getMetadata(Math.min(Math.max(0, aIndex - 1), aLen - 1));
 			const languageId = TokenMetadata.getLanguageId(aMetadata);
 			const tokenType = TokenMetadata.getTokenType(aMetadata);
 

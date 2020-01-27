@@ -468,6 +468,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			const newBreakpointRange = model.getDecorationRange(breakpointDecoration.decorationId);
 			if (newBreakpointRange && (!breakpointDecoration.range.equalsRange(newBreakpointRange))) {
 				somethingChanged = true;
+				breakpointDecoration.range = newBreakpointRange;
 			}
 		});
 		if (!somethingChanged) {

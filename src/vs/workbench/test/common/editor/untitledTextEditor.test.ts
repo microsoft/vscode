@@ -10,24 +10,18 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
-import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
-import { timeout } from 'vs/base/common/async';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-
-export class TestUntitledTextEditorService extends UntitledTextEditorService {
-	get(resource: URI) { return super.get(resource); }
-	getAll(resources?: URI[]): UntitledTextEditorInput[] { return super.getAll(resources); }
-}
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 
 class ServiceAccessor {
 	constructor(
-		@IUntitledTextEditorService public readonly untitledTextEditorService: TestUntitledTextEditorService,
+		@IUntitledTextEditorService public readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService public readonly editorService: TestEditorService,
 		@IWorkingCopyService public readonly workingCopyService: IWorkingCopyService,
 		@IModeService public readonly modeService: ModeServiceImpl,
@@ -46,96 +40,96 @@ suite('Workbench untitled text editors', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledTextEditorService.revertAll();
-		accessor.untitledTextEditorService.dispose();
+		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
 	});
 
-	test('Untitled Text Editor Service', async (done) => {
+	test('basics', async () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
-		assert.equal(service.getAll().length, 0);
-
-		let createdResources: URI[] = [];
-		const createListener = service.onDidCreate(resource => {
-			createdResources.push(resource);
-		});
-
-		const input1 = service.createOrGet();
-		assert.equal(input1, service.createOrGet(input1.getResource()));
+		const input1 = service.create();
+		await input1.resolve();
+		assert.equal(input1, service.create({ untitledResource: input1.getResource() }));
+		assert.equal(service.get(input1.getResource()), input1);
 
 		assert.ok(service.exists(input1.getResource()));
 		assert.ok(!service.exists(URI.file('testing')));
-		assert.equal(createdResources.length, 1);
-		assert.equal(createdResources[0].toString(), input1.getResource());
 
-		createListener.dispose();
+		const input2 = service.create();
+		assert.equal(service.get(input2.getResource()), input2);
 
-		const input2 = service.createOrGet();
-
-		// get() / getAll()
+		// get()
 		assert.equal(service.get(input1.getResource()), input1);
-		assert.equal(service.getAll().length, 2);
-		assert.equal(service.getAll([input1.getResource(), input2.getResource()]).length, 2);
+		assert.equal(service.get(input2.getResource()), input2);
 
-		// revertAll()
-		service.revertAll([input1.getResource()]);
+		// revert()
+		await input1.revert(0);
 		assert.ok(input1.isDisposed());
-		assert.equal(service.getAll().length, 1);
+		assert.ok(!service.get(input1.getResource()));
 
 		// dirty
 		const model = await input2.resolve();
+		assert.equal(await service.resolve({ untitledResource: input2.getResource() }), model);
+		assert.ok(service.exists(model.resource));
 
-		assert.ok(!service.isDirty(input2.getResource()));
+		assert.ok(!input2.isDirty());
 
-		const listener = service.onDidChangeDirty(resource => {
-			listener.dispose();
-
-			assert.equal(resource.toString(), input2.getResource().toString());
-
-			assert.ok(service.isDirty(input2.getResource()));
-			assert.equal(service.getDirty()[0].toString(), input2.getResource().toString());
-			assert.equal(service.getDirty([input2.getResource()])[0].toString(), input2.getResource().toString());
-			assert.equal(service.getDirty([input1.getResource()]).length, 0);
-
-			assert.ok(workingCopyService.isDirty(input2.getResource()));
-			assert.equal(workingCopyService.dirtyCount, 1);
-
-			service.revertAll();
-			assert.equal(service.getAll().length, 0);
-			assert.ok(!input2.isDirty());
-			assert.ok(!model.isDirty());
-
-			assert.ok(!workingCopyService.isDirty(input2.getResource()));
-			assert.equal(workingCopyService.dirtyCount, 0);
-
-			assert.ok(input1.revert());
-			assert.ok(input1.isDisposed());
-			assert.ok(!service.exists(input1.getResource()));
-
-			input2.dispose();
-			assert.ok(!service.exists(input2.getResource()));
-
-			done();
-		});
+		const resourcePromise = awaitDidChangeDirty(accessor.untitledTextEditorService);
 
 		model.textEditorModel.setValue('foo bar');
+
+		const resource = await resourcePromise;
+
+		assert.equal(resource.toString(), input2.getResource().toString());
+
+		assert.ok(input2.isDirty());
+
+		assert.ok(workingCopyService.isDirty(input2.getResource()));
+		assert.equal(workingCopyService.dirtyCount, 1);
+
+		await input1.revert(0);
+		await input2.revert(0);
+		assert.ok(!service.get(input1.getResource()));
+		assert.ok(!service.get(input2.getResource()));
+		assert.ok(!input2.isDirty());
+		assert.ok(!model.isDirty());
+
+		assert.ok(!workingCopyService.isDirty(input2.getResource()));
+		assert.equal(workingCopyService.dirtyCount, 0);
+
+		assert.equal(await input1.revert(0), false);
+		assert.ok(input1.isDisposed());
+		assert.ok(!service.exists(input1.getResource()));
+
+		input2.dispose();
+		assert.ok(!service.exists(input2.getResource()));
 	});
 
-	test('Untitled with associated resource', () => {
+	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
+		return new Promise(c => {
+			const listener = service.onDidChangeDirty(async resource => {
+				listener.dispose();
+
+				c(resource);
+			});
+		});
+	}
+
+	test('associated resource is dirty', () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
-		const untitled = service.createOrGet(file);
+		const untitled = service.create({ associatedResource: file });
 
 		assert.ok(service.hasAssociatedFilePath(untitled.getResource()));
+		assert.equal(untitled.isDirty(), true);
 
 		untitled.dispose();
 	});
 
-	test('Untitled no longer dirty when content gets empty', async () => {
+	test('no longer dirty when content gets empty (not with associated resource)', async () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		// dirty
 		const model = await input.resolve();
@@ -146,12 +140,13 @@ suite('Workbench untitled text editors', () => {
 		assert.ok(!model.isDirty());
 		assert.ok(!workingCopyService.isDirty(model.resource));
 		input.dispose();
+		model.dispose();
 	});
 
-	test('Untitled via createOrGet options', async () => {
+	test('via create options', async () => {
 		const service = accessor.untitledTextEditorService;
 
-		const model1 = await service.createOrGet().resolve();
+		const model1 = await service.create().resolve();
 
 		model1.textEditorModel!.setValue('foo bar');
 		assert.ok(model1.isDirty());
@@ -159,17 +154,17 @@ suite('Workbench untitled text editors', () => {
 		model1.textEditorModel!.setValue('');
 		assert.ok(!model1.isDirty());
 
-		const model2 = await service.createOrGet({ initialValue: 'Hello World' }).resolve();
+		const model2 = await service.create({ initialValue: 'Hello World' }).resolve();
 		assert.equal(snapshotToString(model2.createSnapshot()!), 'Hello World');
 
-		const input = service.createOrGet();
+		const input = service.create();
 
-		const model3 = await service.createOrGet({ resource: input.getResource() }).resolve();
+		const model3 = await service.create({ untitledResource: input.getResource() }).resolve();
 
 		assert.equal(model3.resource.toString(), input.getResource().toString());
 
 		const file = URI.file(join('C:\\', '/foo/file44.txt'));
-		const model4 = await service.createOrGet({ resource: file }).resolve();
+		const model4 = await service.create({ associatedResource: file }).resolve();
 		assert.ok(service.hasAssociatedFilePath(model4.resource));
 		assert.ok(model4.isDirty());
 
@@ -180,17 +175,10 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled suggest name', function () {
-		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
-
-		assert.ok(service.suggestFileName(input.getResource()));
-	});
-
-	test('Untitled with associated path remains dirty when content gets empty', async () => {
+	test('associated path remains dirty when content gets empty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
-		const input = service.createOrGet(file);
+		const input = service.create({ associatedResource: file });
 
 		// dirty
 		const model = await input.resolve();
@@ -199,12 +187,15 @@ suite('Workbench untitled text editors', () => {
 		model.textEditorModel.setValue('');
 		assert.ok(model.isDirty());
 		input.dispose();
+		model.dispose();
 	});
 
-	test('Untitled with initial content is dirty', async () => {
+	test('initial content is dirty', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet(undefined, undefined, 'Hello World');
 		const workingCopyService = accessor.workingCopyService;
+
+		const untitled = service.create({ initialValue: 'Hello World' });
+		assert.equal(untitled.isDirty(), true);
 
 		let onDidChangeDirty: IWorkingCopy | undefined = undefined;
 		const listener = workingCopyService.onDidChangeDirty(copy => {
@@ -212,22 +203,23 @@ suite('Workbench untitled text editors', () => {
 		});
 
 		// dirty
-		const model = await input.resolve();
+		const model = await untitled.resolve();
 		assert.ok(model.isDirty());
 		assert.equal(workingCopyService.dirtyCount, 1);
 		assert.equal(onDidChangeDirty, model);
 
-		input.dispose();
+		untitled.dispose();
 		listener.dispose();
+		model.dispose();
 	});
 
-	test('Untitled created with files.defaultLanguage setting', () => {
+	test('created with files.defaultLanguage setting', () => {
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		assert.equal(input.getMode(), defaultLanguage);
 
@@ -236,14 +228,14 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled created with files.defaultLanguage setting (${activeEditorLanguage})', () => {
+	test('created with files.defaultLanguage setting (${activeEditorLanguage})', () => {
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': '${activeEditorLanguage}' });
 
 		accessor.editorService.activeTextEditorMode = 'typescript';
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		assert.equal(input.getMode(), 'typescript');
 
@@ -253,14 +245,14 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled created with mode overrides files.defaultLanguage setting', () => {
+	test('created with mode overrides files.defaultLanguage setting', () => {
 		const mode = 'typescript';
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet(null!, mode);
+		const input = service.create({ mode });
 
 		assert.equal(input.getMode(), mode);
 
@@ -269,7 +261,7 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled can change mode afterwards', async () => {
+	test('can change mode afterwards', async () => {
 		const mode = 'untitled-input-test';
 
 		ModesRegistry.registerLanguage({
@@ -277,7 +269,7 @@ suite('Workbench untitled text editors', () => {
 		});
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet(null!, mode);
+		const input = service.create({ mode });
 
 		assert.equal(input.getMode(), mode);
 
@@ -289,11 +281,12 @@ suite('Workbench untitled text editors', () => {
 		assert.equal(input.getMode(), PLAINTEXT_MODE_ID);
 
 		input.dispose();
+		model.dispose();
 	});
 
-	test('encoding change event', async () => {
+	test('service#onDidChangeEncoding', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		let counter = 0;
 
@@ -302,54 +295,36 @@ suite('Workbench untitled text editors', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		// dirty
+		// encoding
 		const model = await input.resolve();
 		model.setEncoding('utf16');
 		assert.equal(counter, 1);
 		input.dispose();
+		model.dispose();
 	});
 
-	test('onDidChangeContent event', async () => {
+	test('service#onDidChangeLabel', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
-
-		UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+		const input = service.create();
 
 		let counter = 0;
 
-		service.onDidChangeContent(r => {
+		service.onDidChangeLabel(r => {
 			counter++;
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
+		// label
 		const model = await input.resolve();
-		model.textEditorModel.setValue('foo');
-		assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
-
-		await timeout(3);
-		assert.equal(counter, 1, 'Dirty model should trigger event');
-		model.textEditorModel.setValue('bar');
-
-		await timeout(3);
-		assert.equal(counter, 2, 'Content change when dirty should trigger event');
-		model.textEditorModel.setValue('');
-
-		await timeout(3);
-		assert.equal(counter, 3, 'Manual revert should trigger event');
-		model.textEditorModel.setValue('foo');
-
-		await timeout(3);
-		assert.equal(counter, 4, 'Dirty model should trigger event');
-		model.revert();
-
-		await timeout(3);
-		assert.equal(counter, 5, 'Revert should trigger event');
+		model.textEditorModel.setValue('Foo Bar');
+		assert.equal(counter, 1);
 		input.dispose();
+		model.dispose();
 	});
 
-	test('onDidDisposeModel event', async () => {
+	test('service#onDidDisposeModel', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		let counter = 0;
 
@@ -358,9 +333,138 @@ suite('Workbench untitled text editors', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		await input.resolve();
+		const model = await input.resolve();
 		assert.equal(counter, 0);
 		input.dispose();
 		assert.equal(counter, 1);
+		model.dispose();
+	});
+
+	test('model#onDidChangeContent', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		const model = await input.resolve();
+		model.onDidChangeContent(() => counter++);
+
+		model.textEditorModel.setValue('foo');
+
+		assert.equal(counter, 1, 'Dirty model should trigger event');
+		model.textEditorModel.setValue('bar');
+
+		assert.equal(counter, 2, 'Content change when dirty should trigger event');
+		model.textEditorModel.setValue('');
+
+		assert.equal(counter, 3, 'Manual revert should trigger event');
+		model.textEditorModel.setValue('foo');
+
+		assert.equal(counter, 4, 'Dirty model should trigger event');
+
+		input.dispose();
+		model.dispose();
+	});
+
+	test('model#onDispose when reverted', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		const model = await input.resolve();
+		model.onDispose(() => counter++);
+
+		model.textEditorModel.setValue('foo');
+
+		await model.revert();
+
+		assert.ok(input.isDisposed());
+		assert.ok(counter > 1);
+	});
+
+	test('model#onDidChangeName and input name', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		let model = await input.resolve();
+		model.onDidChangeName(() => counter++);
+
+		model.textEditorModel.setValue('foo');
+		assert.equal(input.getName(), 'foo');
+
+		assert.equal(counter, 1);
+		model.textEditorModel.setValue('bar');
+		assert.equal(input.getName(), 'bar');
+
+		assert.equal(counter, 2);
+		model.textEditorModel.setValue('');
+		assert.equal(input.getName(), 'Untitled-1');
+
+		model.textEditorModel.setValue('        ');
+		assert.equal(input.getName(), 'Untitled-1');
+
+		model.textEditorModel.setValue('([]}'); // require actual words
+		assert.equal(input.getName(), 'Untitled-1');
+
+		model.textEditorModel.setValue('([]}hello   '); // require actual words
+		assert.equal(input.getName(), '([]}hello');
+
+		assert.equal(counter, 4);
+
+		model.textEditorModel.setValue('Hello\nWorld');
+		assert.equal(counter, 5);
+
+		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+			let range = new Range(
+				selectionLineNumber,
+				selectionColumn,
+				positionLineNumber,
+				positionColumn
+			);
+
+			return {
+				identifier: null,
+				range,
+				text,
+				forceMoveMarkers: false
+			};
+		}
+
+		model.textEditorModel.applyEdits([createSingleEditOp('hello', 2, 2)]);
+		assert.equal(counter, 5); // change was not on first line
+
+		input.dispose();
+		model.dispose();
+
+		const inputWithContents = service.create({ initialValue: 'Foo' });
+		model = await inputWithContents.resolve();
+
+		assert.equal(inputWithContents.getName(), 'Foo');
+
+		inputWithContents.dispose();
+		model.dispose();
+	});
+
+	test('model#onDidChangeDirty', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		const model = await input.resolve();
+		model.onDidChangeDirty(() => counter++);
+
+		model.textEditorModel.setValue('foo');
+
+		assert.equal(counter, 1, 'Dirty model should trigger event');
+		model.textEditorModel.setValue('bar');
+
+		assert.equal(counter, 1, 'Another change does not fire event');
+
+		input.dispose();
+		model.dispose();
 	});
 });

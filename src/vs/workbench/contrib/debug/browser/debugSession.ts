@@ -904,6 +904,7 @@ export class DebugSession implements IDebugSession {
 			this.raw.dispose();
 		}
 		this.raw = undefined;
+		this.fetchThreadsScheduler = undefined;
 		this.model.clearThreads(this.getId(), true);
 		this._onDidChangeState.fire();
 	}

@@ -5,10 +5,9 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,11 +29,11 @@ export interface IViewletViewOptions extends IViewPaneOptions {
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
-	private filterValue: string | undefined;
+	private filterValue: string[] | undefined;
 
 	constructor(
 		viewletId: string,
-		onDidChangeFilterValue: Event<string>,
+		onDidChangeFilterValue: Event<string[]>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -43,10 +42,11 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 
-		super(viewletId, `${viewletId}.state`, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+		super(viewletId, `${viewletId}.state`, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
@@ -67,7 +67,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 				this.allViews.set(filterOnValue, new Map());
 			}
 			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-			if (filterOnValue !== this.filterValue) {
+			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
 				this.viewsModel.setVisible(descriptor.id, false);
 			}
 		});
@@ -79,7 +79,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
 
-	private onFilterChanged(newFilterValue: string) {
+	private onFilterChanged(newFilterValue: string[]) {
 		if (this.allViews.size === 0) {
 			this.updateAllViews(this.viewsModel.viewDescriptors);
 		}
@@ -88,8 +88,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 	}
 
 	getContextMenuActions(): IAction[] {
-		const result: IAction[] = [];
-		let viewToggleActions: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
+		const result: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
 			label: viewDescriptor.name,
 			checked: this.viewsModel.isVisible(viewDescriptor.id),
@@ -97,28 +96,35 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			run: () => this.toggleViewVisibility(viewDescriptor.id)
 		}));
 
-		result.push(...viewToggleActions);
-		const parentActions = super.getContextMenuActions();
-		if (viewToggleActions.length && parentActions.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...parentActions);
 		return result;
 	}
 
-	private getViewsForTarget(target: string): IViewDescriptor[] {
-		return this.allViews.has(target) ? Array.from(this.allViews.get(target)!.values()) : [];
+	private getViewsForTarget(target: string[]): IViewDescriptor[] {
+		const views: IViewDescriptor[] = [];
+		for (let i = 0; i < target.length; i++) {
+			if (this.allViews.has(target[i])) {
+				views.push(...Array.from(this.allViews.get(target[i])!.values()));
+			}
+		}
+
+		return views;
 	}
 
-	private getViewsNotForTarget(target: string): IViewDescriptor[] {
+	private getViewsNotForTarget(target: string[]): IViewDescriptor[] {
 		const iterable = this.allViews.keys();
 		let key = iterable.next();
 		let views: IViewDescriptor[] = [];
 		while (!key.done) {
-			if (key.value !== target) {
-				views = views.concat(this.getViewsForTarget(key.value));
+			let isForTarget: boolean = false;
+			target.forEach(value => {
+				if (key.value === value) {
+					isForTarget = true;
+				}
+			});
+			if (!isForTarget) {
+				views = views.concat(this.getViewsForTarget([key.value]));
 			}
+
 			key = iterable.next();
 		}
 		return views;

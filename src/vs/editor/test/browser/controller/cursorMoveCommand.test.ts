@@ -33,7 +33,8 @@ suite('Cursor move command test', () => {
 
 		thisModel = TextModel.createFromString(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, MonospaceLineBreaksComputerFactory.create(thisConfiguration.options), null!);
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(thisConfiguration.options);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 

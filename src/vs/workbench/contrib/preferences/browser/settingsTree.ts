@@ -397,16 +397,17 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle
 		});
+		return toolbar;
+	}
 
-		const button = container.querySelector('.codicon-more');
+	private fixToolbarIcon(toolbar: ToolBar): void {
+		const button = toolbar.getContainer().querySelector('.codicon-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
 
 			// change icon from ellipsis to gear
 			(<HTMLElement>button).classList.add('codicon-gear');
 		}
-
-		return toolbar;
 	}
 
 	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
@@ -416,6 +417,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const actions = this.disposableActionFactory(element.setting);
 		template.elementDisposables?.push(...actions);
 		template.toolbar.setActions([], [...this.settingActions, ...actions])();
+		this.fixToolbarIcon(template.toolbar);
 
 		const setting = element.setting;
 

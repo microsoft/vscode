@@ -48,9 +48,7 @@ suite('Workbench - TextModelResolverService', () => {
 			model.dispose();
 			model = (undefined)!;
 		}
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('resolve resource', async () => {
@@ -88,7 +86,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve file', async function () {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(textModel.resource, textModel);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
 		await textModel.load();
 
@@ -112,7 +110,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve untitled', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.createOrGet();
+		const input = service.create();
 
 		await input.resolve();
 		const ref = await accessor.textModelResolverService.createModelReference(input.getResource());
@@ -121,6 +119,7 @@ suite('Workbench - TextModelResolverService', () => {
 		assert.ok(editorModel);
 		ref.dispose();
 		input.dispose();
+		model.dispose();
 	});
 
 	test('even loading documents should be refcounted', async () => {

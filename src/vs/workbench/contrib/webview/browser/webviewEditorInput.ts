@@ -3,72 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { memoize } from 'vs/base/common/decorators';
+import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { Emitter } from 'vs/base/common/event';
+import { IWebviewService, WebviewEditorOverlay, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 
 const WebviewPanelResourceScheme = 'webview-panel';
-
-class WebviewIconsManager {
-	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
-
-
-	@memoize
-	private get _styleElement(): HTMLStyleElement {
-		const element = dom.createStyleSheet();
-		element.className = 'webview-icons';
-		return element;
-	}
-
-	public setIcons(
-		webviewId: string,
-		iconPath: { light: URI, dark: URI } | undefined,
-		lifecycleService: ILifecycleService,
-	) {
-		if (iconPath) {
-			this._icons.set(webviewId, iconPath);
-		} else {
-			this._icons.delete(webviewId);
-		}
-
-		this.updateStyleSheet(lifecycleService);
-	}
-
-	private async updateStyleSheet(lifecycleService: ILifecycleService, ) {
-		await lifecycleService.when(LifecyclePhase.Starting);
-
-		try {
-			const cssRules: string[] = [];
-			this._icons.forEach((value, key) => {
-				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-				if (URI.isUri(value)) {
-					cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
-				} else {
-					cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
-					cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
-				}
-			});
-			this._styleElement.innerHTML = cssRules.join('\n');
-		} catch {
-			// noop
-		}
-	}
-}
 
 export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
 
-	private static readonly iconsManager = new WebviewIconsManager();
-
 	private _name: string;
-	private _iconPath?: { light: URI, dark: URI };
+	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
 	private readonly _webview: Lazy<WebviewEditorOverlay>;
@@ -82,7 +31,7 @@ export class WebviewInput extends EditorInput {
 		public readonly viewType: string,
 		name: string,
 		webview: Lazy<WebviewEditorOverlay>,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
 		this._name = name;
@@ -90,9 +39,11 @@ export class WebviewInput extends EditorInput {
 	}
 
 	dispose() {
-		if (!this._didSomeoneTakeMyWebview) {
-			this._webview?.rawValue?.dispose();
-			this._onDisposeWebview.fire();
+		if (!this.isDisposed()) {
+			if (!this._didSomeoneTakeMyWebview) {
+				this._webview?.rawValue?.dispose();
+				this._onDisposeWebview.fire();
+			}
 		}
 		super.dispose();
 	}
@@ -137,9 +88,9 @@ export class WebviewInput extends EditorInput {
 		return this._iconPath;
 	}
 
-	public set iconPath(value: { light: URI, dark: URI } | undefined) {
+	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		WebviewInput.iconsManager.setIcons(this.id, value, this.lifecycleService);
+		this._webviewService.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
