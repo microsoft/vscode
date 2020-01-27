@@ -54,6 +54,7 @@ export class SearchEditorInput extends EditorInput {
 	private readonly model: Promise<ITextModel>;
 	private resolvedModel?: { model: ITextModel, query: SearchConfiguration };
 	viewState: SearchEditorViewState = { focused: 'input' };
+	_restoredName: string | undefined;
 
 	constructor(
 		public readonly resource: URI,
@@ -122,9 +123,10 @@ export class SearchEditorInput extends EditorInput {
 
 	getName(): string {
 		if (this.isUntitled()) {
-			return this.resolvedModel?.query.query
-				? localize('searchTitle.withQuery', "Search: {0}", this.resolvedModel?.query.query)
-				: localize('searchTitle', "Search");
+			return this._restoredName ??
+				(this.resolvedModel?.query.query
+					? localize('searchTitle.withQuery', "Search: {0}", this.resolvedModel?.query.query)
+					: localize('searchTitle', "Search"));
 		}
 
 		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
@@ -134,6 +136,7 @@ export class SearchEditorInput extends EditorInput {
 		const model = await this.model;
 		const query = extractSearchQuery(model);
 		this.resolvedModel = { model, query };
+		this._restoredName = undefined; // not needed after the model has been resolved
 		this._onDidChangeLabel.fire();
 		return { model, query };
 	}
@@ -274,14 +277,15 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 
 		const config = input.getConfigSync();
 
-		return JSON.stringify({ resource, dirty: input.isDirty(), config, viewState: input.viewState });
+		return JSON.stringify({ resource, dirty: input.isDirty(), config, viewState: input.viewState, name: input.getName() });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, viewState } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, viewState, name } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration(config), uri: URI.parse(resource) });
 			input.viewState = viewState;
+			input._restoredName = name;
 			input.setDirty(dirty);
 			return input;
 		}
