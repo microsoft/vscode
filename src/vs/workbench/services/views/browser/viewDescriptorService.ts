@@ -236,7 +236,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._register(this.viewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(views, viewContainer)));
 		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(views, viewContainer)));
 
-		this._register(this.viewsRegistry.onDidChangeContainer(({ views, from, to }) => { this.removeViews(from, views); this.addViews(to, views); this._onDidChangeContainer.fire({ views, from, to }); }));
+		this._register(this.viewsRegistry.onDidChangeContainer(({ views, from, to }) => this.moveViews(views, from, to)));
 
 		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer }) => this.onDidRegisterViewContainer(viewContainer)));
 		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer }) => this.onDidDeregisterViewContainer(viewContainer)));
@@ -405,19 +405,23 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const to = viewContainer;
 
 		if (from && to && from !== to) {
-			this.removeViews(from, views);
-			this.addViews(to, views);
-
-			const oldLocation = this.viewContainersRegistry.getViewContainerLocation(from)!;
-			const newLocation = this.viewContainersRegistry.getViewContainerLocation(to)!;
-
-			if (oldLocation !== newLocation) {
-				this._onDidChangeLocation.fire({ views, from: oldLocation, to: newLocation });
-			}
-
-			this._onDidChangeContainer.fire({ views, from, to });
-			this.saveViewPositionsToCache();
+			this.moveViews(views, from, to);
 		}
+	}
+
+	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer): void {
+		this.removeViews(from, views);
+		this.addViews(to, views);
+
+		const oldLocation = this.viewContainersRegistry.getViewContainerLocation(from)!;
+		const newLocation = this.viewContainersRegistry.getViewContainerLocation(to)!;
+
+		if (oldLocation !== newLocation) {
+			this._onDidChangeLocation.fire({ views, from: oldLocation, to: newLocation });
+		}
+
+		this._onDidChangeContainer.fire({ views, from, to });
+		this.saveViewPositionsToCache();
 	}
 
 	private registerViewContainerForSingleView(sourceView: IViewDescriptor, location: ViewContainerLocation): ViewContainer {
