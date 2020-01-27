@@ -201,7 +201,7 @@ export interface IEditorInputFactoryRegistry {
 export interface IEditorInputFactory {
 
 	/**
-	 * Determines wether the given editor input can be serialized by the factory.
+	 * Determines whether the given editor input can be serialized by the factory.
 	 */
 	canSerialize(editorInput: IEditorInput): boolean;
 
