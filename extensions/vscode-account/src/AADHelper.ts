@@ -42,11 +42,31 @@ interface IStoredSession {
 	scope: string; // Scopes are alphabetized and joined with a space
 }
 
+function parseQuery(uri: vscode.Uri) {
+	return uri.query.split('&').reduce((prev: any, current) => {
+		const queryString = current.split('=');
+		prev[queryString[0]] = queryString[1];
+		return prev;
+	}, {});
+}
+
 export const onDidChangeSessions = new vscode.EventEmitter<void>();
+
+class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
+	public handleUri(uri: vscode.Uri) {
+		this.fire(uri);
+	}
+}
 
 export class AzureActiveDirectoryService {
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
+	private _uriHandler: UriEventHandler;
+
+	constructor() {
+		this._uriHandler = new UriEventHandler();
+		vscode.window.registerUriHandler(this._uriHandler);
+	}
 
 	public async initialize(): Promise<void> {
 		const storedData = await keychain.getToken();
@@ -173,6 +193,12 @@ export class AzureActiveDirectoryService {
 
 	public async login(scope: string): Promise<void> {
 		Logger.info('Logging in...');
+
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			await this.loginWithoutLocalServer(scope);
+			return;
+		}
+
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const { server, redirectPromise, codePromise } = createServer(nonce);
 
@@ -219,11 +245,85 @@ export class AzureActiveDirectoryService {
 				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 				res.end();
 			}
+		} catch (e) {
+			Logger.error(e.message);
+
+			// If the error was about starting the server, try directly hitting the login endpoint instead
+			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
+				await this.loginWithoutLocalServer(scope);
+			}
 		} finally {
 			setTimeout(() => {
 				server.close();
 			}, 5000);
 		}
+	}
+
+	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
+		switch (callbackUri.authority) {
+			case 'online.visualstudio.com':
+				return 'vso';
+			case 'online-ppe.core.vsengsaas.visualstudio.com':
+				return 'vsoppe';
+			case 'online.dev.core.vsengsaas.visualstudio.com':
+				return 'vsodev';
+			default:
+				return vscode.env.uriScheme;
+		}
+	}
+
+	private async loginWithoutLocalServer(scope: string): Promise<IToken> {
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.vscode-account`));
+		const nonce = crypto.randomBytes(16).toString('base64');
+		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
+		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
+		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		const signInUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize`;
+		let uri = vscode.Uri.parse(signInUrl);
+		const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
+		const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
+		uri = uri.with({
+			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&response_mode=query&redirect_uri=${redirectUrl}&state=${state}&scope=${scope}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
+		});
+		vscode.env.openExternal(uri);
+
+		const timeoutPromise = new Promise((resolve: (value: IToken) => void, reject) => {
+			const wait = setTimeout(() => {
+				clearTimeout(wait);
+				reject('Login timed out.');
+			}, 1000 * 60 * 5);
+		});
+
+		return Promise.race([this.handleCodeResponse(state, codeVerifier, scope), timeoutPromise]);
+	}
+
+	private async handleCodeResponse(state: string, codeVerifier: string, scope: string) {
+		let uriEventListener: vscode.Disposable;
+		return new Promise((resolve: (value: IToken) => void, reject) => {
+			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
+				try {
+					const query = parseQuery(uri);
+					const code = query.code;
+
+					if (query.state !== state) {
+						throw new Error('State does not match.');
+					}
+
+					const token = await this.exchangeCodeForToken(code, codeVerifier, scope);
+					this.setToken(token, scope);
+
+					resolve(token);
+				} catch (err) {
+					reject(err);
+				}
+			});
+		}).then(result => {
+			uriEventListener.dispose();
+			return result;
+		}).catch(err => {
+			uriEventListener.dispose();
+			throw err;
+		});
 	}
 
 	private async setToken(token: IToken, scope: string): Promise<void> {
@@ -295,8 +395,10 @@ export class AzureActiveDirectoryService {
 					});
 					result.on('end', () => {
 						if (result.statusCode === 200) {
+							Logger.info('Exchanging login code for token success');
 							resolve(this.getTokenFromResponse(buffer, scope));
 						} else {
+							Logger.error('Exchanging login code for token failed');
 							reject(new Error('Unable to login.'));
 						}
 					});
