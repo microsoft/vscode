@@ -67,7 +67,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
@@ -82,11 +82,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {
-		const configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
@@ -192,7 +192,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Encoding
-		this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		this.configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
 		// We know for a fact there is a text editor model here
 		const textEditorModel = this.textEditorModel!;
