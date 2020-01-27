@@ -49,32 +49,53 @@ export class TimelineService implements ITimelineService {
 	async getTimeline(uri: URI, token: CancellationToken, sources?: Set<string>) {
 		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)})`);
 
-		const requests = new Map<string, Promise<TimelineItem[] | CancellationErrorWithId<string>>>();
+		const requests: Promise<[string, TimelineItem[]]>[] = [];
 
 		for (const provider of this._providers.values()) {
 			if (sources && !sources.has(provider.source)) {
 				continue;
 			}
 
-			requests.set(provider.source, provider.provideTimeline(uri, token));
+			requests.push(provider.provideTimeline(uri, token).then(p => [provider.source, p]));
 		}
 
-		// TODO[ECA]: What should the timeout be for waiting for individual providers?
-		const timelines = await raceAll(requests /*, 5000*/);
+		const timelines = await Promise.all(requests);
 
 		const timeline = [];
 		for (const [source, items] of timelines) {
-			if (items instanceof CancellationError) {
-				this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)}) source=${source} cancelled`);
-				continue;
-			}
-
 			if (items.length === 0) {
 				continue;
 			}
 
 			timeline.push(...items.map(item => ({ ...item, source: source })));
 		}
+
+		// const requests = new Map<string, Promise<TimelineItem[] | CancellationErrorWithId<string>>>();
+
+		// for (const provider of this._providers.values()) {
+		// 	if (sources && !sources.has(provider.source)) {
+		// 		continue;
+		// 	}
+
+		// 	requests.set(provider.source, provider.provideTimeline(uri, token));
+		// }
+
+		// // TODO[ECA]: What should the timeout be for waiting for individual providers?
+		// const timelines = await raceAll(requests /*, 5000*/);
+
+		// const timeline = [];
+		// for (const [source, items] of timelines) {
+		// 	if (items instanceof CancellationError) {
+		// 		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)}) source=${source} cancelled`);
+		// 		continue;
+		// 	}
+
+		// 	if (items.length === 0) {
+		// 		continue;
+		// 	}
+
+		// 	timeline.push(...items.map(item => ({ ...item, source: source })));
+		// }
 
 		timeline.sort((a, b) => b.timestamp - a.timestamp);
 		return timeline;
@@ -123,82 +144,82 @@ export class TimelineService implements ITimelineService {
 	}
 }
 
-function* map<T, TMapped>(source: Iterable<T> | IterableIterator<T>, mapper: (item: T) => TMapped): Iterable<TMapped> {
-	for (const item of source) {
-		yield mapper(item);
-	}
-}
+// function* map<T, TMapped>(source: Iterable<T> | IterableIterator<T>, mapper: (item: T) => TMapped): Iterable<TMapped> {
+// 	for (const item of source) {
+// 		yield mapper(item);
+// 	}
+// }
 
-class CancellationError<TPromise = any> extends Error {
-	constructor(public readonly promise: TPromise, message: string) {
-		super(message);
-	}
-}
+// class CancellationError<TPromise = any> extends Error {
+// 	constructor(public readonly promise: TPromise, message: string) {
+// 		super(message);
+// 	}
+// }
 
-class CancellationErrorWithId<T, TPromise = any> extends CancellationError<TPromise> {
-	constructor(public readonly id: T, promise: TPromise, message: string) {
-		super(promise, message);
-	}
-}
+// class CancellationErrorWithId<T, TPromise = any> extends CancellationError<TPromise> {
+// 	constructor(public readonly id: T, promise: TPromise, message: string) {
+// 		super(promise, message);
+// 	}
+// }
 
-function raceAll<TPromise>(
-	promises: Promise<TPromise>[],
-	timeout?: number
-): Promise<(TPromise | CancellationError<Promise<TPromise>>)[]>;
-function raceAll<TPromise, T>(
-	promises: Map<T, Promise<TPromise>>,
-	timeout?: number
-): Promise<Map<T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>>>;
-function raceAll<TPromise, T>(
-	ids: Iterable<T>,
-	fn: (id: T) => Promise<TPromise>,
-	timeout?: number
-): Promise<Map<T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>>>;
-async function raceAll<TPromise, T>(
-	promisesOrIds: Promise<TPromise>[] | Map<T, Promise<TPromise>> | Iterable<T>,
-	timeoutOrFn?: number | ((id: T) => Promise<TPromise>),
-	timeout?: number
-) {
-	let promises;
-	if (timeoutOrFn !== undefined && typeof timeoutOrFn !== 'number') {
-		promises = new Map(
-			map<T, [T, Promise<TPromise>]>(promisesOrIds as Iterable<T>, id => [id, timeoutOrFn(id)])
-		);
-	} else {
-		timeout = timeoutOrFn;
-		promises = promisesOrIds as Promise<TPromise>[] | Map<T, Promise<TPromise>>;
-	}
+// function raceAll<TPromise>(
+// 	promises: Promise<TPromise>[],
+// 	timeout?: number
+// ): Promise<(TPromise | CancellationError<Promise<TPromise>>)[]>;
+// function raceAll<TPromise, T>(
+// 	promises: Map<T, Promise<TPromise>>,
+// 	timeout?: number
+// ): Promise<Map<T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>>>;
+// function raceAll<TPromise, T>(
+// 	ids: Iterable<T>,
+// 	fn: (id: T) => Promise<TPromise>,
+// 	timeout?: number
+// ): Promise<Map<T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>>>;
+// async function raceAll<TPromise, T>(
+// 	promisesOrIds: Promise<TPromise>[] | Map<T, Promise<TPromise>> | Iterable<T>,
+// 	timeoutOrFn?: number | ((id: T) => Promise<TPromise>),
+// 	timeout?: number
+// ) {
+// 	let promises;
+// 	if (timeoutOrFn !== undefined && typeof timeoutOrFn !== 'number') {
+// 		promises = new Map(
+// 			map<T, [T, Promise<TPromise>]>(promisesOrIds as Iterable<T>, id => [id, timeoutOrFn(id)])
+// 		);
+// 	} else {
+// 		timeout = timeoutOrFn;
+// 		promises = promisesOrIds as Promise<TPromise>[] | Map<T, Promise<TPromise>>;
+// 	}
 
-	if (promises instanceof Map) {
-		return new Map(
-			await Promise.all(
-				map<[T, Promise<TPromise>], Promise<[T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>]>>(
-					promises.entries(),
-					timeout === undefined
-						? ([id, promise]) => promise.then(p => [id, p])
-						: ([id, promise]) =>
-							Promise.race([
-								promise,
+// 	if (promises instanceof Map) {
+// 		return new Map(
+// 			await Promise.all(
+// 				map<[T, Promise<TPromise>], Promise<[T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>]>>(
+// 					promises.entries(),
+// 					timeout === undefined
+// 						? ([id, promise]) => promise.then(p => [id, p])
+// 						: ([id, promise]) =>
+// 							Promise.race([
+// 								promise,
 
-								new Promise<CancellationErrorWithId<T, Promise<TPromise>>>(resolve =>
-									setTimeout(() => resolve(new CancellationErrorWithId(id, promise, 'TIMED OUT')), timeout!)
-								)
-							]).then(p => [id, p])
-				)
-			)
-		);
-	}
+// 								new Promise<CancellationErrorWithId<T, Promise<TPromise>>>(resolve =>
+// 									setTimeout(() => resolve(new CancellationErrorWithId(id, promise, 'TIMED OUT')), timeout!)
+// 								)
+// 							]).then(p => [id, p])
+// 				)
+// 			)
+// 		);
+// 	}
 
-	return Promise.all(
-		timeout === undefined
-			? promises
-			: promises.map(p =>
-				Promise.race([
-					p,
-					new Promise<CancellationError<Promise<TPromise>>>(resolve =>
-						setTimeout(() => resolve(new CancellationError(p, 'TIMED OUT')), timeout!)
-					)
-				])
-			)
-	);
-}
+// 	return Promise.all(
+// 		timeout === undefined
+// 			? promises
+// 			: promises.map(p =>
+// 				Promise.race([
+// 					p,
+// 					new Promise<CancellationError<Promise<TPromise>>>(resolve =>
+// 						setTimeout(() => resolve(new CancellationError(p, 'TIMED OUT')), timeout!)
+// 					)
+// 				])
+// 			)
+// 	);
+// }
