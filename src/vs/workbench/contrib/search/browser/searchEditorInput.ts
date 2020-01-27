@@ -100,9 +100,9 @@ export class SearchEditorInput extends EditorInput {
 		if (this.isUntitled()) {
 			return this.saveAs(group, options);
 		} else {
+			await this.textFileService.write(this.resource, (await this.model).getValue(), options);
 			this.setDirty(false);
-			const res = await !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
-			return res ? this : undefined;
+			return this;
 		}
 	}
 
