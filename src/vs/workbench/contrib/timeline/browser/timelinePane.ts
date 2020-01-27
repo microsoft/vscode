@@ -80,8 +80,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(uri: URI | undefined) {
-		// eslint-disable-next-line eqeqeq
-		if (uri == null || uri.toString(true) !== this._uri?.toString(true)) {
+		if (uri === undefined || uri.toString(true) !== this._uri?.toString(true)) {
 			this.refresh();
 		}
 	}
@@ -156,8 +155,7 @@ export class TimelinePane extends ViewPane {
 	private _uri: URI | undefined;
 
 	private updateUri(uri: URI | undefined) {
-		// eslint-disable-next-line eqeqeq
-		if (uri?.toString(true) === this._uri?.toString(true) && uri != null) {
+		if (uri?.toString(true) === this._uri?.toString(true) && uri !== undefined) {
 			return;
 		}
 

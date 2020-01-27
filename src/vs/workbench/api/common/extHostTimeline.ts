@@ -54,6 +54,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				timelineDisposables.clear();
 
 				const results = await provider.provideTimeline(uri, token);
+				// Intentional == we don't know how a provider will respond
 				// eslint-disable-next-line eqeqeq
 				return results != null
 					? results.map(item => convertTimelineItem(item))

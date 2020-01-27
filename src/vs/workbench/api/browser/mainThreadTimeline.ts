@@ -35,8 +35,7 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 
 		const emitters = this._providerEmitters;
 		let onDidChange = emitters.get(provider.source);
-		// eslint-disable-next-line eqeqeq
-		if (onDidChange == null) {
+		if (onDidChange === undefined) {
 			onDidChange = new Emitter<URI | undefined>();
 			emitters.set(provider.source, onDidChange);
 		}
