@@ -2340,7 +2340,7 @@ export class CommandCenter {
 			return commands.executeCommand('vscode.diff', toGitUri(uri, hash), toGitUri(uri, `HEAD`), `${basename} (Index)`);
 		}
 
-		return commands.executeCommand('vscode.diff', toGitUri(uri, hash), toGitUri(uri, `${hash}^`), `${basename} (${hash.substr(0, 8)}^) \u27f7 ${basename} (${hash.substr(0, 8)})`);
+		return commands.executeCommand('vscode.diff', toGitUri(uri, `${hash}^`), toGitUri(uri, hash), `${basename} (${hash.substr(0, 8)}^) \u27f7 ${basename} (${hash.substr(0, 8)})`);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
