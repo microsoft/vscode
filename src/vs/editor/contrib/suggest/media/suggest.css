@@ -111,6 +111,49 @@
 	font-weight: bold;
 }
 
+/** Status Bar **/
+
+.monaco-editor .suggest-widget > .tree {
+	margin-bottom: 18px;
+}
+.monaco-editor .suggest-widget > .suggest-status-bar {
+	visibility: hidden;
+
+	position: absolute;
+	left: 0;
+
+	box-sizing: border-box;
+
+	display: flex;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+
+	width: 100%;
+
+	font-size: 80%;
+
+	border-left-width: 1px;
+	border-left-style: solid;
+	border-right-width: 1px;
+	border-right-style: solid;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+
+	padding: 1px 8px 1px 4px;
+
+	box-shadow: 0 -.5px 3px #ddd;
+}
+.monaco-editor .suggest-widget > .suggest-status-bar span {
+	opacity: 0.7;
+}
+.monaco-editor .suggest-widget.list-right.docs-side > .suggest-status-bar {
+	left: auto;
+	right: 0;
+}
+.monaco-editor .suggest-widget.docs-side > .suggest-status-bar {
+	width: 50%;
+}
+
 /** ReadMore Icon styles **/
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close,

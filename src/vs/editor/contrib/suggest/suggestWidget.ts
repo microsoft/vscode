@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/suggest';
+import 'vs/css!./media/suggestStatusBar';
 import 'vs/base/browser/ui/codiconLabel/codiconLabel'; // The codicon symbol styles are defined here and must be loaded
 import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
@@ -41,6 +42,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { flatten } from 'vs/base/common/arrays';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Position } from 'vs/editor/common/core/position';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -301,7 +303,7 @@ class SuggestionDetails {
 		private readonly widget: SuggestWidget,
 		private readonly editor: ICodeEditor,
 		private readonly markdownRenderer: MarkdownRenderer,
-		private readonly triggerKeybindingLabel: string,
+		private readonly kbToggleDetails: string,
 	) {
 		this.disposables = new DisposableStore();
 
@@ -316,7 +318,7 @@ class SuggestionDetails {
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.codicon.codicon-close'));
-		this.close.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
+		this.close.title = nls.localize('readLess', "Read less...{0}", this.kbToggleDetails);
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
@@ -468,6 +470,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
+	private readonly msgDetailMore: string;
+	private readonly msgDetailsLess: string;
+
 	private state: State | null = null;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
@@ -479,6 +484,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
+	private statusBarElement: HTMLElement;
+	private statusBarLeftSpan: HTMLSpanElement;
+	private statusBarRightSpan: HTMLSpanElement;
 	private details: SuggestionDetails;
 	private list: List<CompletionItem>;
 	private listHeight?: number;
@@ -517,17 +525,19 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
-		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
 		const markdownRenderer = this.toDispose.add(new MarkdownRenderer(editor, modeService, openerService));
+
+		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
+		this.msgDetailsLess = nls.localize('detail.less', "{0} for less...", kbToggleDetails);
+		this.msgDetailMore = nls.localize('detail.more', "{0} for more...", kbToggleDetails);
 
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -542,12 +552,23 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
+
+		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', !this.editor.getOption(EditorOption.suggest).hideStatusBar);
+		applyStatusBarStyle();
+
+		this.statusBarElement = append(this.element, $('.suggest-status-bar'));
+		this.statusBarLeftSpan = append(this.statusBarElement, $('span'));
+		this.statusBarRightSpan = append(this.statusBarElement, $('span'));
+
+		this.setStatusBarLeftText('');
+		this.setStatusBarRightText('');
+
+		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, kbToggleDetails);
 
 		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
-		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, triggerKeybindingLabel);
+		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, kbToggleDetails);
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
@@ -582,7 +603,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
 		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
-		this.toDispose.add(this.editor.onDidChangeConfiguration(e => { if (e.hasChanged(EditorOption.suggest)) { applyIconStyle(); } }));
+		this.toDispose.add(this.editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.suggest)) {
+				applyStatusBarStyle();
+				applyIconStyle();
+			}
+		}));
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
@@ -661,12 +687,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
 			this.listElement.style.backgroundColor = backgroundColor.toString();
+			this.statusBarElement.style.backgroundColor = backgroundColor.toString();
 			this.details.element.style.backgroundColor = backgroundColor.toString();
 			this.messageElement.style.backgroundColor = backgroundColor.toString();
 		}
 		const borderColor = theme.getColor(editorSuggestWidgetBorder);
 		if (borderColor) {
 			this.listElement.style.borderColor = borderColor.toString();
+			this.statusBarElement.style.borderColor = borderColor.toString();
 			this.details.element.style.borderColor = borderColor.toString();
 			this.messageElement.style.borderColor = borderColor.toString();
 			this.detailsBorderColor = borderColor.toString();
@@ -704,6 +732,22 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item !== this.focusedItem) {
 
+			// update statusbar
+			// todo@joh,pine -> this should a toolbar with actions so that these things become
+			// mouse clickable and fit for accessibility...
+			const wantsInsert = this.editor.getOption(EditorOption.suggest).insertMode === 'insert';
+			const kbAccept = this.keybindingService.lookupKeybinding('acceptSelectedSuggestion')?.getLabel();
+			const kbAcceptAlt = this.keybindingService.lookupKeybinding('acceptAlternativeSelectedSuggestion')?.getLabel();
+			if (!Position.equals(item.editInsertEnd, item.editReplaceEnd)) {
+				// insert AND replace
+				if (wantsInsert) {
+					this.setStatusBarLeftText(nls.localize('insert', "{0} to insert, {1} to replace", kbAccept, kbAcceptAlt));
+				} else {
+					this.setStatusBarLeftText(nls.localize('replace', "{0} to replace, {1} to insert", kbAccept, kbAcceptAlt));
+				}
+			} else {
+				this.setStatusBarLeftText(nls.localize('accept', "{0} to accept", kbAccept));
+			}
 
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
@@ -739,6 +783,16 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					removeClass(this.element, 'docs-side');
 				}
 
+				if (canExpandCompletionItem(this.focusedItem)) {
+					if (this.expandDocsSettingFromStorage()) {
+						this.setStatusBarRightText(this.msgDetailsLess);
+					} else {
+						this.setStatusBarRightText(this.msgDetailMore);
+					}
+				} else {
+					this.statusBarRightSpan.innerText = '';
+				}
+
 				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
 			}).catch(onUnexpectedError);
 		}
@@ -759,7 +813,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		switch (state) {
 			case State.Hidden:
-				hide(this.messageElement, this.details.element, this.listElement);
+				hide(this.messageElement, this.details.element, this.listElement, this.statusBarElement);
 				this.hide();
 				this.listHeight = 0;
 				if (stateChanged) {
@@ -769,7 +823,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
-				hide(this.listElement, this.details.element);
+				hide(this.listElement, this.details.element, this.statusBarElement);
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
 				this.show();
@@ -777,7 +831,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				hide(this.listElement, this.details.element);
+				hide(this.listElement, this.details.element, this.statusBarElement);
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
 				this.show();
@@ -785,7 +839,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Open:
 				hide(this.messageElement);
-				show(this.listElement);
+				show(this.listElement, this.statusBarElement);
 				this.show();
 				break;
 			case State.Frozen:
@@ -795,7 +849,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Details:
 				hide(this.messageElement);
-				show(this.details.element, this.listElement);
+				show(this.details.element, this.listElement, this.statusBarElement);
 				this.show();
 				break;
 		}
@@ -1008,6 +1062,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
+			this.setStatusBarRightText(this.msgDetailMore);
 			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 		} else {
 			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
@@ -1016,6 +1071,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
+			this.setStatusBarRightText(this.msgDetailsLess);
 			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
@@ -1119,6 +1175,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
 		this.listElement.style.height = `${height}px`;
+		this.statusBarElement.style.top = `${height}px`;
 		this.list.layout(height);
 		return height;
 	}
@@ -1218,6 +1275,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private updateExpandDocsSetting(value: boolean) {
 		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+	}
+
+	private setStatusBarLeftText(s: string) {
+		this.statusBarLeftSpan.innerText = s;
+	}
+
+	private setStatusBarRightText(s: string) {
+		this.statusBarRightSpan.innerText = s;
 	}
 
 	dispose(): void {
