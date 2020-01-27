@@ -515,18 +515,19 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const isTokenStylingRule = (d: any): d is TokenStylingRule => !!d.value;
 		if (Array.isArray(definition)) {
 			let result = '';
+			let matchingRule = undefined;
 			result += `<ul>`;
 			for (const d of definition) {
 				result += `<li>${escape(d.join(' '))}</li>`;
+				matchingRule = findMatchingThemeRule(theme, d, false);
+				if (matchingRule) {
+					break;
+				}
 			}
 			result += `</ul>`;
 
-			for (const d of definition) {
-				let matchingRule = findMatchingThemeRule(theme, d, false);
-				if (matchingRule) {
-					result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
-					break;
-				}
+			if (matchingRule) {
+				result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return result;
 		} else if (isTokenStylingRule(definition)) {
@@ -540,7 +541,13 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 			return '';
 		} else if (typeof definition === 'string') {
-			return `Selector: ${definition}`;
+			const [type, ...modifiers] = definition.split('.');
+			const definitions: TokenStyleDefinitions = {};
+			const m = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
+			if (m && definitions.foreground) {
+				return this._renderTokenStyleDefinition(definitions.foreground);
+			}
+			return '';
 		} else {
 			return `Token style: Foreground: ${definition.foreground}, bold: ${definition.bold}, italic: ${definition.italic}, underline: ${definition.underline},`;
 		}
