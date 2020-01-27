@@ -52,13 +52,14 @@ export class SearchEditorInput extends EditorInput {
 
 	private dirty: boolean = false;
 	private readonly model: Promise<ITextModel>;
-	private resolvedModel?: { model: ITextModel, query: SearchConfiguration };
+	private query: Partial<SearchConfiguration> | undefined;
+
 	viewState: SearchEditorViewState = { focused: 'input' };
-	_restoredName: string | undefined;
 
 	constructor(
 		public readonly resource: URI,
 		getModel: () => Promise<ITextModel>,
+		startingConfig: Partial<SearchConfiguration> | undefined,
 		@IModelService private readonly modelService: IModelService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
@@ -87,6 +88,8 @@ export class SearchEditorInput extends EditorInput {
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
+
+		this.query = startingConfig;
 	}
 
 	getResource() {
@@ -123,10 +126,9 @@ export class SearchEditorInput extends EditorInput {
 
 	getName(): string {
 		if (this.isUntitled()) {
-			return this._restoredName ??
-				(this.resolvedModel?.query.query
-					? localize('searchTitle.withQuery', "Search: {0}", this.resolvedModel?.query.query)
-					: localize('searchTitle', "Search"));
+			return (this.query?.query
+				? localize('searchTitle.withQuery', "Search: {0}", this.query.query)
+				: localize('searchTitle', "Search"));
 		}
 
 		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
@@ -135,18 +137,13 @@ export class SearchEditorInput extends EditorInput {
 	async reloadModel() {
 		const model = await this.model;
 		const query = extractSearchQuery(model);
-		this.resolvedModel = { model, query };
-		this._restoredName = undefined; // not needed after the model has been resolved
+		this.query = query;
 		this._onDidChangeLabel.fire();
 		return { model, query };
 	}
 
 	getConfigSync() {
-		if (!this.resolvedModel) {
-			console.error('Requested config for Search Editor before initalization');
-		}
-
-		return this.resolvedModel?.query;
+		return this.query;
 	}
 
 	async resolve() {
@@ -281,11 +278,10 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, viewState, name } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, viewState } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration(config), uri: URI.parse(resource) });
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
 			input.viewState = viewState;
-			input._restoredName = name;
 			input.setDirty(dirty);
 			return input;
 		}
@@ -297,7 +293,10 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 const inputs = new Map<string, SearchEditorInput>();
 export const getOrMakeSearchEditorInput = (
 	accessor: ServicesAccessor,
-	existingData: { uri: URI, text?: string } | { text: string, uri?: URI }
+	existingData:
+		{ uri: URI, config?: Partial<SearchConfiguration>, text?: never } |
+		{ text: string, uri?: never, config?: never } |
+		{ config: Partial<SearchConfiguration>, text?: never, uri?: never }
 ): SearchEditorInput => {
 
 	const uri = existingData.uri ?? URI.from({ scheme: searchEditorScheme, fragment: `${Math.random()}` });
@@ -313,6 +312,7 @@ export const getOrMakeSearchEditorInput = (
 		return existing;
 	}
 
+	const config = existingData.config ?? (existingData.text ? extractSearchQuery(existingData.text) : {});
 
 	const getModel = async () => {
 		const existing = modelService.getModel(uri);
@@ -328,12 +328,13 @@ export const getOrMakeSearchEditorInput = (
 		} else if (uri.scheme !== searchEditorScheme) {
 			contents = (await textFileService.read(uri)).value;
 		} else {
-			contents = existingData.text ?? '';
+			contents = existingData.text ??
+				(existingData.config ? serializeSearchConfiguration(existingData.config) : '');
 		}
 		return modelService.createModel(contents, modeService.create('search-result'), uri);
 	};
 
-	const input = instantiationService.createInstance(SearchEditorInput, uri, getModel);
+	const input = instantiationService.createInstance(SearchEditorInput, uri, getModel, config);
 
 	inputs.set(uri.toString(), input);
 	input.onDispose(() => inputs.delete(uri.toString()));

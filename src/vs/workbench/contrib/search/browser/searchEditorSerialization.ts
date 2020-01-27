@@ -151,8 +151,10 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 };
 
 
-export const extractSearchQuery = (model: ITextModel): SearchConfiguration => {
-	const header = model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter);
+export const extractSearchQuery = (model: ITextModel | string): SearchConfiguration => {
+	const header = (typeof model === 'string')
+		? model
+		: model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter);
 
 	const query: SearchConfiguration = {
 		query: '',

@@ -365,11 +365,10 @@ export class SearchEditor extends BaseEditor {
 		await super.setInput(newInput, options, token);
 		this.inSearchEditorContextKey.set(true);
 
-		const { model } = await newInput.reloadModel();
+		const { model, query } = await newInput.reloadModel();
 		this.searchResultEditor.setModel(model);
 
 		this.pauseSearching = true;
-		const { query } = await newInput.reloadModel();
 
 		this.queryEditorWidget.setValue(query.query, true);
 		this.queryEditorWidget.searchInput.setCaseSensitive(query.caseSensitive);
