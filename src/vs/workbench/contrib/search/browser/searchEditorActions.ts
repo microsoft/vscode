@@ -46,7 +46,7 @@ export const openNewSearchEditor =
 			}
 		}
 
-		telemetryService.publicLog2<{}, {}>('searchEditor/openNewSearchEditor');
+		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
 		await editorService.openEditor(input, { pinned: true });
@@ -65,7 +65,7 @@ export const createEditorFromSearchResult =
 		const labelService = accessor.get(ILabelService);
 
 
-		telemetryService.publicLog2<{}, {}>('searchEditor/createEditorFromSearchResult');
+		telemetryService.publicLog2('searchEditor/createEditorFromSearchResult');
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 

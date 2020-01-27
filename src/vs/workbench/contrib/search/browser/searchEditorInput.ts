@@ -118,7 +118,7 @@ export class SearchEditorInput extends EditorInput {
 	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
-			this.telemetryService.publicLog2<{}, {}>('searchEditor/saveSearchResults');
+			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
 			if (await this.textFileService.saveAs(this.resource, path, options)) {
 				this.setDirty(false);
 				if (!isEqual(path, this.resource)) {
@@ -266,7 +266,7 @@ export class SearchEditorContribution implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			this.telemetryService.publicLog2<{}, {}>('searchEditor/openSavedSearchEditor');
+			this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: resource });
 			const opened = editorService.openEditor(input, { ...options, pinned: resource.scheme === searchEditorScheme, ignoreOverrides: true }, group);
 			return { override: Promise.resolve(opened) };
