@@ -426,10 +426,8 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(EditorLayoutTwoRows
 registry.registerWorkbenchAction(SyncActionDescriptor.create(EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsBottomAction.ID, EditorLayoutTwoColumnsBottomAction.LABEL), 'View: Two Columns Bottom Editor Layout', category);
 
 // Register Quick Editor Actions including built in quick navigate support for some
-const quickOpenNextRecentlyUsedEditorInGroupKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } };
-const quickOpenPreviousRecentlyUsedEditorInGroupKeybinding = { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } };
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorAction, QuickOpenPreviousRecentlyUsedEditorAction.ID, QuickOpenPreviousRecentlyUsedEditorAction.LABEL), 'View: Quick Open Previous Recently Used Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorInGroupAction, QuickOpenPreviousRecentlyUsedEditorInGroupAction.ID, QuickOpenPreviousRecentlyUsedEditorInGroupAction.LABEL, quickOpenPreviousRecentlyUsedEditorInGroupKeybinding), 'View: Quick Open Previous Recently Used Editor in Group', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorInGroupAction, QuickOpenPreviousRecentlyUsedEditorInGroupAction.ID, QuickOpenPreviousRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'View: Quick Open Previous Recently Used Editor in Group', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousEditorFromHistoryAction, QuickOpenPreviousEditorFromHistoryAction.ID, QuickOpenPreviousEditorFromHistoryAction.LABEL), 'Quick Open Previous Editor from History');
 
 const quickOpenNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
@@ -438,8 +436,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInEditorPickerId, true),
 	when: editorPickerContext,
-	primary: quickOpenNextRecentlyUsedEditorInGroupKeybinding.primary,
-	mac: quickOpenNextRecentlyUsedEditorInGroupKeybinding.mac
+	primary: KeyMod.CtrlCmd | KeyCode.Tab,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Tab }
 });
 
 const quickOpenNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenNavigatePreviousInEditorPicker';
@@ -448,8 +446,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInEditorPickerId, false),
 	when: editorPickerContext,
-	primary: quickOpenPreviousRecentlyUsedEditorInGroupKeybinding.primary,
-	mac: quickOpenPreviousRecentlyUsedEditorInGroupKeybinding.mac
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab }
 });
 
 // Editor Commands
