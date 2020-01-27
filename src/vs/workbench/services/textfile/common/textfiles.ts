@@ -51,6 +51,17 @@ export interface ITextFileService extends IDisposable {
 	readonly encoding: IResourceEncodings;
 
 	/**
+	 * The handler that should be called when saving fails. Can be overridden
+	 * to handle save errors in a custom way.
+	 */
+	saveErrorHandler: ISaveErrorHandler;
+
+	/**
+	 * The save participant if any. By default, no save participant is registered.
+	 */
+	saveParticipant: ISaveParticipant | undefined;
+
+	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
 	 *
 	 * @param resource the resource to check for being dirty

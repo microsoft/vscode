@@ -5,10 +5,9 @@
 
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
@@ -38,12 +37,6 @@ interface IBackupMetaData {
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
-
-	private static saveErrorHandler: ISaveErrorHandler;
-	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
-
-	private static saveParticipant: ISaveParticipant | null;
-	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
 	//#region Events
 
@@ -641,7 +634,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In addition we update our version right after in case it changed because of a model change
 		// Save participants can also be skipped through API.
 		let saveParticipantPromise: Promise<number> = Promise.resolve(versionId);
-		if (TextFileEditorModel.saveParticipant && !options.skipSaveParticipants) {
+		if (this.textFileService.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
 
@@ -649,7 +642,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			};
 
 			this.blockModelContentChange = true;
-			saveParticipantPromise = TextFileEditorModel.saveParticipant.participate(this as IResolvedTextFileEditorModel, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
+			saveParticipantPromise = this.textFileService.saveParticipant.participate(this as IResolvedTextFileEditorModel, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
 		}
 
 		// mark the save participant as current pending save operation
@@ -730,7 +723,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 
 				// Show to user
-				this.onSaveError(error);
+				this.textFileService.saveErrorHandler.onSaveError(error, this);
 
 				// Emit as event
 				this._onDidSaveError.fire();
@@ -783,22 +776,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
 		}
-	}
-
-	private onSaveError(error: Error): void {
-
-		// Prepare handler
-		if (!TextFileEditorModel.saveErrorHandler) {
-			const notificationService = this.notificationService;
-			TextFileEditorModel.setSaveErrorHandler({
-				onSaveError(error: Error, model: TextFileEditorModel): void {
-					notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
-				}
-			});
-		}
-
-		// Handle
-		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
 	//#endregion

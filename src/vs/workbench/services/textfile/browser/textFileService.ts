@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions, ITextFileEditorModelManager, ISaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -33,6 +33,8 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { coalesce } from 'vs/base/common/arrays';
 import { suggestFilename } from 'vs/base/common/mime';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -55,6 +57,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
 
+	saveErrorHandler = (() => {
+		const notificationService = this.notificationService;
+
+		return {
+			onSaveError(error: Error, model: ITextFileEditorModel): void {
+				notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
+			}
+		};
+	})();
+
+	saveParticipant: ISaveParticipant | undefined = undefined;
+
 	abstract get encoding(): IResourceEncodings;
 
 	constructor(
@@ -69,7 +83,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 

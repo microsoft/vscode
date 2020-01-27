@@ -37,6 +37,7 @@ import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -53,9 +54,10 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IProductService private readonly productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, notificationService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
