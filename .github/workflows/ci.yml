@@ -11,45 +11,44 @@ on:
       - release/*
 
 jobs:
-  # https://github.com/microsoft/vscode/issues/89147
-  # linux:
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     CHILD_CONCURRENCY: "1"
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #   - uses: actions/checkout@v1
-  #   # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-  #   - run: |
-  #       sudo apt-get update
-  #       sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
-  #       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-  #       sudo chmod +x /etc/init.d/xvfb
-  #       sudo update-rc.d xvfb defaults
-  #       sudo service xvfb start
-  #     name: Setup Build Environment
-  #   - uses: actions/setup-node@v1
-  #     with:
-  #       node-version: 10
-  #   # TODO: cache node modules
-  #   - run: yarn --frozen-lockfile
-  #     name: Install Dependencies
-  #   - run: yarn electron x64
-  #     name: Download Electron
-  #   - run: yarn gulp hygiene
-  #     name: Run Hygiene Checks
-  #   - run: yarn monaco-compile-check
-  #     name: Run Monaco Editor Checks
-  #   - run: yarn valid-layers-check
-  #     name: Run Valid Layers Checks
-  #   - run: yarn compile
-  #     name: Compile Sources
-  #   - run: yarn download-builtin-extensions
-  #     name: Download Built-in Extensions
-  #   - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
-  #     name: Run Unit Tests
-  #   - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
-  #     name: Run Integration Tests
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      CHILD_CONCURRENCY: "1"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - uses: actions/checkout@v1
+    # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+    - run: |
+        sudo apt-get update
+        sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
+        sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+        sudo chmod +x /etc/init.d/xvfb
+        sudo update-rc.d xvfb defaults
+        sudo service xvfb start --server-args="-screen 0 1024x768x24"
+      name: Setup Build Environment
+    - uses: actions/setup-node@v1
+      with:
+        node-version: 10
+    # TODO: cache node modules
+    - run: yarn --frozen-lockfile
+      name: Install Dependencies
+    - run: yarn electron x64
+      name: Download Electron
+    - run: yarn gulp hygiene
+      name: Run Hygiene Checks
+    - run: yarn monaco-compile-check
+      name: Run Monaco Editor Checks
+    - run: yarn valid-layers-check
+      name: Run Valid Layers Checks
+    - run: yarn compile
+      name: Compile Sources
+    - run: yarn download-builtin-extensions
+      name: Download Built-in Extensions
+    - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
+      name: Run Unit Tests
+    - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+      name: Run Integration Tests
 
   windows:
     runs-on: windows-2016
