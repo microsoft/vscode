@@ -62,6 +62,10 @@ export class CreateTerminal extends QuickOpenEntry {
 		return nls.localize('termCreateEntryAriaLabel', "{0}, create new terminal", this.getLabel());
 	}
 
+	public getIcon(): string {
+		return 'codicon codicon-plus';
+	}
+
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			setTimeout(() => this.commandService.executeCommand('workbench.action.terminal.new'), 0);
@@ -88,7 +92,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
 		const terminalEntries: QuickOpenEntry[] = this.getTerminals();
-		terminalEntries.push(new CreateTerminal('$(plus) ' + nls.localize("workbench.action.terminal.newplus", "Create New Integrated Terminal"), this.commandService));
+		terminalEntries.push(new CreateTerminal(nls.localize("workbench.action.terminal.newplus", "Create New Integrated Terminal"), this.commandService));
 
 		const entries = terminalEntries.filter(e => {
 			if (!searchValue) {
