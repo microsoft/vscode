@@ -139,7 +139,7 @@ export class TextModelResolverService implements ITextModelService {
 
 	private async doCreateModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 
-		// Untitled Schema: go through cached input
+		// Untitled Schema: go through untitled text service
 		if (resource.scheme === network.Schemas.untitled) {
 			const model = await this.untitledTextEditorService.resolve({ untitledResource: resource });
 
@@ -149,7 +149,6 @@ export class TextModelResolverService implements ITextModelService {
 		// InMemory Schema: go through model service cache
 		if (resource.scheme === network.Schemas.inMemory) {
 			const cachedModel = this.modelService.getModel(resource);
-
 			if (!cachedModel) {
 				throw new Error('Cant resolve inmemory resource');
 			}

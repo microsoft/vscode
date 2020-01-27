@@ -30,7 +30,7 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, TerminalShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
@@ -147,9 +147,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.openPreviousRecentlyUsedEditor',
 	'workbench.action.openNextRecentlyUsedEditorInGroup',
 	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
-	'workbench.action.quickOpenNextRecentlyUsedEditor',
 	'workbench.action.quickOpenPreviousRecentlyUsedEditor',
-	'workbench.action.quickOpenNextRecentlyUsedEditorInGroup',
 	'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
 	'workbench.action.focusActiveEditorGroup',
 	'workbench.action.focusFirstEditorGroup',
@@ -524,12 +522,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this._themeService.onThemeChange(theme => this._updateTheme(xterm, theme)));
 
 		return xterm;
-	}
-
-	private _isScreenReaderOptimized(): boolean {
-		const detected = this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
-		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	public reattachToElement(container: HTMLElement): void {
@@ -1008,7 +1000,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
 		}, 0);
 	}
 
@@ -1246,7 +1238,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public updateAccessibilitySupport(): void {
-		const isEnabled = this._isScreenReaderOptimized();
+		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
 		if (isEnabled) {
 			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
 			this._xterm!.loadAddon(this._navigationModeAddon);

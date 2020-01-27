@@ -29,12 +29,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IViewsService } from 'vs/workbench/common/views';
 
 /** Specified in searchview.css */
 export const SingleLineInputHeight = 24;
@@ -187,7 +185,7 @@ export class SearchWidget extends Widget {
 				this.updateAccessibilitySupport();
 			}
 		});
-		this.accessibilityService.onDidChangeAccessibilitySupport(() => this.updateAccessibilitySupport());
+		this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateAccessibilitySupport());
 		this.updateAccessibilitySupport();
 	}
 
@@ -293,14 +291,8 @@ export class SearchWidget extends Widget {
 		this.renderReplaceInput(this.domNode, options);
 	}
 
-	private isScreenReaderOptimized() {
-		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
-		return config === 'on' || (config === 'auto' && detected);
-	}
-
 	private updateAccessibilitySupport(): void {
-		this.searchInput.setFocusInputOnOptionClick(!this.isScreenReaderOptimized());
+		this.searchInput.setFocusInputOnOptionClick(!this.accessibilityService.isScreenReaderOptimized());
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
@@ -677,7 +669,7 @@ export function registerContributions() {
 		when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
-			if (isSearchViewFocused(accessor.get(IViewletService), accessor.get(IPanelService))) {
+			if (isSearchViewFocused(accessor.get(IViewsService))) {
 				ReplaceAllAction.INSTANCE.run();
 			}
 		}

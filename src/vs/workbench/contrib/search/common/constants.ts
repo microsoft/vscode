@@ -30,10 +30,9 @@ export const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseS
 export const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
 export const ToggleSearchEditorRegexCommandId = 'toggleSearchEditorRegex';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
+export const RerunSearchEditorSearchCommandId = 'rerunSearchEditorSearch';
 export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
 export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
-
-export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
 
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);

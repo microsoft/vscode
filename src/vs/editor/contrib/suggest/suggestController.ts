@@ -43,7 +43,7 @@ import { SuggestRangeHighlighter } from 'vs/editor/contrib/suggest/suggestRangeH
  * Stop suggest widget from disappearing when clicking into other areas
  * For development purpose only
  */
-const _sticky = false;
+const _sticky = true;
 
 class LineSuffix {
 
@@ -528,11 +528,8 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	handler(x, args) {
-		const alternative: boolean = typeof args === 'object' && typeof args.alternative === 'boolean'
-			? args.alternative
-			: false;
-		x.acceptSelectedSuggestion(true, alternative);
+	handler(x) {
+		x.acceptSelectedSuggestion(true, false);
 	}
 }));
 
@@ -552,16 +549,23 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight
 });
 
+// todo@joh control enablement via context key
 // shift+enter and shift+tab use the alternative-flag so that the suggest controller
 // is doing the opposite of the editor.suggest.overwriteOnAccept-configuration
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
-	primary: KeyMod.Shift | KeyCode.Tab,
-	secondary: [KeyMod.Shift | KeyCode.Enter],
-	args: { alternative: true },
-	weight
-});
+registerEditorCommand(new SuggestCommand({
+	id: 'acceptAlternativeSelectedSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textInputFocus,
+		primary: KeyMod.Shift | KeyCode.Enter,
+		secondary: [KeyMod.Shift | KeyCode.Tab],
+	},
+	handler(x) {
+		x.acceptSelectedSuggestion(false, true);
+	},
+}));
+
 
 // continue to support the old command
 CommandsRegistry.registerCommandAlias('acceptSelectedSuggestionOnEnter', 'acceptSelectedSuggestion');

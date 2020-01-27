@@ -41,7 +41,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -619,13 +619,14 @@ export class RepositoryPane extends ViewPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);

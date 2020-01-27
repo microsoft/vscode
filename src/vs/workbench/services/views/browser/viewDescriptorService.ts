@@ -337,6 +337,24 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewsRegistry.getView(viewId);
 	}
 
+	getViewLocation(viewId: string): ViewContainerLocation | null {
+		const cachedInfo = this.cachedViewInfo.get(viewId);
+
+		if (cachedInfo && cachedInfo.location) {
+			return cachedInfo.location;
+		}
+
+		const container = cachedInfo?.containerId ?
+			this.viewContainersRegistry.get(cachedInfo.containerId) ?? null :
+			this.viewsRegistry.getViewContainer(viewId);
+
+		if (!container) {
+			return null;
+		}
+
+		return this.viewContainersRegistry.getViewContainerLocation(container) ?? null;
+	}
+
 	getViewContainer(viewId: string): ViewContainer | null {
 		const containerId = this.cachedViewInfo.get(viewId)?.containerId;
 		return containerId ?
@@ -528,6 +546,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[]): void {
+		// Update in memory cache
+		const location = this.viewContainersRegistry.getViewContainerLocation(container);
+		const sourceViewId = this.generatedContainerSourceViewIds.get(container.id);
+		views.forEach(view => {
+			this.cachedViewInfo.set(view.id, { containerId: container.id, location, sourceViewId });
+		});
+
 		this.getViewDescriptors(container).addViews(views);
 	}
 

@@ -40,9 +40,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
@@ -1209,7 +1208,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
-			isScreenReaderOptimized: () => this.isScreenReaderOptimized(),
+			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
@@ -1463,12 +1462,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 				ui.inputBox.removeAttribute('aria-activedescendant');
 			}
 		}
-	}
-
-	private isScreenReaderOptimized() {
-		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
-		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	private setEnabled(enabled: boolean) {

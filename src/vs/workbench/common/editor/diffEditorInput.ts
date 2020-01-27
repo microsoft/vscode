@@ -17,7 +17,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	static readonly ID = 'workbench.editors.diffEditorInput';
 
-	private cachedModel: DiffEditorModel | null = null;
+	private cachedModel: DiffEditorModel | undefined = undefined;
 
 	constructor(
 		protected name: string | undefined,
@@ -96,7 +96,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		// them without sideeffects.
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
-			this.cachedModel = null;
+			this.cachedModel = undefined;
 		}
 
 		super.dispose();

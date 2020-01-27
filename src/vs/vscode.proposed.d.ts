@@ -22,6 +22,7 @@ declare module 'vscode' {
 		id: string;
 		accessToken: string;
 		displayName: string;
+		scopes: string[]
 	}
 
 	export interface AuthenticationProvider {
@@ -37,7 +38,7 @@ declare module 'vscode' {
 		/**
 		 * Prompts a user to login.
 		 */
-		login(): Promise<Session>;
+		login(scopes: string[]): Promise<Session>;
 		logout(sessionId: string): Promise<void>;
 	}
 

@@ -50,37 +50,37 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.ok(!manager.get(fileUpper));
 
-		let result = manager.getAll();
-		assert.strictEqual(3, result.length);
+		let results = manager.getAll();
+		assert.strictEqual(3, results.length);
 
-		result = manager.getAll(URI.file('/yes'));
-		assert.strictEqual(0, result.length);
+		let result = manager.get(URI.file('/yes'));
+		assert.ok(!result);
 
-		result = manager.getAll(URI.file('/some/other.txt'));
-		assert.strictEqual(0, result.length);
+		result = manager.get(URI.file('/some/other.txt'));
+		assert.ok(!result);
 
-		result = manager.getAll(URI.file('/some/other.html'));
-		assert.strictEqual(1, result.length);
+		result = manager.get(URI.file('/some/other.html'));
+		assert.ok(result);
 
-		result = manager.getAll(fileUpper);
-		assert.strictEqual(0, result.length);
+		result = manager.get(fileUpper);
+		assert.ok(!result);
 
 		manager.remove(URI.file(''));
 
-		result = manager.getAll();
-		assert.strictEqual(3, result.length);
+		results = manager.getAll();
+		assert.strictEqual(3, results.length);
 
 		manager.remove(URI.file('/some/other.html'));
-		result = manager.getAll();
-		assert.strictEqual(2, result.length);
+		results = manager.getAll();
+		assert.strictEqual(2, results.length);
 
 		manager.remove(fileUpper);
-		result = manager.getAll();
-		assert.strictEqual(2, result.length);
+		results = manager.getAll();
+		assert.strictEqual(2, results.length);
 
 		manager.clear();
-		result = manager.getAll();
-		assert.strictEqual(0, result.length);
+		results = manager.getAll();
+		assert.strictEqual(0, results.length);
 
 		model1.dispose();
 		model2.dispose();

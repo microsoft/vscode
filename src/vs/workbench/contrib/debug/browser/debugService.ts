@@ -596,8 +596,9 @@ export class DebugService implements IDebugService {
 				return Promise.resolve(TaskRunResult.Success);
 			}
 
-			await this.taskRunner.runTask(session.root, session.configuration.postDebugTask);
-			return this.taskRunner.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask, (msg, actions) => this.showError(msg, actions));
+			const root = session.root || this.contextService.getWorkspace();
+			await this.taskRunner.runTask(root, session.configuration.postDebugTask);
+			return this.taskRunner.runTaskAndCheckErrors(root, session.configuration.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 		};
 
 		const extensionDebugSession = getExtensionHostDebugSession(session);

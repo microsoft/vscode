@@ -439,8 +439,10 @@ export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 	handle: number;
 }
 
-export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
+export interface TransferQuickInputButton {
 	handle: number;
+	iconPath: { dark: URI; light?: URI; } | { id: string; };
+	tooltip?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -908,8 +910,8 @@ export interface ExtHostLabelServiceShape {
 
 export interface ExtHostAuthenticationShape {
 	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
-	$login(id: string): Promise<modes.Session>;
-	$logout(id: string, accountId: string): Promise<void>;
+	$login(id: string, scopes: string[]): Promise<modes.Session>;
+	$logout(id: string, sessionId: string): Promise<void>;
 }
 
 export interface ExtHostSearchShape {

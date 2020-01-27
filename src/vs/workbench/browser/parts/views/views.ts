@@ -23,6 +23,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -563,6 +564,27 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 
 		return undefined;
+	}
+
+	getActiveViewWithId(id: string): IView | null {
+		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		if (viewContainer) {
+			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+
+			if (location === ViewContainerLocation.Sidebar) {
+				const activeViewlet = this.viewletService.getActiveViewlet();
+				if (activeViewlet?.getId() === viewContainer.id) {
+					return activeViewlet.getViewPaneContainer().getView(id) ?? null;
+				}
+			} else if (location === ViewContainerLocation.Panel) {
+				const activePanel = this.panelService.getActivePanel();
+				if (activePanel?.getId() === viewContainer.id && activePanel instanceof PaneComposite) {
+					return activePanel.getViewPaneContainer().getView(id) ?? null;
+				}
+			}
+		}
+
+		return null;
 	}
 
 	async openView(id: string, focus: boolean): Promise<IView | null> {

@@ -15,10 +15,9 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys, getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
@@ -357,6 +356,8 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: undefined;
 
+	getActiveViewWithId(id: string): IView | null;
+
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 }
 
@@ -374,6 +375,8 @@ export interface IViewDescriptorService {
 	getViewDescriptor(viewId: string): IViewDescriptor | null;
 
 	getViewContainer(viewId: string): ViewContainer | null;
+
+	getViewLocation(viewId: string): ViewContainerLocation | null;
 
 	getDefaultContainer(viewId: string): ViewContainer | null;
 }
@@ -505,3 +508,15 @@ export interface IEditableData {
 	startingValue?: string | null;
 	onFinish: (value: string, success: boolean) => void;
 }
+
+export interface IViewPaneContainer {
+	setVisible(visible: boolean): void;
+	isVisible(): boolean;
+	focus(): void;
+	getActions(): IAction[];
+	getSecondaryActions(): IAction[];
+	getActionViewItem(action: IAction): IActionViewItem | undefined;
+	getView(viewId: string): IView | undefined;
+	saveState(): void;
+}
+

@@ -19,7 +19,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/modes';
@@ -39,6 +39,9 @@ const tokenGroupToScopesMap = {
 	variables: ['variable', 'entity.name.variable']
 };
 
+
+export type TokenStyleDefinition = TokenStylingRule | ProbeScope[] | TokenStyleValue;
+export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
 
 export class ColorThemeData implements IColorTheme {
 
@@ -122,7 +125,7 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getTokenStyle(classification: TokenClassification, useDefault?: boolean): TokenStyle | undefined {
+	public getTokenStyle(classification: TokenClassification, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
 		let result: any = {
 			foreground: undefined,
 			bold: undefined,
@@ -136,10 +139,11 @@ export class ColorThemeData implements IColorTheme {
 			italic: -1
 		};
 
-		function _processStyle(matchScore: number, style: TokenStyle) {
+		function _processStyle(matchScore: number, style: TokenStyle, definition: TokenStyleDefinition) {
 			if (style.foreground && score.foreground <= matchScore) {
 				score.foreground = matchScore;
 				result.foreground = style.foreground;
+				definitions.foreground = definition;
 			}
 			for (let p of ['bold', 'underline', 'italic']) {
 				const property = p as keyof TokenStyle;
@@ -148,6 +152,7 @@ export class ColorThemeData implements IColorTheme {
 					if (score[property] <= matchScore) {
 						score[property] = matchScore;
 						result[property] = info;
+						definitions[property] = definition;
 					}
 				}
 			}
@@ -159,12 +164,16 @@ export class ColorThemeData implements IColorTheme {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
 						style = this.resolveScopes(rule.defaults.scopesToProbe);
+						if (style) {
+							_processStyle(matchScore, style, rule.defaults.scopesToProbe);
+						}
 					}
 					if (!style && useDefault !== false) {
-						style = this.resolveTokenStyleValue(rule.defaults[this.type]);
-					}
-					if (style) {
-						_processStyle(matchScore, style);
+						const tokenStyleValue = rule.defaults[this.type];
+						style = this.resolveTokenStyleValue(tokenStyleValue);
+						if (style) {
+							_processStyle(matchScore, style, tokenStyleValue!);
+						}
 					}
 				}
 			}
@@ -172,14 +181,14 @@ export class ColorThemeData implements IColorTheme {
 			for (const rule of this.tokenStylingRules) {
 				const matchScore = rule.match(classification);
 				if (matchScore >= 0) {
-					_processStyle(matchScore, rule.value);
+					_processStyle(matchScore, rule.value, rule);
 				}
 			}
 		}
 		for (const rule of this.customTokenStylingRules) {
 			const matchScore = rule.match(classification);
 			if (matchScore >= 0) {
-				_processStyle(matchScore, rule.value);
+				_processStyle(matchScore, rule.value, rule);
 			}
 		}
 		return TokenStyle.fromData(result);
@@ -234,12 +243,12 @@ export class ColorThemeData implements IColorTheme {
 		return this.getTokenColorIndex().asArray();
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault?: boolean): number | undefined {
+	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): number | undefined {
 		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 		if (!classification) {
 			return undefined;
 		}
-		const style = this.getTokenStyle(classification, useDefault);
+		const style = this.getTokenStyle(classification, useDefault, definitions);
 		let fontStyle = FontStyle.None;
 		let foreground = 0;
 		if (style) {
@@ -255,6 +264,16 @@ export class ColorThemeData implements IColorTheme {
 			foreground = this.getTokenColorIndex().get(style.foreground);
 		}
 		return toMetadata(fontStyle, foreground, 0);
+	}
+
+	public getTokenStylingRuleScope(rule: TokenStylingRule): 'setting' | 'theme' | undefined {
+		if (this.customTokenStylingRules.indexOf(rule) !== -1) {
+			return 'setting';
+		}
+		if (this.tokenStylingRules && this.tokenStylingRules.indexOf(rule) !== -1) {
+			return 'theme';
+		}
+		return undefined;
 	}
 
 	public getDefault(colorId: ColorIdentifier): Color | undefined {
@@ -769,18 +788,19 @@ function normalizeColor(color: string | Color | undefined | null): string | unde
 	if (typeof color !== 'string') {
 		color = Color.Format.CSS.formatHexA(color, true);
 	}
-	if (color.charCodeAt(0) !== CharCode.Hash) {
+	const len = color.length;
+	if (color.charCodeAt(0) !== CharCode.Hash || (len !== 4 && len !== 5 && len !== 7 && len !== 9)) {
 		return undefined;
 	}
 	let result = [CharCode.Hash];
-	const len = color.length;
+
 	for (let i = 1; i < len; i++) {
 		const upper = hexUpper(color.charCodeAt(i));
 		if (!upper) {
 			return undefined;
 		}
 		result.push(upper);
-		if (len === 3 || len === 4) {
+		if (len === 4 || len === 5) {
 			result.push(upper);
 		}
 	}
@@ -788,10 +808,7 @@ function normalizeColor(color: string | Color | undefined | null): string | unde
 	if (result.length === 9 && result[7] === CharCode.F && result[8] === CharCode.F) {
 		result.length = 7;
 	}
-	if (result.length === 7) {
-		return String.fromCharCode(...result);
-	}
-	return undefined;
+	return String.fromCharCode(...result);
 }
 
 function hexUpper(charCode: CharCode): number {

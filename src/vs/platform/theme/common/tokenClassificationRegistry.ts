@@ -104,6 +104,7 @@ export interface TokenStylingDefaultRule {
 export interface TokenStylingRule {
 	match(classification: TokenClassification): number;
 	value: TokenStyle;
+	selector: TokenClassification;
 }
 
 /**
@@ -294,7 +295,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	public getTokenStylingRule(selector: TokenClassification, value: TokenStyle): TokenStylingRule {
 		return {
 			match: this.newMatcher(selector),
-			value
+			value,
+			selector
 		};
 	}
 
@@ -376,11 +378,11 @@ function registerDefaultClassifications(): void {
 
 	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
 
-	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']]);
+	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type'], ['support.class']]);
 	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']], 'type');
-	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.class']], 'type');
-	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), undefined, 'type');
-	registerTokenType('enum', nls.localize('enum', "Style for enums."), undefined, 'type');
+	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class']], 'type');
+	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']], 'type');
+	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']], 'type');
 	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), undefined, 'type');
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);

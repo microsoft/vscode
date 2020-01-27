@@ -32,9 +32,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -49,17 +47,15 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IHistoryService historyService: IHistoryService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
