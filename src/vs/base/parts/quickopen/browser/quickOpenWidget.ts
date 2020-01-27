@@ -749,6 +749,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 				this.tree.focusNth(1);
 			}
 		}
+
+		// Finally check for auto focus of last entry
+		else if (autoFocus.autoFocusLastEntry) {
+			if (entries.length > 1) {
+				this.tree.focusLast();
+			}
+		}
 	}
 
 	refresh(input?: IModel<any>, autoFocus?: IAutoFocus): void {
