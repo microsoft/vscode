@@ -60,7 +60,11 @@ export class LoggerChannelClient {
 	}
 
 	setLevel(level: LogLevel): void {
-		this.channel.call('setLevel', level);
+		LoggerChannelClient.setLevel(this.channel, level);
+	}
+
+	public static setLevel(channel: IChannel, level: LogLevel): Promise<void> {
+		return channel.call('setLevel', level);
 	}
 
 	consoleLog(severity: string, args: string[]): void {

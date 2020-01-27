@@ -788,18 +788,19 @@ function normalizeColor(color: string | Color | undefined | null): string | unde
 	if (typeof color !== 'string') {
 		color = Color.Format.CSS.formatHexA(color, true);
 	}
-	if (color.charCodeAt(0) !== CharCode.Hash) {
+	const len = color.length;
+	if (color.charCodeAt(0) !== CharCode.Hash || (len !== 4 && len !== 5 && len !== 7 && len !== 9)) {
 		return undefined;
 	}
 	let result = [CharCode.Hash];
-	const len = color.length;
+
 	for (let i = 1; i < len; i++) {
 		const upper = hexUpper(color.charCodeAt(i));
 		if (!upper) {
 			return undefined;
 		}
 		result.push(upper);
-		if (len === 3 || len === 4) {
+		if (len === 4 || len === 5) {
 			result.push(upper);
 		}
 	}
@@ -807,10 +808,7 @@ function normalizeColor(color: string | Color | undefined | null): string | unde
 	if (result.length === 9 && result[7] === CharCode.F && result[8] === CharCode.F) {
 		result.length = 7;
 	}
-	if (result.length === 7) {
-		return String.fromCharCode(...result);
-	}
-	return undefined;
+	return String.fromCharCode(...result);
 }
 
 function hexUpper(charCode: CharCode): number {

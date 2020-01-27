@@ -127,6 +127,7 @@ export class TextEditElement implements ICheckable {
 
 	constructor(
 		readonly parent: FileElement,
+		readonly idx: number,
 		readonly edit: BulkTextEdit,
 		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
 	) { }
@@ -200,7 +201,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModelDisposable = textModel;
 			}
 
-			const result = element.edit.textEdits.map(edit => {
+			const result = element.edit.textEdits.map((edit, idx) => {
 				const range = Range.lift(edit.textEdit.edit.range);
 
 				//prefix-math
@@ -219,6 +220,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 				return new TextEditElement(
 					element,
+					idx,
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
@@ -315,7 +317,7 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		if (element instanceof FileElement) {
 			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
 		} else if (element instanceof TextEditElement) {
-			return element.parent.edit.uri.toString() + JSON.stringify(element.edit.textEdit);
+			return element.parent.edit.uri.toString() + element.idx;
 		} else {
 			return JSON.stringify(element.category.metadata);
 		}

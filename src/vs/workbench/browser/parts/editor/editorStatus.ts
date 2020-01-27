@@ -353,7 +353,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeTextEditorWidget)) {
+		if (this.editorService.activeEditor?.isReadonly()) {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
@@ -958,18 +958,6 @@ function compareMarker(a: IMarker, b: IMarker): number {
 	return res;
 }
 
-
-function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
-	if (!codeEditor) {
-		return false;
-	}
-	return !codeEditor.getOption(EditorOption.readOnly);
-}
-
-function isWritableBaseEditor(e: IBaseEditor): boolean {
-	return e && isWritableCodeEditor(withNullAsUndefined(getCodeEditor(e.getControl())));
-}
-
 export class ShowLanguageExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.action.showLanguageExtensions';
@@ -1215,7 +1203,7 @@ export class ChangeEOLAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeTextEditorWidget)) {
+		if (this.editorService.activeEditor?.isReadonly()) {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
@@ -1231,7 +1219,7 @@ export class ChangeEOLAction extends Action {
 		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
-			if (activeCodeEditor?.hasModel() && isWritableCodeEditor(activeCodeEditor)) {
+			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
 				textModel.pushEOL(eol.eol);
 			}
@@ -1289,7 +1277,7 @@ export class ChangeEncodingAction extends Action {
 		let action: IQuickPickItem;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
-		} else if (!isWritableBaseEditor(activeControl)) {
+		} else if (activeControl.input.isReadonly()) {
 			action = reopenWithEncodingPick;
 		} else {
 			action = await this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });

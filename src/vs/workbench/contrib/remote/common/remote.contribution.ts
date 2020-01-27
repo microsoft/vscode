@@ -58,12 +58,15 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 	) {
 		super();
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const loggerClient = new LoggerChannelClient(connection.getChannel('logger'));
-			loggerClient.setLevel(logService.getLevel());
-			this._register(logService.onDidChangeLogLevel(level => loggerClient.setLevel(level)));
-		}
+		const updateRemoteLogLevel = () => {
+			const connection = remoteAgentService.getConnection();
+			if (!connection) {
+				return;
+			}
+			connection.withChannel('logger', (channel) => LoggerChannelClient.setLevel(channel, logService.getLevel()));
+		};
+		updateRemoteLogLevel();
+		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 	}
 }
 

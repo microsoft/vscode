@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileChange, IStat, IWatchOptions, FileOpenOptions, IFileSystemProviderWithFileReadWriteCapability, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, FileReadStreamOptions, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { newWriteableStream, ReadableStreamEvents, ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -31,6 +31,7 @@ export class RemoteFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileFolderCopyCapability {
 
 	private readonly session: string = generateUuid();
+	private readonly channel: IChannel;
 
 	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChange.event;
@@ -44,11 +45,14 @@ export class RemoteFileSystemProvider extends Disposable implements
 	private _capabilities!: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
 
-	constructor(private readonly channel: IChannel, environment: Promise<IRemoteAgentEnvironment | null>) {
+	constructor(remoteAgentService: IRemoteAgentService) {
 		super();
 
+		const connection = remoteAgentService.getConnection()!;
+		this.channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+
 		this.setCaseSensitive(true);
-		environment.then(remoteAgentEnvironment => this.setCaseSensitive(!!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux)));
+		remoteAgentService.getEnvironment().then(remoteAgentEnvironment => this.setCaseSensitive(!!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux)));
 
 		this.registerListeners();
 	}
