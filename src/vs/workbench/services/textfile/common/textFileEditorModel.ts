@@ -74,7 +74,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private versionId = 0;
 	private bufferSavedVersionId: number | undefined;
-	private blockModelContentChange = false;
+	private ignoreDirtyOnModelContentChange = false;
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
@@ -416,7 +416,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// We restored a backup so we have to set the model as being dirty
 		if (fromBackup) {
-			this.doMakeDirty();
+			this.makeDirty();
 		}
 
 		// Ensure we are not tracking a stale state
@@ -434,12 +434,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Ensure we are not tracking a stale state
 		this.doSetDirty(false);
 
-		// Update model value in a block that ignores model content change events
-		this.blockModelContentChange = true;
+		// Update model value in a block that ignores content change events for dirty tracking
+		this.ignoreDirtyOnModelContentChange = true;
 		try {
 			this.updateTextEditorModel(value, this.preferredMode);
 		} finally {
-			this.blockModelContentChange = false;
+			this.ignoreDirtyOnModelContentChange = false;
 		}
 
 		// Ensure we track the latest saved version ID given that the contents changed
@@ -465,30 +465,33 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.versionId++;
 		this.logService.trace(`[text file model] onModelContentChanged() - new versionId ${this.versionId}`, this.resource.toString());
 
-		// Ignore if blocking model changes
-		if (this.blockModelContentChange) {
-			return;
-		}
+		// We mark check for a dirty-state change upon model content change, unless:
+		// - explicitly instructed to ignore it (e.g. from model.load())
+		// - the model is readonly (in that case we never assume the change was done by the user)
+		if (!this.ignoreDirtyOnModelContentChange && !this.isReadonly()) {
 
-		// The contents changed as a matter of Undo and the version reached matches the saved one
-		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
-		if (this.isResolved() && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
-			this.logService.trace('[text file model] onModelContentChanged() - model content changed back to last saved version', this.resource.toString());
+			// The contents changed as a matter of Undo and the version reached matches the saved one
+			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
+			if (this.isResolved() && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+				this.logService.trace('[text file model] onModelContentChanged() - model content changed back to last saved version', this.resource.toString());
 
-			// Clear flags
-			const wasDirty = this.dirty;
-			this.doSetDirty(false);
+				// Clear flags
+				const wasDirty = this.dirty;
+				this.doSetDirty(false);
 
-			// Emit event
-			if (wasDirty) {
-				this._onDidRevert.fire();
-				this._onDidChangeDirty.fire();
+				// Emit event
+				if (wasDirty) {
+					this._onDidRevert.fire();
+				}
 			}
-		} else {
-			this.logService.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty', this.resource.toString());
 
-			// Mark as dirty
-			this.doMakeDirty();
+			// Otherwise the content has changed and we signal this as becoming dirty
+			else {
+				this.logService.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty', this.resource.toString());
+
+				// Mark as dirty
+				this.makeDirty();
+			}
 		}
 
 		// Emit as event
@@ -507,11 +510,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (!this.isResolved()) {
 			return; // only resolved models can be marked dirty
 		}
-
-		this.doMakeDirty();
-	}
-
-	private doMakeDirty(): void {
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
@@ -632,17 +630,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// A save participant can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
+		//
 		// Save participants can also be skipped through API.
 		let saveParticipantPromise: Promise<number> = Promise.resolve(versionId);
-		if (this.textFileService.saveParticipant && !options.skipSaveParticipants) {
+		if (this.isResolved() && this.textFileService.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
-				this.blockModelContentChange = false;
+				this.ignoreDirtyOnModelContentChange = false;
 
 				return this.versionId;
 			};
 
-			this.blockModelContentChange = true;
-			saveParticipantPromise = this.textFileService.saveParticipant.participate(this as IResolvedTextFileEditorModel, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
+			this.ignoreDirtyOnModelContentChange = true;
+			saveParticipantPromise = this.textFileService.saveParticipant.participate(this, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
 		}
 
 		// mark the save participant as current pending save operation
