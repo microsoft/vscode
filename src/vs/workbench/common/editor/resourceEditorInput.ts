@@ -21,8 +21,8 @@ export class ResourceEditorInput extends TextEditorInput implements IModeSupport
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
-	private cachedModel: ResourceEditorModel | null = null;
-	private modelReference: Promise<IReference<ITextEditorModel>> | null = null;
+	private cachedModel: ResourceEditorModel | undefined = undefined;
+	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
 	constructor(
 		private name: string | undefined,
@@ -91,7 +91,7 @@ export class ResourceEditorInput extends TextEditorInput implements IModeSupport
 		// Ensure the resolved model is of expected type
 		if (!(model instanceof ResourceEditorModel)) {
 			ref.dispose();
-			this.modelReference = null;
+			this.modelReference = undefined;
 
 			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
 		}
@@ -122,10 +122,10 @@ export class ResourceEditorInput extends TextEditorInput implements IModeSupport
 	dispose(): void {
 		if (this.modelReference) {
 			this.modelReference.then(ref => ref.dispose());
-			this.modelReference = null;
+			this.modelReference = undefined;
 		}
 
-		this.cachedModel = null;
+		this.cachedModel = undefined;
 
 		super.dispose();
 	}

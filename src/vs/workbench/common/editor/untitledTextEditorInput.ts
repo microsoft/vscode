@@ -28,9 +28,9 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
 
-	private cachedModel: UntitledTextEditorModel | null = null;
+	private cachedModel: UntitledTextEditorModel | undefined = undefined;
 
-	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
+	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | undefined = undefined;
 
 	private preferredMode: string | undefined;
 
@@ -255,8 +255,8 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	dispose(): void {
-		this.cachedModel = null;
-		this.modelResolve = null;
+		this.cachedModel = undefined;
+		this.modelResolve = undefined;
 
 		super.dispose();
 	}

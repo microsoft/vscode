@@ -416,18 +416,20 @@ export interface IEditorInput extends IDisposable {
 	 * to e.g. preserve view state of the editor and re-open it
 	 * in the correct group after saving.
 	 *
-	 * @returns the resulting editor input of this operation. Can
-	 * be the same editor input.
+	 * @returns the resulting editor input (typically the same) of
+	 * this operation or `undefined` to indicate that the operation
+	 * failed or was canceled.
 	 */
 	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
-	 * Saves the editor to a different location. The provided groupId
+	 * Saves the editor to a different location. The provided `group`
 	 * helps implementors to e.g. preserve view state of the editor
 	 * and re-open it in the correct group after saving.
 	 *
-	 * @returns the resulting editor input of this operation. Typically
-	 * a different editor input.
+	 * @returns the resulting editor input (typically a different one)
+	 * of this operation or `undefined` to indicate that the operation
+	 * failed or was canceled.
 	 */
 	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
