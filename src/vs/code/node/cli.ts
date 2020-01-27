@@ -150,6 +150,7 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let stdinFilePath: string | undefined;
+		let onStdinClosed: Promise<any> | undefined;
 		if (hasStdinWithoutTty()) {
 
 			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
@@ -162,15 +163,13 @@ export async function main(argv: string[]): Promise<any> {
 
 					// returns a file path where stdin input is written into (write in progress).
 					try {
-						readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+						onStdinClosed = readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
 						// Make sure to open tmp file
 						addArg(argv, stdinFilePath);
 
-						// Enable --wait to get all data and ignore adding this to history
-						addArg(argv, '--wait');
+						// Ignore adding this to history
 						addArg(argv, '--skip-add-to-recently-opened');
-						args.wait = true;
 
 						console.log(`Reading from stdin via: ${stdinFilePath}`);
 					} catch (e) {
@@ -341,6 +340,19 @@ export async function main(argv: string[]): Promise<any> {
 				whenDeleted(waitMarkerFilePath!).then(c, c);
 			}).then(() => {
 
+				// Make sure to delete the tmp stdin file if we have any
+				if (stdinFilePath) {
+					fs.unlinkSync(stdinFilePath);
+				}
+			});
+		}
+
+		// When reading stdin, close when stdin closes
+		if (onStdinClosed) {
+			// Delay for a second to ensure VSCode has opened the file
+			const minWait = new Promise(resolve => setTimeout(resolve, 1000));
+
+			return Promise.all([onStdinClosed, minWait]).then(() => {
 				// Make sure to delete the tmp stdin file if we have any
 				if (stdinFilePath) {
 					fs.unlinkSync(stdinFilePath);

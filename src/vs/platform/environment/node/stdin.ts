@@ -51,6 +51,7 @@ export function readFromStdin(targetPath: string, verbose: boolean): Promise<any
 			encoding = 'utf8';
 		}
 		const converterStream = iconv.decodeStream(encoding);
-		process.stdin.pipe(converterStream).pipe(stdinFileStream);
+		const s = process.stdin.pipe(converterStream).pipe(stdinFileStream);
+		return new Promise(c => s.on('close', () => c(undefined)));
 	});
 }
