@@ -24,7 +24,6 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { basename } from 'vs/base/common/path';
 import { IWorkingCopyService, WorkingCopyCapabilities, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { assertIsDefined } from 'vs/base/common/types';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
 import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -326,19 +325,23 @@ export const getOrMakeSearchEditorInput = (
 		const existing = modelService.getModel(uri);
 		if (existing) { return existing; }
 
-		// must be called before `hasBackupSync` to ensure the backup service is initalized.
-		await backupService.getBackups();
+		const backup = await backupService.resolve(uri);
+		backupService.discardBackup(uri);
 
 		let contents: string | ITextBufferFactory;
-		if (backupService.hasBackupSync(uri)) {
-			contents = assertIsDefined((await backupService.resolve(uri))?.value);
-			// backupService.discardBackup(uri);
+
+		if (backup) {
+			contents = backup.value;
 		} else if (uri.scheme !== searchEditorScheme) {
 			contents = (await textFileService.read(uri)).value;
+		} else if (existingData.text) {
+			contents = existingData.text;
+		} else if (existingData.config) {
+			contents = serializeSearchConfiguration(existingData.config);
 		} else {
-			contents = existingData.text ??
-				(existingData.config ? serializeSearchConfiguration(existingData.config) : '');
+			throw new Error('no initial contents for search editor');
 		}
+
 		return modelService.createModel(contents, modeService.create('search-result'), uri);
 	};
 
