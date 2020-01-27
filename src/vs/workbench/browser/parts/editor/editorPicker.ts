@@ -151,6 +151,21 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			};
 		}
 
+		const isShiftNavigate = (context.quickNavigateConfiguration && context.quickNavigateConfiguration.keybindings.some(k => {
+			const [firstPart, chordPart] = k.getParts();
+			if (chordPart) {
+				return false;
+			}
+
+			return firstPart.shiftKey;
+		}));
+
+		if (isShiftNavigate) {
+			return {
+				autoFocusLastEntry: true
+			};
+		}
+
 		const editors = this.count();
 		return {
 			autoFocusFirstEntry: editors === 1,
