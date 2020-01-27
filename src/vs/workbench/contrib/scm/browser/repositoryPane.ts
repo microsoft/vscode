@@ -395,24 +395,24 @@ interface IGroupItem {
 	readonly disposable: IDisposable;
 }
 
-interface IViewState {
-	readonly expanded: Set<string>;
+interface ITreeViewState {
+	readonly expanded: string[];
 }
 
-function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode, viewState?: IViewState): ICompressedTreeElement<TreeElement> {
+function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode, viewState?: ITreeViewState): ICompressedTreeElement<TreeElement> {
 	const children = mode === ViewModelMode.List
 		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
 		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true, viewState));
 
 	const element = item.group;
-	const collapsed = viewState ? !viewState.expanded.has(getSCMResourceId(element)) : false;
+	const collapsed = viewState ? viewState.expanded.indexOf(getSCMResourceId(element)) === -1 : false;
 
 	return { element, children, incompressible: true, collapsed, collapsible: true };
 }
 
-function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean, viewState?: IViewState): ICompressedTreeElement<TreeElement> {
+function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean, viewState?: ITreeViewState): ICompressedTreeElement<TreeElement> {
 	const element = (node.childrenCount === 0 && node.element) ? node.element : node;
-	const collapsed = viewState ? !viewState.expanded.has(getSCMResourceId(element)) : false;
+	const collapsed = viewState ? viewState.expanded.indexOf(getSCMResourceId(element)) === -1 : false;
 
 	return {
 		element,
@@ -451,22 +451,27 @@ class ViewModel {
 		this._onDidChangeMode.fire(mode);
 	}
 
+	get treeViewState(): ITreeViewState | undefined {
+		this.updateViewState();
+		return this._treeViewState;
+	}
+
 	private items: IGroupItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private firstVisible = true;
-	private viewState: IViewState | undefined;
 	private disposables = new DisposableStore();
 
 	constructor(
 		private groups: ISequence<ISCMResourceGroup>,
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private _mode: ViewModelMode,
+		private _treeViewState: ITreeViewState | undefined,
 		@IEditorService protected editorService: IEditorService,
-		@IConfigurationService protected configurationService: IConfigurationService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) { }
 
-	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>, viewState?: IViewState): void {
+	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
 		const itemsToInsert: IGroupItem[] = [];
 
 		for (const group of toInsert) {
@@ -494,7 +499,7 @@ class ViewModel {
 			item.disposable.dispose();
 		}
 
-		this.refresh(undefined, viewState);
+		this.refresh(undefined, toInsert.length > 0 ? this._treeViewState : undefined);
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
@@ -517,8 +522,7 @@ class ViewModel {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
 			this.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
-			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements }, this.viewState);
-			this.viewState = undefined;
+			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements });
 
 			if (typeof this.scrollTop === 'number') {
 				this.tree.scrollTop = this.scrollTop;
@@ -535,19 +539,19 @@ class ViewModel {
 		}
 	}
 
-	private refresh(item?: IGroupItem, viewState?: IViewState): void {
+	private refresh(item?: IGroupItem, treeViewState?: ITreeViewState): void {
 		if (item) {
 			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode).children);
 		} else {
-			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode, viewState)));
+			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode, treeViewState)));
 		}
 	}
 
 	private updateViewState(): void {
-		const expanded = new Set<string>();
+		const expanded: string[] = [];
 		const visit = (node: ITreeNode<TreeElement | null, FuzzyScore>) => {
 			if (node.element && node.collapsible && !node.collapsed) {
-				expanded.add(getSCMResourceId(node.element));
+				expanded.push(getSCMResourceId(node.element));
 			}
 
 			for (const child of node.children) {
@@ -557,7 +561,7 @@ class ViewModel {
 
 		visit(this.tree.getNode());
 
-		this.viewState = { expanded };
+		this._treeViewState = { expanded };
 	}
 
 	private onDidActiveEditorChange(): void {
@@ -883,18 +887,27 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.tree);
 
 		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		let treeViewState: ITreeViewState | undefined;
 
 		const rootUri = this.repository.provider.rootUri;
 
 		if (typeof rootUri !== 'undefined') {
-			const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
+			const raw = this.storageService.get(`scm.repository.viewState:${rootUri.toString()}`, StorageScope.WORKSPACE);
+			if (raw) {
+				let data: any;
+				try {
+					data = JSON.parse(raw);
+				} catch (e) {
+				}
 
-			if (typeof storageMode === 'string') {
-				mode = storageMode;
+				if (typeof data.mode === 'string') {
+					mode = data.mode;
+				}
+				treeViewState = data.treeViewState;
 			}
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, mode);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, mode, treeViewState);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -910,6 +923,17 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 
 		this.updateActions();
+
+		this._register(this.storageService.onWillSaveState(() => {
+			if (typeof rootUri === 'undefined') {
+				return;
+			}
+
+			this.storageService.store(`scm.repository.viewState:${rootUri.toString()}`, JSON.stringify({
+				mode: this.viewModel.mode,
+				treeViewState: this.viewModel.treeViewState
+			}), StorageScope.WORKSPACE);
+		}));
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
@@ -921,14 +945,6 @@ export class RepositoryPane extends ViewPane {
 
 	private onDidChangeMode(): void {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
-
-		const rootUri = this.repository.provider.rootUri;
-
-		if (typeof rootUri === 'undefined') {
-			return;
-		}
-
-		this.storageService.store(`scm.repository.viewMode:${rootUri.toString()}`, this.viewModel.mode, StorageScope.WORKSPACE);
 	}
 
 	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
