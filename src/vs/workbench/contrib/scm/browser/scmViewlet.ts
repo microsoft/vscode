@@ -29,25 +29,13 @@ import { IViewsRegistry, Extensions, IViewDescriptorService } from 'vs/workbench
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
 import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
-import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPane';
+import { MainPaneDescriptor, MainPane, IViewModel } from 'vs/workbench/contrib/scm/browser/mainPane';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export interface ISpliceEvent<T> {
 	index: number;
 	deleteCount: number;
 	elements: T[];
-}
-
-export interface IViewModel {
-	readonly repositories: ISCMRepository[];
-	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>>;
-
-	readonly visibleRepositories: ISCMRepository[];
-	readonly onDidChangeVisibleRepositories: Event<ISCMRepository[]>;
-	setVisibleRepositories(repositories: ISCMRepository[]): void;
-
-	isVisible(): boolean;
-	readonly onDidChangeVisibility: Event<boolean>;
 }
 
 export class SCMViewPaneContainer extends ViewPaneContainer implements IViewModel {
