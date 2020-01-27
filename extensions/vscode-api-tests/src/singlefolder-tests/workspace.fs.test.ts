@@ -140,4 +140,18 @@ suite('workspace-fs', () => {
 			assert.equal(e.name, vscode.FileSystemError.Unavailable().name);
 		}
 	});
+
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+		const entries = await vscode.workspace.fs.readDirectory(root);
+		assert.ok(entries.length > 0);
+
+		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92') });
+
+		try {
+			await vscode.workspace.fs.delete(someFolder, { recursive: true });
+			assert.ok(false);
+		} catch (err) {
+			assert.ok(true);
+		}
+	});
 });
