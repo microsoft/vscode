@@ -160,8 +160,7 @@ async function raceAll<TPromise, T>(
 	timeout?: number
 ) {
 	let promises;
-	// eslint-disable-next-line eqeqeq
-	if (timeoutOrFn != null && typeof timeoutOrFn !== 'number') {
+	if (timeoutOrFn !== undefined && typeof timeoutOrFn !== 'number') {
 		promises = new Map(
 			map<T, [T, Promise<TPromise>]>(promisesOrIds as Iterable<T>, id => [id, timeoutOrFn(id)])
 		);
@@ -175,8 +174,7 @@ async function raceAll<TPromise, T>(
 			await Promise.all(
 				map<[T, Promise<TPromise>], Promise<[T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>]>>(
 					promises.entries(),
-					// eslint-disable-next-line eqeqeq
-					timeout == null
+					timeout === undefined
 						? ([id, promise]) => promise.then(p => [id, p])
 						: ([id, promise]) =>
 							Promise.race([
@@ -192,8 +190,7 @@ async function raceAll<TPromise, T>(
 	}
 
 	return Promise.all(
-		// eslint-disable-next-line eqeqeq
-		timeout == null
+		timeout === undefined
 			? promises
 			: promises.map(p =>
 				Promise.race([
