@@ -75,7 +75,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param options optional save options
 	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	save(resource: URI, options?: ISaveOptions): Promise<URI | undefined>;
+	save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Saves the provided resource asking the user for a file name or using the provided one.
@@ -85,7 +85,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param options optional save options
 	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined>;
+	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Reverts the provided resource.
@@ -379,6 +379,7 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteEncoding?: boolean;
 	writeElevated?: boolean;
 	ignoreModifiedSince?: boolean;
+	ignoreErrorHandler?: boolean;
 }
 
 export interface ILoadOptions {

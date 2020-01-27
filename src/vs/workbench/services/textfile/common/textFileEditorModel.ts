@@ -714,6 +714,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				this.logService.error(`[text file model] doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString());
 
+				if (options.ignoreErrorHandler) {
+					throw error;
+				}
+
 				// Flag as error state in the model
 				this.inErrorMode = true;
 
