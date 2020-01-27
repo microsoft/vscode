@@ -159,12 +159,26 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 		const localGloablState = await this.getLocalGlobalState();
 
+		if (remoteGlobalState) {
+			this.logService.trace('UI State: Merging remote ui state with local ui state...');
+		} else {
+			this.logService.trace('UI State: Remote ui state does not exist. Synchronizing ui state for the first time.');
+		}
+
 		const { local, remote } = merge(localGloablState, remoteGlobalState, lastSyncGlobalState);
 
 		return { local, remote, remoteUserData };
 	}
 
 	private async apply({ local, remote, remoteUserData }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
+
+		const hasChanges = local || remote;
+
+		if (!hasChanges) {
+			this.logService.trace('UI State: No changes found during synchronizing ui state.');
+			return;
+		}
+
 		if (local) {
 			// update local
 			this.logService.info('UI State: Updating local ui state...');
@@ -179,7 +193,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteUserData = { ref, content };
 		}
 
-		if (remoteUserData.content) {
+		if (hasChanges) {
 			// update last sync
 			this.logService.info('UI State: Updating last synchronised ui state...');
 			await this.updateLastSyncUserData(remoteUserData);

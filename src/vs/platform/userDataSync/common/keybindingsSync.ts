@@ -151,7 +151,7 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 		if (this.syncPreviewResultPromise) {
 			this.syncPreviewResultPromise.cancel();
 			this.syncPreviewResultPromise = null;
-			this.logService.info('Keybindings: Stopped synchronizing keybindings.');
+			this.logService.trace('Keybindings: Stopped synchronizing keybindings.');
 		}
 		await this.fileService.del(this.environmentService.keybindingsSyncPreviewResource);
 		this.setStatus(SyncStatus.Idle);
@@ -341,7 +341,7 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 
 		// First time syncing to remote
 		else if (fileContent) {
-			this.logService.info('Keybindings: Remote keybindings does not exist. Synchronizing keybindings for the first time.');
+			this.logService.trace('Keybindings: Remote keybindings does not exist. Synchronizing keybindings for the first time.');
 			hasRemoteChanged = true;
 			previewContent = fileContent.value.toString();
 		}

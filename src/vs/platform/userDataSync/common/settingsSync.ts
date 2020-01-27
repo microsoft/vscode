@@ -182,7 +182,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		if (this.syncPreviewResultPromise) {
 			this.syncPreviewResultPromise.cancel();
 			this.syncPreviewResultPromise = null;
-			this.logService.info('Settings: Stopped synchronizing settings.');
+			this.logService.trace('Settings: Stopped synchronizing settings.');
 		}
 		await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
 		this.setStatus(SyncStatus.Idle);
@@ -319,7 +319,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 				remoteUserData = { ref, content };
 			}
 			if (remoteUserData.content) {
-				this.logService.info('Settings: Updating last synchronised sttings');
+				this.logService.info('Settings: Updating last synchronised settings');
 				await this.updateLastSyncUserData(remoteUserData);
 			}
 
@@ -380,7 +380,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 
 		// First time syncing to remote
 		else if (fileContent) {
-			this.logService.info('Settings: Remote settings does not exist. Synchronizing settings for the first time.');
+			this.logService.trace('Settings: Remote settings does not exist. Synchronizing settings for the first time.');
 			hasRemoteChanged = true;
 			previewContent = fileContent.value.toString();
 			remoteContent = fileContent.value.toString();

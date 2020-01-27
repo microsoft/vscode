@@ -181,7 +181,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		if (remoteExtensions) {
 			this.logService.trace('Extensions: Merging remote extensions with local extensions...');
 		} else {
-			this.logService.info('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');
+			this.logService.trace('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');
 		}
 
 		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, this.getIgnoredExtensions());
@@ -194,8 +194,12 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	private async apply({ added, removed, updated, remote, remoteUserData, skippedExtensions }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
-		if (!added.length && !removed.length && !updated.length && !remote) {
+
+		const hasChanges = added.length || removed.length || updated.length || remote;
+
+		if (!hasChanges) {
 			this.logService.trace('Extensions: No changes found during synchronizing extensions.');
+			return;
 		}
 
 		if (added.length || removed.length || updated.length) {
@@ -211,7 +215,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteUserData = { ref, content };
 		}
 
-		if (remoteUserData.content) {
+		if (hasChanges) {
 			// update last sync
 			this.logService.info('Extensions: Updating last synchronised extensions...');
 			await this.updateLastSyncUserData<ILastSyncUserData>({ ...remoteUserData, skippedExtensions });

@@ -104,17 +104,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (this.status === SyncStatus.HasConflicts) {
 			throw new Error(localize('resolve conflicts', "Please resolve conflicts before resuming sync."));
 		}
+		const startTime = new Date().getTime();
+		this.logService.trace('Started Syncing...');
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.sync();
 				// do not continue if synchroniser has conflicts
 				if (synchroniser.status === SyncStatus.HasConflicts) {
-					return;
+					break;
 				}
 			} catch (e) {
 				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
 			}
 		}
+		this.logService.trace(`Finished Syncing. Took ${new Date().getTime() - startTime}ms`);
 	}
 
 	async resolveConflictsAndContinueSync(content: string): Promise<void> {
