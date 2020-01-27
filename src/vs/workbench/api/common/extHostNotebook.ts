@@ -413,4 +413,26 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
+	async $destoryNotebookDocument(viewType: string, uri: URI): Promise<boolean> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			let document = this._documents.get(URI.revive(uri).toString());
+
+			if (document) {
+				this._documents.delete(URI.revive(uri).toString());
+			}
+
+			let editor = this._editors.get(URI.revive(uri).toString());
+
+			if (editor) {
+				this._editors.delete(URI.revive(uri).toString());
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
 }

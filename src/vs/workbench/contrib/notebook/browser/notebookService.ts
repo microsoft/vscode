@@ -26,7 +26,7 @@ export interface IMainNotebookController {
 	createRawCell(uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
-	destoryNotebookDocument(notebook: INotebook): void;
+	destoryNotebookDocument(notebook: INotebook): Promise<void>;
 }
 
 export interface INotebookService {

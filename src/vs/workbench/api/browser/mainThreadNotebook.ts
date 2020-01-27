@@ -274,6 +274,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
+		// TODO: resolve notebook should wait for all notebook document destory operations to finish.
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook) {
@@ -367,12 +368,15 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 	}
 
-	destoryNotebookDocument(notebook: INotebook): void {
+	async destoryNotebookDocument(notebook: INotebook): Promise<void> {
 		let mainthreadNotebook = this._mapping.get(URI.from(notebook.uri).toString());
 
 		if (mainthreadNotebook) {
-			mainthreadNotebook.dispose();
-			this._mapping.delete(URI.from(notebook.uri).toString());
+			let removeFromExtHost = await this._proxy.$destoryNotebookDocument(this._viewType, notebook.uri);
+			if (removeFromExtHost) {
+				mainthreadNotebook.dispose();
+				this._mapping.delete(URI.from(notebook.uri).toString());
+			}
 		}
 	}
 }

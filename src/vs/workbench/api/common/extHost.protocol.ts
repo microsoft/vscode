@@ -1414,6 +1414,7 @@ export interface ExtHostNotebookShape {
 	$deleteCell(viewType: string, uri: URI, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: URI): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: URI): Promise<void>;
+	$destoryNotebookDocument(viewType: string, uri: URI): Promise<boolean>;
 }
 
 export interface ExtHostStorageShape {
