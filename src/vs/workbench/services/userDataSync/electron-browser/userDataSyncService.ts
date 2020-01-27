@@ -9,7 +9,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -89,10 +88,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
 		return this.channel.call('isFirstTimeSyncAndHasUserData');
-	}
-
-	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
-		return this.channel.call('removeExtension', [identifier]);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

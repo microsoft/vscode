@@ -43,7 +43,7 @@ export interface IWorkspaceProvider {
 	 *
 	 * @param workspace the workspace to open.
 	 * @param options optional options for the workspace to open.
-	 * - `reuse`: wether to open inside the current window or a new window
+	 * - `reuse`: whether to open inside the current window or a new window
 	 * - `payload`: arbitrary payload that should be made available
 	 * to the opening window via the `IWorkspaceProvider.payload` property.
 	 */

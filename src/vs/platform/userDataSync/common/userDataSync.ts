@@ -174,7 +174,7 @@ export const enum SyncSource {
 	Settings = 'Settings',
 	Keybindings = 'Keybindings',
 	Extensions = 'Extensions',
-	UIState = 'UI State'
+	GlobalState = 'GlobalState'
 }
 
 export const enum SyncStatus {
@@ -212,7 +212,6 @@ export interface IUserDataSyncService extends ISynchroniser {
 	isFirstTimeSyncAndHasUserData(): Promise<boolean>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
-	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 	getRemoteContent(source: SyncSource): Promise<string | null>;
 	resolveConflictsAndContinueSync(content: string): Promise<void>;
 }
@@ -267,5 +266,5 @@ export function toRemoteContentResource(source: SyncSource): URI {
 	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${source}/remoteContent` });
 }
 export function getSyncSourceFromRemoteContentResource(uri: URI): SyncSource | undefined {
-	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.UIState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
+	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.GlobalState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
 }

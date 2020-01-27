@@ -72,7 +72,10 @@ export class UserDataAutoSync extends Disposable implements IUserDataAutoSyncSer
 				await this.userDataSyncService.sync();
 				this.successiveFailures = 0;
 			} catch (e) {
-				this.successiveFailures++;
+				// Do not count on auth errors
+				if (!(e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Unauthroized)) {
+					this.successiveFailures++;
+				}
 				this.logService.error(e);
 				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
 			}

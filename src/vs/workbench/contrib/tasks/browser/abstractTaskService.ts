@@ -1947,19 +1947,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			let description: string | undefined;
-			if (task._source.kind === TaskSourceKind.User) {
-				description = nls.localize('taskQuickPick.userSettings', 'User Settings');
-			} else if (task._source.kind === TaskSourceKind.WorkspaceFile) {
-				description = task.getWorkspaceFileName();
-			} else if (this.needsFolderQualification()) {
-				let workspaceFolder = task.getWorkspaceFolder();
-				if (workspaceFolder) {
-					description = workspaceFolder.name;
-				}
-			}
-
-			return { label: task._label, description, task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			return { label: task._label, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
@@ -2492,6 +2480,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
+	private getTaskDescription(task: Task): string | undefined {
+		let description: string | undefined;
+		if (task._source.kind === TaskSourceKind.User) {
+			description = nls.localize('taskQuickPick.userSettings', 'User Settings');
+		} else if (task._source.kind === TaskSourceKind.WorkspaceFile) {
+			description = task.getWorkspaceFileName();
+		} else if (this.needsFolderQualification()) {
+			let workspaceFolder = task.getWorkspaceFolder();
+			if (workspaceFolder) {
+				description = workspaceFolder.name;
+			}
+		}
+		return description;
+	}
+
 	private async runConfigureTasks(): Promise<void> {
 		if (!this.canRunCommand()) {
 			return undefined;
@@ -2520,7 +2523,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 						for (let task of tasks) {
-							entries.push({ label: task._label, task });
+							entries.push({ label: task._label, task, description: this.getTaskDescription(task) });
 							if (!ContributedTask.is(task)) {
 								needsCreateOrOpen = false;
 							}
@@ -2541,7 +2544,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						if (tasks.length > 0) {
 							tasks = tasks.slice().sort((a, b) => a._label.localeCompare(b._label));
 							for (let i = 0; i < tasks.length; i++) {
-								let entry: TaskQuickPickEntryType = { label: tasks[i]._label, task: tasks[i], description: folder.name };
+								let entry: TaskQuickPickEntryType = { label: tasks[i]._label, task: tasks[i], description: this.getTaskDescription(tasks[i]) };
 								if (i === 0) {
 									entries.push({ type: 'separator', label: folder.name });
 								}

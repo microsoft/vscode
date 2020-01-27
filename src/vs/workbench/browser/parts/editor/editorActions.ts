@@ -543,13 +543,13 @@ export class RevertAndCloseEditorAction extends Action {
 
 			// first try a normal revert where the contents of the editor are restored
 			try {
-				await editor.revert(group.id);
+				await this.editorService.revert({ editor, groupId: group.id });
 			} catch (error) {
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
-				await editor.revert(group.id, { soft: true });
+				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
 			group.closeEditor(editor);
@@ -1337,10 +1337,40 @@ export class QuickOpenPreviousRecentlyUsedEditorAction extends BaseQuickOpenEdit
 	}
 }
 
+export class QuickOpenNextRecentlyUsedEditorAction extends BaseQuickOpenEditorAction {
+
+	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditor';
+	static readonly LABEL = nls.localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+	}
+}
+
 export class QuickOpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
 	static readonly LABEL = nls.localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+	}
+}
+
+export class QuickOpenLeastRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
+
+	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup';
+	static readonly LABEL = nls.localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group");
 
 	constructor(
 		id: string,

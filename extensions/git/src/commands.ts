@@ -16,6 +16,7 @@ import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
+import { Log, LogLevel } from './log';
 
 const localize = nls.loadMessageBundle();
 
@@ -250,6 +251,36 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
+	}
+
+	@command('git.setLogLevel')
+	async setLogLevel(): Promise<void> {
+		const createItem = (logLevel: LogLevel) => ({
+			label: LogLevel[logLevel],
+			logLevel,
+			description: Log.logLevel === logLevel ? localize('current', "Current") : undefined
+		});
+
+		const items = [
+			createItem(LogLevel.Trace),
+			createItem(LogLevel.Debug),
+			createItem(LogLevel.Info),
+			createItem(LogLevel.Warning),
+			createItem(LogLevel.Error),
+			createItem(LogLevel.Critical),
+			createItem(LogLevel.Off)
+		];
+
+		const choice = await window.showQuickPick(items, {
+			placeHolder: localize('select log level', "Select log level")
+		});
+
+		if (!choice) {
+			return;
+		}
+
+		Log.logLevel = choice.logLevel;
+		this.outputChannel.appendLine(localize('changed', "Log level changed to: {0}", LogLevel[Log.logLevel]));
 	}
 
 	@command('git.refresh', { repository: true })

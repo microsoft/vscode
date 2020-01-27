@@ -464,11 +464,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private registerListeners(): void {
 
 		// Model Events
-		this._register(this._group.onDidEditorPin(editor => this.onDidEditorPin(editor)));
-		this._register(this._group.onDidEditorOpen(editor => this.onDidEditorOpen(editor)));
-		this._register(this._group.onDidEditorClose(editor => this.onDidEditorClose(editor)));
-		this._register(this._group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
-		this._register(this._group.onDidEditorBecomeDirty(editor => this.onDidEditorBecomeDirty(editor)));
+		this._register(this._group.onDidChangeEditorPinned(editor => this.onDidChangeEditorPinned(editor)));
+		this._register(this._group.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
+		this._register(this._group.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
+		this._register(this._group.onDidDisposeEditor(editor => this.onDidDisposeEditor(editor)));
+		this._register(this._group.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
 		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
 		// Option Changes
@@ -478,13 +478,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
 	}
 
-	private onDidEditorPin(editor: EditorInput): void {
+	private onDidChangeEditorPinned(editor: EditorInput): void {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 	}
 
-	private onDidEditorOpen(editor: EditorInput): void {
+	private onDidOpenEditor(editor: EditorInput): void {
 
 		/* __GDPR__
 			"editorOpened" : {
@@ -502,7 +502,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor });
 	}
 
-	private onDidEditorClose(event: EditorCloseEvent): void {
+	private handleOnDidCloseEditor(event: EditorCloseEvent): void {
 
 		// Before close
 		this._onWillCloseEditor.fire(event);
@@ -559,7 +559,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return descriptor;
 	}
 
-	private onDidEditorDispose(editor: EditorInput): void {
+	private onDidDisposeEditor(editor: EditorInput): void {
 
 		// To prevent race conditions, we handle disposed editors in our worker with a timeout
 		// because it can happen that an input is being disposed with the intent to replace
@@ -625,7 +625,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private onDidEditorBecomeDirty(editor: EditorInput): void {
+	private onDidChangeEditorDirty(editor: EditorInput): void {
 
 		// Always show dirty editors pinned
 		this.pinEditor(editor);

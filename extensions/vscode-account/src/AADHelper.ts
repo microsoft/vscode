@@ -53,7 +53,20 @@ export class AzureActiveDirectoryService {
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
-				const refreshes = sessions.map(async session => {
+
+				// TODO remove, temporary fix to delete duplicated refresh tokens from https://github.com/microsoft/vscode/issues/89334
+				const seen: { [key: string]: boolean; } = Object.create(null);
+				const dedupedSessions = sessions.filter(session => {
+					if (seen[session.id]) {
+						return false;
+					}
+
+					seen[session.id] = true;
+
+					return true;
+				});
+
+				const refreshes = dedupedSessions.map(async session => {
 					try {
 						await this.refreshToken(session.refreshToken, session.scope);
 					} catch (e) {
@@ -214,9 +227,9 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async setToken(token: IToken, scope: string): Promise<void> {
-		const existingToken = this._tokens.findIndex(t => t.sessionId === token.sessionId);
-		if (existingToken) {
-			this._tokens.splice(existingToken, 1, token);
+		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
+		if (existingTokenIndex > -1) {
+			this._tokens.splice(existingTokenIndex, 1, token);
 		} else {
 			this._tokens.push(token);
 		}

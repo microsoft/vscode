@@ -151,8 +151,8 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 export interface IResourcesDropHandlerOptions {
 
 	/**
-	 * Wether to open the actual workspace when a workspace configuration file is dropped
-	 * or wether to open the configuration file within the editor as normal file.
+	 * Whether to open the actual workspace when a workspace configuration file is dropped
+	 * or whether to open the configuration file within the editor as normal file.
 	 */
 	allowWorkspaceOpen: boolean;
 }

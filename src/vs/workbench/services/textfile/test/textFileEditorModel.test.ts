@@ -34,6 +34,13 @@ function getLastModifiedTime(model: TextFileEditorModel): number {
 	return stat ? stat.mtime : -1;
 }
 
+class TestTextFileEditorModel extends TextFileEditorModel {
+
+	isReadonly(): boolean {
+		return true;
+	}
+}
+
 suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
@@ -48,7 +55,6 @@ suite('Files - TextFileEditorModel', () => {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 		accessor.fileService.setContent(content);
 	});
 
@@ -312,12 +318,12 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 	});
 
-	test('Make Dirty', async function () {
+	test('Update Dirty', async function () {
 		let eventCounter = 0;
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.makeDirty();
+		model.setDirty(true);
 		assert.ok(!model.isDirty()); // needs to be resolved
 
 		await model.load();
@@ -338,10 +344,36 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		model.makeDirty();
+		model.setDirty(true);
 		assert.ok(model.isDirty());
 		assert.equal(eventCounter, 1);
 		assert.ok(workingCopyEvent);
+
+		model.setDirty(false);
+		assert.ok(!model.isDirty());
+		assert.equal(eventCounter, 2);
+
+		model.dispose();
+	});
+
+	test('No Dirty for readonly models', async function () {
+		let workingCopyEvent = false;
+		accessor.workingCopyService.onDidChangeDirty(e => {
+			if (e.resource.toString() === model.resource.toString()) {
+				workingCopyEvent = true;
+			}
+		});
+
+		const model = instantiationService.createInstance(TestTextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(!model.isDirty());
+
+		await model.revert({ soft: true });
+		assert.ok(!model.isDirty());
+
+		assert.ok(!workingCopyEvent);
 
 		model.dispose();
 	});
@@ -416,15 +448,15 @@ suite('Files - TextFileEditorModel', () => {
 			eventCounter++;
 		});
 
-		TextFileEditorModel.setSaveParticipant({
-			participate: (model) => {
+		accessor.textFileService.saveParticipant = {
+			participate: model => {
 				assert.ok(model.isDirty());
-				model.textEditorModel.setValue('bar');
+				model.textEditorModel!.setValue('bar');
 				assert.ok(model.isDirty());
 				eventCounter++;
 				return Promise.resolve();
 			}
-		});
+		};
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -437,11 +469,11 @@ suite('Files - TextFileEditorModel', () => {
 	test('Save Participant, async participant', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		TextFileEditorModel.setSaveParticipant({
+		accessor.textFileService.saveParticipant = {
 			participate: (model) => {
 				return timeout(10);
 			}
-		});
+		};
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -455,11 +487,11 @@ suite('Files - TextFileEditorModel', () => {
 	test('Save Participant, bad participant', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		TextFileEditorModel.setSaveParticipant({
+		accessor.textFileService.saveParticipant = {
 			participate: (model) => {
 				return Promise.reject(new Error('boom'));
 			}
-		});
+		};
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');

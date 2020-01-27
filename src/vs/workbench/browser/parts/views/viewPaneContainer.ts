@@ -91,7 +91,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 	) {
 		super(options);
@@ -366,8 +366,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateViewHeaders();
 			}
 		});
-
-		this.focus();
 	}
 
 	getTitle(): string {

@@ -793,15 +793,18 @@ declare module 'vscode' {
 	 * A reference to a named icon. Currently, [File](#ThemeIcon.File), [Folder](#ThemeIcon.Folder),
 	 * and [codicons](https://microsoft.github.io/vscode-codicons/dist/codicon.html) are supported.
 	 * Using a theme icon is preferred over a custom icon as it gives theme authors the possibility to change the icons.
+	 *
+	 * *Note* that theme icons can also be rendered inside labels and descriptions. Places that support theme icons spell this out
+	 * and they use the `$(<name>)`-syntax, for instance `quickPick.label = "Hello World $(globe)"`.
 	 */
 	export class ThemeIcon {
 		/**
-		 * Reference to a icon representing a file. The icon is taken from the current file icon theme or a placeholder icon.
+		 * Reference to an icon representing a file. The icon is taken from the current file icon theme or a placeholder icon is used.
 		 */
 		static readonly File: ThemeIcon;
 
 		/**
-		 * Reference to a icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon.
+		 * Reference to an icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon is used.
 		 */
 		static readonly Folder: ThemeIcon;
 
@@ -1578,17 +1581,20 @@ declare module 'vscode' {
 	export interface QuickPickItem {
 
 		/**
-		 * A human-readable string which is rendered prominent.
+		 * A human-readable string which is rendered prominent. Supports rendering of [theme icons](#ThemeIcon) via
+		 * the `$(<name>)`-syntax.
 		 */
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent in the same line.
+		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
+		 * [theme icons](#ThemeIcon) via the `$(<name>)`-syntax.
 		 */
 		description?: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent in a separate line.
+		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
+		 * [theme icons](#ThemeIcon) via the `$(<name>)`-syntax.
 		 */
 		detail?: string;
 
@@ -2342,6 +2348,9 @@ declare module 'vscode' {
 	/**
 	 * The MarkdownString represents human-readable text that supports formatting via the
 	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
+	 *
+	 * When created with `supportThemeIcons` then rendering of [theme icons](#ThemeIcon) via
+	 * the `$(<name>)`-syntax is supported.
 	 */
 	export class MarkdownString {
 
@@ -3983,7 +3992,7 @@ declare module 'vscode' {
 
 		/**
 		 * The range at which this item is called. This is the range relative to the caller, e.g the item
-		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
+		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyProvider.provideCallHierarchyOutgoingCalls)
 		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
 		 */
 		fromRanges: Range[];
@@ -5557,8 +5566,8 @@ declare module 'vscode' {
 		isBackground: boolean;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * shell task, e.g. 'gulp' or 'npm'.
+		 * A human-readable string describing the source of this shell task, e.g. 'gulp'
+		 * or 'npm'. Supports rendering of [theme icons](#ThemeIcon) via the `$(<name>)`-syntax.
 		 */
 		source: string;
 
@@ -7602,7 +7611,7 @@ declare module 'vscode' {
 		onDidWrite: Event<string>;
 
 		/**
-		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
+		 * An event that when fired allows overriding the [dimensions](#Pseudoterminal.setDimensions) of the
 		 * terminal. Note that when set, the overridden dimensions will only take effect when they
 		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
 		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
