@@ -251,6 +251,7 @@ export class SearchEditorContribution implements IWorkbenchContribution {
 		@ITextFileService protected readonly textFileService: ITextFileService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModelService protected readonly modelService: IModelService,
+		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 	) {
 
 		this.editorService.overrideOpenEditor((editor, options, group) => {
@@ -265,6 +266,7 @@ export class SearchEditorContribution implements IWorkbenchContribution {
 				return undefined;
 			}
 
+			this.telemetryService.publicLog2<{}, {}>('searchEditor/openSavedSearchEditor');
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: resource });
 			const opened = editorService.openEditor(input, { ...options, pinned: resource.scheme === searchEditorScheme, ignoreOverrides: true }, group);
 			return { override: Promise.resolve(opened) };
