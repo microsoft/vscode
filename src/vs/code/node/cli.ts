@@ -349,15 +349,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		// When reading stdin, close when stdin closes
 		if (onStdinClosed) {
-			// Delay for a second to ensure VSCode has opened the file
-			const minWait = new Promise(resolve => setTimeout(resolve, 1000));
-
-			return Promise.all([onStdinClosed, minWait]).then(() => {
-				// Make sure to delete the tmp stdin file if we have any
-				if (stdinFilePath) {
-					fs.unlinkSync(stdinFilePath);
-				}
-			});
+			return onStdinClosed;
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
