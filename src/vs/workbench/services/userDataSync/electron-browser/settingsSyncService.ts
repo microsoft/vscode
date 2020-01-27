@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, ISettingsSyncService, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, ISettingsSyncService, IConflictSetting, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,6 +15,8 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 	_serviceBrand: undefined;
 
 	private readonly channel: IChannel;
+
+	readonly source = SyncSource.Settings;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }
@@ -45,16 +47,53 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		});
 	}
 
-	sync(_continue?: boolean): Promise<boolean> {
-		return this.channel.call('sync', [_continue]);
+	pull(): Promise<void> {
+		return this.channel.call('pull');
 	}
 
-	stop(): void {
-		this.channel.call('stop');
+	push(): Promise<void> {
+		return this.channel.call('push');
 	}
 
-	resolveConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
+	sync(): Promise<void> {
+		return this.channel.call('sync');
+	}
+
+	stop(): Promise<void> {
+		return this.channel.call('stop');
+	}
+
+	async restart(): Promise<void> {
+		const status = await this.channel.call<SyncStatus>('restart');
+		await this.updateStatus(status);
+	}
+
+	resetLocal(): Promise<void> {
+		return this.channel.call('resetLocal');
+	}
+
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
+	}
+
+	hasRemoteData(): Promise<boolean> {
+		return this.channel.call('hasRemoteData');
+	}
+
+	hasLocalData(): Promise<boolean> {
+		return this.channel.call('hasLocalData');
+	}
+
+	resolveConflicts(content: string): Promise<void> {
+		return this.channel.call('resolveConflicts', [content]);
+	}
+
+	resolveSettingsConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		return this.channel.call('resolveConflicts', [conflicts]);
+	}
+
+	getRemoteContent(): Promise<string | null> {
+		return this.channel.call('getRemoteContent');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

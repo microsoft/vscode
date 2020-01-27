@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -29,6 +29,8 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { Cache } from './cache';
 
 // --- adapter
 
@@ -326,7 +328,8 @@ class CodeActionAdapter {
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _provider: vscode.CodeActionProvider,
 		private readonly _logService: ILogService,
-		private readonly _extensionId: ExtensionIdentifier
+		private readonly _extension: IExtensionDescription,
+		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
@@ -367,6 +370,10 @@ class CodeActionAdapter {
 				}
 				if (CodeActionAdapter._isCommand(candidate)) {
 					// old school: synthetic code action
+
+					this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
+						`Return 'CodeAction' instances instead.`);
+
 					actions.push({
 						_isSynthetic: true,
 						title: candidate.title,
@@ -375,9 +382,9 @@ class CodeActionAdapter {
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
-							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+							this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
@@ -623,37 +630,38 @@ class SemanticTokensPreviousResult {
 	) { }
 }
 
-export class SemanticTokensAdapter {
+export class DocumentSemanticTokensAdapter {
 
 	private readonly _previousResults: Map<number, SemanticTokensPreviousResult>;
 	private _nextResultId = 1;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SemanticTokensProvider,
+		private readonly _provider: vscode.DocumentSemanticTokensProvider,
 	) {
 		this._previousResults = new Map<number, SemanticTokensPreviousResult>();
 	}
 
-	provideSemanticTokens(resource: URI, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+	provideDocumentSemanticTokens(resource: URI, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
 		const doc = this._documents.getDocument(resource);
 		const previousResult = (previousResultId !== 0 ? this._previousResults.get(previousResultId) : null);
-		const opts: vscode.SemanticTokensRequestOptions = {
-			ranges: (Array.isArray(ranges) && ranges.length > 0 ? ranges.map<Range>(typeConvert.Range.to) : undefined),
-			previousResultId: (previousResult ? previousResult.resultId : undefined)
-		};
-		return asPromise(() => this._provider.provideSemanticTokens(doc, opts, token)).then(value => {
-			if (!value) {
-				return null;
+		return asPromise(() => {
+			if (previousResult && typeof previousResult.resultId === 'string' && typeof this._provider.provideDocumentSemanticTokensEdits === 'function') {
+				return this._provider.provideDocumentSemanticTokensEdits(doc, previousResult.resultId, token);
 			}
+			return this._provider.provideDocumentSemanticTokens(doc, token);
+		}).then(value => {
 			if (previousResult) {
 				this._previousResults.delete(previousResultId);
 			}
-			return this._send(SemanticTokensAdapter._convertToEdits(previousResult, value), value);
+			if (!value) {
+				return null;
+			}
+			return this._send(DocumentSemanticTokensAdapter._convertToEdits(previousResult, value), value);
 		});
 	}
 
-	async releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
+	async releaseDocumentSemanticColoring(semanticColoringResultId: number): Promise<void> {
 		this._previousResults.delete(semanticColoringResultId);
 	}
 
@@ -666,7 +674,7 @@ export class SemanticTokensAdapter {
 	}
 
 	private static _convertToEdits(previousResult: SemanticTokensPreviousResult | null | undefined, newResult: vscode.SemanticTokens | vscode.SemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
-		if (!SemanticTokensAdapter._isSemanticTokens(newResult)) {
+		if (!DocumentSemanticTokensAdapter._isSemanticTokens(newResult)) {
 			return newResult;
 		}
 		if (!previousResult || !previousResult.tokens) {
@@ -702,7 +710,7 @@ export class SemanticTokensAdapter {
 	}
 
 	private _send(value: vscode.SemanticTokens | vscode.SemanticTokensEdits, original: vscode.SemanticTokens | vscode.SemanticTokensEdits): VSBuffer | null {
-		if (SemanticTokensAdapter._isSemanticTokens(value)) {
+		if (DocumentSemanticTokensAdapter._isSemanticTokens(value)) {
 			const myId = this._nextResultId++;
 			this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId, value.data));
 			return encodeSemanticTokensDto({
@@ -712,9 +720,9 @@ export class SemanticTokensAdapter {
 			});
 		}
 
-		if (SemanticTokensAdapter._isSemanticTokensEdits(value)) {
+		if (DocumentSemanticTokensAdapter._isSemanticTokensEdits(value)) {
 			const myId = this._nextResultId++;
-			if (SemanticTokensAdapter._isSemanticTokens(original)) {
+			if (DocumentSemanticTokensAdapter._isSemanticTokens(original)) {
 				// store the original
 				this._previousResults.set(myId, new SemanticTokensPreviousResult(original.resultId, original.data));
 			} else {
@@ -728,6 +736,33 @@ export class SemanticTokensAdapter {
 		}
 
 		return null;
+	}
+}
+
+export class DocumentRangeSemanticTokensAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentRangeSemanticTokensProvider,
+	) {
+	}
+
+	provideDocumentRangeSemanticTokens(resource: URI, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
+		const doc = this._documents.getDocument(resource);
+		return asPromise(() => this._provider.provideDocumentRangeSemanticTokens(doc, typeConvert.Range.to(range), token)).then(value => {
+			if (!value) {
+				return null;
+			}
+			return this._send(value);
+		});
+	}
+
+	private _send(value: vscode.SemanticTokens): VSBuffer | null {
+		return encodeSemanticTokensDto({
+			id: 0,
+			type: 'full',
+			data: value.data
+		});
 	}
 }
 
@@ -748,8 +783,9 @@ class SuggestAdapter {
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.CompletionItemProvider,
 		private readonly _logService: ILogService,
+		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 		private readonly _telemetry: extHostProtocol.MainThreadTelemetryShape,
-		private readonly _extensionId: ExtensionIdentifier
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
@@ -783,19 +819,20 @@ class SuggestAdapter {
 			const disposables = new DisposableStore();
 			this._disposables.set(pid, disposables);
 
+			const completions: extHostProtocol.ISuggestDataDto[] = [];
 			const result: extHostProtocol.ISuggestResultDto = {
 				x: pid,
-				b: [],
-				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined
+				[extHostProtocol.ISuggestResultDtoField.completions]: completions,
+				[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
+				[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem(list.items[i], pos, [pid, i]);
-				// check for bad completion item
-				// for the converter did warn
-				if (suggestion) {
-					result.b.push(suggestion);
+				const item = list.items[i];
+				// check for bad completion item first
+				if (this._validateCompletionItem(item, pos)) {
+					const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
+					completions.push(dto);
 				}
 			}
 
@@ -814,39 +851,43 @@ class SuggestAdapter {
 			return Promise.resolve(undefined);
 		}
 
+		const pos = typeConvert.Position.to(position);
 		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
 		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
 
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
-			if (!resolvedItem) {
+			if (!resolvedItem || !this._validateCompletionItem(resolvedItem, pos)) {
 				return undefined;
 			}
 
 			type BlameExtension = {
 				extensionId: string;
-				kind: string
+				kind: string;
+				index: string;
 			};
 
 			type BlameExtensionMeta = {
 				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				index: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 			};
 
-			if (!this._didWarnMust && _mustNotChange !== SuggestAdapter._mustNotChangeHash(resolvedItem)) {
-				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must' });
+			let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
+			if (typeof _mustNotChangeIndex === 'string') {
+				this._logService.warn(`[${this._extension.identifier.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'must', index: _mustNotChangeIndex });
 				this._didWarnMust = true;
 			}
 
-			if (!this._didWarnShould && _mayNotChange !== SuggestAdapter._mayNotChangeHash(resolvedItem)) {
-				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should' });
+			let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
+			if (typeof _mayNotChangeIndex === 'string') {
+				this._logService.info(`[${this._extension.identifier.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'should', index: _mayNotChangeIndex });
 				this._didWarnShould = true;
 			}
 
-			const pos = typeConvert.Position.to(position);
-			return this._convertCompletionItem(resolvedItem, pos, id);
+			return this._convertCompletionItem(resolvedItem, id);
 		});
 	}
 
@@ -856,11 +897,7 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: extHostProtocol.ChainedCacheId): extHostProtocol.ISuggestDataDto | undefined {
-		if (typeof item.label !== 'string' || item.label.length === 0) {
-			this._logService.warn('INVALID text edit -> must have at least a label');
-			return undefined;
-		}
+	private _convertCompletionItem(item: vscode.CompletionItem, id: extHostProtocol.ChainedCacheId, defaultInsertRange?: vscode.Range, defaultReplaceRange?: vscode.Range): extHostProtocol.ISuggestDataDto {
 
 		const disposables = this._disposables.get(id[0]);
 		if (!disposables) {
@@ -872,13 +909,14 @@ class SuggestAdapter {
 			x: id,
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
+			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
 			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
 			[extHostProtocol.ISuggestDataDtoField.sortText]: item.sortText,
 			[extHostProtocol.ISuggestDataDtoField.filterText]: item.filterText,
-			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect,
+			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect || undefined,
 			[extHostProtocol.ISuggestDataDtoField.insertTextRules]: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			[extHostProtocol.ISuggestDataDtoField.commitCharacters]: item.commitCharacters,
 			[extHostProtocol.ISuggestDataDtoField.additionalTextEdits]: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
@@ -887,6 +925,7 @@ class SuggestAdapter {
 
 		// 'insertText'-logic
 		if (item.textEdit) {
+			this._apiDeprecation.report('CompletionItem.textEdit', this._extension, `Use 'CompletionItem.insertText' and 'CompletionItem.range' instead.`);
 			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
@@ -903,50 +942,85 @@ class SuggestAdapter {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
-		} else if (item.range2) {
-			range = item.range2;
 		}
 
-		if (range) {
-			if (Range.isRange(range)) {
-				if (!SuggestAdapter._isValidRangeForCompletion(range, position)) {
-					this._logService.trace('INVALID range -> must be single line and on the same line');
-					return undefined;
-				}
-				result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
+		if (Range.isRange(range)) {
+			// "old" range
+			result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
 
-			} else {
-				if (
-					!SuggestAdapter._isValidRangeForCompletion(range.inserting, position)
-					|| !SuggestAdapter._isValidRangeForCompletion(range.replacing, position)
-					|| !range.inserting.start.isEqual(range.replacing.start)
-					|| !range.replacing.contains(range.inserting)
-				) {
-					this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
-					return undefined;
-				}
-				result[extHostProtocol.ISuggestDataDtoField.range] = {
-					insert: typeConvert.Range.from(range.inserting),
-					replace: typeConvert.Range.from(range.replacing)
-				};
-			}
+		} else if (range && !defaultInsertRange?.isEqual(range.inserting) && !defaultReplaceRange?.isEqual(range.replacing)) {
+			// ONLY send range when it's different from the default ranges (safe bandwidth)
+			result[extHostProtocol.ISuggestDataDtoField.range] = {
+				insert: typeConvert.Range.from(range.inserting),
+				replace: typeConvert.Range.from(range.replacing)
+			};
 		}
 
 		return result;
 	}
 
-	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
-		return range.isSingleLine || range.start.line === position.line;
+	private _validateCompletionItem(item: vscode.CompletionItem, position: vscode.Position): boolean {
+		if (typeof item.label !== 'string' || item.label.length === 0) {
+			this._logService.warn('INVALID text edit -> must have at least a label');
+			return false;
+		}
+
+		if (Range.isRange(item.range)) {
+			if (!item.range.isSingleLine || item.range.start.line !== position.line) {
+				this._logService.trace('INVALID range -> must be single line and on the same line');
+				return false;
+			}
+
+		} else if (item.range) {
+			if (!item.range.inserting.isSingleLine || item.range.inserting.start.line !== position.line
+				|| !item.range.replacing.isSingleLine || item.range.replacing.start.line !== position.line
+				|| !item.range.inserting.start.isEqual(item.range.replacing.start)
+				|| !item.range.replacing.contains(item.range.inserting)
+			) {
+				this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static _mustNotChangeHash(item: vscode.CompletionItem) {
-		const args = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
-		const res = JSON.stringify(args);
+		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range]);
 		return res;
+	}
+
+	private static _mustNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
+		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range];
+		const thisHash = JSON.stringify(thisArr);
+		if (hash === thisHash) {
+			return;
+		}
+		const arr = JSON.parse(hash);
+		for (let i = 0; i < 6; i++) {
+			if (JSON.stringify(arr[i] !== JSON.stringify(thisArr[i]))) {
+				return i.toString();
+			}
+		}
+		return 'unknown';
 	}
 
 	private static _mayNotChangeHash(item: vscode.CompletionItem) {
 		return JSON.stringify([item.additionalTextEdits, item.command]);
+	}
+
+	private static _mayNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
+		const thisArr = [item.additionalTextEdits, item.command];
+		const thisHash = JSON.stringify(thisArr);
+		if (hash === thisHash) {
+			return;
+		}
+		const arr = JSON.parse(hash);
+		for (let i = 0; i < 6; i++) {
+			if (JSON.stringify(arr[i] !== JSON.stringify(thisArr[i]))) {
+				return i.toString();
+			}
+		}
+		return 'unknown';
 	}
 }
 
@@ -991,40 +1065,6 @@ class SignatureHelpAdapter {
 
 	releaseSignatureHelp(id: number): any {
 		this._cache.delete(id);
-	}
-}
-
-class Cache<T> {
-	private static readonly enableDebugLogging = false;
-
-	private readonly _data = new Map<number, readonly T[]>();
-	private _idPool = 1;
-
-	constructor(
-		private readonly id: string
-	) { }
-
-	add(item: readonly T[]): number {
-		const id = this._idPool++;
-		this._data.set(id, item);
-		this.logDebugInfo();
-		return id;
-	}
-
-	get(pid: number, id: number): T | undefined {
-		return this._data.has(pid) ? this._data.get(pid)![id] : undefined;
-	}
-
-	delete(id: number) {
-		this._data.delete(id);
-		this.logDebugInfo();
-	}
-
-	private logDebugInfo() {
-		if (!Cache.enableDebugLogging) {
-			return;
-		}
-		console.log(`${this.id} cache size — ${this._data.size}`);
 	}
 }
 
@@ -1282,9 +1322,9 @@ class CallHierarchyAdapter {
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SemanticTokensAdapter | SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter
-	| ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter
-	| DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
+	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
+	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter;
 
 class AdapterData {
 	constructor(
@@ -1305,6 +1345,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, AdapterData>();
 	private readonly _logService: ILogService;
+	private readonly _apiDeprecation: IExtHostApiDeprecationService;
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -1312,7 +1353,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		diagnostics: ExtHostDiagnostics,
-		logService: ILogService
+		logService: ILogService,
+		apiDeprecationService: IExtHostApiDeprecationService,
 	) {
 		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
@@ -1321,6 +1363,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._commands = commands;
 		this._diagnostics = diagnostics;
 		this._logService = logService;
+		this._apiDeprecation = apiDeprecationService;
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<extHostProtocol.IDocumentFilterDto> {
@@ -1528,7 +1571,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- quick fix
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension.identifier), extension);
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), (metadata && metadata.providedCodeActionKinds) ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
@@ -1612,18 +1655,28 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	//#region semantic coloring
 
-	registerSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._addNewAdapter(new SemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
+	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+		const handle = this._addNewAdapter(new DocumentSemanticTokensAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
 		return this._createDisposable(handle);
 	}
 
-	$provideSemanticTokens(handle: number, resource: UriComponents, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.provideSemanticTokens(URI.revive(resource), ranges, previousResultId, token), null);
+	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null);
 	}
 
-	$releaseSemanticTokens(handle: number, semanticColoringResultId: number): void {
-		this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.releaseSemanticColoring(semanticColoringResultId), undefined);
+	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void {
+		this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.releaseDocumentSemanticColoring(semanticColoringResultId), undefined);
+	}
+
+	registerDocumentRangeSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+		const handle = this._addNewAdapter(new DocumentRangeSemanticTokensAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null);
 	}
 
 	//#endregion
@@ -1631,7 +1684,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._telemetryShape, extension.identifier), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._apiDeprecation, this._telemetryShape, extension), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1779,7 +1832,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
 	}
 
-	setLanguageConfiguration(languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
+	setLanguageConfiguration(extension: IExtensionDescription, languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 		let { wordPattern } = configuration;
 
 		// check for a valid word pattern
@@ -1792,6 +1845,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			this._documents.setWordDefinitionFor(languageId, wordPattern);
 		} else {
 			this._documents.setWordDefinitionFor(languageId, undefined);
+		}
+
+		if (configuration.__electricCharacterSupport) {
+			this._apiDeprecation.report('LanguageConfiguration.__electricCharacterSupport', extension,
+				`Do not use.`);
+		}
+
+		if (configuration.__characterPairSupport) {
+			this._apiDeprecation.report('LanguageConfiguration.__characterPairSupport', extension,
+				`Do not use.`);
 		}
 
 		const handle = this._nextHandle();

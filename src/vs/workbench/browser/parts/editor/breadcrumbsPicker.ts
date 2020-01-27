@@ -82,6 +82,7 @@ export abstract class BreadcrumbsPicker {
 	dispose(): void {
 		this._disposables.dispose();
 		this._onDidPickElement.dispose();
+		this._onDidFocusElement.dispose();
 		this._tree.dispose();
 	}
 
@@ -471,7 +472,6 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		const element = input as TreeElement;
 		const model = OutlineModel.get(element)!;
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
-		tree.setInput(model);
 
 		const textModel = model.textModel;
 		const overrideConfiguration = {
@@ -480,6 +480,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		};
 		this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
 
+		tree.setInput(model);
 		if (element !== model) {
 			tree.reveal(element, 0.5);
 			tree.setFocus([element], this._fakeEvent);

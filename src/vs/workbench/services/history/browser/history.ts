@@ -18,7 +18,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
@@ -34,6 +34,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -354,14 +355,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private doNavigate(location: IStackEntry): Promise<IBaseEditor | undefined> {
 		const options: ITextEditorOptions = {
-			revealIfOpened: true // support to navigate across editor groups
+			revealIfOpened: true, // support to navigate across editor groups,
+			selection: location.selection,
+			revealInCenterIfOutsideViewport: !!location.selection
 		};
-
-		// Support selection and minimize scrolling by setting revealInCenterIfOutsideViewport
-		if (location.selection) {
-			options.selection = location.selection;
-			options.revealInCenterIfOutsideViewport = true;
-		}
 
 		if (location.input instanceof EditorInput) {
 			return this.editorService.openEditor(location.input, options);
@@ -645,7 +642,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	reopenLastClosedEditor(): void {
 		let lastClosedFile = this.recentlyClosedFiles.pop();
-		while (lastClosedFile && this.editorGroupService.activeGroup.isOpened({ resource: lastClosedFile.resource })) {
+		while (lastClosedFile && this.containsRecentlyClosedFile(this.editorGroupService.activeGroup, lastClosedFile)) {
 			lastClosedFile = this.recentlyClosedFiles.pop(); // pop until we find a file that is not opened
 		}
 
@@ -666,6 +663,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Context
 		this.canReopenClosedEditorContextKey.set(this.recentlyClosedFiles.length > 0);
+	}
+
+	private containsRecentlyClosedFile(group: IEditorGroup, recentlyClosedEditor: IRecentlyClosedFile): boolean {
+		for (const editor of group.editors) {
+			if (isEqual(editor.getResource(), recentlyClosedEditor.resource)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {

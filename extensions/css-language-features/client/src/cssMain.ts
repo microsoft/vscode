@@ -45,18 +45,28 @@ export function activate(context: ExtensionContext) {
 			dataPaths
 		},
 		middleware: {
-			// testing the replace / insert mode
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				// testing the replace / insert mode
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
-					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range2 = { inserting: new Range(range.start, position), replacing: range };
-						item.range = undefined;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
+
 					}
 				}
+				function updateLabel(item: CompletionItem) {
+					if (item.kind === CompletionItemKind.Color) {
+						item.label2 = {
+							name: item.label,
+							type: (item.documentation as string)
+						};
+					}
+				}
+				// testing the new completion
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
 					if (r) {
 						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+						(Array.isArray(r) ? r : r.items).forEach(updateLabel);
 					}
 					return r;
 				}

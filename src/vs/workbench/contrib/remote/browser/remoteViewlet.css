@@ -29,7 +29,7 @@
 	width: 0px !important;
 }
 
-.remote-help-tree-node-item-icon .monaco-icon-label-description-container {
+.remote-help-tree-node-item-icon .monaco-icon-label-container > .monaco-icon-name-container {
 	padding-left: 22px;
 }
 

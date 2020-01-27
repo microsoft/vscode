@@ -287,7 +287,7 @@ export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -302,7 +302,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -628,11 +628,17 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
-	let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
+	let offsetParent = element.offsetParent;
+	let top = element.offsetTop;
+	let left = element.offsetLeft;
 
-	while ((element = <HTMLElement>element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
+	while (
+		(element = <HTMLElement>element.parentNode) !== null
+		&& element !== document.body
+		&& element !== document.documentElement
+	) {
 		top -= element.scrollTop;
-		let c = getComputedStyle(element);
+		const c = isShadowRoot(element) ? null : getComputedStyle(element);
 		if (c) {
 			left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
 		}
@@ -793,7 +799,7 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 }
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
@@ -818,6 +824,27 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 
 export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+}
+
+export function isShadowRoot(node: Node): node is ShadowRoot {
+	return (
+		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+	);
+}
+
+export function isInShadowDOM(domNode: Node): boolean {
+	return !!getShadowRoot(domNode);
+}
+
+export function getShadowRoot(domNode: Node): ShadowRoot | null {
+	while (domNode.parentNode) {
+		if (domNode === document.body) {
+			// reached the body
+			return null;
+		}
+		domNode = domNode.parentNode;
+	}
+	return isShadowRoot(domNode) ? domNode : null;
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
@@ -1167,7 +1194,7 @@ export function hide(...elements: HTMLElement[]): void {
 }
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}

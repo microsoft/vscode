@@ -55,7 +55,7 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 export interface IBaseSaveRevertAllEditorOptions {
 
 	/**
-	 * Wether to include untitled editors as well.
+	 * Whether to include untitled editors as well.
 	 */
 	includeUntitled?: boolean;
 }
@@ -193,19 +193,11 @@ export interface IEditorService {
 	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
-	 * Find out if the provided editor (or resource of an editor) is opened in any or
-	 * a specific editor group.
+	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
 	 */
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): boolean;
-
-	/**
-	 * Get the actual opened editor input in any or a specific editor group based on the resource.
-	 *
-	 * Note: An editor can be opened but not actively visible.
-	 */
-	getOpened(editor: IResourceInput | IUntitledTextResourceInput): IEditorInput | undefined;
+	isOpen(editor: IEditorInput): boolean;
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will

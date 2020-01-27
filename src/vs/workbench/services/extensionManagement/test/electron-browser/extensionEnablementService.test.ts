@@ -5,13 +5,13 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IStorageService, InMemoryStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -22,8 +22,9 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { productService } from 'vs/workbench/test/workbenchTestServices';
+import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 
-function storageService(instantiationService: TestInstantiationService): IStorageService {
+function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
@@ -39,10 +40,12 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
+		const storageService = createStorageService(instantiationService);
 		const extensionManagementService = instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService);
 		const extensionManagementServerService = instantiationService.get(IExtensionManagementServerService) || instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{ localExtensionManagementServer: { extensionManagementService } });
 		super(
-			storageService(instantiationService),
+			storageService,
+			new GlobalExtensionEnablementService(storageService),
 			instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
 			extensionManagementService,
@@ -53,13 +56,13 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 	}
 
 	public reset(): void {
-		let extensions = this._getDisabledExtensions(StorageScope.GLOBAL);
-		for (const e of this._getDisabledExtensions(StorageScope.WORKSPACE)) {
+		let extensions = this.globalExtensionEnablementService.getDisabledExtensions();
+		for (const e of this._getWorkspaceDisabledExtensions()) {
 			if (!extensions.some(r => areSameExtensions(r, e))) {
 				extensions.push(e);
 			}
 		}
-		const workspaceEnabledExtensions = this._getEnabledExtensions(StorageScope.WORKSPACE);
+		const workspaceEnabledExtensions = this._getWorkspaceEnabledExtensions();
 		if (workspaceEnabledExtensions.length) {
 			extensions = extensions.filter(r => !workspaceEnabledExtensions.some(e => areSameExtensions(e, r)));
 		}
@@ -70,7 +73,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 suite('ExtensionEnablementService Test', () => {
 
 	let instantiationService: TestInstantiationService;
-	let testObject: IExtensionEnablementService;
+	let testObject: IWorkbenchExtensionEnablementService;
 
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 

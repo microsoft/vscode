@@ -71,11 +71,8 @@ export namespace TokenStyle {
 				while ((match = expression.exec(fontStyle))) {
 					switch (match[0]) {
 						case 'bold': bold = true; break;
-						case '-bold': bold = false; break;
 						case 'italic': italic = true; break;
-						case '-italic': italic = false; break;
 						case 'underline': underline = true; break;
-						case '-underline': underline = false; break;
 					}
 				}
 			}
@@ -99,15 +96,15 @@ export interface TokenStyleDefaults {
 }
 
 export interface TokenStylingDefaultRule {
-	classification: TokenClassification;
-	matchScore: number;
+	match(classification: TokenClassification): number;
+	selector: TokenClassification;
 	defaults: TokenStyleDefaults;
 }
 
 export interface TokenStylingRule {
-	classification: TokenClassification;
-	matchScore: number;
+	match(classification: TokenClassification): number;
 	value: TokenStyle;
+	selector: TokenClassification;
 }
 
 /**
@@ -220,10 +217,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 					},
 					fontStyle: {
 						type: 'string',
-						description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\', \'-italic\', \'-bold\' or \'-underline\'or a combination. The empty string unsets inherited settings.'),
+						description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets inherited settings.'),
 						pattern: fontStylePattern,
-						patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' to set a style or \'-italic\', \'-bold\' or \'-underline\' to unset or a combination. The empty string unsets all styles.'),
-						defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: '-italic' }, { body: '-bold' }, { body: '-underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+						patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets all styles.'),
+						defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
 					}
 				},
 				additionalProperties: false,
@@ -279,16 +276,36 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return { type: tokenTypeDesc.num, modifiers: allModifierBits };
 	}
 
-	public getTokenStylingRule(classification: TokenClassification, value: TokenStyle): TokenStylingRule {
-		return { classification, matchScore: getTokenStylingScore(classification), value };
+
+	private newMatcher(selector: TokenClassification) {
+		const score = getTokenStylingScore(selector);
+		return (classification: TokenClassification) => {
+			const selectorType = selector.type;
+			if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType !== classification.type) {
+				return -1;
+			}
+			const selectorModifier = selector.modifiers;
+			if ((classification.modifiers & selectorModifier) !== selectorModifier) {
+				return -1;
+			}
+			return score;
+		};
 	}
 
-	public registerTokenStyleDefault(classification: TokenClassification, defaults: TokenStyleDefaults): void {
-		this.tokenStylingDefaultRules.push({ classification, matchScore: getTokenStylingScore(classification), defaults });
+	public getTokenStylingRule(selector: TokenClassification, value: TokenStyle): TokenStylingRule {
+		return {
+			match: this.newMatcher(selector),
+			value,
+			selector
+		};
+	}
+
+	public registerTokenStyleDefault(selector: TokenClassification, defaults: TokenStyleDefaults): void {
+		this.tokenStylingDefaultRules.push({ selector, match: this.newMatcher(selector), defaults });
 	}
 
 	public deregisterTokenStyleDefault(classification: TokenClassification): void {
-		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.classification.type === classification.type && r.classification.modifiers === classification.modifiers));
+		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.selector.type === classification.type && r.selector.modifiers === classification.modifiers));
 	}
 
 	public deregisterTokenType(id: string): void {
@@ -333,18 +350,6 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 }
 
-export function matchTokenStylingRule(themeSelector: TokenStylingRule | TokenStylingDefaultRule, classification: TokenClassification): number {
-	const selectorType = themeSelector.classification.type;
-	if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType !== classification.type) {
-		return -1;
-	}
-	const selectorModifier = themeSelector.classification.modifiers;
-	if ((classification.modifiers & selectorModifier) !== selectorModifier) {
-		return -1;
-	}
-	return themeSelector.matchScore;
-}
-
 
 const tokenClassificationRegistry = new TokenClassificationRegistry();
 platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassificationRegistry);
@@ -373,11 +378,11 @@ function registerDefaultClassifications(): void {
 
 	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
 
-	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']]);
+	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type'], ['support.class']]);
 	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']], 'type');
-	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.class']], 'type');
-	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), undefined, 'type');
-	registerTokenType('enum', nls.localize('enum', "Style for enums."), undefined, 'type');
+	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class']], 'type');
+	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']], 'type');
+	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']], 'type');
 	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), undefined, 'type');
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
@@ -400,6 +405,7 @@ function registerDefaultClassifications(): void {
 	tokenClassificationRegistry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
+	tokenClassificationRegistry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {

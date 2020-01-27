@@ -121,7 +121,7 @@
 	margin-top: 3px;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1;
 }
 

@@ -392,7 +392,7 @@ export class Model {
 		if (hint instanceof Uri) {
 			let resourcePath: string;
 
-			if (hint.scheme === 'git' || hint.scheme === 'gitfs') {
+			if (hint.scheme === 'git') {
 				resourcePath = fromGitUri(hint).path;
 			} else {
 				resourcePath = hint.fsPath;

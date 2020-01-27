@@ -648,6 +648,18 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
+	test('issue #84217: Broken indentation detection', () => {
+		assertGuess(true, 4, [
+			'def main():',
+			'    print(\'hello\')',
+		]);
+		assertGuess(true, 4, [
+			'def main():',
+			'    with open(\'foo\') as fp:',
+			'        print(fp.read())',
+		]);
+	});
+
 	test('validatePosition', () => {
 
 		let m = TextModel.createFromString('line one\nline two');
@@ -741,87 +753,6 @@ suite('Editor Model - TextModel', () => {
 		assert.deepEqual(m.validatePosition(new Position(2, 0.8)), new Position(2, 1), 'f');
 		assert.deepEqual(m.validatePosition(new Position(1, 1.2)), new Position(1, 1), 'g');
 		assert.deepEqual(m.validatePosition(new Position(2, 1.5)), new Position(2, 1), 'h');
-	});
-
-	function assertValidatePosition(m: TextModel, lineNumber: number, column: number, expectedColumn: number): void {
-		const input = new Position(lineNumber, column);
-		const actual = m.validatePosition(input);
-		const expected = new Position(lineNumber, expectedColumn);
-		assert.deepEqual(actual, expected, `validatePosition for ${input}, got ${actual}, expected ${expected}`);
-	}
-
-	function assertValidateRange(m: TextModel, input: Range, expected: Range): void {
-		const actual = m.validateRange(input);
-		assert.deepEqual(actual, expected, `validateRange for ${input}, got ${actual}, expected ${expected}`);
-	}
-
-	test('grapheme breaking', () => {
-		const m = TextModel.createFromString([
-			'abcabc',
-			'ãããããã',
-			'辻󠄀辻󠄀辻󠄀',
-			'புபுபு',
-		].join('\n'));
-
-		assertValidatePosition(m, 2, 1, 1);
-		assertValidatePosition(m, 2, 2, 1);
-		assertValidatePosition(m, 2, 3, 3);
-		assertValidatePosition(m, 2, 4, 3);
-		assertValidatePosition(m, 2, 5, 5);
-		assertValidatePosition(m, 2, 6, 5);
-		assertValidatePosition(m, 2, 7, 7);
-		assertValidatePosition(m, 2, 8, 7);
-		assertValidatePosition(m, 2, 9, 9);
-		assertValidatePosition(m, 2, 10, 9);
-		assertValidatePosition(m, 2, 11, 11);
-		assertValidatePosition(m, 2, 12, 11);
-		assertValidatePosition(m, 2, 13, 13);
-		assertValidatePosition(m, 2, 14, 13);
-
-		assertValidatePosition(m, 3, 1, 1);
-		assertValidatePosition(m, 3, 2, 1);
-		assertValidatePosition(m, 3, 3, 1);
-		assertValidatePosition(m, 3, 4, 4);
-		assertValidatePosition(m, 3, 5, 4);
-		assertValidatePosition(m, 3, 6, 4);
-		assertValidatePosition(m, 3, 7, 7);
-		assertValidatePosition(m, 3, 8, 7);
-		assertValidatePosition(m, 3, 9, 7);
-		assertValidatePosition(m, 3, 10, 10);
-
-		assertValidatePosition(m, 4, 1, 1);
-		assertValidatePosition(m, 4, 2, 1);
-		assertValidatePosition(m, 4, 3, 3);
-		assertValidatePosition(m, 4, 4, 3);
-		assertValidatePosition(m, 4, 5, 5);
-		assertValidatePosition(m, 4, 6, 5);
-		assertValidatePosition(m, 4, 7, 7);
-
-		assertValidateRange(m, new Range(2, 1, 2, 1), new Range(2, 1, 2, 1));
-		assertValidateRange(m, new Range(2, 1, 2, 2), new Range(2, 1, 2, 3));
-		assertValidateRange(m, new Range(2, 1, 2, 3), new Range(2, 1, 2, 3));
-		assertValidateRange(m, new Range(2, 1, 2, 4), new Range(2, 1, 2, 5));
-		assertValidateRange(m, new Range(2, 1, 2, 5), new Range(2, 1, 2, 5));
-		assertValidateRange(m, new Range(2, 2, 2, 2), new Range(2, 1, 2, 1));
-		assertValidateRange(m, new Range(2, 2, 2, 3), new Range(2, 1, 2, 3));
-		assertValidateRange(m, new Range(2, 2, 2, 4), new Range(2, 1, 2, 5));
-		assertValidateRange(m, new Range(2, 2, 2, 5), new Range(2, 1, 2, 5));
-
-		assertValidateRange(m, new Range(3, 1, 3, 1), new Range(3, 1, 3, 1));
-		assertValidateRange(m, new Range(3, 1, 3, 2), new Range(3, 1, 3, 4));
-		assertValidateRange(m, new Range(3, 1, 3, 3), new Range(3, 1, 3, 4));
-		assertValidateRange(m, new Range(3, 1, 3, 4), new Range(3, 1, 3, 4));
-		assertValidateRange(m, new Range(3, 1, 3, 5), new Range(3, 1, 3, 7));
-		assertValidateRange(m, new Range(3, 1, 3, 6), new Range(3, 1, 3, 7));
-		assertValidateRange(m, new Range(3, 1, 3, 7), new Range(3, 1, 3, 7));
-		assertValidateRange(m, new Range(3, 2, 3, 2), new Range(3, 1, 3, 1));
-		assertValidateRange(m, new Range(3, 2, 3, 3), new Range(3, 1, 3, 4));
-		assertValidateRange(m, new Range(3, 2, 3, 4), new Range(3, 1, 3, 4));
-		assertValidateRange(m, new Range(3, 2, 3, 5), new Range(3, 1, 3, 7));
-		assertValidateRange(m, new Range(3, 2, 3, 6), new Range(3, 1, 3, 7));
-		assertValidateRange(m, new Range(3, 2, 3, 7), new Range(3, 1, 3, 7));
-
-		m.dispose();
 	});
 
 	test('issue #71480: validateRange handle floats', () => {

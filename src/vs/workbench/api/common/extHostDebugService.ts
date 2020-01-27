@@ -27,7 +27,7 @@ import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';

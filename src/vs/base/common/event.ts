@@ -148,6 +148,7 @@ export namespace Event {
 
 					if (leading && !handle) {
 						emitter.fire(output);
+						output = undefined;
 					}
 
 					clearTimeout(handle);
