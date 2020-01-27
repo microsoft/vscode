@@ -259,7 +259,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		} catch (error) {
 
 			// in case of any error, ensure to set dirty flag back
-			dirtyModelsToRevert.forEach(dirtyModel => dirtyModel.makeDirty());
+			dirtyModelsToRevert.forEach(dirtyModel => dirtyModel.setDirty(true));
 
 			throw error;
 		}
@@ -278,7 +278,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (modelToRestore.snapshot && restoredModel.isResolved()) {
 				this.modelService.updateModel(restoredModel.textEditorModel, createTextBufferFactoryFromSnapshot(modelToRestore.snapshot));
 
-				restoredModel.makeDirty();
+				restoredModel.setDirty(true);
 			}
 		}));
 

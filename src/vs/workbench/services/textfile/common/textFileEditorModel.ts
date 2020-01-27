@@ -332,7 +332,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(false);
 
 			if (currentVersionId !== this.versionId) {
-				return this; // Make sure meanwhile someone else did not suceed loading
+				return this; // Make sure meanwhile someone else did not succeed loading
 			}
 
 			return this.loadFromContent(content, options);
@@ -416,7 +416,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// We restored a backup so we have to set the model as being dirty
 		if (fromBackup) {
-			this.makeDirty();
+			this.setDirty(true);
 		}
 
 		// Ensure we are not tracking a stale state
@@ -477,9 +477,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Clear flags
 				const wasDirty = this.dirty;
-				this.doSetDirty(false);
+				this.setDirty(false);
 
-				// Emit event
+				// Emit revert event if we were dirty
 				if (wasDirty) {
 					this._onDidRevert.fire();
 				}
@@ -490,7 +490,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.logService.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty', this.resource.toString());
 
 				// Mark as dirty
-				this.makeDirty();
+				this.setDirty(true);
 			}
 		}
 
@@ -506,17 +506,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.dirty;
 	}
 
-	makeDirty(): void {
+	setDirty(dirty: boolean): void {
 		if (!this.isResolved()) {
 			return; // only resolved models can be marked dirty
 		}
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
-		this.doSetDirty(true);
+		this.doSetDirty(dirty);
 
-		// Emit as Event if we turned dirty
-		if (!wasDirty) {
+		// Emit as Event if dirty changed
+		if (dirty !== wasDirty) {
 			this._onDidChangeDirty.fire();
 		}
 	}
@@ -700,24 +700,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: ITextFileSaveOptions): void {
 		this.logService.trace(`[text file model] doSave(${versionId}) - after write()`, this.resource.toString());
 
-		// Update dirty state unless model has changed meanwhile
-		if (versionId === this.versionId) {
-			this.logService.trace(`[text file model] doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource.toString());
-			this.doSetDirty(false);
-		} else {
-			this.logService.trace(`[text file model] doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString());
-		}
-
 		// Updated resolved stat with updated stat
 		this.updateLastResolvedFileStat(stat);
 
-		// Emit Events
+		// Update dirty state unless model has changed meanwhile
+		if (versionId === this.versionId) {
+			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - setting dirty to false because versionId did not change`, this.resource.toString());
+			this.setDirty(false);
+		} else {
+			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString());
+		}
+
+		// Emit Save Event
 		this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
-		this._onDidChangeDirty.fire();
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: ITextFileSaveOptions): void {
-		this.logService.error(`[text file model] doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString());
+		this.logService.error(`[text file model] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString());
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.
@@ -838,7 +837,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save
 			if (!this.isDirty()) {
 				this.versionId++; // needs to increment because we change the model potentially
-				this.makeDirty();
+				this.setDirty(true);
 			}
 
 			if (!this.inConflictMode) {
