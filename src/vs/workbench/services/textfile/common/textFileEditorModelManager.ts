@@ -177,13 +177,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
-		if (resource) {
-			const res = this.mapResourceToModel.get(resource);
-
-			return res ? [res] : [];
-		}
-
+	getAll(filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
 		const res: ITextFileEditorModel[] = [];
 		this.mapResourceToModel.forEach(model => {
 			if (!filter || filter(model)) {

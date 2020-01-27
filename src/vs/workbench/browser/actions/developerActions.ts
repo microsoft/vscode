@@ -25,6 +25,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class InspectContextKeysAction extends Action {
 
@@ -210,6 +212,33 @@ class LogStorageAction extends Action {
 	}
 }
 
+class LogWorkingCopiesAction extends Action {
+
+	static readonly ID = 'workbench.action.logWorkingCopies';
+	static readonly LABEL = nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies");
+
+	constructor(
+		id: string,
+		label: string,
+		@ILogService private logService: ILogService,
+		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const msg = [
+			`Dirty Working Copies:`,
+			...this.workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			``,
+			`All Working Copies:`,
+			...this.workingCopyService.workingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+		];
+
+		this.logService.info(msg.join('\n'));
+	}
+}
+
 // --- Actions Registration
 
 const developerCategory = nls.localize('developer', "Developer");
@@ -217,6 +246,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActio
 registry.registerWorkbenchAction(SyncActionDescriptor.create(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(LogWorkingCopiesAction, LogWorkingCopiesAction.ID, LogWorkingCopiesAction.LABEL), 'Developer: Log Working Copies', developerCategory);
 
 // Screencast Mode
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

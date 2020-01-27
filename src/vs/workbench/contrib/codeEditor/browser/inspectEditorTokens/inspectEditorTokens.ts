@@ -26,6 +26,8 @@ import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMH
 import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition } from 'vs/workbench/services/themes/common/colorThemeData';
+import { TokenStylingRule } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
@@ -121,7 +123,8 @@ interface ISemanticTokenInfo {
 	type: string;
 	modifiers: string[];
 	range: Range;
-	metadata: IDecodedMetadata
+	metadata: IDecodedMetadata,
+	definitions: TokenStyleDefinitions
 }
 
 interface IDecodedMetadata {
@@ -248,17 +251,21 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
 
 		let tokenText;
+
 		let metadata: IDecodedMetadata | undefined;
-		let primary: IDecodedMetadata | undefined;
-		if (textMateTokenInfo) {
+		let tmFallback: IDecodedMetadata | undefined;
+
+		if (semanticTokenInfo) {
+			tokenText = this._model.getValueInRange(semanticTokenInfo.range);
+			metadata = semanticTokenInfo.metadata;
+			if (textMateTokenInfo) {
+				tmFallback = textMateTokenInfo.metadata;
+			}
+		} else if (textMateTokenInfo) {
 			let tokenStartIndex = textMateTokenInfo.token.startIndex;
 			let tokenEndIndex = textMateTokenInfo.token.endIndex;
 			tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
 			metadata = textMateTokenInfo.metadata;
-			primary = semanticTokenInfo?.metadata;
-		} else if (semanticTokenInfo) {
-			tokenText = this._model.getValueInRange(semanticTokenInfo.range);
-			metadata = semanticTokenInfo.metadata;
 		} else {
 			return 'No grammar or semantic tokens available.';
 		}
@@ -268,28 +275,36 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		result += `<hr class="tiw-metadata-separator" style="clear:both"/>`;
 
 		result += `<table class="tiw-metadata-table"><tbody>`;
-		result += `<tr><td class="tiw-metadata-key">language</td><td class="tiw-metadata-value">${escape(metadata.languageIdentifier.language)}</td></tr>`;
-		result += `<tr><td class="tiw-metadata-key">standard token type</td><td class="tiw-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td></tr>`;
-		if (semanticTokenInfo) {
-			result += `<tr><td class="tiw-metadata-key">semantic token type</td><td class="tiw-metadata-value">${semanticTokenInfo.type}</td></tr>`;
-			const modifiers = semanticTokenInfo.modifiers.join(' ') || '-';
-			result += `<tr><td class="tiw-metadata-key">semantic token modifiers</td><td class="tiw-metadata-value">${modifiers}</td></tr>`;
-		}
+		result += `<tr><td class="tiw-metadata-key">language</td><td class="tiw-metadata-value">${escape(textMateTokenInfo?.metadata.languageIdentifier.language || '')}</td></tr>`;
+		result += `<tr><td class="tiw-metadata-key">standard token type</td><td class="tiw-metadata-value">${this._tokenTypeToString(textMateTokenInfo?.metadata.tokenType || StandardTokenType.Other)}</td></tr>`;
 		result += `</tbody></table>`;
 
 		result += `<hr class="tiw-metadata-separator"/>`;
 		result += `<table class="tiw-metadata-table"><tbody>`;
-		result += this._formatMetadata(metadata, primary);
+		result += this._formatMetadata(metadata, tmFallback);
 		result += `</tbody></table>`;
+
+		if (semanticTokenInfo) {
+			result += `<hr class="tiw-metadata-separator"/>`;
+			result += `<table class="tiw-metadata-table"><tbody>`;
+			result += `<tr><td class="tiw-metadata-key">semantic token type</td><td class="tiw-metadata-value">${semanticTokenInfo.type}</td></tr>`;
+			const modifiers = semanticTokenInfo.modifiers.join(' ') || '-';
+			result += `<tr><td class="tiw-metadata-key">semantic token modifiers</td><td class="tiw-metadata-value">${modifiers}</td></tr>`;
+			result += `</tbody></table>`;
+
+			result += `<div>${this._renderTokenStyleDefinition(semanticTokenInfo.definitions.foreground)}</div>`;
+		}
 
 		if (textMateTokenInfo) {
 			let theme = this._themeService.getColorTheme();
 			result += `<hr class="tiw-metadata-separator"/>`;
-			let matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
-			if (matchingRule) {
-				result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
-			} else {
-				result += `<span class="tiw-theme-selector">No theme selector.</span>`;
+			if (!semanticTokenInfo) {
+				let matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
+				if (matchingRule) {
+					result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+				} else {
+					result += `<span class="tiw-theme-selector">No theme selector.</span>`;
+				}
 			}
 
 			result += `<ul>`;
@@ -301,15 +316,20 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return result;
 	}
 
-	private _formatMetadata(metadata: IDecodedMetadata, master?: IDecodedMetadata) {
+	private _formatMetadata(metadata?: IDecodedMetadata, fallback?: IDecodedMetadata) {
 		let result = '';
 
-		const fontStyle = master ? master.fontStyle : metadata.fontStyle;
-		result += `<tr><td class="tiw-metadata-key">font style</td><td class="tiw-metadata-value">${fontStyle}</td></tr>`;
-		const foreground = master && master.foreground || metadata.foreground;
-		result += `<tr><td class="tiw-metadata-key">foreground</td><td class="tiw-metadata-value">${foreground}</td></tr>`;
-		const background = master && master.background || metadata.background;
-		result += `<tr><td class="tiw-metadata-key">background</td><td class="tiw-metadata-value">${background}</td></tr>`;
+		function render(label: string, value: string | undefined, property: keyof IDecodedMetadata) {
+			const info = metadata?.[property] !== value ? ` (tm)` : '';
+			return `<tr><td class="tiw-metadata-key">${label}</td><td class="tiw-metadata-value">${value + info}</td></tr>`;
+		}
+
+		const fontStyle = metadata?.fontStyle || fallback?.fontStyle;
+		result += render('font style', fontStyle, 'fontStyle');
+		const foreground = metadata?.foreground || fallback?.foreground;
+		result += render('foreground', foreground, 'foreground');
+		const background = metadata?.background || fallback?.background;
+		result += render('background', background, 'background');
 
 		if (foreground && background) {
 			const backgroundColor = Color.fromHex(background), foregroundColor = Color.fromHex(foreground);
@@ -436,13 +456,56 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const type = semanticTokens.legend.tokenTypes[typeIdx];
 				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
-				const metadata = this._decodeMetadata(this._themeService.getTheme().getTokenStyleMetadata(type, modifiers) || 0);
-				return { type, modifiers, range, metadata };
+				const definitions = {};
+				const theme = this._themeService.getTheme() as ColorThemeData;
+				const m = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
+				const metadata = this._decodeMetadata(m || 0);
+				return { type, modifiers, range, metadata, definitions };
 			}
 			lastLine = line;
 			lastCharacter = character;
 		}
 		return null;
+	}
+
+	private _renderTokenStyleDefinition(definition: TokenStyleDefinition | undefined): string {
+		if (definition === undefined) {
+			return '';
+		}
+		const theme = this._themeService.getTheme() as ColorThemeData;
+
+		const isTokenStylingRule = (d: any): d is TokenStylingRule => !!d.value;
+		if (Array.isArray(definition)) {
+			let result = '';
+			result += `<ul>`;
+			for (const d of definition) {
+				result += `<li>${escape(d.join(' '))}</li>`;
+			}
+			result += `</ul>`;
+
+			for (const d of definition) {
+				let matchingRule = findMatchingThemeRule(theme, d, false);
+				if (matchingRule) {
+					result += `<code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+					break;
+				}
+			}
+			return result;
+		} else if (isTokenStylingRule(definition)) {
+
+			const scope = theme.getTokenStylingRuleScope(definition);
+
+			if (scope === 'setting') {
+				return `User settings: ${definition.selector}`;
+			} else if (scope === 'theme') {
+				return `Color theme: ${definition.selector}`;
+			}
+			return '';
+		} else if (typeof definition === 'string') {
+			return `Selector: ${definition}`;
+		} else {
+			return `Token style: Foreground: ${definition.foreground}, bold: ${definition.bold}, italic: ${definition.italic}, underline: ${definition.underline},`;
+		}
 	}
 
 	public getDomNode(): HTMLElement {

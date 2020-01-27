@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextEditorInput, IRevertOptions } from 'vs/workbench/common/editor';
+import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextEditorInput } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -260,10 +260,6 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 		}
 
 		return false;
-	}
-
-	revert(options?: IRevertOptions): Promise<boolean> {
-		return this.textFileService.revert(this.resource, options);
 	}
 
 	getPreferredEditorId(candidates: string[]): string {

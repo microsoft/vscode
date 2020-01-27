@@ -202,7 +202,6 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	private promptPath!: URI;
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
@@ -212,15 +211,14 @@ export class TestTextFileService extends NativeTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IHistoryService historyService: IHistoryService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super(
 			fileService,
@@ -229,20 +227,15 @@ export class TestTextFileService extends NativeTextFileService {
 			instantiationService,
 			modelService,
 			environmentService,
-			historyService,
 			dialogService,
 			fileDialogService,
-			editorService,
 			textResourceConfigurationService,
 			productService,
 			filesConfigurationService,
 			textModelService,
-			codeEditorService
+			codeEditorService,
+			notificationService
 		);
-	}
-
-	setPromptPath(path: URI): void {
-		this.promptPath = path;
 	}
 
 	setResolveTextContentErrorOnce(error: FileOperationError): void {
@@ -268,10 +261,6 @@ export class TestTextFileService extends NativeTextFileService {
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10
 		};
-	}
-
-	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
-		return Promise.resolve(this.promptPath);
 	}
 }
 
@@ -331,10 +320,10 @@ export class TestAccessibilityService implements IAccessibilityService {
 
 	_serviceBrand: undefined;
 
-	onDidChangeAccessibilitySupport = Event.None;
+	onDidChangeScreenReaderOptimized = Event.None;
 
+	isScreenReaderOptimized(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 }
 
@@ -425,8 +414,12 @@ export class TestFileDialogService implements IFileDialogService {
 	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	private fileToSave!: URI;
+	setPickFileToSave(path: URI): void {
+		this.fileToSave = path;
+	}
 	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		return Promise.resolve(undefined);
+		return Promise.resolve(this.fileToSave);
 	}
 	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
@@ -1111,11 +1104,11 @@ export class TestFileService implements IFileService {
 	}
 
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
+		return Promise.resolve(null!);
 	}
 
 	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
+		return Promise.resolve(null!);
 	}
 
 	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {

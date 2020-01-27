@@ -24,6 +24,13 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container."
 				},
+				"forwardPorts": {
+					"type": "array",
+					"description": "Ports that are forwarded from the container to the local machine.",
+					"items": {
+						"type": "integer"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {

@@ -11,15 +11,14 @@ import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInputFactory, GroupIdentifier, EditorInput, SaveContext, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, GroupIdentifier, EditorInput, IRevertOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { dirname, joinPath, isEqual } from 'vs/base/common/resources';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { joinPath, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { basename } from 'vs/base/common/path';
@@ -27,6 +26,7 @@ import { IWorkingCopyService, WorkingCopyCapabilities, IWorkingCopy, IWorkingCop
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { assertIsDefined } from 'vs/base/common/types';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
+import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 
 export type SearchConfiguration = {
 	query: string,
@@ -40,12 +40,17 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
+type SearchEditorViewState =
+	| { focused: 'input' }
+	| { focused: 'editor', state: ICodeEditorViewState };
+
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
 	private dirty: boolean = false;
 	private readonly model: Promise<ITextModel>;
 	private resolvedModel?: { model: ITextModel, query: SearchConfiguration };
+	viewState: SearchEditorViewState = { focused: 'input' };
 
 	constructor(
 		public readonly resource: URI,
@@ -54,7 +59,6 @@ export class SearchEditorInput extends EditorInput {
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
-		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -72,41 +76,35 @@ export class SearchEditorInput extends EditorInput {
 			onDidChangeContent: this.onDidChangeDirty,
 			isDirty: () => this.isDirty(),
 			backup: () => this.backup(),
-			save: (options) => this.save(0, options),
-			revert: () => this.revert(),
+			save: (options) => this.save(0, options).then(editor => !!editor),
+			revert: () => this.revert(0),
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	getResource() {
+		return this.resource;
+	}
+
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		if (this.resource.scheme === 'search-editor') {
-			const path = await this.promptForPath(this.resource, await this.suggestFileName(), options?.availableFileSystems);
+			const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 			if (path) {
 				if (await this.textFileService.saveAs(this.resource, path, options)) {
 					this.setDirty(false);
-					if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(path, this.resource)) {
-						const replacement = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
-						await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], group);
-						return true;
-					} else if (options?.context === SaveContext.EDITOR_CLOSE) {
-						return true;
+					if (!isEqual(path, this.resource)) {
+						return this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
 					}
+					return this;
 				}
 			}
-			return false;
+			return undefined;
 		} else {
 			this.setDirty(false);
-			return !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			const res = await !!this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			return res ? this : undefined;
 		}
-	}
-
-	// Brining this over from textFileService because it only suggests for untitled scheme.
-	// In the future I may just use the untitled scheme. I dont get particular benefit from using search-editor...
-	private async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
-		return this.fileDialogService.pickFileToSave(defaultUri, availableFileSystems);
 	}
 
 	getTypeId(): string {
@@ -171,9 +169,9 @@ export class SearchEditorInput extends EditorInput {
 		return false;
 	}
 
-	async revert(options?: IRevertOptions) {
+	async revert(group: GroupIdentifier, options?: IRevertOptions) {
 		// TODO: this should actually revert the contents. But it needs to set dirty false.
-		super.revert(options);
+		super.revert(group, options);
 		this.setDirty(false);
 		return true;
 	}
@@ -193,15 +191,9 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
-		if (lastActiveFile) {
-			const lastDir = dirname(lastActiveFile);
-			return joinPath(lastDir, searchFileName);
-		}
-
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		if (lastActiveFolder) {
-			return joinPath(lastActiveFolder, searchFileName);
+		const defaultFilePath = this.fileDialogService.defaultFilePath(schemeFilter);
+		if (defaultFilePath) {
+			return joinPath(defaultFilePath, searchFileName);
 		}
 
 		return URI.from({ scheme: schemeFilter, path: searchFileName });
@@ -249,13 +241,14 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 
 		const config = input.getConfigSync();
 
-		return JSON.stringify({ resource, dirty: input.isDirty(), config });
+		return JSON.stringify({ resource, dirty: input.isDirty(), config, viewState: input.viewState });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, viewState } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: serializeSearchConfiguration(config), uri: URI.parse(resource) });
+			input.viewState = viewState;
 			input.setDirty(dirty);
 			return input;
 		}

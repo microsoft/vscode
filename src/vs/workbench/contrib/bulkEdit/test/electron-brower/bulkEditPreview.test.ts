@@ -14,6 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import type { WorkspaceEdit } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { Range } from 'vs/editor/common/core/range';
 
 
 suite('BulkEditPreview', function () {
@@ -56,7 +57,7 @@ suite('BulkEditPreview', function () {
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
 		assert.equal(ops.fileOperations.length, 1);
-		assert.equal(ops.fileOperations[0].isChecked(), false);
+		assert.equal(ops.checked.isChecked(edit.edits[0]), false);
 	});
 
 	test('has categories', async function () {
@@ -89,27 +90,29 @@ suite('BulkEditPreview', function () {
 		assert.equal(ops.categories[0].metadata.label, 'uri1');
 	});
 
-	test('update file from categories', async function () {
+	test('category selection', async function () {
 
 		const edit: WorkspaceEdit = {
 			edits: [
-				{ newUri: URI.parse('some:///uri1'), metadata: { label: 'cat1', needsConfirmation: true } },
-				{ newUri: URI.parse('some:///uri1'), metadata: { label: 'cat2', needsConfirmation: true } }
+				{ newUri: URI.parse('some:///uri1'), metadata: { label: 'C1', needsConfirmation: false } },
+				{ resource: URI.parse('some:///uri2'), edit: { text: 'foo', range: new Range(1, 1, 1, 1) }, metadata: { label: 'C2', needsConfirmation: false } }
 			]
 		};
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
-		assert.equal(ops.categories.length, 2);
 
-		const [first, second] = ops.categories;
-		assert.equal(first.fileOperations.length, 1);
-		assert.equal(second.fileOperations.length, 1);
+		assert.equal(ops.checked.isChecked(edit.edits[0]), true);
+		assert.equal(ops.checked.isChecked(edit.edits[1]), true);
 
-		assert.equal(first.fileOperations[0].isChecked(), false);
-		assert.equal(second.fileOperations[0].isChecked(), false);
+		assert.ok(edit === ops.getWorkspaceEdit());
 
-		first.fileOperations[0].updateChecked(true);
-		assert.equal(first.fileOperations[0].isChecked(), true);
-		assert.equal(first.fileOperations[0].isChecked(), true);
+		// NOT taking to create, but the invalid text edit will
+		// go through
+		ops.checked.updateChecked(edit.edits[0], false);
+		const newEdit = ops.getWorkspaceEdit();
+		assert.ok(edit !== newEdit);
+
+		assert.equal(edit.edits.length, 2);
+		assert.equal(newEdit.edits.length, 1);
 	});
 });
