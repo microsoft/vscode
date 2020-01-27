@@ -47,7 +47,6 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 class RequestState {
@@ -335,13 +334,19 @@ export class OutlinePane extends ViewPane {
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
-					listBackground: SIDE_BAR_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			}
 		);
 
+
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+			if (views.some(v => v.id === this.id)) {
+				this._tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
+			}
+		}));
 
 		// override the globally defined behaviour
 		this._tree.updateOptions({
