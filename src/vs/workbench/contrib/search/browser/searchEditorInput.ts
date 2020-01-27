@@ -28,6 +28,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
 import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export type SearchConfiguration = {
 	query: string,
@@ -54,6 +55,9 @@ export class SearchEditorInput extends EditorInput {
 	private readonly model: Promise<ITextModel>;
 	private query: Partial<SearchConfiguration> | undefined;
 
+	private readonly _onDidChangeContent = new Emitter<void>();
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
 	viewState: SearchEditorViewState = { focused: 'input' };
 
 	constructor(
@@ -72,7 +76,11 @@ export class SearchEditorInput extends EditorInput {
 	) {
 		super();
 
-		this.model = getModel();
+		this.model = getModel()
+			.then(model => {
+				this._register(model.onDidChangeContent(() => this._onDidChangeContent.fire()));
+				return model;
+			});
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
@@ -80,7 +88,7 @@ export class SearchEditorInput extends EditorInput {
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
-			readonly onDidChangeContent = input.onDidChangeDirty;
+			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }
 			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
