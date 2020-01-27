@@ -27,7 +27,6 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
@@ -205,7 +204,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
 		if (viewType === defaultEditorId) {
-			const fileInput = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
+			const fileInput = this.editorService.createInput({ resource, forceFile: true });
 			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
 		}
 
@@ -222,9 +221,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		viewType: string,
 		group: IEditorGroup | undefined,
 		options?: { readonly customClasses: string; },
-	): EditorInput {
+	): IEditorInput {
 		if (viewType === defaultEditorId) {
-			return this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
+			return this.editorService.createInput({ resource, forceFile: true });
 		}
 
 		const id = generateUuid();
@@ -458,7 +457,12 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				return undefined;
 			}
 
-			return this.customEditorService.createInput(resource, bestAvailableEditor.id, group, { customClasses });
+			const input = this.customEditorService.createInput(resource, bestAvailableEditor.id, group, { customClasses });
+			if (input instanceof EditorInput) {
+				return input;
+			}
+
+			return undefined;
 		};
 
 		const modifiedOverride = getCustomEditorOverrideForSubInput(editor.modifiedInput, 'modified');

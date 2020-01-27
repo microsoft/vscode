@@ -17,7 +17,7 @@ import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/ser
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
@@ -67,7 +67,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
@@ -82,11 +82,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {
-		const configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
@@ -166,9 +166,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Check for backups
 		const backup = await this.backupFileService.resolve(this.resource);
 
-		// untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
-
 		let untitledContents: ITextBufferFactory;
 		if (backup) {
 			untitledContents = backup.value;
@@ -186,22 +183,21 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.updateTextEditorModel(untitledContents, this.preferredMode);
 		}
 
+		// Figure out encoding now that model is present
+		this.configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
+
+		// Listen to text model events
+		const textEditorModel = assertIsDefined(this.textEditorModel);
+		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
+		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+
 		// Name
 		if (backup || this.initialValue) {
 			this.updateNameFromFirstLine();
 		}
 
-		// Encoding
-		this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
-
-		// We know for a fact there is a text editor model here
-		const textEditorModel = this.textEditorModel!;
-
-		// Listen to content changes
-		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
-
-		// Listen to mode changes
-		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+		// Untitled associated to file path are dirty right away as well as untitled with content
+		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
 
 		// If we have initial contents, make sure to emit this
 		// as the appropiate events to the outside.

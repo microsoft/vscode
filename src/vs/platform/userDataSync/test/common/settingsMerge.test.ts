@@ -1201,7 +1201,7 @@ suite('SettingsMerge - Add Setting', () => {
 		assert.equal(actual, expected);
 	});
 
-	test('Insert before a setting and before a comment at the begining', () => {
+	test('Insert before a setting and before a comment at the beginning', () => {
 
 		const sourceContent = `
 {

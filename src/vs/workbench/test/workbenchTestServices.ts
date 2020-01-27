@@ -217,7 +217,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super(
 			fileService,
@@ -232,7 +233,8 @@ export class TestTextFileService extends NativeTextFileService {
 			productService,
 			filesConfigurationService,
 			textModelService,
-			codeEditorService
+			codeEditorService,
+			notificationService
 		);
 	}
 

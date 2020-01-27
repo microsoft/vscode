@@ -140,7 +140,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidChangeLabel = this._register(new Emitter<URI>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	protected readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(

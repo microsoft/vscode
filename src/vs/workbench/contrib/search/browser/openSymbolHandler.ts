@@ -90,7 +90,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 	run(mode: Mode, context: IEntryRunContext): boolean {
 
-		// resolve this type bearing if neccessary
+		// resolve this type bearing if necessary
 		if (!this.bearingResolve && typeof this.provider.resolveWorkspaceSymbol === 'function' && !this.bearing.location.range) {
 			this.bearingResolve = Promise.resolve(this.provider.resolveWorkspaceSymbol(this.bearing, CancellationToken.None)).then(result => {
 				this.bearing = result || this.bearing;
