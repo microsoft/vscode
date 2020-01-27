@@ -28,6 +28,7 @@ import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/c
 import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export type SearchConfiguration = {
 	query: string,
@@ -71,7 +72,8 @@ export class SearchEditorInput extends EditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -116,6 +118,7 @@ export class SearchEditorInput extends EditorInput {
 	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
+			this.telemetryService.publicLog2<{}, {}>('searchEditor/saveSearchResults');
 			if (await this.textFileService.saveAs(this.resource, path, options)) {
 				this.setDirty(false);
 				if (!isEqual(path, this.resource)) {
