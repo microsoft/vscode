@@ -1018,7 +1018,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 			}
 		} else {
 			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
-			if (defaultUri && !s.isDirectory) {
+			if (defaultUri) {
 				defaultUri = resources.joinPath(defaultUri, s.name);
 			}
 
