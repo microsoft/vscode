@@ -26,6 +26,11 @@ declare module 'vscode' {
 	}
 
 	export interface AuthenticationProvider {
+		/**
+		 * Used as an identifier for extensions trying to work with a particular
+		 * provider: 'Microsoft', 'GitHub', etc. id must be unique, registering
+		 * another provider with the same id will fail.
+		 */
 		readonly id: string;
 		readonly displayName: string;
 		readonly onDidChangeSessions: Event<void>;
