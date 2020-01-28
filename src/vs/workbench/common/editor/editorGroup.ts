@@ -202,7 +202,7 @@ export class EditorGroup extends Disposable {
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
 					if (targetIndex > indexOfPreview) {
-						targetIndex--; // accomodate for the fact that the preview editor closes
+						targetIndex--; // accommodate for the fact that the preview editor closes
 					}
 
 					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);

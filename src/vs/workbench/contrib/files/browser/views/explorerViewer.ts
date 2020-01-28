@@ -351,7 +351,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			try {
 				this.updateWidth(stat);
 			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessery
+				// noop since the element might no longer be in the tree, no update of width necessary
 			}
 		});
 	}

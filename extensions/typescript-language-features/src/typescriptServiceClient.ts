@@ -728,7 +728,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		*/
 		this.logTelemetry('fatalError', { command, ...(error instanceof TypeScriptServerError ? error.telemetry : {}) });
-		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+		console.error(`A non-recoverable error occurred while executing tsserver command: ${command}`);
 		if (error instanceof TypeScriptServerError && error.serverErrorText) {
 			console.error(error.serverErrorText);
 		}
