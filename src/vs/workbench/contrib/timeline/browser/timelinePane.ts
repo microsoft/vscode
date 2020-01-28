@@ -159,6 +159,12 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
+		// Fallback to match on fsPath if we are dealing with files or git schemes
+		if (uri?.fsPath === this._uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this._uri?.scheme === 'file' || this._uri?.scheme === 'git')) {
+			return;
+		}
+
+
 		this._uri = uri;
 		this.refresh();
 	}
