@@ -5,7 +5,7 @@
 
 import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { RemoteTunnel, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
