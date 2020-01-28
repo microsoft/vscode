@@ -656,7 +656,7 @@ registry.registerWorkbenchAction(
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
-	'Search: Open new Search Editor', category,
+	'Search: Open New Search Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
 
 // Register Quick Open Handler
