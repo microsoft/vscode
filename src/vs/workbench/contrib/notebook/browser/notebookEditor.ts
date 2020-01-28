@@ -52,7 +52,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
 	private notebook: INotebook | undefined;
-	private viewType: string | undefined;
+	viewType: string | undefined;
 	private viewCells: ViewCell[] = [];
 	private localStore: DisposableStore = new DisposableStore();
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -393,6 +393,16 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void {
 		cell.isEditing = false;
+	}
+
+	getActiveCell() {
+		let elements = this.list?.getFocusedElements();
+
+		if (elements && elements.length) {
+			return elements[0];
+		}
+
+		return undefined;
 	}
 
 	async deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): Promise<void> {

@@ -21,6 +21,10 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IActiveCodeEditor, isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -86,6 +90,44 @@ export class ExecuteNotebookAction extends Action {
 			if (notebookProviders.length > 0) {
 				let viewType = notebookProviders[0].id;
 				this.notebookService.executeNotebook(viewType, resource);
+			}
+		}
+	}
+}
+
+export class EditNotebookCellAction extends Action {
+
+	static readonly ID = 'workbench.action.editNotebookActiveCell';
+	static readonly LABEL = 'Edit Notebook Active Cell';
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotebookService private readonly notebookService: INotebookService
+
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		let resource = this.editorService.activeEditor?.getResource();
+		let editorControl = this.editorService.activeControl;
+
+		if (resource && editorControl) {
+			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+
+			if (notebookProviders.length > 0) {
+				let editorViewType = ((editorControl! as any) as NotebookHandler).viewType;
+				let viewType = notebookProviders[0].id;
+
+				if (viewType === editorViewType) {
+
+					let activeCell = ((editorControl! as any) as NotebookHandler).getActiveCell();
+					if (activeCell) {
+						((editorControl! as any) as NotebookHandler).editNotebookCell(undefined, activeCell);
+					}
+				}
 			}
 		}
 	}
@@ -180,6 +222,21 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContributio
 
 registerSingleton(INotebookService, NotebookService);
 
+
+const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(
+	SyncActionDescriptor.create(
+		EditNotebookCellAction,
+		EditNotebookCellAction.ID,
+		EditNotebookCellAction.LABEL,
+		{
+			primary: KeyCode.Enter,
+		},
+		ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+	),
+	'Edit Notebook Active Cell;',
+	'Notebook'
+);
 
 export function getActiveEditor(editorService: IEditorService): IActiveCodeEditor | null {
 	let activeTextEditorWidget = editorService.activeTextEditorWidget;

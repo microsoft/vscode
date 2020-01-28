@@ -188,10 +188,12 @@ export class ViewCell extends Disposable {
 }
 
 export interface NotebookHandler {
+	viewType: string | undefined;
 	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
 	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
+	getActiveCell(): ViewCell | undefined;
 	layoutElement(cell: ViewCell, height: number): void;
 	createContentWidget(cell: ViewCell, index: number, shadowContent: string, offset: number): void;
 	disposeViewCell(cell: ViewCell): void;
@@ -454,7 +456,7 @@ class StatefullMarkdownCell extends Disposable {
 						let viewLayout = this.editor!.getLayoutInfo();
 						let scrollHeight = this.editor!.getLinesTotalHeight();
 
-						if (scrollHeight !== viewLayout.contentHeight) {
+						if (scrollHeight !== viewLayout.height) {
 							this.editor!.layout(
 								{
 									width: viewLayout.width,
@@ -676,7 +678,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		let contentChangeListener = templateData.editor?.onDidChangeModelContent(() => {
 			let scrollHeight = templateData.editor!.getLinesTotalHeight();
-			let contentHeight = templateData.editor!.getLayoutInfo().contentHeight;
+			let contentHeight = templateData.editor!.getLayoutInfo().height;
 			let contentWidth = templateData.editor!.getLayoutInfo().width;
 
 			if (scrollHeight !== contentHeight) {

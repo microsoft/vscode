@@ -115,12 +115,14 @@ export class NotebookEditorInput extends EditorInput {
 		return this.textModel?.isDirty() || false;
 	}
 
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this.textModel) {
-			return await this.textModel.save();
+			if (await this.textModel.save()) {
+				return this;
+			}
 		}
 
-		return false;
+		return undefined;
 	}
 
 	getResource() {
