@@ -72,6 +72,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 		// Dirty changes
 		this._register(this.textFileService.files.onDidChangeDirty(m => this.onDirtyStateChange(m)));
 		this._register(this.textFileService.files.onDidSave(e => this.onDirtyStateChange(e.model)));
+		this._register(this.textFileService.files.onDidSaveError(m => this.onDirtyStateChange(m)));
 		this._register(this.textFileService.files.onDidRevert(m => this.onDirtyStateChange(m)));
 
 		// Label changes
