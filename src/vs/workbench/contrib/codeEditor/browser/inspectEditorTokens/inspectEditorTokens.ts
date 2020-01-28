@@ -28,6 +28,8 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition } from 'vs/workbench/services/themes/common/colorThemeData';
 import { TokenStylingRule } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import type { IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
 
 class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
@@ -42,6 +44,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	private _themeService: IWorkbenchThemeService;
 	private _modeService: IModeService;
 	private _notificationService: INotificationService;
+	private _configurationService: IConfigurationService;
 	private _widget: InspectEditorTokensWidget | null;
 
 	constructor(
@@ -49,7 +52,8 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService modeService: IModeService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 		this._editor = editor;
@@ -57,6 +61,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._themeService = themeService;
 		this._modeService = modeService;
 		this._notificationService = notificationService;
+		this._configurationService = configurationService;
 		this._widget = null;
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
@@ -76,7 +81,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService);
+		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
 	}
 
 	public stop(): void {
@@ -184,6 +189,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private readonly _modeService: IModeService;
 	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _notificationService: INotificationService;
+	private readonly _configurationService: IConfigurationService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
 	private readonly _grammar: Promise<IGrammar | null>;
@@ -195,7 +201,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		textMateService: ITextMateService,
 		modeService: IModeService,
 		themeService: IWorkbenchThemeService,
-		notificationService: INotificationService
+		notificationService: INotificationService,
+		configurationService: IConfigurationService
 	) {
 		super();
 		this._isDisposed = false;
@@ -203,6 +210,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		this._modeService = modeService;
 		this._themeService = themeService;
 		this._notificationService = notificationService;
+		this._configurationService = configurationService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'token-inspect-widget';
@@ -244,6 +252,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			});
 		});
 
+	}
+
+	private _isSemanticColoringEnabled() {
+		const options = this._configurationService.getValue<IEditorSemanticHighlightingOptions>('editor.semanticHighlighting', { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri });
+		return options && options.enabled;
 	}
 
 	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, position: Position): string {
@@ -432,6 +445,10 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private async _computeSemanticTokens(): Promise<SemanticTokensResult | null> {
+		if (!this._isSemanticColoringEnabled()) {
+			return null;
+		}
+
 		const tokenProviders = DocumentSemanticTokensProviderRegistry.ordered(this._model);
 		if (tokenProviders.length) {
 			const provider = tokenProviders[0];
