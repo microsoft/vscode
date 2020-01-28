@@ -155,7 +155,7 @@ import { URI } from 'vs/base/common/uri';
 				'type': 'number',
 				'default': 10,
 				'exclusiveMinimum': 0,
-				'description': nls.localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `workbench.editor.limit.perEditorGroup` setting to control this limit per editor group or across all groups.")
+				'markdownDescription': nls.localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
 			},
 			'workbench.editor.limit.perEditorGroup': {
 				'type': 'boolean',
