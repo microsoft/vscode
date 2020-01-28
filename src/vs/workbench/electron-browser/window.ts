@@ -59,7 +59,7 @@ import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/pl
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyCapabilities, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
 
@@ -266,7 +266,7 @@ export class ElectronWindow extends Disposable {
 
 		// Document edited (macOS only): indicate for dirty working copies
 		if (isMacintosh) {
-			this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
+			const onDirtyChanged = (workingCopy: IWorkingCopy) => {
 				const gotDirty = workingCopy.isDirty();
 				if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 					return; // do not indicate dirty of working copies that are auto saved after short delay
@@ -278,7 +278,10 @@ export class ElectronWindow extends Disposable {
 
 					this.electronService.setDocumentEdited(hasDirtyFiles);
 				}
-			}));
+			};
+
+			this._register(this.workingCopyService.onDidChangeDirty(onDirtyChanged));
+			this.workingCopyService.dirtyWorkingCopies.filter(copy => copy.isDirty()).forEach(onDirtyChanged);
 		}
 
 		// Detect minimize / maximize
