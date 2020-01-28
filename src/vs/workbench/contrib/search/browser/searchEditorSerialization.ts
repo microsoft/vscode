@@ -106,26 +106,16 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 }
 
 const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string, contextLines: number): string[] => {
-	if (!pattern) { return []; }
-
-	const removeNullFalseAndUndefined = <T>(a: (T | null | false | undefined)[]) => a.filter(a => a !== false && a !== null && a !== undefined) as T[];
-
-	const escapeNewlines = (str: string) => str.replace(/\\/g, '\\\\').replace(/\n/g, '\\n');
-
-	return removeNullFalseAndUndefined([
-		`# Query: ${escapeNewlines(pattern.contentPattern.pattern)}`,
-
-		(pattern.contentPattern.isCaseSensitive || pattern.contentPattern.isWordMatch || pattern.contentPattern.isRegExp || pattern.userDisabledExcludesAndIgnoreFiles)
-		&& `# Flags: ${coalesce([
-			pattern.contentPattern.isCaseSensitive && 'CaseSensitive',
-			pattern.contentPattern.isWordMatch && 'WordMatch',
-			pattern.contentPattern.isRegExp && 'RegExp',
-			pattern.userDisabledExcludesAndIgnoreFiles && 'IgnoreExcludeSettings'
-		]).join(' ')}`,
-		includes ? `# Including: ${includes}` : undefined,
-		excludes ? `# Excluding: ${excludes}` : undefined,
-		contextLines ? `# ContextLines: ${contextLines}` : undefined
-	]);
+	return serializeSearchConfiguration({
+		query: pattern?.contentPattern.pattern,
+		regexp: pattern?.contentPattern.isRegExp,
+		caseSensitive: pattern?.contentPattern.isCaseSensitive,
+		wholeWord: pattern?.contentPattern.isWordMatch,
+		excludes, includes,
+		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
+		useIgnores: pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? undefined : !pattern.userDisabledExcludesAndIgnoreFiles,
+		contextLines,
+	}).split(lineDelimiter);
 };
 
 export const serializeSearchConfiguration = (config: Partial<SearchConfiguration>): string => {

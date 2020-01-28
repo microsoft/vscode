@@ -321,16 +321,19 @@ export class SearchEditor extends BaseEditor {
 
 	private hideHeader() {
 		const headerLines =
-			this.searchResultEditor
+			(this.searchResultEditor
 				.getModel()
 				?.getValueInRange(new Range(1, 1, 6, 1))
 				.split('\n')
 				.filter(line => line.startsWith('#'))
 				.length
-			?? 0;
+				?? 0) + 1;
 
-		// const length = this.searchResultEditor.getModel()?.getLineLength(headerLines);
-		this.searchResultEditor.setHiddenAreas([new Range(1, 1, headerLines, 1)]);
+		if (headerLines !== this.searchResultEditor.getModel()?.getLineCount()) {
+			this.searchResultEditor.setHiddenAreas([new Range(1, 1, headerLines, 1)]);
+		} else {
+			this.searchResultEditor.setHiddenAreas([new Range(1, 1, headerLines - 1, 1)]);
+		}
 	}
 
 	layout(dimension: DOM.Dimension) {
