@@ -655,7 +655,9 @@ namespace LabelTunnelAction {
 	}
 }
 
-const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Port number is invalid");
+const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port is invalid.");
+const maxPortNumber: number = 65536;
+const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNumberToHigh', "Port number must be \u2265 0 and < {0}.", maxPortNumber);
 
 namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
@@ -672,8 +674,11 @@ namespace ForwardPortAction {
 	}
 
 	function validateInput(value: string): string | null {
-		if (!parseInput(value)) {
+		const parsed = parseInput(value);
+		if (!parsed) {
 			return invalidPortString;
+		} else if (parsed.port >= maxPortNumber) {
+			return invalidPortNumberString;
 		}
 		return null;
 	}
@@ -858,6 +863,8 @@ namespace ChangeLocalPortAction {
 	function validateInput(value: string): string | null {
 		if (!value.match(/^[0-9]+$/)) {
 			return invalidPortString;
+		} else if (Number(value) >= maxPortNumber) {
+			return invalidPortNumberString;
 		}
 		return null;
 	}
