@@ -37,6 +37,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	private readonly _listeningListener: () => void;
 	private readonly _connectionListener: (socket: net.Socket) => void;
+	private readonly _errorListener: () => void;
 
 	constructor(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, private readonly suggestedLocalPort?: number) {
 		super();
@@ -50,6 +51,10 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this._connectionListener = (socket) => this._onConnection(socket);
 		this._server.on('connection', this._connectionListener);
 
+		// If there is no error listener and there is an error it will crash the whole window
+		this._errorListener = () => { };
+		this._server.on('error', this._errorListener);
+
 		this.tunnelRemotePort = tunnelRemotePort;
 		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
@@ -58,16 +63,24 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		super.dispose();
 		this._server.removeListener('listening', this._listeningListener);
 		this._server.removeListener('connection', this._connectionListener);
+		this._server.removeListener('error', this._errorListener);
 		this._server.close();
 	}
 
 	public async waitForReady(): Promise<this> {
-
 		// try to get the same port number as the remote port number...
-		const localPort = await findFreePortFaster(this.suggestedLocalPort ?? this.tunnelRemotePort, 2, 1000);
+		let localPort = await findFreePortFaster(this.suggestedLocalPort ?? this.tunnelRemotePort, 2, 1000);
 
 		// if that fails, the method above returns 0, which works out fine below...
-		const address = (<net.AddressInfo>this._server.listen(localPort).address());
+		let address: string | net.AddressInfo | null = null;
+		address = (<net.AddressInfo>this._server.listen(localPort).address());
+
+		// It is possible for findFreePortFaster to return a port that there is already a server listening on. This causes the previous listen call to error out.
+		if (!address) {
+			localPort = 0;
+			address = (<net.AddressInfo>this._server.listen(localPort).address());
+		}
+
 		this.tunnelLocalPort = address.port;
 
 		await this._barrier.wait();

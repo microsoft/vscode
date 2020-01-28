@@ -680,7 +680,7 @@ namespace ForwardPortAction {
 
 	function error(notificationService: INotificationService, tunnel: RemoteTunnel | void, host: string, port: number) {
 		if (!tunnel) {
-			notificationService.error(nls.localize('remote.tunnel.forwardError', "Unable to forward {0}:{1}. The host may not be available.", host, port));
+			notificationService.warn(nls.localize('remote.tunnel.forwardError', "Unable to forward {0}:{1}. The host may not be available or that remote port may already be forwarded", host, port));
 		}
 	}
 
@@ -865,6 +865,7 @@ namespace ChangeLocalPortAction {
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const notificationService = accessor.get(INotificationService);
 			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
 			if (context instanceof TunnelItem) {
 				remoteExplorerService.setEditable(context, {
@@ -872,7 +873,11 @@ namespace ChangeLocalPortAction {
 						remoteExplorerService.setEditable(context, null);
 						if (success) {
 							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
-							await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, Number(value));
+							const numberValue = Number(value);
+							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue);
+							if (newForward && newForward.tunnelLocalPort !== numberValue) {
+								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort));
+							}
 						}
 					},
 					validationMessage: validateInput,
