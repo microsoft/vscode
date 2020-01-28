@@ -874,7 +874,7 @@ namespace ChangeLocalPortAction {
 						if (success) {
 							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
 							const numberValue = Number(value);
-							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue);
+							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name);
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
 								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort));
 							}
