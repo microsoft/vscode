@@ -587,7 +587,7 @@ export class ReRunSearchEditorSearchAction extends Action {
 	async run() {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
-			await (this.editorService.activeControl as SearchEditor).runSearch();
+			await (this.editorService.activeControl as SearchEditor).runSearch(false, true);
 		}
 	}
 }

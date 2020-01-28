@@ -96,9 +96,9 @@ export class SearchEditor extends BaseEditor {
 		this.queryEditorWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.queryEditorContainer, { _hideReplaceToggle: true, showContextToggle: true }));
 		this._register(this.queryEditorWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.queryEditorWidget.onDidHeightChange(() => this.reLayout()));
-		this.queryEditorWidget.onSearchSubmit(() => this.runSearch(true)); // onSearchSubmit has an internal delayer, so skip over ours.
-		this.queryEditorWidget.searchInput.onDidOptionChange(() => this.runSearch());
-		this.queryEditorWidget.onDidToggleContext(() => this.runSearch());
+		this.queryEditorWidget.onSearchSubmit(() => this.runSearch(true, true)); // onSearchSubmit has an internal delayer, so skip over ours.
+		this.queryEditorWidget.searchInput.onDidOptionChange(() => this.runSearch(false));
+		this.queryEditorWidget.onDidToggleContext(() => this.runSearch(false));
 
 		// Includes/Excludes Dropdown
 		this.includesExcludesContainer = DOM.append(this.queryEditorContainer, DOM.$('.includes-excludes'));
@@ -217,26 +217,31 @@ export class SearchEditor extends BaseEditor {
 
 	toggleWholeWords() {
 		this.queryEditorWidget.searchInput.setWholeWords(!this.queryEditorWidget.searchInput.getWholeWords());
-		this.runSearch();
+		this.runSearch(false);
 	}
 
 	toggleRegex() {
 		this.queryEditorWidget.searchInput.setRegex(!this.queryEditorWidget.searchInput.getRegex());
-		this.runSearch();
+		this.runSearch(false);
 	}
 
 	toggleCaseSensitive() {
 		this.queryEditorWidget.searchInput.setCaseSensitive(!this.queryEditorWidget.searchInput.getCaseSensitive());
-		this.runSearch();
+		this.runSearch(false);
 	}
 
 	toggleContextLines() {
 		this.queryEditorWidget.toggleContextLines();
 	}
 
-	async runSearch(instant = false) {
+	async runSearch(resetCursor = true, instant = false) {
 		if (!this.pauseSearching) {
-			this.runSearchDelayer.trigger(() => this.doRunSearch(), instant ? 0 : undefined);
+			this.runSearchDelayer.trigger(async () => {
+				await this.doRunSearch();
+				if (resetCursor) {
+					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
+				}
+			}, instant ? 0 : undefined);
 		}
 	}
 
