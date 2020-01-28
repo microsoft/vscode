@@ -18,8 +18,10 @@ export class WebviewIconManager {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-		this._configService.onDidChangeConfiguration(_ => {
-			this.updateStyleSheet(this._lifecycleService);
+		this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.iconTheme')) {
+				this.updateStyleSheet(this._lifecycleService);
+			}
 		});
 	}
 
@@ -44,6 +46,7 @@ export class WebviewIconManager {
 	}
 
 	private async updateStyleSheet(lifecycleService: ILifecycleService) {
+		console.log('update');
 		await lifecycleService.when(LifecyclePhase.Starting);
 
 		try {
