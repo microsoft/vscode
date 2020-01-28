@@ -1522,12 +1522,15 @@ declare module 'vscode' {
 		/**
 		 * @param label A human-readable string describing the timeline item
 		 * @param timestamp A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
-		 * @param source A human-readable string describing the source of the timeline item
 		 */
-		constructor(label: string, timestamp: number, source: string);
+		constructor(label: string, timestamp: number);
 	}
 
 	export interface TimelineProvider {
+		/**
+		 * An optional event to signal that the timeline for a source has changed.
+		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
+		 */
 		onDidChange?: Event<Uri | undefined>;
 
 		/**
@@ -1540,6 +1543,9 @@ declare module 'vscode' {
 		 */
 		sourceDescription: string;
 
+		/**
+		 * A flag that signals whether this provider can be swapped out (replaced) for another provider using the same [TimelineProvider.source](#TimelineProvider.source).
+		 */
 		replaceable?: boolean;
 
 		/**
