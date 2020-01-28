@@ -483,6 +483,9 @@ export class TextAreaInput extends Disposable {
 		// Setting this._hasFocus and writing the screen reader content
 		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
+
+		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
+		this.refreshFocusState();
 	}
 
 	public isFocused(): boolean {
