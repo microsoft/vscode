@@ -23,8 +23,6 @@ import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
-const knownTsTriggerCharacters = new Set<string>(['.', '"', '\'', '`', '/', '@', '<']);
-
 interface DotAccessorContext {
 	readonly range: vscode.Range;
 	readonly text: string;
@@ -461,18 +459,23 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
-		if (context.triggerCharacter === '@'
-			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
-		) {
-			return undefined;
+		switch (context.triggerCharacter) {
+			case '@': // Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
+
+			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
+				return this.client.apiVersion.lt(API.v381) ? undefined : '#' as Proto.CompletionsTriggerCharacter;
+
+			case '.':
+			case '"':
+			case '\'':
+			case '`':
+			case '/':
+			case '<':
+				return context.triggerCharacter;
 		}
 
-		if (context.triggerCharacter && !knownTsTriggerCharacters.has(context.triggerCharacter)) {
-			return undefined;
-		}
-
-		return context.triggerCharacter as Proto.CompletionsTriggerCharacter;
+		return undefined;
 	}
 
 	public async resolveCompletionItem(
