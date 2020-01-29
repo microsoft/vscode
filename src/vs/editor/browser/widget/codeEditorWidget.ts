@@ -1613,6 +1613,7 @@ export class BooleanEventEmitter extends Disposable {
 class EditorContextKeysManager extends Disposable {
 
 	private readonly _editor: CodeEditorWidget;
+	private readonly _editorSimpleInput: IContextKey<boolean>;
 	private readonly _editorFocus: IContextKey<boolean>;
 	private readonly _textInputFocus: IContextKey<boolean>;
 	private readonly _editorTextFocus: IContextKey<boolean>;
@@ -1632,6 +1633,8 @@ class EditorContextKeysManager extends Disposable {
 		this._editor = editor;
 
 		contextKeyService.createKey('editorId', editor.getId());
+
+		this._editorSimpleInput = EditorContextKeys.editorSimpleInput.bindTo(contextKeyService);
 		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
 		this._textInputFocus = EditorContextKeys.textInputFocus.bindTo(contextKeyService);
 		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
@@ -1655,6 +1658,8 @@ class EditorContextKeysManager extends Disposable {
 		this._updateFromSelection();
 		this._updateFromFocus();
 		this._updateFromModel();
+
+		this._editorSimpleInput.set(this._editor.isSimpleWidget);
 	}
 
 	private _updateFromConfig(): void {
