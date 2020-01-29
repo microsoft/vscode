@@ -25,7 +25,7 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
-	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 50;
+	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
@@ -226,7 +226,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(true);
 		}
 
-		// Check for name change if first line changed in the range of 0-50 columns
+		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_MAX_LENGTH columns
 		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)) {
 			this.updateNameFromFirstLine();
 		}
