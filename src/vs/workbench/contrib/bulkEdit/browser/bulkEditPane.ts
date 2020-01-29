@@ -309,40 +309,44 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		let leftResource: URI | undefined;
-		if (fileElement.edit.type & BulkFileOperationType.TextEdit) {
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
+
+		if (fileElement.edit.type & BulkFileOperationType.Delete) {
+			// delete -> show single editor
+			this._editorService.openEditor({
+				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
+				resource: previewUri,
+				options
+			});
+
+		} else {
+			// rename, create, edits -> show diff editr
+			let leftResource: URI | undefined;
 			try {
 				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
 				leftResource = fileElement.edit.uri;
 			} catch {
 				leftResource = BulkEditPreviewProvider.emptyPreview;
 			}
-		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
-
-		if (leftResource) {
-			// show diff editor
-			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
-				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.edit.uri)),
-				options
-			});
-		} else {
-			// show 'normal' editor
 			let typeLabel: string | undefined;
 			if (fileElement.edit.type & BulkFileOperationType.Rename) {
 				typeLabel = localize('rename', "rename");
 			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
 				typeLabel = localize('create', "create");
-			} else if (fileElement.edit.type & BulkFileOperationType.Delete) {
-				typeLabel = localize('delete', "delete");
+			}
+
+			let label: string;
+			if (typeLabel) {
+				label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
+			} else {
+				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
 			}
 
 			this._editorService.openEditor({
-				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel),
-				resource: previewUri,
+				leftResource,
+				rightResource: previewUri,
+				label,
 				options
 			});
 		}
