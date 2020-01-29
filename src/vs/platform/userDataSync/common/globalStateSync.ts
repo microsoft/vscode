@@ -154,7 +154,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const lastSyncData = await this.getLastSyncUserData();
 		const lastSyncGlobalState = lastSyncData && lastSyncData.content ? JSON.parse(lastSyncData.content) : null;
 
-		const remoteUserData = await this.getRemoteUserData();
+		const remoteUserData = await this.getRemoteUserData(lastSyncData);
 		const remoteGlobalState: IGlobalState = remoteUserData.content ? JSON.parse(remoteUserData.content) : null;
 
 		const localGloablState = await this.getLocalGlobalState();
