@@ -768,12 +768,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.globalFindClipboard', "Controls whether the search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
-		'search.location': {
-			type: 'string',
-			enum: ['sidebar', 'panel'],
-			default: 'sidebar',
-			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-		},
 		'search.collapseResults': {
 			type: 'string',
 			enum: ['auto', 'alwaysCollapse', 'alwaysExpand'],
