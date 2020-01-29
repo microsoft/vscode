@@ -473,7 +473,6 @@ export class TunnelPanel extends ViewPane {
 			[renderer],
 			new TunnelDataSource(),
 			{
-				keyboardSupport: true,
 				collapseByDefault: (e: ITunnelItem | ITunnelGroup): boolean => {
 					return false;
 				},
@@ -896,9 +895,11 @@ namespace ChangeLocalPortAction {
 	}
 }
 
+const tunnelViewCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LabelTunnelAction.ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)),
 	primary: KeyCode.F2,
 	mac: {
@@ -910,7 +911,7 @@ CommandsRegistry.registerCommand(ForwardPortAction.INLINE_ID, ForwardPortAction.
 CommandsRegistry.registerCommand(ForwardPortAction.COMMANDPALETTE_ID, ForwardPortAction.commandPaletteHandler());
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: ClosePortAction.INLINE_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.and(TunnelCloseableContextKey, TunnelViewFocusContextKey),
 	primary: KeyCode.Delete,
 	mac: {
@@ -923,7 +924,7 @@ CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAct
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CopyAddressAction.INLINE_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.or(ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)), ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Detected))),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	handler: CopyAddressAction.inlineHandler()
