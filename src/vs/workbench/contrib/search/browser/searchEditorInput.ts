@@ -172,8 +172,13 @@ export class SearchEditorInput extends EditorInput {
 		return null;
 	}
 
-	setDirty(dirty: boolean) {
+	async setDirty(dirty: boolean) {
 		this.dirty = dirty;
+		this._onDidChangeDirty.fire();
+
+		await this.model;
+
+		// fire again because some listeners dont attach early enough. See #89406 and #89267.
 		this._onDidChangeDirty.fire();
 	}
 
