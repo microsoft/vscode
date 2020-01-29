@@ -327,7 +327,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
-const COMMIT_FORMAT = '%H\n%aN\n%aE\n%at\n%P\n%B';
+const COMMIT_FORMAT = '%H\n%aN\n%aE\n%at\n%ct\n%P\n%B';
 
 export class Git {
 
@@ -515,6 +515,7 @@ export interface Commit {
 	authorDate?: Date;
 	authorName?: string;
 	authorEmail?: string;
+	commitDate?: Date;
 }
 
 export class GitStatusParser {
@@ -645,15 +646,16 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	let commits: Commit[] = [];
 
 	let ref;
-	let name;
-	let email;
-	let date;
+	let authorName;
+	let authorEmail;
+	let authorDate;
+	let commitDate;
 	let parents;
 	let message;
 	let match;
@@ -664,7 +666,7 @@ export function parseGitCommits(data: string): Commit[] {
 			break;
 		}
 
-		[, ref, name, email, date, parents, message] = match;
+		[, ref, authorName, authorEmail, authorDate, commitDate, parents, message] = match;
 
 		if (message[message.length - 1] === '\n') {
 			message = message.substr(0, message.length - 1);
@@ -675,9 +677,10 @@ export function parseGitCommits(data: string): Commit[] {
 			hash: ` ${ref}`.substr(1),
 			message: ` ${message}`.substr(1),
 			parents: parents ? parents.split(' ') : [],
-			authorDate: new Date(Number(date) * 1000),
-			authorName: ` ${name}`.substr(1),
-			authorEmail: ` ${email}`.substr(1)
+			authorDate: new Date(Number(authorDate) * 1000),
+			authorName: ` ${authorName}`.substr(1),
+			authorEmail: ` ${authorEmail}`.substr(1),
+			commitDate: new Date(Number(commitDate) * 1000),
 		});
 	} while (true);
 
