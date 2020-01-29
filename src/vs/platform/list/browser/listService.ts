@@ -810,7 +810,10 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 
 	updateOptions(options: IWorkbenchAsyncDataTreeOptions<T, TFilterData> = {}): void {
 		super.updateOptions(options);
-		this.internals.updateStyleOverrides(options.overrideStyles);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
 	}
 }
 
