@@ -504,6 +504,7 @@ export class ExplorerView extends ViewPane {
 
 			if (controller) {
 				if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
+					stat = controller.current;
 					anchor = controller.labels[controller.index];
 				} else {
 					controller.last();
