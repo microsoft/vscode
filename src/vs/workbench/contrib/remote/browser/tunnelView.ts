@@ -118,6 +118,12 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
 			return TunnelItem.createFromTunnel(tunnel);
+		}).sort((a: TunnelItem, b: TunnelItem) => {
+			if (a.remotePort === b.remotePort) {
+				return a.remoteHost < b.remoteHost ? -1 : 1;
+			} else {
+				return a.remotePort < b.remotePort ? -1 : 1;
+			}
 		});
 		if (this.remoteExplorerService.getEditableData(undefined)) {
 			forwarded.push(this._input);
