@@ -86,6 +86,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
 				background: ${scrollbarSliderBackgroundColor};
 			}
+
+			.monaco-workbench .monaco-diff-editor .diffViewport {
+				background: ${scrollbarSliderBackgroundColor};
+			}
 		`);
 	}
 
@@ -95,6 +99,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider:hover {
 				background: ${scrollbarSliderHoverBackgroundColor};
 			}
+
+			.monaco-workbench .monaco-diff-editor .diffViewport:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
 		`);
 	}
 
@@ -102,6 +110,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (scrollbarSliderActiveBackgroundColor) {
 		collector.addRule(`
 			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+
+			.monaco-workbench .monaco-diff-editor .diffViewport:active {
 				background: ${scrollbarSliderActiveBackgroundColor};
 			}
 		`);
