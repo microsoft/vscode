@@ -232,6 +232,25 @@ export class BulkFileOperations {
 		operationByResource.forEach(value => this.fileOperations.push(value));
 		operationByCategory.forEach(value => value.metadata.needsConfirmation ? this.categories.unshift(value) : this.categories.push(value));
 
+		// "correct" invalid parent-check child states that is
+		// unchecked file edits (rename, create, delete) uncheck
+		// all edits for a file, e.g no text change without rename
+		for (let file of this.fileOperations) {
+			if (file.type !== BulkFileOperationType.TextEdit) {
+				let checked = true;
+				file.originalEdits.forEach(edit => {
+					if (WorkspaceFileEdit.is(edit)) {
+						checked = checked && this.checked.isChecked(edit);
+					}
+				});
+				if (!checked) {
+					file.originalEdits.forEach(edit => {
+						this.checked.updateChecked(edit, checked);
+					});
+				}
+			}
+		}
+
 		return this;
 	}
 
