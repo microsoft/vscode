@@ -226,8 +226,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(true);
 		}
 
-		// Check for name change if first line changed
-		if (e.changes.some(change => change.range.startLineNumber === 1 || change.range.endLineNumber === 1)) {
+		// Check for name change if first line changed in the range of 0-50 columns
+		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)) {
 			this.updateNameFromFirstLine();
 		}
 
