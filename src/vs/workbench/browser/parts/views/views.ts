@@ -24,6 +24,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { VIEW_ID as SEARCH_VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -523,7 +524,17 @@ export class ViewsService extends Disposable implements IViewsService {
 						},
 						menu: [{
 							id: MenuId.ViewTitleContext,
-							when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewDescriptor.id), ContextKeyExpr.has(`${viewDescriptor.id}.canMove`)),
+							when: ContextKeyExpr.or(
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('view', viewDescriptor.id),
+									ContextKeyExpr.has(`${viewDescriptor.id}.canMove`),
+									ContextKeyExpr.equals('config.workbench.view.experimental.allowMovingToNewContainer', true)),
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('view', viewDescriptor.id),
+									ContextKeyExpr.has(`${viewDescriptor.id}.canMove`),
+									ContextKeyExpr.equals('view', SEARCH_VIEW_ID)
+								)
+							)
 						}],
 					});
 				}
