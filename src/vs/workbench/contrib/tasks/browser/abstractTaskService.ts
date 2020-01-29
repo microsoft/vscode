@@ -2480,7 +2480,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private getTaskDescription(task: Task): string | undefined {
+	public getTaskDescription(task: Task): string | undefined {
 		let description: string | undefined;
 		if (task._source.kind === TaskSourceKind.User) {
 			description = nls.localize('taskQuickPick.userSettings', 'User Settings');
