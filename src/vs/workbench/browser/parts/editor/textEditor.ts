@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone, assign } from 'vs/base/common/objects';
+import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -64,6 +65,11 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 			return this.handleConfigurationChangeEvent(value);
 		}));
+		this._register(Event.any(this.editorGroupService.onDidAddGroup, this.editorGroupService.onDidRemoveGroup)(() => {
+			if (this.editorContainer) {
+				this.editorContainer.setAttribute('aria-label', this.computeAriaLabel());
+			}
+		}));
 	}
 
 	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
@@ -97,7 +103,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		let ariaLabel = this.getAriaLabel();
 
 		// Apply group information to help identify in which group we are
-		if (ariaLabel && this.group) {
+		if (ariaLabel && this.group && this.editorGroupService.groups.length > 1) {
 			ariaLabel = localize('editorLabelWithGroup', "{0}, {1}", ariaLabel, this.group.ariaLabel);
 		}
 
