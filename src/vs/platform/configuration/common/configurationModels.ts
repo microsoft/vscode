@@ -89,7 +89,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			contents[key] = contentsForKey;
 		}
 
-		return new ConfigurationModel(contents);
+		return new ConfigurationModel(contents, this.keys, this.overrides);
 	}
 
 	merge(...others: ConfigurationModel[]): ConfigurationModel {

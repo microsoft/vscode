@@ -4360,7 +4360,7 @@ declare module 'vscode' {
 			workspaceFolderValue?: T,
 
 			defaultLanguageValue?: T;
-			userLanguageValue?: T;
+			globalLanguageValue?: T;
 			workspaceLanguageValue?: T;
 			workspaceFolderLanguageValue?: T;
 

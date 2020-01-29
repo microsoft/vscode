@@ -42,7 +42,7 @@ type ConfigurationInspect<T> = {
 	workspaceFolderValue?: T,
 
 	defaultLanguageValue?: T;
-	userLanguageValue?: T;
+	globalLanguageValue?: T;
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
 
@@ -260,13 +260,13 @@ export class ExtHostConfigProvider {
 					return {
 						key,
 
-						defaultValue: config.defaultValue,
-						globalValue: config.userValue,
-						workspaceValue: config.workspaceValue,
-						workspaceFolderValue: config.workspaceFolderValue,
+						defaultValue: config.default?.value,
+						globalValue: config.user?.value,
+						workspaceValue: config.workspace?.value,
+						workspaceFolderValue: config.workspaceFolder?.value,
 
 						defaultLanguageValue: config.default?.override,
-						userLanguageValue: config.user?.override,
+						globalLanguageValue: config.user?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 
