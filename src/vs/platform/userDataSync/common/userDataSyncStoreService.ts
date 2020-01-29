@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -111,22 +111,22 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		try {
 			context = await this.requestService.request(options, token);
 		} catch (e) {
-			throw new UserDataSyncError(`Connection refused for the request '${options.url?.toString()}'.`, UserDataSyncErrorCode.ConnectionRefused, source);
+			throw new UserDataSyncStoreError(`Connection refused for the request '${options.url?.toString()}'.`, UserDataSyncErrorCode.ConnectionRefused, source);
 		}
 
 		if (context.res.statusCode === 401) {
 			// Throw Unauthorized Error
-			throw new UserDataSyncError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthroized, source);
+			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthroized, source);
 		}
 
 		if (context.res.statusCode === 412) {
 			// There is a new value. Throw Rejected Error
-			throw new UserDataSyncError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Rejected, source);
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Rejected, source);
 		}
 
 		if (context.res.statusCode === 413) {
 			// Throw Too Large Payload Error
-			throw new UserDataSyncError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge, source);
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge, source);
 		}
 
 		return context;
