@@ -517,7 +517,10 @@ export class TunnelPanel extends ViewPane {
 
 			if (isEditing) {
 				dom.addClass(treeContainer, 'highlight');
-				this.tree.reveal(e ? e : this.viewModel.input);
+				if (!e) {
+					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
+					this.tree.reveal(this.viewModel.input);
+				}
 			} else {
 				this.tree.domFocus();
 			}
