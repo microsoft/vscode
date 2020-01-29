@@ -49,6 +49,7 @@ export class BulkEditPane extends ViewPane {
 
 	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
+	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
 
 	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
 
@@ -59,6 +60,7 @@ export class BulkEditPane extends ViewPane {
 
 	private readonly _ctxHasCategories: IContextKey<boolean>;
 	private readonly _ctxGroupByFile: IContextKey<boolean>;
+	private readonly _ctxHasCheckedChanges: IContextKey<boolean>;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
@@ -90,6 +92,7 @@ export class BulkEditPane extends ViewPane {
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
+		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 	}
 
 	dispose(): void {
@@ -174,6 +177,7 @@ export class BulkEditPane extends ViewPane {
 		const hasCategories = input.categories.length > 1;
 		this._ctxHasCategories.set(hasCategories);
 		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
+		this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 
 		this._currentInput = input;
 
@@ -187,6 +191,7 @@ export class BulkEditPane extends ViewPane {
 			// refresh when check state changes
 			this._sessionDisposables.add(input.checked.onDidChange(() => {
 				this._tree.updateChildren();
+				this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 			}));
 		});
 	}

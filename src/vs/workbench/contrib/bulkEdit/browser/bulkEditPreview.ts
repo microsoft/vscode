@@ -24,6 +24,7 @@ import { localize } from 'vs/nls';
 export class CheckedStates<T extends object> {
 
 	private readonly _states = new WeakMap<T, boolean>();
+	private _checkedCount: number = 0;
 
 	private readonly _onDidChange = new Emitter<T>();
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -32,15 +33,32 @@ export class CheckedStates<T extends object> {
 		this._onDidChange.dispose();
 	}
 
+	get checkedCount() {
+		return this._checkedCount;
+	}
+
 	isChecked(obj: T): boolean {
 		return this._states.get(obj) ?? false;
 	}
 
 	updateChecked(obj: T, value: boolean): void {
-		if (this._states.get(obj) !== value) {
-			this._states.set(obj, value);
-			this._onDidChange.fire(obj);
+		const valueNow = this._states.get(obj);
+		if (valueNow === value) {
+			return;
 		}
+		if (valueNow === undefined) {
+			if (value) {
+				this._checkedCount += 1;
+			}
+		} else {
+			if (value) {
+				this._checkedCount += 1;
+			} else {
+				this._checkedCount -= 1;
+			}
+		}
+		this._states.set(obj, value);
+		this._onDidChange.fire(obj);
 	}
 }
 
