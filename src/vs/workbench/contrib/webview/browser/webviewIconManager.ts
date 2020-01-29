@@ -46,7 +46,6 @@ export class WebviewIconManager {
 	}
 
 	private async updateStyleSheet(lifecycleService: ILifecycleService) {
-		console.log('update');
 		await lifecycleService.when(LifecyclePhase.Starting);
 
 		try {
