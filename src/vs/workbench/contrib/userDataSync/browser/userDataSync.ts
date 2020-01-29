@@ -368,7 +368,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: 'sync.enableUIState',
 			label: getSyncAreaLabel(SyncSource.GlobalState),
-			description: localize('ui state description', "Display Language (Only)")
+			description: localize('ui state description', "only 'Display Language' for now")
 		}];
 	}
 
