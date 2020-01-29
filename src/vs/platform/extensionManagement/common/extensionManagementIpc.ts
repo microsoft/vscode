@@ -156,7 +156,7 @@ export class GlobalExtensionEnablementServiceClient implements IGlobalExtensionE
 
 	_serviceBrand: undefined;
 
-	get onDidChangeEnablement(): Event<IExtensionIdentifier[]> { return this.channel.listen('onDidChangeEnablement'); }
+	get onDidChangeEnablement(): Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }> { return this.channel.listen('onDidChangeEnablement'); }
 
 	constructor(private readonly channel: IChannel) {
 	}
