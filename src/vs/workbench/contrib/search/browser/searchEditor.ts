@@ -156,7 +156,14 @@ export class SearchEditor extends BaseEditor {
 
 	private createResultsEditor(parent: HTMLElement) {
 		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
-		const configuration: IEditorOptions = this.configurationService.getValue('editor', { overrideIdentifier: 'search-result' });
+		const getSearchEditorOptions = () => this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: 'search-result' });
+		const configuration: IEditorOptions = getSearchEditorOptions();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor')) {
+				this.searchResultEditor.updateOptions(getSearchEditorOptions());
+			}
+		}));
+
 		const options: ICodeEditorWidgetOptions = {};
 		this.searchResultEditor = this._register(this.instantiationService.createInstance(CodeEditorWidget, searchResultContainer, configuration, options));
 		this.searchResultEditor.onMouseUp(e => {
