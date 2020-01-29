@@ -73,6 +73,13 @@ export interface IWorkbenchExtensionEnablementService {
 	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
 }
 
+export const IExtensionBlocklistService = createDecorator<IExtensionBlocklistService>('extensionBlocklistService');
+
+export interface IExtensionBlocklistService {
+	_serviceBrand: undefined;
+	isPermitted(extension: { publisher: string; name: string; version: string} ): boolean;
+}
+
 export interface IExtensionsConfigContent {
 	recommendations: string[];
 	unwantedRecommendations: string[];

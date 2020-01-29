@@ -46,6 +46,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IExtensionBlocklistService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -134,6 +135,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@optional(IDownloadService) private downloadService: IDownloadService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
+		@IExtensionBlocklistService private readonly blocklistService: IExtensionBlocklistService,
 	) {
 		super();
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
@@ -207,6 +209,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						let operation: InstallOperation = InstallOperation.Install;
 						if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, product.version)) {
 							return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, product.version)));
+						}
+						if (!this.blocklistService.isPermitted(manifest)) {
+							return Promise.reject(new Error(nls.localize('prohibited', "Unable to install extension '{0}' as it is prohibited by local policy.", identifier.id)));
 						}
 						const identifierWithVersion = new ExtensionIdentifierWithVersion(identifier, manifest.version);
 						return this.getInstalled(ExtensionType.User)
@@ -363,6 +368,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private async checkAndGetCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension> {
 		if (await this.isMalicious(extension)) {
 			return Promise.reject(new ExtensionManagementError(nls.localize('malicious extension', "Can't install extension since it was reported to be problematic."), INSTALL_ERROR_MALICIOUS));
+		}
+
+		if (!this.blocklistService.isPermitted(extension)) {
+			return Promise.reject(new ExtensionManagementError(nls.localize('prohibited extension', "Can't install extension since it was blocked by local policy."), INSTALL_ERROR_MALICIOUS));
 		}
 
 		const compatibleExtension = await this.galleryService.getCompatibleExtension(extension);

@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionBlocklistService, IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -66,6 +66,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
+		@IExtensionBlocklistService private readonly _blocklistService: IExtensionBlocklistService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -145,7 +146,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		});
 	}
 
-
 	//#region deltaExtensions
 
 	private _inHandleDeltaExtensions = false;
@@ -167,6 +167,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
+	private isPermitted(extension: { publisher: string; name: string; version: string }): boolean {
+		return this._blocklistService.isPermitted(extension);
+	}
+
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
 		if (this._environmentService.configuration.remoteAuthority) {
 			return;
@@ -186,7 +190,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				continue;
 			}
 
-			toAdd.push(extensionDescription);
+			if (this.isPermitted(extensionDescription)) {
+				toAdd.push(extensionDescription);
+			} else {
+				console.log('prohibiting loading an extension: ' + extensionDescription.identifier.value);
+			}
 		}
 
 		let toRemove: IExtensionDescription[] = [];
@@ -449,6 +457,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// remove disabled extensions
 		let localExtensions = remove(allExtensions, extension => this._isDisabled(extension));
+
+		// capture the prohibited extensions just for sanity checks, remove this later
+		let prohibitedExtensions = localExtensions.filter(ext => !this.isPermitted(ext));
+		for (let m of prohibitedExtensions) {
+			console.log('prohibiting loading the extension ' + m.identifier.value + ' ver ' + m.version + ' -- prohibited publisher');
+		}
+
+		localExtensions = localExtensions.filter(ext => this.isPermitted(ext));
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolverResult;
