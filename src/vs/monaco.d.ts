@@ -2747,10 +2747,10 @@ declare namespace monaco.editor {
 		 */
 		wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 		/**
-		 * Controls the wrapping algorithm to use.
-		 * Defaults to 'monospace'.
+		 * Controls the wrapping strategy to use.
+		 * Defaults to 'simple'.
 		 */
-		wrappingAlgorithm?: 'monospace' | 'dom';
+		wrappingStrategy?: 'simple' | 'advanced';
 		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
 		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
@@ -3799,7 +3799,7 @@ declare namespace monaco.editor {
 		wordWrapColumn = 101,
 		wordWrapMinified = 102,
 		wrappingIndent = 103,
-		wrappingAlgorithm = 104,
+		wrappingStrategy = 104,
 		editorClassName = 105,
 		pixelRatio = 106,
 		tabFocusMode = 107,
@@ -3911,7 +3911,7 @@ declare namespace monaco.editor {
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapMinified: IEditorOption<EditorOption.wordWrapMinified, boolean>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
-		wrappingAlgorithm: IEditorOption<EditorOption.wrappingAlgorithm, 'monospace' | 'dom'>;
+		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;

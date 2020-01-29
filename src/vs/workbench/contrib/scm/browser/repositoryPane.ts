@@ -719,7 +719,7 @@ export class RepositoryPane extends ViewPane {
 			fontSize: 13,
 			lineHeight: 20,
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			wrappingAlgorithm: 'dom',
+			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			// suggest: {
 			// 	showWords: false
