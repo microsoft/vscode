@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata } from 'vs/editor/common/modes';
+import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -629,7 +629,7 @@ class SemanticColoringProviderStyling {
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
 		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
-		let metadata: number | undefined;
+		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
 		} else {
@@ -643,9 +643,21 @@ class SemanticColoringProviderStyling {
 				modifierSet = modifierSet >> 1;
 			}
 
-			metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
-			if (typeof metadata === 'undefined') {
+			const tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			if (typeof tokenStyle === 'undefined') {
 				metadata = Constants.NO_STYLING;
+			} else {
+				const fontStyle = (
+					(tokenStyle.italic ? FontStyle.Italic : 0)
+					| (tokenStyle.bold ? FontStyle.Bold : 0)
+					| (tokenStyle.underline ? FontStyle.Underline : 0)
+				);
+				const foreground = tokenStyle.foreground || 0;
+
+				metadata = (
+					foreground << MetadataConsts.FOREGROUND_OFFSET
+					| fontStyle << MetadataConsts.FONT_STYLE_OFFSET
+				) >>> 0;
 			}
 			this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		}

@@ -17,7 +17,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/modes';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -474,9 +474,30 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
 				const definitions = {};
+				const colorMap = this._themeService.getColorTheme().tokenColorMap;
 				const theme = this._themeService.getTheme() as ColorThemeData;
-				const m = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
-				const metadata = this._decodeMetadata(m || 0);
+				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
+
+				let fontStyle = FontStyle.None;
+				let foreground: string | undefined = undefined;
+				if (tokenStyle) {
+					fontStyle = (
+						(tokenStyle.italic ? FontStyle.Italic : 0)
+						| (tokenStyle.bold ? FontStyle.Bold : 0)
+						| (tokenStyle.underline ? FontStyle.Underline : 0)
+					);
+					if (tokenStyle.foreground) {
+						foreground = colorMap[tokenStyle.foreground];
+					}
+				}
+
+				const metadata: IDecodedMetadata = {
+					languageIdentifier: this._modeService.getLanguageIdentifier(LanguageId.Null)!,
+					tokenType: StandardTokenType.Other,
+					fontStyle: this._fontStyleToString(fontStyle),
+					foreground: foreground,
+				};
+
 				return { type, modifiers, range, metadata, definitions };
 			}
 			lastLine = line;
