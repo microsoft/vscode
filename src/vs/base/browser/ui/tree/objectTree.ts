@@ -50,6 +50,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.resort(element, recursive);
 	}
 
+	hasElement(element: T): boolean {
+		return this.model.has(element);
+	}
+
 	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(user, view, options);
 	}
