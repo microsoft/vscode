@@ -8747,6 +8747,7 @@ declare module 'vscode' {
 		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
 		 *
 		 * @param section A dot-separated identifier.
+		 * @param scope A scope for which the configuration is asked for.
 		 * @return The full configuration or a subset.
 		 */
 		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
