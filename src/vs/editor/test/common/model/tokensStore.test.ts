@@ -10,7 +10,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MetadataConsts, TokenMetadata } from 'vs/editor/common/modes';
 
-suite.skip('TokensStore', () => {
+suite('TokensStore', () => {
 
 	const SEMANTIC_COLOR = 5;
 
@@ -42,7 +42,10 @@ suite.skip('TokensStore', () => {
 				lineText += line.substring(startOffset, firstPipeOffset);
 				const tokenStartCharacter = lineText.length;
 				const tokenLength = secondPipeOffset - firstPipeOffset - 1;
-				const metadata = (SEMANTIC_COLOR << MetadataConsts.FOREGROUND_OFFSET);
+				const metadata = (
+					SEMANTIC_COLOR << MetadataConsts.FOREGROUND_OFFSET
+					| MetadataConsts.SEMANTIC_USE_FOREGROUND
+				);
 
 				if (tokens.length === 0) {
 					baseLine = i + 1;
