@@ -43,6 +43,7 @@ import { searchEditorFindMatchBorder, searchEditorFindMatch, registerColor, inpu
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const FILE_LINE_REGEX = /^(\S.*):$/;
 
 export class SearchEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.searchEditor';
@@ -168,6 +169,9 @@ export class SearchEditor extends BaseEditor {
 					if (line.match(RESULT_LINE_REGEX)) {
 						this.searchResultEditor.setSelection(Range.fromPositions(position));
 						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
+					} else if (line.match(FILE_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand('editor.action.peekDefinition');
 					}
 				}
 			}
