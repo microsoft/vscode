@@ -39,7 +39,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { InSearchEditor, InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import type { SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorInput';
-import { searchEditorFindMatchBorder, searchEditorFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { searchEditorFindMatchBorder, searchEditorFindMatch, registerColor, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 
@@ -147,6 +148,9 @@ export class SearchEditor extends BaseEditor {
 		}));
 		this.inputPatternExcludes.onSubmit(_triggeredOnType => this.runSearch());
 		this.inputPatternExcludes.onChangeIgnoreBox(() => this.runSearch());
+
+		[this.queryEditorWidget.searchInput, this.inputPatternIncludes, this.inputPatternExcludes].map(input =>
+			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
 	}
 
 	private createResultsEditor(parent: HTMLElement) {
@@ -452,3 +456,5 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .searchEditorFindMatch { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
 	}
 });
+
+export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
