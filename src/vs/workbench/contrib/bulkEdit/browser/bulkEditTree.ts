@@ -145,7 +145,18 @@ export class TextEditElement implements ICheckable {
 		if (model instanceof CategoryElement) {
 			model = model.parent;
 		}
-		return model.checked.updateChecked(this.edit.textEdit, value);
+
+		// check/uncheck this element
+		model.checked.updateChecked(this.edit.textEdit, value);
+
+		// make sure parent is checked when this element is checked...
+		if (value) {
+			this.parent.edit.originalEdits.forEach(edit => {
+				if (WorkspaceFileEdit.is(edit)) {
+					(<BulkFileOperations>model).checked.updateChecked(edit, value);
+				}
+			});
+		}
 	}
 
 	isDisabled(): boolean {
@@ -518,13 +529,13 @@ class TextEditElementTemplate {
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
 
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', e => {
+			element.setChecked(this._checkbox.checked);
+			e.preventDefault();
+		}));
 		if (element.parent.isChecked()) {
 			this._checkbox.checked = element.isChecked();
 			this._checkbox.disabled = element.isDisabled();
-			this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', e => {
-				element.setChecked(this._checkbox.checked);
-				e.preventDefault();
-			}));
 		} else {
 			this._checkbox.checked = element.isChecked();
 			this._checkbox.disabled = element.isDisabled();
