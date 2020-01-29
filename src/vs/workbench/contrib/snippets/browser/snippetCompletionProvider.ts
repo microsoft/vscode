@@ -19,6 +19,7 @@ import { isPatternInWord } from 'vs/base/common/filters';
 export class SnippetCompletion implements CompletionItem {
 
 	label: CompletionItemLabel;
+	detail: string;
 	insertText: string;
 	documentation?: MarkdownString;
 	range: IRange | { insert: IRange, replace: IRange };
@@ -34,7 +35,7 @@ export class SnippetCompletion implements CompletionItem {
 			name: snippet.prefix,
 			type: localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source)
 		};
-
+		this.detail = this.label.type!;
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
