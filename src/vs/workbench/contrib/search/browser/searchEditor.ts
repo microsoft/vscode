@@ -249,6 +249,10 @@ export class SearchEditor extends BaseEditor {
 		this.queryEditorWidget.toggleContextLines();
 	}
 
+	toggleQueryDetails() {
+		this.toggleIncludesExcludes();
+	}
+
 	async runSearch(resetCursor = true, instant = false) {
 		if (!this.pauseSearching) {
 			this.runSearchDelayer.trigger(async () => {
