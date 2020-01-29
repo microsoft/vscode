@@ -427,7 +427,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			],
 			{
 				cancelId: 1,
-				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from cloud?"),
+				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from the cloud?"),
 			}
 		);
 		switch (result.choice) {
