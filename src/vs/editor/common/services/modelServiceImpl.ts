@@ -647,17 +647,27 @@ class SemanticColoringProviderStyling {
 			if (typeof tokenStyle === 'undefined') {
 				metadata = Constants.NO_STYLING;
 			} else {
-				const fontStyle = (
-					(tokenStyle.italic ? FontStyle.Italic : 0)
-					| (tokenStyle.bold ? FontStyle.Bold : 0)
-					| (tokenStyle.underline ? FontStyle.Underline : 0)
-				);
-				const foreground = tokenStyle.foreground || 0;
-
-				metadata = (
-					foreground << MetadataConsts.FOREGROUND_OFFSET
-					| fontStyle << MetadataConsts.FONT_STYLE_OFFSET
-				) >>> 0;
+				metadata = 0;
+				if (typeof tokenStyle.italic !== 'undefined') {
+					const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= italicBit | MetadataConsts.SEMANTIC_USE_ITALIC;
+				}
+				if (typeof tokenStyle.bold !== 'undefined') {
+					const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= boldBit | MetadataConsts.SEMANTIC_USE_BOLD;
+				}
+				if (typeof tokenStyle.underline !== 'undefined') {
+					const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
+				}
+				if (tokenStyle.foreground) {
+					const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
+					metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+				}
+				if (metadata === 0) {
+					// Nothing!
+					metadata = Constants.NO_STYLING;
+				}
 			}
 			this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		}
