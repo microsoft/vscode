@@ -237,17 +237,21 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 
 		if (added.length || updated.length) {
+			const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 			await Promise.all([...added, ...updated].map(async e => {
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, e.version);
 				if (extension) {
 					this.logService.info('Extensions: Installing local extension.', e.identifier.id, extension.version);
 					try {
-						await this.extensionManagementService.installFromGallery(extension);
-						removeFromSkipped.push(extension.identifier);
 						if (e.enabled) {
 							await this.extensionEnablementService.enableExtension(extension.identifier);
 						} else {
 							await this.extensionEnablementService.disableExtension(extension.identifier);
+						}
+						// Install only if the extension does not exist
+						if (!installedExtensions.some(installed => areSameExtensions(installed.identifier, extension.identifier) && installed.manifest.version === extension.version)) {
+							await this.extensionManagementService.installFromGallery(extension);
+							removeFromSkipped.push(extension.identifier);
 						}
 					} catch (error) {
 						addToSkipped.push(e);
