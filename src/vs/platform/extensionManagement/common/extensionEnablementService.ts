@@ -28,6 +28,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 
 	async enableExtension(extension: IExtensionIdentifier): Promise<boolean> {
 		if (this._removeFromDisabledExtensions(extension)) {
+			this._onDidChangeEnablement.fire([extension]);
 			return true;
 		}
 		return false;
@@ -35,6 +36,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 
 	async disableExtension(extension: IExtensionIdentifier): Promise<boolean> {
 		if (this._addToDisabledExtensions(extension)) {
+			this._onDidChangeEnablement.fire([extension]);
 			return true;
 		}
 		return false;

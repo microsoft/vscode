@@ -44,9 +44,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService);
 		this._register(
 			Event.debounce(
-				Event.any(
+				Event.any<any>(
 					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
-					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))),
+					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
+					this.extensionEnablementService.onDidChangeEnablement),
 				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
 	}
 
@@ -241,15 +242,17 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await Promise.all([...added, ...updated].map(async e => {
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, e.version);
 				if (extension) {
-					this.logService.info('Extensions: Installing local extension.', e.identifier.id, extension.version);
 					try {
 						if (e.enabled) {
+							this.logService.info('Extensions: Enabling extension.', e.identifier.id, extension.version);
 							await this.extensionEnablementService.enableExtension(extension.identifier);
 						} else {
+							this.logService.info('Extensions: Disabling extension.', e.identifier.id, extension.version);
 							await this.extensionEnablementService.disableExtension(extension.identifier);
 						}
 						// Install only if the extension does not exist
 						if (!installedExtensions.some(installed => areSameExtensions(installed.identifier, extension.identifier) && installed.manifest.version === extension.version)) {
+							this.logService.info('Extensions: Installing extension.', e.identifier.id, extension.version);
 							await this.extensionManagementService.installFromGallery(extension);
 							removeFromSkipped.push(extension.identifier);
 						}
