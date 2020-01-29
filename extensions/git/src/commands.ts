@@ -1455,12 +1455,16 @@ export class CommandCenter {
 					placeHolder = localize('commit message', "Commit message");
 				}
 
+				const subject = value?.split('\n')[0];
 				_message = await window.showInputBox({
-					value,
+					value: subject,
 					placeHolder,
 					prompt: localize('provide commit message', "Please provide a commit message"),
 					ignoreFocusOut: true
 				});
+				if (_message === subject) {
+					_message = value;
+				}
 			}
 
 			return _message;
