@@ -105,6 +105,7 @@ export class LaunchMainService implements ILaunchMainService {
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+		const deleteOnClose = args['cleanup-files'];
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
@@ -149,7 +150,8 @@ export class LaunchMainService implements ILaunchMainService {
 					userEnv,
 					forceNewWindow: true,
 					forceEmpty: true,
-					waitMarkerFileURI
+					waitMarkerFileURI,
+					deleteOnClose
 				});
 			}
 
@@ -179,6 +181,7 @@ export class LaunchMainService implements ILaunchMainService {
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				waitMarkerFileURI,
+				deleteOnClose,
 				gotoLineMode: args.goto
 			});
 		}

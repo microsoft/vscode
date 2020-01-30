@@ -121,6 +121,7 @@ export interface IOpenConfiguration {
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
 	readonly waitMarkerFileURI?: URI;
+	readonly deleteOnClose?: boolean;
 	readonly preferNewWindow?: boolean;
 	readonly forceNewWindow?: boolean;
 	readonly forceNewTabbedWindow?: boolean;

@@ -240,6 +240,13 @@ export class ElectronWindow extends Disposable {
 			this._register(this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor));
 		}
 
+		// Listen to editor closing (if we run with --cleanup-files)
+		const filesToDelete = this.environmentService.configuration.filesToDelete;
+		if (filesToDelete) {
+			const resourcesToDelete = coalesce(filesToDelete.map(p => p.fileUri));
+			this._register(this.trackClosedDeleteFiles(resourcesToDelete));
+		}
+
 		// macOS OS integration
 		if (isMacintosh) {
 			this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -605,6 +612,14 @@ export class ElectronWindow extends Disposable {
 			const resourcesToWaitFor = coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri)));
 			this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor);
 		}
+
+		if (request.filesToDelete && inputs.length) {
+			// In delete on close mode, listen to changes to the editors and wait until
+			// the files are closed that the user wants deleted on close. When this
+			// happens we delete the file.
+			const resourcesToDelete = coalesce(request.filesToDelete.map(p => URI.revive(p.fileUri)));
+			this.trackClosedDeleteFiles(resourcesToDelete);
+		}
 	}
 
 	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
@@ -629,6 +644,29 @@ export class ElectronWindow extends Disposable {
 
 				listener.dispose();
 				await this.fileService.del(waitMarkerFile);
+			}
+		});
+
+		return listener;
+	}
+
+	private trackClosedDeleteFiles(resourcesToDelete: URI[]): IDisposable {
+		// In delete on close mode, listen to changes to the editors and wait until
+		// the files are closed that the user wants deleted on close. When this
+		// happens we delete the file.
+		const listener = this.editorService.onDidCloseEditor(async event => {
+			const closedResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+
+			const resourceToDelete = resourcesToDelete.find(r => isEqual(closedResource, r));
+
+			if (resourceToDelete) {
+				resourcesToDelete = resourcesToDelete.filter(r => r !== resourceToDelete);
+
+				if (!resourcesToDelete.length) {
+					listener.dispose();
+				}
+
+				await this.fileService.del(resourceToDelete);
 			}
 		});
 

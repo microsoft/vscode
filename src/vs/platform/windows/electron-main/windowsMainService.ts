@@ -90,6 +90,7 @@ interface IFileInputs {
 	filesToOpenOrCreate: IPath[];
 	filesToDiff: IPath[];
 	filesToWait?: IPathsToWaitFor;
+	filesToDelete?: IPath[];
 	remoteAuthority?: string;
 }
 
@@ -454,6 +455,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpenOrCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
 		}
 
+		// When run with --cleanup-files, make sure that we keep the paths to delete
+		if (fileInputs && openConfig.deleteOnClose) {
+			fileInputs.filesToDelete = [...fileInputs.filesToDiff, ...fileInputs.filesToOpenOrCreate];
+		}
+
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
@@ -533,13 +539,34 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
-		// If we got started with --wait from the CLI, we need to signal to the outside when the window
-		// used for the edit operation is closed or loaded to a different folder so that the waiting
-		// process can continue. We do this by deleting the waitMarkerFilePath.
-		const waitMarkerFileURI = openConfig.waitMarkerFileURI;
-		if (openConfig.context === OpenContext.CLI && waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
-			usedWindows[0].whenClosedOrLoaded.then(() => fs.unlink(waitMarkerFileURI.fsPath, _error => undefined));
+		if (openConfig.context === OpenContext.CLI && usedWindows.length === 1 && usedWindows[0]) {
+			// If we got started with --wait from the CLI, we need to signal to the outside when the window
+			// used for the edit operation is closed or loaded to a different folder so that the waiting
+			// process can continue. We do this by deleting the waitMarkerFilePath.
+			const waitMarkerFileURI = openConfig.waitMarkerFileURI;
+			if (waitMarkerFileURI) {
+				usedWindows[0].whenClosedOrLoaded.then(() => fs.unlink(waitMarkerFileURI.fsPath, _error => undefined));
+			}
+
+			// If we got started with --cleanup-files from the CLI, we need to delete the opened files when they are closed
+			if (openConfig.deleteOnClose && fileInputs && (fileInputs.filesToOpenOrCreate || fileInputs.filesToDiff)) {
+				const files: string[] = [];
+				for (let file of fileInputs.filesToOpenOrCreate) {
+					if (file.fileUri) {
+						files.push(file.fileUri.fsPath);
+					}
+				}
+				for (let file of fileInputs.filesToDiff) {
+					if (file.fileUri) {
+						files.push(file.fileUri.fsPath);
+					}
+				}
+				usedWindows[0].whenClosedOrLoaded.then(() => {
+					files.forEach(x => fs.unlink(x, _error => undefined));
+				});
+			}
 		}
+
 
 		return usedWindows;
 	}
@@ -779,11 +806,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		const params: { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
+		const params: { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, filesToDelete?: IPath[], termProgram?: string } = {};
 		if (fileInputs) {
 			params.filesToOpenOrCreate = fileInputs.filesToOpenOrCreate;
 			params.filesToDiff = fileInputs.filesToDiff;
 			params.filesToWait = fileInputs.filesToWait;
+			params.filesToDelete = fileInputs.filesToDelete;
 		}
 
 		if (configuration.userEnv) {
@@ -1377,6 +1405,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			configuration.filesToOpenOrCreate = fileInputs.filesToOpenOrCreate;
 			configuration.filesToDiff = fileInputs.filesToDiff;
 			configuration.filesToWait = fileInputs.filesToWait;
+			configuration.filesToDelete = fileInputs.filesToDelete;
 		}
 
 		// if we know the backup folder upfront (for empty windows to restore), we can set it

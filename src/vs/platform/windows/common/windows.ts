@@ -212,6 +212,7 @@ export interface IOpenFileRequest {
 	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
 	filesToWait?: IPathsToWaitForData;
+	filesToDelete?: IPath[];
 	termProgram?: string;
 }
 
@@ -255,6 +256,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
+	filesToDelete?: IPath[];
 }
 
 export interface IRunActionInWindowRequest {

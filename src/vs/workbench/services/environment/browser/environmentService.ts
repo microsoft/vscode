@@ -90,6 +90,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	perfEntries!: ExportData;
 
 	filesToWait?: IPathsToWaitFor;
+	filesToDelete?: IPath[];
 
 	//#endregion
 

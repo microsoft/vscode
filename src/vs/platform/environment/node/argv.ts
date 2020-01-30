@@ -52,6 +52,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'telemetry': { type: 'boolean', cat: 'o', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
 	'file-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
+	'cleanup-files': { type: 'boolean', cat: 'o', description: localize('cleanupFiles', "Cleans up (deletes) files opened by this command when they are closed.") },
 
 	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'builtin-extensions-dir': { type: 'string' },

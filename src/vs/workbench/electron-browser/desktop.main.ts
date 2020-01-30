@@ -109,6 +109,15 @@ class DesktopMain extends Disposable {
 		if (filesToWait) {
 			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
 		}
+
+		const filesToDelete = this.environmentService.configuration.filesToDelete;
+		if (Array.isArray(filesToDelete)) {
+			filesToDelete.forEach(path => {
+				if (path.fileUri) {
+					path.fileUri = URI.revive(path.fileUri);
+				}
+			});
+		}
 	}
 
 	async open(): Promise<void> {
