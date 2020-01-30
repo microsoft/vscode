@@ -405,6 +405,22 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		return undefined;
 	}
 
+	focusNotebookCell(cell: ViewCell, focusEditor: boolean) {
+		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+
+		if (focusEditor) {
+
+		} else {
+			let itemDOM = this.list?.view.domElement(index);
+			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
+				(document.activeElement as HTMLElement).blur();
+			}
+		}
+
+		this.list?.setFocus([index]);
+		this.list?.view.domNode.focus();
+	}
+
 	async deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): Promise<void> {
 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 

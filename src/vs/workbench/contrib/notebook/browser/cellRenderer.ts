@@ -193,6 +193,7 @@ export interface NotebookHandler {
 	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
+	focusNotebookCell(cell: ViewCell, focusEditor: boolean): void;
 	getActiveCell(): ViewCell | undefined;
 	layoutElement(cell: ViewCell, height: number): void;
 	createContentWidget(cell: ViewCell, index: number, shadowContent: string, offset: number): void;

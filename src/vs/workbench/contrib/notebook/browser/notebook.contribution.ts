@@ -23,8 +23,9 @@ import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContextKey, InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -95,6 +96,44 @@ export class ExecuteNotebookAction extends Action {
 	}
 }
 
+
+export class QuitNotebookEditAction extends Action {
+
+	static readonly ID = 'workbench.action.quitNotebookEdit';
+	static readonly LABEL = 'Quit Notebook Cell Editing';
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotebookService private readonly notebookService: INotebookService
+
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		let resource = this.editorService.activeEditor?.getResource();
+		let editorControl = this.editorService.activeControl;
+
+		if (resource && editorControl) {
+			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+
+			if (notebookProviders.length > 0) {
+				let editorViewType = ((editorControl! as any) as NotebookHandler).viewType;
+				let viewType = notebookProviders[0].id;
+
+				if (viewType === editorViewType) {
+
+					let activeCell = ((editorControl! as any) as NotebookHandler).getActiveCell();
+					if (activeCell) {
+						((editorControl! as any) as NotebookHandler).focusNotebookCell(activeCell, false);
+					}
+				}
+			}
+		}
+	}
+}
 export class EditNotebookCellAction extends Action {
 
 	static readonly ID = 'workbench.action.editNotebookActiveCell';
@@ -233,6 +272,24 @@ registry.registerWorkbenchAction(
 			primary: KeyCode.Enter,
 		},
 		ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+	),
+	'Edit Notebook Active Cell;',
+	'Notebook'
+);
+
+registry.registerWorkbenchAction(
+	SyncActionDescriptor.create(
+		QuitNotebookEditAction,
+		QuitNotebookEditAction.ID,
+		QuitNotebookEditAction.LABEL,
+		{
+
+			primary: KeyCode.Escape,
+		},
+		ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+		// TODO: It's set to `EditorContrib - 5` to ensure all editor escape commands to work
+		// but, how about core?
+		KeybindingWeight.EditorContrib - 5
 	),
 	'Edit Notebook Active Cell;',
 	'Notebook'
