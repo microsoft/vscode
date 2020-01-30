@@ -41,6 +41,7 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import type { SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorInput';
 import { searchEditorFindMatchBorder, searchEditorFindMatch, registerColor, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -329,6 +330,8 @@ export class SearchEditor extends BaseEditor {
 			return;
 		}
 
+		const controller = ReferencesController.get(this.searchResultEditor);
+		controller.closeWidget(false);
 
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, true);
