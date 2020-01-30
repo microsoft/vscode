@@ -167,7 +167,7 @@ export class TokenClassificationExtensionPoints {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.tokenTypeConfiguration', "'configuration.tokenType' must be a array"));
+					collector.error(nls.localize('invalid.tokenTypeConfiguration', "'configuration.tokenType' must be an array"));
 					return;
 				}
 				for (const contribution of extensionValue) {
@@ -189,7 +189,7 @@ export class TokenClassificationExtensionPoints {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.tokenModifierConfiguration', "'configuration.tokenModifier' must be a array"));
+					collector.error(nls.localize('invalid.tokenModifierConfiguration', "'configuration.tokenModifier' must be an array"));
 					return;
 				}
 				for (const contribution of extensionValue) {
@@ -211,7 +211,7 @@ export class TokenClassificationExtensionPoints {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.tokenStyleDefaultConfiguration', "'configuration.tokenStyleDefaults' must be a array"));
+					collector.error(nls.localize('invalid.tokenStyleDefaultConfiguration', "'configuration.tokenStyleDefaults' must be an array"));
 					return;
 				}
 				for (const contribution of extensionValue) {
