@@ -14,8 +14,8 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 
 	_serviceBrand: undefined;
 
-	private _onDidChangeEnablement = new Emitter<readonly IExtensionIdentifier[]>();
-	readonly onDidChangeEnablement: Event<readonly IExtensionIdentifier[]> = this._onDidChangeEnablement.event;
+	private _onDidChangeEnablement = new Emitter<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }>();
+	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }> = this._onDidChangeEnablement.event;
 	private readonly storageManger: StorageManager;
 
 	constructor(
@@ -23,18 +23,20 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
-		this._register(this.storageManger.onDidChange(extensions => this._onDidChangeEnablement.fire(extensions)));
+		this._register(this.storageManger.onDidChange(extensions => this._onDidChangeEnablement.fire({ extensions, source: 'storage' })));
 	}
 
-	async enableExtension(extension: IExtensionIdentifier): Promise<boolean> {
+	async enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean> {
 		if (this._removeFromDisabledExtensions(extension)) {
+			this._onDidChangeEnablement.fire({ extensions: [extension], source });
 			return true;
 		}
 		return false;
 	}
 
-	async disableExtension(extension: IExtensionIdentifier): Promise<boolean> {
+	async disableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean> {
 		if (this._addToDisabledExtensions(extension)) {
+			this._onDidChangeEnablement.fire({ extensions: [extension], source });
 			return true;
 		}
 		return false;

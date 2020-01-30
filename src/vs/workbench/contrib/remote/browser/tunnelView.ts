@@ -118,6 +118,12 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
 			return TunnelItem.createFromTunnel(tunnel);
+		}).sort((a: TunnelItem, b: TunnelItem) => {
+			if (a.remotePort === b.remotePort) {
+				return a.remoteHost < b.remoteHost ? -1 : 1;
+			} else {
+				return a.remotePort < b.remotePort ? -1 : 1;
+			}
 		});
 		if (this.remoteExplorerService.getEditableData(undefined)) {
 			forwarded.push(this._input);
@@ -376,7 +382,7 @@ class TunnelItem implements ITunnelItem {
 		} else if (this.remoteHost !== 'localhost') {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1}", this.remoteHost, this.remotePort);
 		} else {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0} not forwarded", this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0}", this.remotePort);
 		}
 	}
 
@@ -473,7 +479,6 @@ export class TunnelPanel extends ViewPane {
 			[renderer],
 			new TunnelDataSource(),
 			{
-				keyboardSupport: true,
 				collapseByDefault: (e: ITunnelItem | ITunnelGroup): boolean => {
 					return false;
 				},
@@ -518,7 +523,10 @@ export class TunnelPanel extends ViewPane {
 
 			if (isEditing) {
 				dom.addClass(treeContainer, 'highlight');
-				this.tree.reveal(e ? e : this.viewModel.input);
+				if (!e) {
+					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
+					this.tree.reveal(this.viewModel.input);
+				}
 			} else {
 				this.tree.domFocus();
 			}
@@ -663,6 +671,7 @@ namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
 	export const LABEL = nls.localize('remote.tunnel.forward', "Forward a Port");
+	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
 	function parseInput(value: string): { host: string, port: number } | undefined {
@@ -895,9 +904,11 @@ namespace ChangeLocalPortAction {
 	}
 }
 
+const tunnelViewCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LabelTunnelAction.ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)),
 	primary: KeyCode.F2,
 	mac: {
@@ -909,7 +920,7 @@ CommandsRegistry.registerCommand(ForwardPortAction.INLINE_ID, ForwardPortAction.
 CommandsRegistry.registerCommand(ForwardPortAction.COMMANDPALETTE_ID, ForwardPortAction.commandPaletteHandler());
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: ClosePortAction.INLINE_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.and(TunnelCloseableContextKey, TunnelViewFocusContextKey),
 	primary: KeyCode.Delete,
 	mac: {
@@ -922,7 +933,7 @@ CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAct
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CopyAddressAction.INLINE_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.or(ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)), ContextKeyExpr.and(TunnelViewFocusContextKey, TunnelTypeContextKey.isEqualTo(TunnelType.Detected))),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	handler: CopyAddressAction.inlineHandler()
@@ -1011,7 +1022,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	order: 1,
 	command: {
 		id: ForwardPortAction.INLINE_ID,
-		title: ForwardPortAction.LABEL,
+		title: ForwardPortAction.TREEITEM_LABEL,
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Add))
 }));
@@ -1038,7 +1049,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	order: 0,
 	command: {
 		id: ForwardPortAction.INLINE_ID,
-		title: ForwardPortAction.LABEL,
+		title: ForwardPortAction.TREEITEM_LABEL,
 		icon: { id: 'codicon/plus' }
 	},
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)

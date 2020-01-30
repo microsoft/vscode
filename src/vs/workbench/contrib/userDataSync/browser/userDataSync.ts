@@ -368,7 +368,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: 'sync.enableUIState',
 			label: getSyncAreaLabel(SyncSource.GlobalState),
-			description: localize('ui state description', "Display Language (Only)")
+			description: localize('ui state description', "only 'Display Language' for now")
 		}];
 	}
 
@@ -427,7 +427,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			],
 			{
 				cancelId: 1,
-				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from cloud?"),
+				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from the cloud?"),
 			}
 		);
 		switch (result.choice) {
@@ -464,6 +464,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (result.checkboxChecked) {
 				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
+			} else {
+				await this.userDataSyncService.resetLocal();
 			}
 		}
 	}

@@ -1236,7 +1236,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Otherwise, save the height of the panel
 			if (position === Position.BOTTOM) {
 				this.state.panel.lastNonMaximizedWidth = size.width;
-			} else {
+			} else if (positionFromString(oldPositionValue) === Position.BOTTOM) {
 				this.state.panel.lastNonMaximizedHeight = size.height;
 			}
 		}

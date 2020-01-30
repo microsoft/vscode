@@ -39,9 +39,11 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { InSearchEditor, InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import type { SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorInput';
-import { searchEditorFindMatchBorder, searchEditorFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { searchEditorFindMatchBorder, searchEditorFindMatch, registerColor, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const FILE_LINE_REGEX = /^(\S.*):$/;
 
 export class SearchEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.searchEditor';
@@ -147,11 +149,21 @@ export class SearchEditor extends BaseEditor {
 		}));
 		this.inputPatternExcludes.onSubmit(_triggeredOnType => this.runSearch());
 		this.inputPatternExcludes.onChangeIgnoreBox(() => this.runSearch());
+
+		[this.queryEditorWidget.searchInput, this.inputPatternIncludes, this.inputPatternExcludes].map(input =>
+			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
 	}
 
 	private createResultsEditor(parent: HTMLElement) {
 		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
-		const configuration: IEditorOptions = this.configurationService.getValue('editor', { overrideIdentifier: 'search-result' });
+		const getSearchEditorOptions = () => this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: 'search-result' });
+		const configuration: IEditorOptions = getSearchEditorOptions();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor')) {
+				this.searchResultEditor.updateOptions(getSearchEditorOptions());
+			}
+		}));
+
 		const options: ICodeEditorWidgetOptions = {};
 		this.searchResultEditor = this._register(this.instantiationService.createInstance(CodeEditorWidget, searchResultContainer, configuration, options));
 		this.searchResultEditor.onMouseUp(e => {
@@ -164,6 +176,9 @@ export class SearchEditor extends BaseEditor {
 					if (line.match(RESULT_LINE_REGEX)) {
 						this.searchResultEditor.setSelection(Range.fromPositions(position));
 						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
+					} else if (line.match(FILE_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand('editor.action.peekDefinition');
 					}
 				}
 			}
@@ -232,6 +247,10 @@ export class SearchEditor extends BaseEditor {
 
 	toggleContextLines() {
 		this.queryEditorWidget.toggleContextLines();
+	}
+
+	toggleQueryDetails() {
+		this.toggleIncludesExcludes();
 	}
 
 	async runSearch(resetCursor = true, instant = false) {
@@ -452,3 +471,5 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .searchEditorFindMatch { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
 	}
 });
+
+export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));

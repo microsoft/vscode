@@ -403,7 +403,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
-	test('a single pick input variable', () => {
+	test.skip('a single pick input variable', () => {
 
 		const configuration = {
 			'name': 'Attach to Process',
@@ -457,7 +457,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(1, mockCommandService.callCount);
 		});
 	});
-	test('several input variables and command', () => {
+	test.skip('several input variables and command', () => {
 
 		const configuration = {
 			'name': '${input:input3}',

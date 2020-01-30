@@ -109,7 +109,7 @@ export interface ISplitLine {
 export interface IViewModelLinesCollection extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(fontInfo: FontInfo, wrappingAlgorithm: 'monospace' | 'dom', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: Range[]): boolean;
@@ -277,7 +277,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private tabSize: number;
 	private wrappingColumn: number;
 	private wrappingIndent: WrappingIndent;
-	private wrappingAlgorithm: 'monospace' | 'dom';
+	private wrappingStrategy: 'simple' | 'advanced';
 	private lines!: ISplitLine[];
 
 	private prefixSumComputer!: LineNumberMapper;
@@ -290,7 +290,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		fontInfo: FontInfo,
 		tabSize: number,
-		wrappingAlgorithm: 'monospace' | 'dom',
+		wrappingStrategy: 'simple' | 'advanced',
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
 	) {
@@ -300,7 +300,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
-		this.wrappingAlgorithm = wrappingAlgorithm;
+		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 
@@ -484,19 +484,19 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return true;
 	}
 
-	public setWrappingSettings(fontInfo: FontInfo, wrappingAlgorithm: 'monospace' | 'dom', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean {
 		const equalFontInfo = this.fontInfo.equals(fontInfo);
-		const equalWrappingAlgorithm = (this.wrappingAlgorithm === wrappingAlgorithm);
+		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
-		if (equalFontInfo && equalWrappingAlgorithm && equalWrappingColumn && equalWrappingIndent) {
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingAlgorithm && !equalWrappingColumn && equalWrappingIndent);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent);
 
 		this.fontInfo = fontInfo;
-		this.wrappingAlgorithm = wrappingAlgorithm;
+		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 
@@ -515,7 +515,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const lineBreaksComputerFactory = (
-			this.wrappingAlgorithm === 'dom'
+			this.wrappingStrategy === 'advanced'
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
@@ -1460,7 +1460,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return false;
 	}
 
-	public setWrappingSettings(_fontInfo: FontInfo, _wrappingAlgorithm: 'monospace' | 'dom', _wrappingColumn: number, _wrappingIndent: WrappingIndent): boolean {
+	public setWrappingSettings(_fontInfo: FontInfo, _wrappingStrategy: 'simple' | 'advanced', _wrappingColumn: number, _wrappingIndent: WrappingIndent): boolean {
 		return false;
 	}
 

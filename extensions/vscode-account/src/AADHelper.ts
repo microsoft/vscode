@@ -347,7 +347,7 @@ export class AzureActiveDirectoryService {
 			} finally {
 				onDidChangeSessions.fire();
 			}
-		}, 1000 * (parseInt(token.expiresIn) - 10)));
+		}, 1000 * (parseInt(token.expiresIn) - 30)));
 
 		this.storeTokenData();
 	}

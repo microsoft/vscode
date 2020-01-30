@@ -562,6 +562,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const node = this.getDataNode(element);
 
+		if (this.tree.hasElement(node) && !this.tree.isCollapsible(node)) {
+			return false;
+		}
+
 		if (node.refreshPromise) {
 			await this.root.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);

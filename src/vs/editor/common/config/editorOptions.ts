@@ -267,10 +267,10 @@ export interface IEditorOptions {
 	 */
 	wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 	/**
-	 * Controls the wrapping algorithm to use.
-	 * Defaults to 'monospace'.
+	 * Controls the wrapping strategy to use.
+	 * Defaults to 'simple'.
 	 */
-	wrappingAlgorithm?: 'monospace' | 'dom';
+	wrappingStrategy?: 'simple' | 'advanced';
 	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
 	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
@@ -3230,7 +3230,7 @@ export const enum EditorOption {
 	wordWrapColumn,
 	wordWrapMinified,
 	wrappingIndent,
-	wrappingAlgorithm,
+	wrappingStrategy,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -3822,16 +3822,16 @@ export const EditorOptions = {
 			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
 		}
 	)),
-	wrappingAlgorithm: register(new EditorStringEnumOption(
-		EditorOption.wrappingAlgorithm, 'wrappingAlgorithm',
-		'monospace' as 'monospace' | 'dom',
-		['monospace', 'dom'] as const,
+	wrappingStrategy: register(new EditorStringEnumOption(
+		EditorOption.wrappingStrategy, 'wrappingStrategy',
+		'simple' as 'simple' | 'advanced',
+		['simple', 'advanced'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('wrappingAlgorithm.monospace', "Assumes that all characters are of the same width. This is a fast algorithm."),
-				nls.localize('wrappingAlgorithm.dom', "Delegates wrapping points computation to the DOM. This is a slow algorithm, that might cause freezes for large files.")
+				nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
+				nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
 			],
-			description: nls.localize('wrappingAlgorithm', "Controls the algorithm that computes wrapping points.")
+			description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points.")
 		}
 	)),
 

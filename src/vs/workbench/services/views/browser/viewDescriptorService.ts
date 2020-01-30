@@ -14,6 +14,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex } from 'vs/base/common/arrays';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { VIEW_ID as SEARCH_VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 class CounterSet<T> implements IReadableSet<T> {
 
@@ -216,7 +218,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -248,23 +251,60 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._register(this.storageService.onDidChangeStorage((e) => { this.onDidStorageChange(e); }));
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
+
+		this._register(this.configurationService.onDidChangeConfiguration((changeEvent) => {
+			if (changeEvent.affectedKeys.find(key => key === 'workbench.view.experimental.allowMovingToNewContainer')) {
+				if (this.viewsCanMoveSettingValue) {
+					return;
+				}
+
+				// update all moved views to their default locations
+				for (const viewId of this.cachedViewInfo.keys()) {
+					if (viewId === SEARCH_VIEW_ID) {
+						continue;
+					}
+
+					const viewDescriptor = this.getViewDescriptor(viewId);
+					const viewLocation = this.getViewContainer(viewId);
+					const defaultLocation = this.getDefaultContainer(viewId);
+
+					if (viewDescriptor && viewLocation && defaultLocation && defaultLocation !== viewLocation) {
+						this.moveViews([viewDescriptor], viewLocation, defaultLocation);
+					}
+				}
+			}
+		}));
 	}
 
-	private registerGroupedViews(groupedViews: Map<string, IViewDescriptor[]>): void {
+	private get viewsCanMoveSettingValue(): boolean {
+		return !!this.configurationService.getValue<boolean>('workbench.view.experimental.allowMovingToNewContainer');
+	}
+
+	private registerGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
 		// Register views that have already been registered to their correct view containers
-		for (const viewContainerId of groupedViews.keys()) {
-			const viewContainer = this.viewContainersRegistry.get(viewContainerId);
+		for (const containerId of groupedViews.keys()) {
+			const viewContainer = this.viewContainersRegistry.get(containerId);
+			const containerData = groupedViews.get(containerId)!;
 
 			// The container has not been registered yet
 			if (!viewContainer || !this.viewDescriptorCollections.has(viewContainer)) {
+				if (containerData.cachedContainerInfo && this.shouldGenerateContainer(containerData.cachedContainerInfo)) {
+					const containerInfo = containerData.cachedContainerInfo;
+
+					const sourceViewDescriptor = this.viewsRegistry.getView(containerInfo.sourceViewId!);
+					if (sourceViewDescriptor && !this.viewContainersRegistry.get(containerId)) {
+						this.registerViewContainerForSingleView(sourceViewDescriptor, containerInfo.location!);
+					}
+				}
+
 				continue;
 			}
 
-			this.addViews(viewContainer, groupedViews.get(viewContainerId)!);
+			this.addViews(viewContainer, containerData.views);
 		}
 	}
 
-	private deregisterGroupedViews(groupedViews: Map<string, IViewDescriptor[]>): void {
+	private deregisterGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
 		// Register views that have already been registered to their correct view containers
 		for (const viewContainerId of groupedViews.keys()) {
 			const viewContainer = this.viewContainersRegistry.get(viewContainerId);
@@ -274,24 +314,25 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				continue;
 			}
 
-			this.removeViews(viewContainer, groupedViews.get(viewContainerId)!);
+			this.removeViews(viewContainer, groupedViews.get(viewContainerId)!.views);
 		}
 	}
 
 	private onDidRegisterExtensions(): void {
 		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
 			const containerId = containerInfo.containerId;
+
 			// check if cached view container is registered
 			if (this.viewContainersRegistry.get(containerId)) {
 				continue;
 			}
 
 			// check if we should generate this container
-			if (containerInfo.sourceViewId && containerInfo.location !== undefined) {
-				const sourceView = this.getViewDescriptor(containerInfo.sourceViewId);
+			if (this.shouldGenerateContainer(containerInfo)) {
+				const sourceView = this.getViewDescriptor(containerInfo.sourceViewId!);
 
 				if (sourceView) {
-					this.registerViewContainerForSingleView(sourceView, containerInfo.location);
+					this.registerViewContainerForSingleView(sourceView, containerInfo.location!);
 					continue;
 				}
 			}
@@ -302,7 +343,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			if (viewContainer && viewDescriptor) {
 				this.addViews(viewContainer, [viewDescriptor]);
 
-				const newLocation = this.viewContainersRegistry.getViewContainerLocation(viewContainer)!;
+				const newLocation = this.getViewContainerLocation(viewContainer);
 				if (containerInfo.location && containerInfo.location !== newLocation) {
 					this._onDidChangeLocation.fire({ views: [viewDescriptor], from: containerInfo.location, to: newLocation });
 				}
@@ -318,9 +359,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		// Once they are grouped, try registering them which occurs
 		// if the container has already been registered within this service
+		// or we can generate the container from the source view id
 		this.registerGroupedViews(regroupedViews);
 
 		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+	}
+
+	private shouldGenerateContainer(containerInfo: ICachedViewContainerInfo): boolean {
+		return !!containerInfo.sourceViewId && containerInfo.location !== undefined && (this.viewsCanMoveSettingValue || containerInfo.sourceViewId === SEARCH_VIEW_ID);
 	}
 
 	private onDidDeregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
@@ -330,15 +376,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
 	}
 
-	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, IViewDescriptor[]> {
-		const ret = new Map<string, IViewDescriptor[]>();
+	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }> {
+		const ret = new Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>();
 
 		views.forEach(viewDescriptor => {
-			const correctContainerId = this.cachedViewInfo.get(viewDescriptor.id)?.containerId || containerId;
+			const containerInfo = this.cachedViewInfo.get(viewDescriptor.id);
+			const correctContainerId = containerInfo?.containerId || containerId;
 
-			const containerViews = ret.get(correctContainerId) || [];
-			containerViews.push(viewDescriptor);
-			ret.set(correctContainerId, containerViews);
+			const containerData = ret.get(correctContainerId) || { cachedContainerInfo: containerInfo, views: [] };
+			containerData.views.push(viewDescriptor);
+			ret.set(correctContainerId, containerData);
 		});
 
 		return ret;
@@ -363,7 +410,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			return null;
 		}
 
-		return this.viewContainersRegistry.getViewContainerLocation(container) ?? null;
+		return this.getViewContainerLocation(container);
 	}
 
 	getViewContainer(viewId: string): ViewContainer | null {
@@ -372,6 +419,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return containerId ?
 			this.viewContainersRegistry.get(containerId) ?? null :
 			this.viewsRegistry.getViewContainer(viewId);
+	}
+
+	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
+		return this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 	}
 
 	getDefaultContainer(viewId: string): ViewContainer | null {
@@ -384,12 +435,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
 		const previousContainer = this.getViewContainer(view.id);
-		if (previousContainer && this.viewContainersRegistry.getViewContainerLocation(previousContainer) === location) {
+		if (previousContainer && this.getViewContainerLocation(previousContainer) === location) {
 			return;
 		}
 
 		let container = this.getDefaultContainer(view.id)!;
-		if (this.viewContainersRegistry.getViewContainerLocation(container) !== location) {
+		if (this.getViewContainerLocation(container) !== location) {
 			container = this.registerViewContainerForSingleView(view, location);
 		}
 
@@ -409,19 +460,22 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer): void {
+	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer, skipCacheUpdate?: boolean): void {
 		this.removeViews(from, views);
 		this.addViews(to, views);
 
-		const oldLocation = this.viewContainersRegistry.getViewContainerLocation(from)!;
-		const newLocation = this.viewContainersRegistry.getViewContainerLocation(to)!;
+		const oldLocation = this.getViewContainerLocation(from);
+		const newLocation = this.getViewContainerLocation(to);
 
 		if (oldLocation !== newLocation) {
 			this._onDidChangeLocation.fire({ views, from: oldLocation, to: newLocation });
 		}
 
 		this._onDidChangeContainer.fire({ views, from, to });
-		this.saveViewPositionsToCache();
+
+		if (!skipCacheUpdate) {
+			this.saveViewPositionsToCache();
+		}
 	}
 
 	private registerViewContainerForSingleView(sourceView: IViewDescriptor, location: ViewContainerLocation): ViewContainer {
@@ -457,15 +511,28 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const newCachedPositions = this.getCachedViewPositions();
 
 			for (let viewId of newCachedPositions.keys()) {
+				const viewDescriptor = this.getViewDescriptor(viewId);
+				if (!viewDescriptor) {
+					continue;
+				}
+
 				const prevViewContainer = this.getViewContainer(viewId);
-				const newViewContainer = this.viewContainersRegistry.get(newCachedPositions.get(viewId)!.containerId);
+				const newViewContainerInfo = newCachedPositions.get(viewId)!;
+				// Verify if we need to create the destination container
+				if (newViewContainerInfo.sourceViewId) {
+					const sourceViewDescriptor = this.getViewDescriptor(newViewContainerInfo.sourceViewId);
+
+					if (!this.viewContainersRegistry.get(newViewContainerInfo.containerId) && sourceViewDescriptor) {
+						this.registerViewContainerForSingleView(sourceViewDescriptor, newViewContainerInfo.location!);
+					}
+				}
+
+				// Try moving to the new container
+				const newViewContainer = this.viewContainersRegistry.get(newViewContainerInfo.containerId);
 				if (prevViewContainer && newViewContainer && newViewContainer !== prevViewContainer) {
 					const viewDescriptor = this.getViewDescriptor(viewId);
 					if (viewDescriptor) {
-						// We don't call move views to avoid sending intermediate
-						// cached data to the window that gave us this information
-						this.removeViews(prevViewContainer, [viewDescriptor]);
-						this.addViews(newViewContainer, [viewDescriptor]);
+						this.moveViews([viewDescriptor], prevViewContainer, newViewContainer);
 					}
 				}
 			}
@@ -495,7 +562,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const viewDescriptorCollection = this.getViewDescriptors(viewContainer);
 			viewDescriptorCollection.allViewDescriptors.forEach(viewDescriptor => {
 				const sourceViewId = this.generatedContainerSourceViewIds.get(viewContainer.id);
-				const containerLocation = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+				const containerLocation = this.getViewContainerLocation(viewContainer);
 				this.cachedViewInfo.set(viewDescriptor.id, {
 					containerId: viewContainer.id,
 					location: containerLocation,
@@ -572,7 +639,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[]): void {
 		// Update in memory cache
-		const location = this.viewContainersRegistry.getViewContainerLocation(container);
+		const location = this.getViewContainerLocation(container);
 		const sourceViewId = this.generatedContainerSourceViewIds.get(container.id);
 		views.forEach(view => {
 			this.cachedViewInfo.set(view.id, { containerId: container.id, location, sourceViewId });

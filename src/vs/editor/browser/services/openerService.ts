@@ -14,7 +14,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { deepFreeze } from 'vs/base/common/objects';
 
 
 class CommandOpener implements IOpener {
@@ -164,7 +163,6 @@ export class OpenerService implements IOpenerService {
 	}
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
-		deepFreeze(resource);
 		for (const resolver of this._resolvers.toArray()) {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
