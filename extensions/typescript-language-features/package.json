@@ -19,7 +19,7 @@
     "jsonc-parser": "^2.1.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.6.1",
+    "typescript-vscode-sh-plugin": "^0.6.4",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
@@ -27,7 +27,7 @@
     "@types/node": "^12.11.7",
     "@types/rimraf": "2.0.2",
     "@types/semver": "^5.5.0",
-    "vscode": "^1.1.10"
+    "vscode": "^1.1.36"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
@@ -957,7 +957,8 @@
     ],
     "typescriptServerPlugins": [
       {
-        "name": "typescript-vscode-sh-plugin"
+        "name": "typescript-vscode-sh-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   }

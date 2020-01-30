@@ -443,31 +443,21 @@ class ExtHostQuickInput implements QuickInput {
 	}
 }
 
-function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | undefined {
-	const dark = getDarkIconUri(iconPath);
-	const light = getLightIconUri(iconPath);
-	if (!light && !dark) {
-		return undefined;
+function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | { id: string } {
+	if (iconPath instanceof ThemeIcon) {
+		return { id: iconPath.id };
 	}
-	return { dark: (dark || light)!, light };
+	const dark = getDarkIconUri(iconPath as any);
+	const light = getLightIconUri(iconPath as any);
+	return { dark, light };
 }
 
-function getLightIconUri(iconPath: QuickInputButton['iconPath']) {
-	if (iconPath && !(iconPath instanceof ThemeIcon)) {
-		if (typeof iconPath === 'string'
-			|| URI.isUri(iconPath)) {
-			return getIconUri(iconPath);
-		}
-		return getIconUri((iconPath as any).light);
-	}
-	return undefined;
+function getLightIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
+	return getIconUri(typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath);
 }
 
-function getDarkIconUri(iconPath: QuickInputButton['iconPath']) {
-	if (iconPath && !(iconPath instanceof ThemeIcon) && (iconPath as any).dark) {
-		return getIconUri((iconPath as any).dark);
-	}
-	return undefined;
+function getDarkIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
+	return getIconUri(typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath);
 }
 
 function getIconUri(iconPath: string | URI) {

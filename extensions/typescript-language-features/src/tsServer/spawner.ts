@@ -7,7 +7,7 @@ import * as child_process from 'child_process';
 import * as path from 'path';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import API from '../utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';

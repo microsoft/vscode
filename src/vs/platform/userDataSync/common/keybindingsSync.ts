@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { joinPath, dirname } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { AbstractFileSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 
 interface ISyncContent {
 	mac?: string;
@@ -30,48 +28,28 @@ interface ISyncContent {
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
-	readonly remoteUserData: IUserData | null;
+	readonly remoteUserData: IUserData;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 	readonly hasConflicts: boolean;
 }
 
-export class KeybindingsSynchroniser extends Disposable implements ISynchroniser {
-
-	private static EXTERNAL_USER_DATA_KEYBINDINGS_KEY: string = 'keybindings';
+export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements IUserDataSynchroniser {
 
 	private syncPreviewResultPromise: CancelablePromise<ISyncPreviewResult> | null = null;
 
-	private _status: SyncStatus = SyncStatus.Idle;
-	get status(): SyncStatus { return this._status; }
-	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
-	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
-
-	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
-
-	private readonly lastSyncKeybindingsResource: URI;
-
 	constructor(
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
-		super();
-		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
-		this._register(this.fileService.watch(dirname(this.environmentService.keybindingsResource)));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this._onDidChangeLocal.fire()));
+		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService);
 	}
 
-	private setStatus(status: SyncStatus): void {
-		if (this._status !== status) {
-			this._status = status;
-			this._onDidChangStatus.fire(status);
-		}
-	}
+	protected getRemoteDataResourceKey(): string { return 'keybindings'; }
 
 	async pull(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableKeybindings')) {
@@ -128,15 +106,16 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			const fileContent = await this.getLocalFileContent();
 
 			if (fileContent !== null) {
+				const remoteUserData = await this.getRemoteUserData();
 				await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, fileContent.value);
 				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISyncPreviewResult>({
 					fileContent,
 					hasConflicts: false,
 					hasLocalChanged: false,
 					hasRemoteChanged: true,
-					remoteUserData: null
+					remoteUserData
 				}));
-				await this.apply();
+				await this.apply(undefined, true);
 			}
 
 			// No local exists to push
@@ -151,48 +130,110 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 
 	}
 
-	async sync(_continue?: boolean): Promise<boolean> {
+	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableKeybindings')) {
 			this.logService.trace('Keybindings: Skipping synchronizing keybindings as it is disabled.');
-			return false;
-		}
-
-		if (_continue) {
-			this.logService.info('Keybindings: Resumed synchronizing keybindings');
-			return this.continueSync();
+			return;
 		}
 
 		if (this.status !== SyncStatus.Idle) {
 			this.logService.trace('Keybindings: Skipping synchronizing keybindings as it is running already.');
-			return false;
+			return;
 		}
 
 		this.logService.trace('Keybindings: Started synchronizing keybindings...');
 		this.setStatus(SyncStatus.Syncing);
 
+		return this.doSync();
+	}
+
+	async stop(): Promise<void> {
+		if (this.syncPreviewResultPromise) {
+			this.syncPreviewResultPromise.cancel();
+			this.syncPreviewResultPromise = null;
+			this.logService.trace('Keybindings: Stopped synchronizing keybindings.');
+		}
+		await this.fileService.del(this.environmentService.keybindingsSyncPreviewResource);
+		this.setStatus(SyncStatus.Idle);
+	}
+
+	async restart(): Promise<void> {
+		if (this.status === SyncStatus.HasConflicts) {
+			this.syncPreviewResultPromise!.cancel();
+			this.syncPreviewResultPromise = null;
+			await this.doSync();
+		}
+	}
+
+	async resolveConflicts(content: string): Promise<void> {
+		if (this.status === SyncStatus.HasConflicts) {
+			try {
+				await this.apply(content, true);
+				this.setStatus(SyncStatus.Idle);
+			} catch (e) {
+				this.logService.error(e);
+				if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
+					(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
+					throw new Error('Failed to resolve conflicts as there is a new local version available.');
+				}
+				throw e;
+			}
+		}
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const localFileContent = await this.getLocalFileContent();
+			if (localFileContent) {
+				const keybindings = parse(localFileContent.value.toString());
+				if (isNonEmptyArray(keybindings)) {
+					return true;
+				}
+			}
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		let content: string | null | undefined = null;
+		if (this.syncPreviewResultPromise) {
+			const preview = await this.syncPreviewResultPromise;
+			content = preview.remoteUserData?.content;
+		} else {
+			const remoteUserData = await this.getRemoteUserData();
+			content = remoteUserData.content;
+		}
+		return content ? this.getKeybindingsContentFromSyncContent(content) : null;
+	}
+
+	private async doSync(): Promise<void> {
 		try {
 			const result = await this.getPreview();
 			if (result.hasConflicts) {
 				this.logService.info('Keybindings: Detected conflicts while synchronizing keybindings.');
 				this.setStatus(SyncStatus.HasConflicts);
-				return false;
+				return;
 			}
 			try {
 				await this.apply();
 				this.logService.trace('Keybindings: Finished synchronizing keybindings...');
-				return true;
 			} finally {
 				this.setStatus(SyncStatus.Idle);
 			}
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('Keybindings: Failed to synchronise keybindings as there is a new remote version available. Synchronizing again...');
 				return this.sync();
 			}
-			if (e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) {
+			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
+				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
 				// Rejected as there is a new local version. Syncing again.
 				this.logService.info('Keybindings: Failed to synchronise keybindings as there is a new local version available. Synchronizing again...');
 				return this.sync();
@@ -201,49 +242,19 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		}
 	}
 
-	stop(): void {
-		if (this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise.cancel();
-			this.syncPreviewResultPromise = null;
-			this.logService.info('Keybindings: Stopped synchronizing keybindings.');
-		}
-		this.fileService.del(this.environmentService.keybindingsSyncPreviewResource);
-		this.setStatus(SyncStatus.Idle);
-	}
-
-	async hasPreviouslySynced(): Promise<boolean> {
-		const lastSyncData = await this.getLastSyncUserData();
-		return !!lastSyncData;
-	}
-
-	async hasRemote(): Promise<boolean> {
-		const remoteUserData = await this.getRemoteUserData();
-		return remoteUserData.content !== null;
-	}
-
-	async resetLocal(): Promise<void> {
-		try {
-			await this.fileService.del(this.lastSyncKeybindingsResource);
-		} catch (e) { /* ignore */ }
-	}
-
-	private async continueSync(): Promise<boolean> {
-		if (this.status !== SyncStatus.HasConflicts) {
-			return false;
-		}
-		await this.apply();
-		this.setStatus(SyncStatus.Idle);
-		return true;
-	}
-
-	private async apply(): Promise<void> {
+	private async apply(content?: string, forcePush?: boolean): Promise<void> {
 		if (!this.syncPreviewResultPromise) {
 			return;
 		}
 
-		if (await this.fileService.exists(this.environmentService.keybindingsSyncPreviewResource)) {
-			const keybindingsPreivew = await this.fileService.readFile(this.environmentService.keybindingsSyncPreviewResource);
-			const content = keybindingsPreivew.value.toString();
+		if (content === undefined) {
+			if (await this.fileService.exists(this.environmentService.keybindingsSyncPreviewResource)) {
+				const keybindingsPreivew = await this.fileService.readFile(this.environmentService.keybindingsSyncPreviewResource);
+				content = keybindingsPreivew.value.toString();
+			}
+		}
+
+		if (content !== undefined) {
 			if (this.hasErrors(content)) {
 				const error = new Error(localize('errorInvalidKeybindings', "Unable to sync keybindings. Please resolve conflicts without any errors/warnings and try again."));
 				this.logService.error(error);
@@ -256,13 +267,12 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			}
 			if (hasLocalChanged) {
 				this.logService.info('Keybindings: Updating local keybindings');
-				await this.updateLocalContent(content, fileContent);
+				await this.updateLocalFileContent(content, fileContent);
 			}
 			if (hasRemoteChanged) {
 				this.logService.info('Keybindings: Updating remote keybindings');
-				let remoteContents = remoteUserData ? remoteUserData.content : (await this.getRemoteUserData()).content;
-				remoteContents = this.updateSyncContent(content, remoteContents);
-				const ref = await this.updateRemoteUserData(remoteContents, remoteUserData ? remoteUserData.ref : null);
+				const remoteContents = this.updateSyncContent(content, remoteUserData.content);
+				const ref = await this.updateRemoteUserData(remoteContents, forcePush ? null : remoteUserData.ref);
 				remoteUserData = { ref, content: remoteContents };
 			}
 			if (remoteUserData?.content) {
@@ -331,7 +341,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 
 		// First time syncing to remote
 		else if (fileContent) {
-			this.logService.info('Keybindings: Remote keybindings does not exist. Synchronizing keybindings for the first time.');
+			this.logService.trace('Keybindings: Remote keybindings does not exist. Synchronizing keybindings for the first time.');
 			hasRemoteChanged = true;
 			previewContent = fileContent.value.toString();
 		}
@@ -349,45 +359,6 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.keybindingsResource);
 		}
 		return this._formattingOptions;
-	}
-
-	private async getLocalFileContent(): Promise<IFileContent | null> {
-		try {
-			return await this.fileService.readFile(this.environmentService.keybindingsResource);
-		} catch (error) {
-			return null;
-		}
-	}
-
-	private async updateLocalContent(newContent: string, oldContent: IFileContent | null): Promise<void> {
-		if (oldContent) {
-			// file exists already
-			await this.fileService.writeFile(this.environmentService.keybindingsResource, VSBuffer.fromString(newContent), oldContent);
-		} else {
-			// file does not exist
-			await this.fileService.createFile(this.environmentService.keybindingsResource, VSBuffer.fromString(newContent), { overwrite: false });
-		}
-	}
-
-	private async getLastSyncUserData(): Promise<IUserData | null> {
-		try {
-			const content = await this.fileService.readFile(this.lastSyncKeybindingsResource);
-			return JSON.parse(content.value.toString());
-		} catch (error) {
-			return null;
-		}
-	}
-
-	private async updateLastSyncUserData(remoteUserData: IUserData): Promise<void> {
-		await this.fileService.writeFile(this.lastSyncKeybindingsResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
-	}
-
-	private async getRemoteUserData(lastSyncData?: IUserData | null): Promise<IUserData> {
-		return this.userDataSyncStoreService.read(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, lastSyncData || null);
-	}
-
-	private async updateRemoteUserData(content: string, ref: string | null): Promise<string> {
-		return this.userDataSyncStoreService.write(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, content, ref);
 	}
 
 	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {

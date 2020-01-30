@@ -8,14 +8,16 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 import API from '../utils/api';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as path from 'path';
 import * as PConst from '../protocol.const';
 
 class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	public static readonly minVersion = API.v380;
+
 	public constructor(
-		private readonly client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
 	public async prepareCallHierarchy(
 		document: vscode.TextDocument,

@@ -358,7 +358,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 
 		// Check that the resource of the model was not saved already
 		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
-			const model = textFileService.models.get(resource);
+			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
 				await textFileService.save(resource, options);
 			}

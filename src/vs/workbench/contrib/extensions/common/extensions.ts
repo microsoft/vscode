@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
+import { IViewPaneContainer } from 'vs/workbench/common/views';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 

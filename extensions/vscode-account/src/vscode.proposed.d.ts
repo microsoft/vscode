@@ -20,6 +20,7 @@ declare module 'vscode' {
 		id: string;
 		accessToken: string;
 		displayName: string;
+		scopes: string[]
 	}
 
 	export interface AuthenticationProvider {
@@ -35,7 +36,7 @@ declare module 'vscode' {
 		/**
 		 * Prompts a user to login.
 		 */
-		login(): Promise<Session>;
+		login(scopes: string[]): Promise<Session>;
 		logout(sessionId: string): Promise<void>;
 	}
 
@@ -48,13 +49,7 @@ declare module 'vscode' {
 		export const onDidRegisterAuthenticationProvider: Event<string>;
 		export const onDidUnregisterAuthenticationProvider: Event<string>;
 
-		/**
-		 * Fires with the provider id that changed sessions.
-		 */
-		export const onDidChangeSessions: Event<string>;
-		export function login(providerId: string): Promise<Session>;
-		export function logout(providerId: string, accountId: string): Promise<void>;
-		export function getSessions(providerId: string): Promise<ReadonlyArray<Session> | undefined>;
+		export const providers: ReadonlyArray<AuthenticationProvider>;
 	}
 
 	// #region Ben - extension auth flow (desktop+web)

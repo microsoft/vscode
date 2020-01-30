@@ -16,10 +16,10 @@ import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePortFaster } from 'vs/base/node/ports';
 import { AbstractTunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 
-export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
+async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	const tunnel = new NodeRemoteTunnel(options, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
 	return tunnel.waitForReady();
 }
@@ -37,6 +37,9 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	private readonly _listeningListener: () => void;
 	private readonly _connectionListener: (socket: net.Socket) => void;
+	private readonly _errorListener: () => void;
+
+	private readonly _socketsDispose: Map<string, () => void> = new Map();
 
 	constructor(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, private readonly suggestedLocalPort?: number) {
 		super();
@@ -50,6 +53,10 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this._connectionListener = (socket) => this._onConnection(socket);
 		this._server.on('connection', this._connectionListener);
 
+		// If there is no error listener and there is an error it will crash the whole window
+		this._errorListener = () => { };
+		this._server.on('error', this._errorListener);
+
 		this.tunnelRemotePort = tunnelRemotePort;
 		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
@@ -58,16 +65,28 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		super.dispose();
 		this._server.removeListener('listening', this._listeningListener);
 		this._server.removeListener('connection', this._connectionListener);
+		this._server.removeListener('error', this._errorListener);
 		this._server.close();
+		const disposers = Array.from(this._socketsDispose.values());
+		disposers.forEach(disposer => {
+			disposer();
+		});
 	}
 
 	public async waitForReady(): Promise<this> {
-
 		// try to get the same port number as the remote port number...
-		const localPort = await findFreePort(this.suggestedLocalPort ?? this.tunnelRemotePort, 1, 1000);
+		let localPort = await findFreePortFaster(this.suggestedLocalPort ?? this.tunnelRemotePort, 2, 1000);
 
 		// if that fails, the method above returns 0, which works out fine below...
-		const address = (<net.AddressInfo>this._server.listen(localPort).address());
+		let address: string | net.AddressInfo | null = null;
+		address = (<net.AddressInfo>this._server.listen(localPort).address());
+
+		// It is possible for findFreePortFaster to return a port that there is already a server listening on. This causes the previous listen call to error out.
+		if (!address) {
+			localPort = 0;
+			address = (<net.AddressInfo>this._server.listen(localPort).address());
+		}
+
 		this.tunnelLocalPort = address.port;
 
 		await this._barrier.wait();
@@ -88,13 +107,22 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			localSocket.write(dataChunk.buffer);
 		}
 
-		localSocket.on('end', () => remoteSocket.end());
+		localSocket.on('end', () => {
+			this._socketsDispose.delete(localSocket.localAddress);
+			remoteSocket.end();
+		});
+
 		localSocket.on('close', () => remoteSocket.end());
 		remoteSocket.on('end', () => localSocket.end());
 		remoteSocket.on('close', () => localSocket.end());
 
 		localSocket.pipe(remoteSocket);
 		remoteSocket.pipe(localSocket);
+		this._socketsDispose.set(localSocket.localAddress, () => {
+			// Need to end instead of unpipe, otherwise whatever is connected locally could end up "stuck" with whatever state it had until manually exited.
+			localSocket.end();
+			remoteSocket.end();
+		});
 	}
 }
 

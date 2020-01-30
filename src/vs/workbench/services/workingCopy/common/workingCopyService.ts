@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, values } from 'vs/base/common/map';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 export const enum WorkingCopyCapabilities {
 
@@ -21,17 +22,46 @@ export const enum WorkingCopyCapabilities {
 	Untitled = 1 << 1
 }
 
+/**
+ * Data to be associated with working copy backups. Use
+ * `IBackupFileService.resolve(workingCopy.resource)` to
+ * retrieve the backup when loading the working copy.
+ */
+export interface IWorkingCopyBackup {
+
+	/**
+	 * Any serializable metadata to be associated with the backup.
+	 */
+	meta?: object;
+
+	/**
+	 * Use this for larger textual content of the backup.
+	 */
+	content?: ITextSnapshot;
+}
+
 export interface IWorkingCopy {
 
 	readonly resource: URI;
+
+	readonly name: string;
 
 	readonly capabilities: WorkingCopyCapabilities;
 
 
 	//#region Events
 
+	/**
+	 * Used by the workbench to signal if the working copy
+	 * is dirty or not. Typically a working copy is dirty
+	 * once changed until saved or reverted.
+	 */
 	readonly onDidChangeDirty: Event<void>;
 
+	/**
+	 * Used by the workbench e.g. to trigger auto-save
+	 * (unless this working copy is untitled) and backups.
+	 */
 	readonly onDidChangeContent: Event<void>;
 
 	//#endregion
@@ -46,13 +76,22 @@ export interface IWorkingCopy {
 
 	//#region Save / Backup
 
+	/**
+	 * The workbench may call this method often after it receives
+	 * the `onDidChangeContent` event for the working copy. The motivation
+	 * is to allow to quit VSCode with dirty working copies present.
+	 *
+	 * Providers of working copies should use `IBackupFileService.resolve(workingCopy.resource)`
+	 * to retrieve the backup metadata associated when loading the working copy.
+	 *
+	 * Not providing this method from the working copy will disable any
+	 * backups and hot-exit functionality for those working copies.
+	 */
+	backup?(): Promise<IWorkingCopyBackup>;
+
 	save(options?: ISaveOptions): Promise<boolean>;
 
 	revert(options?: IRevertOptions): Promise<boolean>;
-
-	hasBackup(): boolean;
-
-	backup(): Promise<void>;
 
 	//#endregion
 }
@@ -124,7 +163,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	//#region Registry
 
-	private mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
+	private readonly mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
 
 	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
 	private _workingCopies = new Set<IWorkingCopy>();

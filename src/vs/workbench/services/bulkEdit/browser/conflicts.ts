@@ -5,7 +5,7 @@
 
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -49,7 +49,7 @@ export class ConflictDetector {
 		const _workspaceEditResources = new ResourceMap<boolean>();
 
 		for (let edit of workspaceEdit.edits) {
-			if (isResourceTextEdit(edit)) {
+			if (WorkspaceTextEdit.is(edit)) {
 
 				_workspaceEditResources.set(edit.resource, true);
 
@@ -73,6 +73,12 @@ export class ConflictDetector {
 		this._disposables.add(fileService.onFileChanges(e => {
 			for (let change of e.changes) {
 
+				if (modelService.getModel(change.resource)) {
+					// ignore changes for which a model exists
+					// because we have a better check for models
+					continue;
+				}
+
 				// change
 				this._changes.set(change.resource, true);
 
@@ -83,7 +89,6 @@ export class ConflictDetector {
 				}
 			}
 		}));
-
 
 		// listen to model changes...?
 		const onDidChangeModel = (model: ITextModel) => {

@@ -100,6 +100,10 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 		}
 
+		if (this._verboseLogging) {
+			this.log(`Start watching with nsfw: ${request.path}`);
+		}
+
 		nsfw(request.path, events => {
 			for (const e of events) {
 				// Logging

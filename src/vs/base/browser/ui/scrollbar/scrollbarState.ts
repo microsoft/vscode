@@ -62,14 +62,14 @@ export class ScrollbarState {
 	private _computedSliderRatio: number;
 	private _computedSliderPosition: number;
 
-	constructor(arrowSize: number, scrollbarSize: number, oppositeScrollbarSize: number) {
+	constructor(arrowSize: number, scrollbarSize: number, oppositeScrollbarSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
 		this._scrollbarSize = Math.round(scrollbarSize);
 		this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
 		this._arrowSize = Math.round(arrowSize);
 
-		this._visibleSize = 0;
-		this._scrollSize = 0;
-		this._scrollPosition = 0;
+		this._visibleSize = visibleSize;
+		this._scrollSize = scrollSize;
+		this._scrollPosition = scrollPosition;
 
 		this._computedAvailableSize = 0;
 		this._computedIsNeeded = false;
@@ -81,11 +81,7 @@ export class ScrollbarState {
 	}
 
 	public clone(): ScrollbarState {
-		let r = new ScrollbarState(this._arrowSize, this._scrollbarSize, this._oppositeScrollbarSize);
-		r.setVisibleSize(this._visibleSize);
-		r.setScrollSize(this._scrollSize);
-		r.setScrollPosition(this._scrollPosition);
-		return r;
+		return new ScrollbarState(this._arrowSize, this._scrollbarSize, this._oppositeScrollbarSize, this._visibleSize, this._scrollSize, this._scrollPosition);
 	}
 
 	public setVisibleSize(visibleSize: number): boolean {

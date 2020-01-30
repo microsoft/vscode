@@ -55,7 +55,7 @@ suite('Workbench editor', () => {
 
 		assert.ok(!toResource(null!));
 
-		const untitled = service.createOrGet();
+		const untitled = service.create();
 
 		assert.equal(toResource(untitled)!.toString(), untitled.getResource().toString());
 		assert.equal(toResource(untitled, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), untitled.getResource().toString());

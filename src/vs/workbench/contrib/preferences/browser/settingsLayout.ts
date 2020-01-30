@@ -174,6 +174,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/remote',
 					label: localize('remote', "Remote"),
 					settings: ['remote.*']
+				},
+				{
+					id: 'features/timeline',
+					label: localize('timeline', "Timeline"),
+					settings: ['timeline.*']
 				}
 			]
 		},

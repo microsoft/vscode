@@ -1,6 +1,7 @@
 {
 	"displayName": "Git",
 	"description": "Git SCM Integration",
+	"command.setLogLevel": "Set Log Level...",
 	"command.clone": "Clone",
 	"command.init": "Initialize Repository",
 	"command.openRepository": "Open Repository",

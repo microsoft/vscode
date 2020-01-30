@@ -199,6 +199,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 	}
 
+	has(location: number[]): boolean {
+		return this.hasTreeNode(location);
+	}
+
 	getListIndex(location: number[]): number {
 		const { listIndex, visible, revealed } = this.getTreeNodeWithListIndex(location);
 		return visible && revealed ? listIndex : -1;
@@ -229,6 +233,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
 		const node = this.getTreeNode(location);
+
+		if (!node.collapsible) {
+			return false;
+		}
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
@@ -514,6 +522,21 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			node.filterData = undefined;
 			return getVisibleState(result);
 		}
+	}
+
+	// cheap
+	private hasTreeNode(location: number[], node: IIndexTreeNode<T, TFilterData> = this.root): boolean {
+		if (!location || location.length === 0) {
+			return true;
+		}
+
+		const [index, ...rest] = location;
+
+		if (index < 0 || index > node.children.length) {
+			return false;
+		}
+
+		return this.hasTreeNode(rest, node.children[index]);
 	}
 
 	// cheap

@@ -73,6 +73,7 @@ export class EditorBreadcrumbsModel {
 		this._cfgSymbolPath.dispose();
 		this._outlineDisposables.dispose();
 		this._disposables.dispose();
+		this._onDidUpdate.dispose();
 	}
 
 	isRelative(): boolean {

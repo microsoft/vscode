@@ -18,7 +18,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
 
 export class CodeLensContribution implements IEditorContribution {
@@ -65,7 +65,11 @@ export class CodeLensContribution implements IEditorContribution {
 		this._onModelChange();
 
 		this._styleClassName = hash(this._editor.getId()).toString(16);
-		this._styleElement = createStyleSheet();
+		this._styleElement = dom.createStyleSheet(
+			dom.isInShadowDOM(this._editor.getContainerDomNode())
+				? this._editor.getContainerDomNode()
+				: undefined
+		);
 		this._updateLensStyle();
 	}
 
@@ -81,7 +85,13 @@ export class CodeLensContribution implements IEditorContribution {
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const lineHeight = options.get(EditorOption.lineHeight);
 
-		const newStyle = `.monaco-editor .codelens-decoration.${this._styleClassName} { height: ${Math.round(lineHeight * 1.1)}px; line-height: ${lineHeight}px; font-size: ${Math.round(fontInfo.fontSize * 0.9)}px; padding-right: ${Math.round(fontInfo.fontSize * 0.45)}px;}`;
+
+		const height = Math.round(lineHeight * 1.1);
+		const fontSize = Math.round(fontInfo.fontSize * 0.9);
+		const newStyle = `
+		.monaco-editor .codelens-decoration.${this._styleClassName} { height: ${height}px; line-height: ${lineHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontInfo.fontSize * 0.45)}px;}
+		.monaco-editor .codelens-decoration.${this._styleClassName} > a > .codicon { line-height: ${lineHeight}px; font-size: ${fontSize}px; }
+		`;
 		this._styleElement.innerHTML = newStyle;
 	}
 

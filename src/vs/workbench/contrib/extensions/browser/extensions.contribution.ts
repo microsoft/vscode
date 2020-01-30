@@ -252,6 +252,7 @@ CommandsRegistry.registerCommand({
 			}
 		} catch (e) {
 			onUnexpectedError(e);
+			throw e;
 		}
 	}
 });
@@ -284,6 +285,7 @@ CommandsRegistry.registerCommand({
 			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);
+			throw e;
 		}
 	}
 });

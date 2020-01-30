@@ -8,7 +8,7 @@ import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -104,6 +104,7 @@ export const enum MenuId {
 	TunnelTitle,
 	ViewItemContext,
 	ViewTitle,
+	ViewTitleContext,
 	CommentThreadTitle,
 	CommentThreadActions,
 	CommentTitle,
@@ -350,9 +351,27 @@ export class SyncActionDescriptor {
 type OneOrN<T> = T | T[];
 
 export interface IAction2Options extends ICommandAction {
+
+	/**
+	 * Shorthand to add this command to the command palette
+	 */
 	f1?: boolean;
+
+	/**
+	 * One or many menu items.
+	 */
 	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
-	keybinding?: Omit<IKeybindingRule, 'id'>;
+
+	/**
+	 * One keybinding.
+	 */
+	keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
+
+	/**
+	 * Metadata about this command, used for API commands or when
+	 * showing keybindings that have no other UX.
+	 */
+	description?: ICommandHandlerDescription;
 }
 
 export abstract class Action2 {
@@ -363,12 +382,15 @@ export abstract class Action2 {
 export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
+
+	// command
 	disposables.add(CommandsRegistry.registerCommand({
 		id: action.desc.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: undefined,
+		description: action.desc.description,
 	}));
 
+	// menu
 	if (Array.isArray(action.desc.menu)) {
 		for (let item of action.desc.menu) {
 			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
@@ -376,12 +398,20 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	} else if (action.desc.menu) {
 		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
 	}
-
 	if (action.desc.f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
 	}
 
-	if (action.desc.keybinding) {
+	// keybinding
+	if (Array.isArray(action.desc.keybinding)) {
+		for (let item of action.desc.keybinding) {
+			KeybindingsRegistry.registerKeybindingRule({
+				...item,
+				id: action.desc.id,
+				when: ContextKeyExpr.and(action.desc.precondition, item.when)
+			});
+		}
+	} else if (action.desc.keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
 			...action.desc.keybinding,
 			id: action.desc.id,

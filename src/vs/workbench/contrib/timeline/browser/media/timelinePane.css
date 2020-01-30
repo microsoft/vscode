@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+.monaco-workbench .timeline-tree-view {
+	position: relative;
+}
 
-export interface IViewPaneContainer {
-	setVisible(visible: boolean): void;
-	isVisible(): boolean;
-	focus(): void;
-	getActions(): IAction[];
-	getSecondaryActions(): IAction[];
-	getActionViewItem(action: IAction): IActionViewItem | undefined;
-	saveState(): void;
+.monaco-workbench .timeline-tree-view .message.timeline-subtle {
+	padding: 10px 22px 0 22px;
+	opacity: 0.5;
+	position: absolute;
+	pointer-events: none;
 }

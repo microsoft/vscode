@@ -174,6 +174,14 @@ export interface IScrollEvent {
 	readonly scrollHeightChanged: boolean;
 }
 
+export interface IContentSizeChangedEvent {
+	readonly contentWidth: number;
+	readonly contentHeight: number;
+
+	readonly contentWidthChanged: boolean;
+	readonly contentHeightChanged: boolean;
+}
+
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;

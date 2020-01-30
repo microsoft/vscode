@@ -117,7 +117,8 @@ export function activate(context: ExtensionContext) {
 		documentSelector,
 		initializationOptions: {
 			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
-			provideFormatter: false // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
+			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
+			customCapabilities: { rangeFormatting: { editLimit: 1000 } }
 		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
@@ -149,9 +150,8 @@ export function activate(context: ExtensionContext) {
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
-					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range2 = { inserting: new Range(range.start, position), replacing: range };
-						item.range = undefined;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {

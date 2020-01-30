@@ -5,191 +5,26 @@
 
 import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IContextKeyService, IContextKeyChangeEvent, IReadableSet, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
-import { firstIndex, move, isNonEmptyArray } from 'vs/base/common/arrays';
+import { firstIndex, move } from 'vs/base/common/arrays';
 import { isUndefinedOrNull, isUndefined } from 'vs/base/common/types';
-import { MenuId, MenuRegistry, ICommandAction } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { values } from 'vs/base/common/map';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { toggleClass, addClass } from 'vs/base/browser/dom';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-
-function filterViewRegisterEvent(container: ViewContainer, event: Event<{ viewContainer: ViewContainer, views: IViewDescriptor[]; }>): Event<IViewDescriptor[]> {
-	return Event.chain(event)
-		.map(({ views, viewContainer }) => viewContainer === container ? views : [])
-		.filter(views => views.length > 0)
-		.event;
-}
-
-function filterViewMoveEvent(container: ViewContainer, event: Event<{ from: ViewContainer, to: ViewContainer, views: IViewDescriptor[]; }>): Event<{ added?: IViewDescriptor[], removed?: IViewDescriptor[]; }> {
-	return Event.chain(event)
-		.map(({ views, from, to }) => from === container ? { removed: views } : to === container ? { added: views } : {})
-		.filter(({ added, removed }) => isNonEmptyArray(added) || isNonEmptyArray(removed))
-		.event;
-}
-
-class CounterSet<T> implements IReadableSet<T> {
-
-	private map = new Map<T, number>();
-
-	add(value: T): CounterSet<T> {
-		this.map.set(value, (this.map.get(value) || 0) + 1);
-		return this;
-	}
-
-	delete(value: T): boolean {
-		let counter = this.map.get(value) || 0;
-
-		if (counter === 0) {
-			return false;
-		}
-
-		counter--;
-
-		if (counter === 0) {
-			this.map.delete(value);
-		} else {
-			this.map.set(value, counter);
-		}
-
-		return true;
-	}
-
-	has(value: T): boolean {
-		return this.map.has(value);
-	}
-}
-
-interface IViewItem {
-	viewDescriptor: IViewDescriptor;
-	active: boolean;
-}
-
-class ViewDescriptorCollection extends Disposable implements IViewDescriptorCollection {
-
-	private contextKeys = new CounterSet<string>();
-	private items: IViewItem[] = [];
-
-	private _onDidChangeViews: Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._register(new Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }>());
-	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._onDidChangeViews.event;
-
-	private _onDidChangeActiveViews: Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._register(new Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }>());
-	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._onDidChangeActiveViews.event;
-
-	get activeViewDescriptors(): IViewDescriptor[] {
-		return this.items
-			.filter(i => i.active)
-			.map(i => i.viewDescriptor);
-	}
-
-	get allViewDescriptors(): IViewDescriptor[] {
-		return this.items.map(i => i.viewDescriptor);
-	}
-
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-	) {
-		super();
-		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(this.onContextChanged, this));
-	}
-
-	addViews(viewDescriptors: IViewDescriptor[]): void {
-		const added: IViewDescriptor[] = [];
-
-		for (const viewDescriptor of viewDescriptors) {
-			const item = {
-				viewDescriptor,
-				active: this.isViewDescriptorActive(viewDescriptor) // TODO: should read from some state?
-			};
-
-			this.items.push(item);
-
-			if (viewDescriptor.when) {
-				for (const key of viewDescriptor.when.keys()) {
-					this.contextKeys.add(key);
-				}
-			}
-
-			if (item.active) {
-				added.push(viewDescriptor);
-			}
-		}
-
-		this._onDidChangeViews.fire({ added: viewDescriptors, removed: [] });
-
-		if (added.length) {
-			this._onDidChangeActiveViews.fire({ added, removed: [] });
-		}
-	}
-
-	removeViews(viewDescriptors: IViewDescriptor[]): void {
-		const removed: IViewDescriptor[] = [];
-
-		for (const viewDescriptor of viewDescriptors) {
-			const index = firstIndex(this.items, i => i.viewDescriptor.id === viewDescriptor.id);
-
-			if (index === -1) {
-				continue;
-			}
-
-			const item = this.items[index];
-			this.items.splice(index, 1);
-
-			if (viewDescriptor.when) {
-				for (const key of viewDescriptor.when.keys()) {
-					this.contextKeys.delete(key);
-				}
-			}
-
-			if (item.active) {
-				removed.push(viewDescriptor);
-			}
-		}
-
-		this._onDidChangeViews.fire({ added: [], removed: viewDescriptors });
-
-		if (removed.length) {
-			this._onDidChangeActiveViews.fire({ added: [], removed });
-		}
-	}
-
-	private onContextChanged(event: IContextKeyChangeEvent): void {
-		const removed: IViewDescriptor[] = [];
-		const added: IViewDescriptor[] = [];
-
-		for (const item of this.items) {
-			const active = this.isViewDescriptorActive(item.viewDescriptor);
-
-			if (item.active !== active) {
-				if (active) {
-					added.push(item.viewDescriptor);
-				} else {
-					removed.push(item.viewDescriptor);
-				}
-			}
-
-			item.active = active;
-		}
-
-		if (added.length || removed.length) {
-			this._onDidChangeActiveViews.fire({ added, removed });
-		}
-	}
-
-	private isViewDescriptorActive(viewDescriptor: IViewDescriptor): boolean {
-		return !viewDescriptor.when || this.contextKeyService.contextMatchesRules(viewDescriptor.when);
-	}
-}
+import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { VIEW_ID as SEARCH_VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -489,10 +324,10 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 			this.onDidRemove,
 			Event.map(this.onDidMove, ({ from, to }) => [from, to]),
 			Event.map(this.onDidChangeViewState, viewDescriptorRef => [viewDescriptorRef]))
-			(viewDescriptorRefs => this.saveViewsStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
+			(viewDescriptorRefs => this.saveViewsStates()));
 	}
 
-	private saveViewsStates(viewDescriptors: IViewDescriptor[]): void {
+	private saveViewsStates(): void {
 		this.saveWorkspaceViewsStates();
 		this.saveGlobalViewsStates();
 	}
@@ -637,14 +472,14 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onViewContainerRegistered(viewContainer: ViewContainer): void {
 		const viewDescriptorCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
-		this.onViewsRegistered(viewDescriptorCollection.allViewDescriptors, viewContainer);
+		this.onViewsAdded(viewDescriptorCollection.allViewDescriptors, viewContainer);
 		this._register(viewDescriptorCollection.onDidChangeViews(({ added, removed }) => {
-			this.onViewsRegistered(added, viewContainer);
-			this.onViewsDeregistered(removed, viewContainer);
+			this.onViewsAdded(added, viewContainer);
+			this.onViewsRemoved(removed);
 		}));
 	}
 
-	private onViewsRegistered(views: IViewDescriptor[], container: ViewContainer): void {
+	private onViewsAdded(views: IViewDescriptor[], container: ViewContainer): void {
 		const location = this.viewContainersRegistry.getViewContainerLocation(container);
 		if (location === undefined) {
 			return;
@@ -653,38 +488,67 @@ export class ViewsService extends Disposable implements IViewsService {
 		const composite = this.getComposite(container.id, location);
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
-			const command: ICommandAction = {
-				id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-				title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
-				category: composite ? composite.name : localize('view category', "View"),
-			};
-			const when = ContextKeyExpr.has(`${viewDescriptor.id}.active`);
-
-			disposables.add(CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true)));
-
-			disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-				command,
-				when
+			disposables.add(registerAction2(class FocusViewAction extends Action2 {
+				constructor() {
+					super({
+						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
+						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
+						category: composite ? composite.name : localize('view category', "View"),
+						menu: [{
+							id: MenuId.CommandPalette,
+						}],
+						keybinding: {
+							when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
+							weight: KeybindingWeight.WorkbenchContrib,
+							primary: viewDescriptor.focusCommand?.keybindings?.primary,
+							secondary: viewDescriptor.focusCommand?.keybindings?.secondary,
+							linux: viewDescriptor.focusCommand?.keybindings?.linux,
+							mac: viewDescriptor.focusCommand?.keybindings?.mac,
+							win: viewDescriptor.focusCommand?.keybindings?.win
+						}
+					});
+				}
+				run(accessor: ServicesAccessor): any {
+					accessor.get(IViewsService).openView(viewDescriptor.id, true);
+				}
 			}));
 
-			if (viewDescriptor.focusCommand && viewDescriptor.focusCommand.keybindings) {
-				KeybindingsRegistry.registerKeybindingRule({
-					id: command.id,
-					when,
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: viewDescriptor.focusCommand.keybindings.primary,
-					secondary: viewDescriptor.focusCommand.keybindings.secondary,
-					linux: viewDescriptor.focusCommand.keybindings.linux,
-					mac: viewDescriptor.focusCommand.keybindings.mac,
-					win: viewDescriptor.focusCommand.keybindings.win
-				});
-			}
+			const newLocation = location === ViewContainerLocation.Panel ? ViewContainerLocation.Sidebar : ViewContainerLocation.Panel;
+			disposables.add(registerAction2(class MoveViewAction extends Action2 {
+				constructor() {
+					super({
+						id: `${viewDescriptor.id}.moveView`,
+						title: {
+							original: newLocation === ViewContainerLocation.Sidebar ? 'Move to Sidebar' : 'Move to Panel',
+							value: newLocation === ViewContainerLocation.Sidebar ? localize('moveViewToSidebar', "Move to Sidebar") : localize('moveViewToPanel', "Move to Panel")
+						},
+						menu: [{
+							id: MenuId.ViewTitleContext,
+							when: ContextKeyExpr.or(
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('view', viewDescriptor.id),
+									ContextKeyExpr.has(`${viewDescriptor.id}.canMove`),
+									ContextKeyExpr.equals('config.workbench.view.experimental.allowMovingToNewContainer', true)),
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('view', viewDescriptor.id),
+									ContextKeyExpr.has(`${viewDescriptor.id}.canMove`),
+									ContextKeyExpr.equals('view', SEARCH_VIEW_ID)
+								)
+							)
+						}],
+					});
+				}
+				run(accessor: ServicesAccessor): any {
+					accessor.get(IViewDescriptorService).moveViewToLocation(viewDescriptor, newLocation);
+					accessor.get(IViewsService).openView(viewDescriptor.id);
+				}
+			}));
 
 			this.viewDisposable.set(viewDescriptor, disposables);
 		}
 	}
 
-	private onViewsDeregistered(views: IViewDescriptor[], container: ViewContainer): void {
+	private onViewsRemoved(views: IViewDescriptor[]): void {
 		for (const view of views) {
 			const disposable = this.viewDisposable.get(view);
 			if (disposable) {
@@ -713,6 +577,27 @@ export class ViewsService extends Disposable implements IViewsService {
 		return undefined;
 	}
 
+	getActiveViewWithId(id: string): IView | null {
+		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		if (viewContainer) {
+			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+
+			if (location === ViewContainerLocation.Sidebar) {
+				const activeViewlet = this.viewletService.getActiveViewlet();
+				if (activeViewlet?.getId() === viewContainer.id) {
+					return activeViewlet.getViewPaneContainer().getView(id) ?? null;
+				}
+			} else if (location === ViewContainerLocation.Panel) {
+				const activePanel = this.panelService.getActivePanel();
+				if (activePanel?.getId() === viewContainer.id && activePanel instanceof PaneComposite) {
+					return activePanel.getViewPaneContainer().getView(id) ?? null;
+				}
+			}
+		}
+
+		return null;
+	}
+
 	async openView(id: string, focus: boolean): Promise<IView | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainer(id);
 		if (viewContainer) {
@@ -730,154 +615,6 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 }
 
-export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
-
-	_serviceBrand: undefined;
-
-	private readonly _onViewsRegistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsRegistered.event;
-
-	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
-	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
-
-	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
-
-	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: IViewDescriptorCollection, disposable: IDisposable; }>;
-	private readonly viewContainers: Map<string, ViewContainer>;
-	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
-
-	private readonly viewsRegistry: IViewsRegistry;
-	private readonly viewContainersRegistry: IViewContainersRegistry;
-
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
-	) {
-		super();
-
-		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: IViewDescriptorCollection, disposable: IDisposable; }>();
-		this.viewContainers = new Map<string, ViewContainer>();
-		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
-
-		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		this.viewContainersRegistry.all.forEach(viewContainer => {
-			this.onDidRegisterViews(viewContainer, this.viewsRegistry.getViews(viewContainer));
-			this.onDidRegisterViewContainer(viewContainer);
-		});
-		this._register(this.viewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(viewContainer, views)));
-		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(viewContainer, views)));
-		this._register(this.viewsRegistry.onDidChangeContainer(({ views, from, to }) => { this.onDidDeregisterViews(from, views); this.onDidRegisterViews(to, views); this._onDidChangeContainer.fire({ views, from, to }); }));
-
-		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer }) => this.onDidRegisterViewContainer(viewContainer)));
-		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer }) => this.onDidDeregisterViewContainer(viewContainer)));
-		this._register(toDisposable(() => {
-			this.viewDescriptorCollections.forEach(({ disposable }) => disposable.dispose());
-			this.viewDescriptorCollections.clear();
-		}));
-	}
-
-	getViewContainer(viewId: string): ViewContainer | null {
-		return this.viewContainers.get(viewId) ?? null;
-	}
-
-	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection {
-		let viewDescriptorCollectionItem = this.viewDescriptorCollections.get(container);
-		if (!viewDescriptorCollectionItem) {
-			// Create and register the collection if does not exist
-			this.onDidRegisterViewContainer(container);
-			viewDescriptorCollectionItem = this.viewDescriptorCollections.get(container);
-		}
-		return viewDescriptorCollectionItem!.viewDescriptorCollection;
-	}
-
-	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
-		if (!views.length) {
-			return;
-		}
-
-		const from = this.viewContainers.get(views[0].id);
-		const to = viewContainer;
-
-		if (from && to && from !== to) {
-			this.onDidDeregisterViews(from, views);
-			this.onDidRegisterViews(viewContainer, views);
-			this._onDidChangeContainer.fire({ views, from, to });
-		}
-	}
-
-	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
-		const disposables = new DisposableStore();
-		const viewDescriptorCollection = disposables.add(new ViewDescriptorCollection(this.contextKeyService));
-		viewDescriptorCollection.addViews(this.viewsRegistry.getViews(viewContainer));
-
-		const onRelevantViewsRegistered = filterViewRegisterEvent(viewContainer, this.onViewsRegistered);
-		onRelevantViewsRegistered(viewDescriptors => viewDescriptorCollection.addViews(viewDescriptors), this, disposables);
-
-		const onRelevantViewsMoved = filterViewMoveEvent(viewContainer, this.onDidChangeContainer);
-		onRelevantViewsMoved(({ added, removed }) => {
-			if (isNonEmptyArray(added)) {
-				viewDescriptorCollection.addViews(added);
-			}
-			if (isNonEmptyArray(removed)) {
-				viewDescriptorCollection.removeViews(removed);
-			}
-		}, this, disposables);
-
-		const onRelevantViewsDeregistered = filterViewRegisterEvent(viewContainer, this.onViewsDeregistered);
-		onRelevantViewsDeregistered(viewDescriptors => viewDescriptorCollection.removeViews(viewDescriptors), this, disposables);
-
-		this.onDidChangeActiveViews({ added: viewDescriptorCollection.activeViewDescriptors, removed: [] });
-		viewDescriptorCollection.onDidChangeActiveViews(changed => this.onDidChangeActiveViews(changed), this, disposables);
-
-		this.viewDescriptorCollections.set(viewContainer, { viewDescriptorCollection, disposable: disposables });
-	}
-
-	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
-		const viewDescriptorCollectionItem = this.viewDescriptorCollections.get(viewContainer);
-		if (viewDescriptorCollectionItem) {
-			viewDescriptorCollectionItem.disposable.dispose();
-			this.viewDescriptorCollections.delete(viewContainer);
-		}
-	}
-
-	private onDidChangeActiveViews({ added, removed }: { added: IViewDescriptor[], removed: IViewDescriptor[]; }): void {
-		added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
-		removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
-	}
-
-	private onDidRegisterViews(container: ViewContainer, views: IViewDescriptor[]): void {
-		const location = this.viewContainersRegistry.getViewContainerLocation(container);
-		if (location === undefined) {
-			return;
-		}
-
-		for (const viewDescriptor of views) {
-			this.viewContainers.set(viewDescriptor.id, container);
-		}
-
-		this._onViewsRegistered.fire({ views, viewContainer: container });
-	}
-
-	private onDidDeregisterViews(container: ViewContainer, views: IViewDescriptor[]): void {
-		for (const view of views) {
-			this.viewContainers.delete(view.id);
-		}
-
-		this._onViewsDeregistered.fire({ views, viewContainer: container });
-	}
-
-	private getOrCreateActiveViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
-		const activeContextKeyId = `${viewDescriptor.id}.active`;
-		let contextKey = this.activeViewContextKeys.get(activeContextKeyId);
-		if (!contextKey) {
-			contextKey = new RawContextKey(activeContextKeyId, false).bindTo(this.contextKeyService);
-			this.activeViewContextKeys.set(activeContextKeyId, contextKey);
-		}
-		return contextKey;
-	}
-}
-
 export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IWorkbenchThemeService): IDisposable {
 	addClass(container, 'file-icon-themable-tree');
 	addClass(container, 'show-file-icons');
@@ -891,5 +628,4 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
-registerSingleton(IViewDescriptorService, ViewDescriptorService);
 registerSingleton(IViewsService, ViewsService);
