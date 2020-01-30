@@ -783,7 +783,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 						}
 					}
 					try {
-						await this.userDataSyncService.resolveConflictsAndContinueSync(model.getValue());
+						await this.userDataSyncService.resolveConflictsAndContinueSync(model.getValue(), syncSource !== undefined);
 					} catch (e) {
 						this.userDataSyncService.restart().then(() => {
 							if (conflictsSource === this.userDataSyncService.conflictsSource) {

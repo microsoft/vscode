@@ -165,7 +165,7 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 		}
 	}
 
-	async resolveConflicts(content: string): Promise<void> {
+	async resolveConflicts(content: string, remote: boolean): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
 			try {
 				await this.apply(content, true);

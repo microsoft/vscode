@@ -227,9 +227,15 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		}
 	}
 
-	async resolveConflicts(content: string): Promise<void> {
+	async resolveConflicts(content: string, remote: boolean): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
 			try {
+				if (remote) {
+					const { fileContent } = await this.syncPreviewResultPromise!;
+					const formatUtils = await this.getFormattingOptions();
+					// Update ignored settings
+					content = updateIgnoredSettings(content, fileContent ? fileContent.value.toString() : '{}', getIgnoredSettings(this.configurationService), formatUtils);
+				}
 				await this.apply(content, true);
 				this.setStatus(SyncStatus.Idle);
 			} catch (e) {

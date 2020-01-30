@@ -25,7 +25,7 @@ export class UserDataSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'sync': return this.service.sync();
-			case 'resolveConflictsAndContinueSync': return this.service.resolveConflictsAndContinueSync(args[0]);
+			case 'resolveConflictsAndContinueSync': return this.service.resolveConflictsAndContinueSync(args[0], args[1]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
@@ -60,7 +60,7 @@ export class SettingsSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'sync': return this.service.sync();
-			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
+			case 'resolveConflicts': return this.service.resolveConflicts(args[0], args[1]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
 			case 'restart': return this.service.restart().then(() => this.service.status);
