@@ -40,7 +40,11 @@
 		],
 		"semanticTokenStyleDefaults": [
 			{
-				"selector": "testToken.testModifier",
+				"selector": "testToken",
+				"scope": [ "support.other.variable.test" ]
+			},
+			{
+				"selector": "*.testModifier",
 				"light": {
 					"fontStyle": "bold"
 				},
@@ -50,7 +54,6 @@
 				"highContrast": {
 					"fontStyle": "bold"
 				}
-
 			}
 		]
 	}

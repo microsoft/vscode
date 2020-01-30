@@ -20,7 +20,7 @@ interface ITokenModifierExtensionPoint {
 
 interface ITokenStyleDefaultExtensionPoint {
 	selector: string;
-	scopes?: string[];
+	scope?: string[];
 	light?: {
 		foreground?: string;
 		fontStyle?: string;
@@ -99,9 +99,9 @@ const tokenStyleDefaultsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITo
 					pattern: selectorPattern,
 					patternErrorMessage: nls.localize('contributes.semanticTokenStyleDefaults.selector.format', 'Selectors should be in the form (type|*)(.modifier)*'),
 				},
-				scopes: {
+				scope: {
 					type: 'array',
-					description: nls.localize('contributes.scopes.light', 'A list of TextMate scopes that are matched against the current color theme to find a default style'),
+					description: nls.localize('contributes.semanticTokenStyleDefaults.scope', 'A TextMate scope against the current color theme is matched to find the style for the given selector'),
 					items: {
 						type: 'string'
 					}
@@ -226,12 +226,12 @@ export class TokenClassificationExtensionPoints {
 
 					const tokenStyleDefault: TokenStyleDefaults = {};
 
-					if (contribution.scopes) {
-						if ((!Array.isArray(contribution.scopes) || contribution.scopes.some(s => typeof s !== 'string'))) {
-							collector.error(nls.localize('invalid.scopes', "If defined, 'configuration.semanticTokenStyleDefaults.scopes' must be an array or strings"));
+					if (contribution.scope) {
+						if ((!Array.isArray(contribution.scope) || contribution.scope.some(s => typeof s !== 'string'))) {
+							collector.error(nls.localize('invalid.scope', "If defined, 'configuration.semanticTokenStyleDefaults.scope' must be an array of strings"));
 							continue;
 						}
-						tokenStyleDefault.scopesToProbe = [contribution.scopes];
+						tokenStyleDefault.scopesToProbe = [contribution.scope];
 					}
 					tokenStyleDefault.light = validateStyle(contribution.light, 'semanticTokenStyleDefaults.light', collector);
 					tokenStyleDefault.dark = validateStyle(contribution.dark, 'semanticTokenStyleDefaults.dark', collector);
