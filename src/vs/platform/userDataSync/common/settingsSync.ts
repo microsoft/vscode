@@ -320,9 +320,9 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 			}
 			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
-				const remoteContent = updateIgnoredSettings(content, remoteUserData.content || '{}', getIgnoredSettings(this.configurationService, content), formatUtils);
+				content = updateIgnoredSettings(content, remoteUserData.content || '{}', getIgnoredSettings(this.configurationService, content), formatUtils);
 				this.logService.info('Settings: Updating remote settings');
-				const ref = await this.updateRemoteUserData(remoteContent, forcePush ? null : remoteUserData.ref);
+				const ref = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
 				remoteUserData = { ref, content };
 			}
 
