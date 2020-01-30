@@ -115,7 +115,7 @@ export interface IWorkspaceFolderData {
 
 	/**
 	 * The name of this workspace folder. Defaults to
-	 * the basename its [uri-path](#Uri.path)
+	 * the basename of its [uri-path](#Uri.path)
 	 */
 	readonly name: string;
 
