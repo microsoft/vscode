@@ -124,12 +124,13 @@ export interface IUserData {
 }
 
 export enum UserDataSyncErrorCode {
-	TooLarge = 'TooLarge',
 	Unauthroized = 'Unauthroized',
+	Forbidden = 'Forbidden',
+	ConnectionRefused = 'ConnectionRefused',
 	Rejected = 'Rejected',
-	Unknown = 'Unknown',
+	TooLarge = 'TooLarge',
 	TooManyFailures = 'TooManyFailures',
-	ConnectionRefused = 'ConnectionRefused'
+	Unknown = 'Unknown',
 }
 
 export class UserDataSyncError extends Error {
