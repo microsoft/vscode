@@ -168,8 +168,9 @@ export async function main(argv: string[]): Promise<any> {
 						// Make sure to open tmp file
 						addArg(argv, stdinFilePath);
 
-						// Ignore adding this to history
+						// Ignore adding this to history and delete the temp file when it's closed
 						addArg(argv, '--skip-add-to-recently-opened');
+						addArg(argv, '--cleanup-files');
 
 						console.log(`Reading from stdin via: ${stdinFilePath}`);
 					} catch (e) {
