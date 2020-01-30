@@ -168,6 +168,11 @@
 	position: absolute;
 	top: 2px;
 	right: 2px;
+	opacity: 0;
+}
+
+.monaco-editor .suggest-widget .details:hover > .monaco-scrollable-element > .body > .header > .codicon-close {
+	opacity: 1
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close:hover,
@@ -367,6 +372,7 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
 	padding: 0;
 	white-space: initial;
+	margin-right: 37px;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div,
