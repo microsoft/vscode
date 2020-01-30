@@ -433,7 +433,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		switch (result.choice) {
 			case 0:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
-				await this.userDataSyncService.sync();
 				break;
 			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
