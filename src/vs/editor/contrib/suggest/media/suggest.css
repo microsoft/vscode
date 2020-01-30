@@ -113,9 +113,6 @@
 
 /** Status Bar **/
 
-.monaco-editor .suggest-widget > .tree {
-	margin-bottom: 18px;
-}
 .monaco-editor .suggest-widget > .suggest-status-bar {
 	visibility: hidden;
 
