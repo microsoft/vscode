@@ -41,7 +41,7 @@
 		"semanticTokenStyleDefaults": [
 			{
 				"selector": "testToken",
-				"scope": [ "support.other.variable.test" ]
+				"scope": [ "entity.name.function.special" ]
 			},
 			{
 				"selector": "*.testModifier",
