@@ -8048,19 +8048,19 @@ declare module 'vscode' {
 		/**
 		 * The range that got replaced.
 		 */
-		range: Range;
+		readonly range: Range;
 		/**
 		 * The offset of the range that got replaced.
 		 */
-		rangeOffset: number;
+		readonly rangeOffset: number;
 		/**
 		 * The length of the range that got replaced.
 		 */
-		rangeLength: number;
+		readonly rangeLength: number;
 		/**
 		 * The new text for the range.
 		 */
-		text: string;
+		readonly text: string;
 	}
 
 	/**
