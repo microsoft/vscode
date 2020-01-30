@@ -31,6 +31,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -51,7 +52,8 @@ abstract class BaseOpenRecentAction extends Action {
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
-		private hostService: IHostService
+		private hostService: IHostService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -121,10 +123,18 @@ abstract class BaseOpenRecentAction extends Action {
 		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
 		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
 
+		const newWindowSetting = this.configurationService.getValue<string>('window.openFoldersInNewWindow');
+		let placeHolderText: string;
+		if (newWindowSetting === 'on') {
+			placeHolderText = isMacintosh ? nls.localize('openRecentPlaceHolderNewWindowOnMac', "Select to open (hold Cmd-key to open in current window)") : nls.localize('openRecentPlaceHolderNewWindowOn', "Select to open (hold Ctrl-key to open in current window)");
+		} else {
+			placeHolderText = isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)");
+		}
+
 		const pick = await this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
+			placeHolder: placeHolderText,
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
@@ -135,6 +145,9 @@ abstract class BaseOpenRecentAction extends Action {
 		});
 
 		if (pick) {
+			if (newWindowSetting === 'on') {
+				return this.hostService.openWindow([pick.openable], { forceReuseWindow: keyMods?.ctrlCmd });
+			}
 			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd });
 		}
 	}
@@ -155,9 +168,10 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILabelService labelService: ILabelService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
+		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService, configurationService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -180,9 +194,10 @@ class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILabelService labelService: ILabelService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
+		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService, configurationService);
 	}
 
 	protected isQuickNavigate(): boolean {
