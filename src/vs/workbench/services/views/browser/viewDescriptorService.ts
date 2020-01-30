@@ -445,7 +445,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer): void {
+	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer, skipCacheUpdate?: boolean): void {
 		this.removeViews(from, views);
 		this.addViews(to, views);
 
@@ -457,7 +457,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 
 		this._onDidChangeContainer.fire({ views, from, to });
-		this.saveViewPositionsToCache();
+
+		if (!skipCacheUpdate) {
+			this.saveViewPositionsToCache();
+		}
 	}
 
 	private registerViewContainerForSingleView(sourceView: IViewDescriptor, location: ViewContainerLocation): ViewContainer {
@@ -493,15 +496,28 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const newCachedPositions = this.getCachedViewPositions();
 
 			for (let viewId of newCachedPositions.keys()) {
+				const viewDescriptor = this.getViewDescriptor(viewId);
+				if (!viewDescriptor) {
+					continue;
+				}
+
 				const prevViewContainer = this.getViewContainer(viewId);
-				const newViewContainer = this.viewContainersRegistry.get(newCachedPositions.get(viewId)!.containerId);
+				const newViewContainerInfo = newCachedPositions.get(viewId)!;
+				// Verify if we need to create the destination container
+				if (newViewContainerInfo.sourceViewId) {
+					const sourceViewDescriptor = this.getViewDescriptor(newViewContainerInfo.sourceViewId);
+
+					if (!this.viewContainersRegistry.get(newViewContainerInfo.containerId) && sourceViewDescriptor) {
+						this.registerViewContainerForSingleView(sourceViewDescriptor, newViewContainerInfo.location!);
+					}
+				}
+
+				// Try moving to the new container
+				const newViewContainer = this.viewContainersRegistry.get(newViewContainerInfo.containerId);
 				if (prevViewContainer && newViewContainer && newViewContainer !== prevViewContainer) {
 					const viewDescriptor = this.getViewDescriptor(viewId);
 					if (viewDescriptor) {
-						// We don't call move views to avoid sending intermediate
-						// cached data to the window that gave us this information
-						this.removeViews(prevViewContainer, [viewDescriptor]);
-						this.addViews(newViewContainer, [viewDescriptor]);
+						this.moveViews([viewDescriptor], prevViewContainer, newViewContainer);
 					}
 				}
 			}
