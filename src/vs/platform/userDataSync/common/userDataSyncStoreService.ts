@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -22,6 +22,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -106,8 +107,9 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		options.headers = options.headers || {};
 		options.headers['authorization'] = `Bearer ${authToken}`;
 
-		let context;
+		this.logService.trace('Sending request to server', { url: options.url, headers: { ...options.headers, ...{ authorization: undefined } } });
 
+		let context;
 		try {
 			context = await this.requestService.request(options, token);
 		} catch (e) {

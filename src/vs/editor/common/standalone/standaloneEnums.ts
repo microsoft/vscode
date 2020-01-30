@@ -269,7 +269,7 @@ export enum EditorOption {
 	wordWrapColumn = 101,
 	wordWrapMinified = 102,
 	wrappingIndent = 103,
-	wrappingAlgorithm = 104,
+	wrappingStrategy = 104,
 	editorClassName = 105,
 	pixelRatio = 106,
 	tabFocusMode = 107,

@@ -107,8 +107,16 @@ export class TimelineService implements ITimelineService {
 		const source = provider.source;
 
 		const existing = this._providers.get(source);
-		if (existing && !existing.replaceable) {
-			throw new Error(`Timeline Provider ${source} already exists.`);
+		// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
+		// TODO[ECA]: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
+		// if (existing && !existing.replaceable) {
+		// 	throw new Error(`Timeline Provider ${source} already exists.`);
+		// }
+		if (existing) {
+			try {
+				existing?.dispose();
+			}
+			catch { }
 		}
 
 		this._providers.set(source, provider);
