@@ -113,9 +113,6 @@
 
 /** Status Bar **/
 
-.monaco-editor .suggest-widget > .tree {
-	margin-bottom: 18px;
-}
 .monaco-editor .suggest-widget > .suggest-status-bar {
 	visibility: hidden;
 
@@ -367,6 +364,7 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
 	padding: 0;
 	white-space: initial;
+	min-height: calc(1rem + 8px);
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div,
