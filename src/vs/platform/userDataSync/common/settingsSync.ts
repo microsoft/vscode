@@ -294,6 +294,8 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 			return;
 		}
 
+		let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
+
 		if (content === undefined) {
 			if (await this.fileService.exists(this.environmentService.settingsSyncPreviewResource)) {
 				const settingsPreivew = await this.fileService.readFile(this.environmentService.settingsSyncPreviewResource);
@@ -309,7 +311,6 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 				throw error;
 			}
 
-			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
 			if (!hasLocalChanged && !hasRemoteChanged) {
 				this.logService.trace('Settings: No changes found during synchronizing settings.');
 			}
@@ -324,15 +325,16 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 				const ref = await this.updateRemoteUserData(remoteContent, forcePush ? null : remoteUserData.ref);
 				remoteUserData = { ref, content };
 			}
-			if (remoteUserData.content) {
-				this.logService.info('Settings: Updating last synchronised settings');
-				await this.updateLastSyncUserData(remoteUserData);
-			}
 
 			// Delete the preview
 			await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
 		} else {
 			this.logService.trace('Settings: No changes found during synchronizing settings.');
+		}
+
+		if (remoteUserData.content) {
+			this.logService.info('Settings: Updating last synchronised settings');
+			await this.updateLastSyncUserData(remoteUserData);
 		}
 
 		this.syncPreviewResultPromise = null;
