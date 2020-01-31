@@ -188,11 +188,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providers() {
 				return extHostAuthentication.providers(extension);
 			},
-			get onDidRegisterAuthenticationProvider() {
-				return extHostAuthentication.onDidRegisterAuthenticationProvider;
-			},
-			get onDidUnregisterAuthenticationProvider() {
-				return extHostAuthentication.onDidUnregisterAuthenticationProvider;
+			get onDidChangeAuthenticationProviders(): Event<vscode.AuthenticationProvidersChangeEvent> {
+				return extHostAuthentication.onDidChangeAuthenticationProviders;
 			}
 		};
 

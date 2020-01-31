@@ -25,6 +25,21 @@ declare module 'vscode' {
 		scopes: string[]
 	}
 
+	/**
+	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
+	 */
+	export interface AuthenticationProvidersChangeEvent {
+		/**
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
+		 */
+		readonly added: string[];
+
+		/**
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed..
+		 */
+		readonly removed: string[];
+	}
+
 	export interface AuthenticationProvider {
 		/**
 		 * Used as an identifier for extensions trying to work with a particular
@@ -33,6 +48,11 @@ declare module 'vscode' {
 		 */
 		readonly id: string;
 		readonly displayName: string;
+
+		/**
+		 * A [enent](#Event) which fires when the array of sessions has changed, or data
+		 * within a session has changed.
+		 */
 		readonly onDidChangeSessions: Event<void>;
 
 		/**
@@ -53,8 +73,7 @@ declare module 'vscode' {
 		/**
 		 * Fires with the provider id that was registered or unregistered.
 		 */
-		export const onDidRegisterAuthenticationProvider: Event<string>;
-		export const onDidUnregisterAuthenticationProvider: Event<string>;
+		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		export const providers: ReadonlyArray<AuthenticationProvider>;
 	}
