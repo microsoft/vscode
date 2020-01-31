@@ -2865,8 +2865,8 @@ declare namespace monaco.editor {
 		 */
 		autoSurround?: EditorAutoSurroundStrategy;
 		/**
-		 * Enable auto indentation adjustment.
-		 * Defaults to false.
+		 * Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.
+		 * Defaults to advanced.
 		 */
 		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 		/**
