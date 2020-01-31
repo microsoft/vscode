@@ -23,7 +23,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataAutoSync } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSync';
+import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -119,7 +119,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
 				if (isWeb) {
-					this._register(instantiationService.createInstance(UserDataAutoSync));
+					this._register(instantiationService.createInstance(UserDataAutoSyncService));
 				} else {
 					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
 				}

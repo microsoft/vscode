@@ -59,7 +59,7 @@ import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-browser/userDataAutoSyncService';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
 
@@ -219,7 +219,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
 			server.registerChannel('userDataSync', userDataSyncChannel);
 
-			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSync);
+			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSyncService);
 			const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 			server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 
