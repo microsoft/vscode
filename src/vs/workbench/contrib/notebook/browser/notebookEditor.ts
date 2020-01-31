@@ -415,6 +415,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
 			}
+
+			cell.isEditing = false;
 		}
 
 		this.list?.setFocus([index]);
