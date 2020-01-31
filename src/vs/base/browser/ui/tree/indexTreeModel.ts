@@ -234,10 +234,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
 		const node = this.getTreeNode(location);
 
-		if (!node.collapsible) {
-			return false;
-		}
-
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
 		}
@@ -299,6 +295,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			if (isCollapsibleStateUpdate(update)) {
 				result = node.collapsible !== update.collapsible;
 				node.collapsible = update.collapsible;
+			} else if (!node.collapsible) {
+				result = false;
 			} else {
 				result = node.collapsed !== update.collapsed;
 				node.collapsed = update.collapsed;
