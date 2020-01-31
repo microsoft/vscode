@@ -133,7 +133,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		throw new Error('UI State: Conflicts should not occur');
 	}
 
-	resolveConflicts(content: string): Promise<void> {
+	resolveConflicts(content: string, remote: boolean): Promise<void> {
 		throw new Error('UI State: Conflicts should not occur');
 	}
 

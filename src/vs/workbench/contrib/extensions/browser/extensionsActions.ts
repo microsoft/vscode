@@ -660,11 +660,21 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
-export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService): ExtensionAction[][] {
+export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, extension: IExtension | undefined | null): ExtensionAction[][] {
+	const scopedContextKeyService = contextKeyService.createScoped();
+	if (extension) {
+		scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.type === ExtensionType.System);
+		scopedContextKeyService.createKey<boolean>('extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration);
+		if (extension.state === ExtensionState.Installed) {
+			scopedContextKeyService.createKey<string>('extensionStatus', 'installed');
+		}
+	}
+
 	const groups: ExtensionAction[][] = [];
-	const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService);
+	const menu = menuService.createMenu(MenuId.ExtensionContext, scopedContextKeyService);
 	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => new MenuItemExtensionAction(action))));
 	menu.dispose();
+
 	return groups;
 }
 
@@ -716,10 +726,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
-		const contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('extensionStatus', 'installed');
-		contextKeyService.createKey<boolean>('extensionHasConfiguration', !!this.extension && !!this.extension.local && !!this.extension.local.manifest.contributes && !!this.extension.local.manifest.contributes.configuration);
-		getContextMenuActions(this.menuService, contextKeyService).forEach(actions => groups.push(actions));
+		getContextMenuActions(this.menuService, this.contextKeyService, this.extension).forEach(actions => groups.push(actions));
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 

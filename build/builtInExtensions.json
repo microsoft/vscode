@@ -46,7 +46,7 @@
 	},
 	{
 		"name": "ms-vscode.js-debug-nightly",
-		"version": "2020.1.40384",
+		"version": "2020.1.41823",
 		"forQualities": [
 			"insider"
 		],

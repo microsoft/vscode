@@ -2,12 +2,11 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Configures an attached to container",
 	"allowComments": true,
+	"allowTrailingCommas": true,
 	"type": "object",
-	"additionalProperties": false,
 	"definitions": {
 		"attachContainer": {
 			"type": "object",
-			"additionalProperties": false,
 			"properties": {
 				"workspaceFolder": {
 					"type": "string",

@@ -373,6 +373,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.openComposite(id, focus);
 	}
 
+	async	openPanelAsync(id?: string, focus?: boolean): Promise<Panel | undefined> {
+		if (typeof id === 'string' && this.getPanel(id)) {
+			return this.openPanel(id, focus);
+		}
+
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		if (typeof id === 'string' && this.getPanel(id)) {
+			return this.openPanel(id, focus);
+		}
+
+		return undefined;
+	}
+
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}

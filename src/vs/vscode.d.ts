@@ -4387,7 +4387,7 @@ declare module 'vscode' {
 		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
 		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
 		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
-		 * @param scopeToLanguage Whether to update the value in the scope of requested languageId or not.
+		 * @param overrideInLanguage Whether to update the value in the scope of requested languageId or not.
 		 *	- If `true` updates the value under the requested languageId.
 		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
 		 * @throws error while updating
@@ -4397,7 +4397,7 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when there is no workspace folder settings.
 		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.

@@ -112,22 +112,24 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		let context;
 		try {
 			context = await this.requestService.request(options, token);
+			this.logService.trace('Request finished', { url: options.url, status: context.res.statusCode });
 		} catch (e) {
 			throw new UserDataSyncStoreError(`Connection refused for the request '${options.url?.toString()}'.`, UserDataSyncErrorCode.ConnectionRefused, source);
 		}
 
 		if (context.res.statusCode === 401) {
-			// Throw Unauthorized Error
 			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthroized, source);
 		}
 
+		if (context.res.statusCode === 403) {
+			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' is Forbidden (403).`, UserDataSyncErrorCode.Forbidden, source);
+		}
+
 		if (context.res.statusCode === 412) {
-			// There is a new value. Throw Rejected Error
 			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Rejected, source);
 		}
 
 		if (context.res.statusCode === 413) {
-			// Throw Too Large Payload Error
 			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge, source);
 		}
 

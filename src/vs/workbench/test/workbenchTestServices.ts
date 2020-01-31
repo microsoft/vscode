@@ -627,6 +627,10 @@ export class TestPanelService implements IPanelService {
 		return undefined;
 	}
 
+	async openPanelAsync(id?: string, focus?: boolean): Promise<undefined> {
+		return undefined;
+	}
+
 	getPanel(id: string): any {
 		return activeViewlet;
 	}
