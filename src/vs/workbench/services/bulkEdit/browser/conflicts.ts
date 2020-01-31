@@ -113,11 +113,11 @@ export class ConflictDetector {
 
 	list(): URI[] {
 		const result: URI[] = this._conflicts.keys();
-		this._changes.forEach((_value, key) => {
-			if (!this._conflicts.has(key)) {
-				result.push(key);
-			}
-		});
+		// this._changes.forEach((_value, key) => {
+		// 	if (!this._conflicts.has(key)) {
+		// 		result.push(key);
+		// 	}
+		// });
 		return result;
 	}
 }
