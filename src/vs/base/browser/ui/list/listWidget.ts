@@ -1552,23 +1552,24 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const scrollTop = this.view.getScrollTop();
+		const wrapperBottom = scrollTop + this.view.renderHeight;
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
+		const elementBottom = elementTop + elementHeight;
 
-		if (isNumber(relativeTop)) {
+		if (elementTop > scrollTop && elementBottom < wrapperBottom) {
+			// element is already visible, no-op
+		} else if (isNumber(relativeTop)) {
 			// y = mx + b
 			const m = elementHeight - this.view.renderHeight;
 			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
 		} else {
-			const viewItemBottom = elementTop + elementHeight;
-			const wrapperBottom = scrollTop + this.view.renderHeight;
-
-			if (elementTop < scrollTop && viewItemBottom >= wrapperBottom) {
+			if (elementTop < scrollTop && elementBottom >= wrapperBottom) {
 				// The element is already overflowing the viewport, no-op
 			} else if (elementTop < scrollTop) {
 				this.view.setScrollTop(elementTop);
-			} else if (viewItemBottom >= wrapperBottom) {
-				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
+			} else if (elementBottom >= wrapperBottom) {
+				this.view.setScrollTop(elementBottom - this.view.renderHeight);
 			}
 		}
 	}
