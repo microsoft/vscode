@@ -131,31 +131,31 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async initializeActiveAccount(): Promise<void> {
-		const accounts = await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId);
+		const sessions = await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId);
 		// Auth provider has not yet been registered
-		if (!accounts) {
+		if (!sessions) {
 			return;
 		}
 
-		if (accounts.length === 0) {
+		if (sessions.length === 0) {
 			this.activeAccount = undefined;
 			return;
 		}
 
-		if (accounts.length === 1) {
-			this.activeAccount = accounts[0];
+		if (sessions.length === 1) {
+			this.activeAccount = sessions[0];
 			return;
 		}
 
-		const selectedAccount = await this.quickInputService.pick(accounts.map(account => {
+		const selectedAccount = await this.quickInputService.pick(sessions.map(session => {
 			return {
-				id: account.id,
-				label: account.displayName
+				id: session.id,
+				label: session.accountName
 			};
 		}), { canPickMany: false });
 
 		if (selectedAccount) {
-			this.activeAccount = accounts.filter(account => selectedAccount.id === account.id)[0];
+			this.activeAccount = sessions.filter(account => selectedAccount.id === account.id)[0];
 		}
 	}
 

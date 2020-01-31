@@ -21,7 +21,7 @@ declare module 'vscode' {
 	export interface Session {
 		id: string;
 		accessToken: string;
-		displayName: string;
+		accountName: string;
 		scopes: string[]
 	}
 
