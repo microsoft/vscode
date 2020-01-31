@@ -334,7 +334,7 @@ class Widget {
 
 			if (MIN_LIMIT < 0) {
 				// And we need to make sure we haven't expanded them before the page
-				const delta3 = MIN_LIMIT;
+				const delta3 = -MIN_LIMIT;
 				MIN_LIMIT += delta3;
 				MAX_LIMIT += delta3;
 			}
