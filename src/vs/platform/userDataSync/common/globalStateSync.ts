@@ -195,7 +195,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteUserData = { ref, content };
 		}
 
-		if (hasChanges || !lastSyncUserData) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.info('UI State: Updating last synchronised ui state...');
 			await this.updateLastSyncUserData(remoteUserData);

@@ -125,13 +125,17 @@ export class UserDataAutoSync extends Disposable implements IUserDataAutoSyncSer
 		this.successiveFailures = 0;
 	}
 
-	triggerAutoSync(): Promise<void> {
-		return this.syncDelayer.trigger(() => {
-			this.logService.info('Sync: Triggerred.');
-			return this.sync(false, true);
-		}, this.successiveFailures
-			? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */
-			: 1000);
+	async triggerAutoSync(): Promise<void> {
+		if (this.enabled) {
+			return this.syncDelayer.trigger(() => {
+				this.logService.info('Sync: Triggerred.');
+				return this.sync(false, true);
+			}, this.successiveFailures
+				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */
+				: 1000);
+		} else {
+			this.syncDelayer.cancel();
+		}
 	}
 
 }
