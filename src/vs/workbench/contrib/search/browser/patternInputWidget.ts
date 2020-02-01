@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IInputValidator, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IInputValidator, HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
@@ -19,6 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { Delayer } from 'vs/base/common/async';
+import type { IThemable } from 'vs/base/common/styler';
 
 export interface IOptions {
 	placeholder?: string;
@@ -30,7 +31,7 @@ export interface IOptions {
 	submitOnTypeDelay?: number;
 }
 
-export class PatternInputWidget extends Widget {
+export class PatternInputWidget extends Widget implements IThemable {
 
 	static OPTION_CHANGE: string = 'optionChange';
 
@@ -131,6 +132,10 @@ export class PatternInputWidget extends Widget {
 
 	showPreviousTerm() {
 		this.inputBox.showPreviousValue();
+	}
+
+	style(styles: IInputBoxStyles): void {
+		this.inputBox.style(styles);
 	}
 
 	private render(options: IOptions): void {

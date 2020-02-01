@@ -13,7 +13,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, systemPreferences, MessageBoxOptions, Display, app } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,7 +29,7 @@ import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -226,13 +226,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// React to HC color scheme changes (Windows)
 		if (isWindows) {
-			nativeTheme.on('updated', () => {
-				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
+			const onHighContrastChange = () => {
+				if (systemPreferences.isInvertedColorScheme() || systemPreferences.isHighContrastColorScheme()) {
 					this.sendToAll('vscode:enterHighContrast');
 				} else {
 					this.sendToAll('vscode:leaveHighContrast');
 				}
-			});
+			};
+
+			systemPreferences.on('inverted-color-scheme-changed', () => onHighContrastChange());
+			systemPreferences.on('high-contrast-color-scheme-changed', () => onHighContrastChange());
 		}
 
 		// When a window looses focus, save all windows state. This allows to
@@ -1059,9 +1062,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		uri = normalizePath(uri);
 
 		// remove trailing slash
-		if (hasTrailingPathSeparator(uri)) {
-			uri = removeTrailingPathSeparator(uri);
-		}
+		uri = removeTrailingPathSeparator(uri);
 
 		// File
 		if (isFileToOpen(toOpen)) {

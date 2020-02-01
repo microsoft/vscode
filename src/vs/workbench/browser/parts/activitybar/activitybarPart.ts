@@ -125,6 +125,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 				return actions;
 			},
+			getContextMenuActionsForComposite: () => [],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			compositeSize: 50,

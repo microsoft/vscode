@@ -34,7 +34,6 @@ suite('MainThreadSaveParticipant', function () {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
 	test('insert final new line', async function () {

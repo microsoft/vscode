@@ -27,7 +27,6 @@ import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/act
 import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getUriFromAmdModule } from 'vs/base/common/amd';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -159,7 +158,7 @@ registerAction2(class ApplyAction extends Action2 {
 			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
 			category: localize('cat', "Refactor Preview"),
 			icon: { id: 'codicon/check' },
-			precondition: BulkEditPreviewContribution.ctxEnabled,
+			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
 				id: MenuId.BulkEditTitle,
 				group: 'navigation'
@@ -169,7 +168,7 @@ registerAction2(class ApplyAction extends Action2 {
 			}],
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
-				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, ContextKeyExpr.equals('activePanel', BulkEditPane.ID)),
+				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, ContextKeyExpr.equals('activePanel', BulkEditPane.ID), ContextKeyExpr.has('panelFocus')),
 				primary: KeyMod.Shift + KeyCode.Enter,
 			}
 		});
@@ -253,10 +252,7 @@ registerAction2(class GroupByFile extends Action2 {
 			id: 'refactorPreview.groupByFile',
 			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
 			category: localize('cat', "Refactor Preview"),
-			icon: {
-				light: getUriFromAmdModule(require, './media/ref-ungroup-by-type-light.svg'),
-				dark: getUriFromAmdModule(require, './media/ref-ungroup-by-type-dark.svg')
-			},
+			icon: { id: 'codicon/ungroup-by-ref-type' },
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -283,10 +279,7 @@ registerAction2(class GroupByType extends Action2 {
 			id: 'refactorPreview.groupByType',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
 			category: localize('cat', "Refactor Preview"),
-			icon: {
-				light: getUriFromAmdModule(require, './media/ref-group-by-type-light.svg'),
-				dark: getUriFromAmdModule(require, './media/ref-group-by-type-dark.svg')
-			},
+			icon: { id: 'codicon/group-by-ref-type' },
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,

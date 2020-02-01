@@ -13,7 +13,7 @@ import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IIconTheme, IThemingRegistry } from 'vs/platform/theme/common/themeService';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 const VS_THEME_NAME = 'vs';
@@ -131,7 +131,7 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this._tokenTheme;
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+	public getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
 		return undefined;
 	}
 

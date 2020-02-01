@@ -111,7 +111,11 @@
               },
               "editor.suggest.insertMode": "replace"
           }
-        }
+        },
+        "jsonValidation": [{
+            "fileMatch": "*.schema.json",
+            "url": "http://json-schema.org/draft-07/schema#"
+        }]
     },
     "dependencies": {
         "request-light": "^0.2.5",

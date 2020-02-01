@@ -63,7 +63,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -100,7 +100,19 @@ export function createFileInput(instantiationService: IInstantiationService, res
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
 }
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
+export const TestWindowConfiguration: IWindowConfiguration = {
+	windowId: 0,
+	sessionId: 'testSessionId',
+	logLevel: LogLevel.Error,
+	mainPid: 0,
+	appRoot: '',
+	userEnv: {},
+	execPath: process.execPath,
+	perfEntries: [],
+	...parseArgs(process.argv, OPTIONS)
+};
+
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWindowConfiguration, process.execPath, 0);
 
 export class TestContextService implements IWorkspaceContextService {
 	_serviceBrand: undefined;
@@ -190,7 +202,6 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	private promptPath!: URI;
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
@@ -200,15 +211,14 @@ export class TestTextFileService extends NativeTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IHistoryService historyService: IHistoryService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super(
 			fileService,
@@ -217,20 +227,15 @@ export class TestTextFileService extends NativeTextFileService {
 			instantiationService,
 			modelService,
 			environmentService,
-			historyService,
 			dialogService,
 			fileDialogService,
-			editorService,
 			textResourceConfigurationService,
 			productService,
 			filesConfigurationService,
 			textModelService,
-			codeEditorService
+			codeEditorService,
+			notificationService
 		);
-	}
-
-	setPromptPath(path: URI): void {
-		this.promptPath = path;
 	}
 
 	setResolveTextContentErrorOnce(error: FileOperationError): void {
@@ -256,10 +261,6 @@ export class TestTextFileService extends NativeTextFileService {
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10
 		};
-	}
-
-	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
-		return Promise.resolve(this.promptPath);
 	}
 }
 
@@ -319,10 +320,10 @@ export class TestAccessibilityService implements IAccessibilityService {
 
 	_serviceBrand: undefined;
 
-	onDidChangeAccessibilitySupport = Event.None;
+	onDidChangeScreenReaderOptimized = Event.None;
 
+	isScreenReaderOptimized(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 }
 
@@ -413,8 +414,12 @@ export class TestFileDialogService implements IFileDialogService {
 	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	private fileToSave!: URI;
+	setPickFileToSave(path: URI): void {
+		this.fileToSave = path;
+	}
 	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		return Promise.resolve(undefined);
+		return Promise.resolve(this.fileToSave);
 	}
 	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
@@ -619,6 +624,10 @@ export class TestPanelService implements IPanelService {
 	onDidPanelClose = new Emitter<IPanel>().event;
 
 	openPanel(id: string, focus?: boolean): undefined {
+		return undefined;
+	}
+
+	async openPanelAsync(id?: string, focus?: boolean): Promise<undefined> {
 		return undefined;
 	}
 
@@ -1099,11 +1108,11 @@ export class TestFileService implements IFileService {
 	}
 
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
+		return Promise.resolve(null!);
 	}
 
 	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
+		return Promise.resolve(null!);
 	}
 
 	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {
@@ -1195,10 +1204,6 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 
 	discardBackup(_resource: URI): Promise<void> {
-		return Promise.resolve();
-	}
-
-	discardAllBackups(): Promise<void> {
 		return Promise.resolve();
 	}
 }
@@ -1403,7 +1408,6 @@ export class TestElectronService implements IElectronService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async isWindowFocused(): Promise<boolean> { return true; }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }

@@ -189,6 +189,7 @@ export class TunnelModel extends Disposable {
 
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void {
 		this._candidateFinder = finder;
+		this._onCandidatesChanged.fire();
 	}
 
 	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): void {

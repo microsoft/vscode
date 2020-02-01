@@ -22,6 +22,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { parseBuiltInExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;
@@ -56,6 +58,7 @@ export class CachedExtensionScanner {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IHostService private readonly _hostService: IHostService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
 			this._scannedExtensionsResolve = resolve;
@@ -78,7 +81,7 @@ export class CachedExtensionScanner {
 	public async startScanningExtensions(log: ILog): Promise<void> {
 		try {
 			const translations = await this.translationConfig;
-			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, log, translations);
+			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, this._productService, log, translations);
 
 			let result = new Map<string, IExtensionDescription>();
 			system.forEach((systemExtension) => {
@@ -238,6 +241,7 @@ export class CachedExtensionScanner {
 		notificationService: INotificationService,
 		environmentService: IEnvironmentService,
 		extensionEnablementService: IWorkbenchExtensionEnablementService,
+		productService: IProductService,
 		log: ILog,
 		translations: Translations
 	): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
@@ -261,7 +265,7 @@ export class CachedExtensionScanner {
 		if (devMode) {
 			const builtInExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
 			const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
-				.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
+				.then(raw => parseBuiltInExtensions(raw, productService.quality));
 
 			const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 			const controlFile = pfs.readFile(controlFilePath, 'utf8')
@@ -321,6 +325,7 @@ interface IBuiltInExtension {
 	name: string;
 	version: string;
 	repo: string;
+	forQualities?: ReadonlyArray<string>;
 }
 
 interface IBuiltInExtensionControl {

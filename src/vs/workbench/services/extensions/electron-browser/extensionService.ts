@@ -39,6 +39,10 @@ import { IStaticExtensionsService } from 'vs/workbench/services/extensions/commo
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -600,3 +604,24 @@ function _removeSet(arr: IExtensionDescription[], toRemove: IExtensionDescriptio
 }
 
 registerSingleton(IExtensionService, ExtensionService);
+
+class RestartExtensionHostAction extends Action {
+
+	public static readonly ID = 'workbench.action.restartExtensionHost';
+	public static readonly LABEL = nls.localize('restartExtensionHost', "Developer: Restart Extension Host");
+
+	constructor(
+		id: string,
+		label: string,
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) {
+		super(id, label);
+	}
+
+	public async run() {
+		this._extensionService.restartExtensionHost();
+	}
+}
+
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(RestartExtensionHostAction, RestartExtensionHostAction.ID, RestartExtensionHostAction.LABEL), 'Developer: Restart Extension Host');

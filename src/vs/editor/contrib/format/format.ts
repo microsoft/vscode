@@ -181,7 +181,6 @@ export async function formatDocumentRangeWithProvider(
 		FormattingEdit.execute(editorOrModel, edits);
 		alertFormattingEdits(edits);
 		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
@@ -271,7 +270,6 @@ export async function formatDocumentWithProvider(
 		if (mode !== FormattingMode.Silent) {
 			alertFormattingEdits(edits);
 			editorOrModel.pushUndoStop();
-			editorOrModel.focus();
 			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 		}
 

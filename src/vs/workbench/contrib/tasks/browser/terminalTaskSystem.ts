@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -161,6 +161,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 	// Should always be set in run
 	private currentTask!: VerifiedTask;
 	private isRerun: boolean = false;
+	private previousPanelId: string | undefined;
+	private previousTerminalInstance: ITerminalInstance | undefined;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -206,16 +208,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
 		let terminalData = this.activeTasks[task.getMapKey()];
 		if (terminalData && terminalData.promise) {
-			let reveal = RevealKind.Always;
-			let focus = false;
-			if (CustomTask.is(task) || ContributedTask.is(task)) {
-				reveal = task.command.presentation!.reveal;
-				focus = task.command.presentation!.focus;
-			}
-			if (reveal === RevealKind.Always || focus) {
-				this.terminalService.setActiveInstance(terminalData.terminal);
-				this.terminalService.showPanel(focus);
-			}
 			this.lastTask = this.currentTask;
 			return { kind: TaskExecuteKind.Active, task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}
@@ -254,14 +246,42 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
+	public isTaskVisible(task: Task): boolean {
+		let terminalData = this.activeTasks[task.getMapKey()];
+		if (!terminalData) {
+			return false;
+		}
+		const activeTerminalInstance = this.terminalService.getActiveInstance();
+		const isPanelShowingTerminal = this.panelService.getActivePanel()?.getId() === TERMINAL_PANEL_ID;
+		return isPanelShowingTerminal && (activeTerminalInstance?.id === terminalData.terminal.id);
+	}
+
+
 	public revealTask(task: Task): boolean {
 		let terminalData = this.activeTasks[task.getMapKey()];
 		if (!terminalData) {
 			return false;
 		}
-		this.terminalService.setActiveInstance(terminalData.terminal);
-		if (CustomTask.is(task) || ContributedTask.is(task)) {
-			this.terminalService.showPanel(task.command.presentation!.focus);
+		if (this.isTaskVisible(task)) {
+			if (this.previousPanelId) {
+				if (this.previousTerminalInstance) {
+					this.terminalService.setActiveInstance(this.previousTerminalInstance);
+				}
+				this.panelService.openPanel(this.previousPanelId);
+			} else {
+				this.panelService.hideActivePanel();
+			}
+			this.previousPanelId = undefined;
+			this.previousTerminalInstance = undefined;
+		} else {
+			this.previousPanelId = this.panelService.getActivePanel()?.getId();
+			if (this.previousPanelId === TERMINAL_PANEL_ID) {
+				this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+			}
+			this.terminalService.setActiveInstance(terminalData.terminal);
+			if (CustomTask.is(task) || ContributedTask.is(task)) {
+				this.terminalService.showPanel(task.command.presentation!.focus);
+			}
 		}
 		return true;
 	}
@@ -357,7 +377,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 						promise = this.executeTask(dependencyTask, resolver, trigger, alreadyResolved);
 					}
 					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
-						promise = Promise.resolve(await promise);
+						const promiseResult = await promise;
+						if (promiseResult.exitCode === 0) {
+							promise = Promise.resolve(promiseResult);
+						} else {
+							promise = Promise.reject(promiseResult);
+							break;
+						}
 					}
 					promises.push(promise);
 				} else {

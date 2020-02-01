@@ -8,14 +8,16 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 import API from '../utils/api';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as path from 'path';
 import * as PConst from '../protocol.const';
 
 class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	public static readonly minVersion = API.v380;
+
 	public constructor(
-		private readonly client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
 	public async prepareCallHierarchy(
 		document: vscode.TextDocument,
@@ -70,7 +72,7 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 }
 
 function isSourceFileItem(item: Proto.CallHierarchyItem) {
-	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 0 && item.selectionSpan.start.offset === 0;
+	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 1 && item.selectionSpan.start.offset === 1;
 }
 
 function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {

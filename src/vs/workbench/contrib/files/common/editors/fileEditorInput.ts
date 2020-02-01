@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextEditorInput, IRevertOptions } from 'vs/workbench/common/editor';
+import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextEditorInput } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -71,8 +71,8 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 		// Dirty changes
 		this._register(this.textFileService.files.onDidChangeDirty(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.files.onDidSaveError(m => this.onDirtyStateChange(m)));
 		this._register(this.textFileService.files.onDidSave(e => this.onDirtyStateChange(e.model)));
+		this._register(this.textFileService.files.onDidSaveError(m => this.onDirtyStateChange(m)));
 		this._register(this.textFileService.files.onDidRevert(m => this.onDirtyStateChange(m)));
 
 		// Label changes
@@ -156,6 +156,18 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 		return this.decorateLabel(this.labelService.getUriBasenameLabel(this.resource));
 	}
 
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortDescription;
+			case Verbosity.LONG:
+				return this.longDescription;
+			case Verbosity.MEDIUM:
+			default:
+				return this.mediumDescription;
+		}
+	}
+
 	@FileEditorInput.MEMOIZER
 	private get shortDescription(): string {
 		return this.labelService.getUriBasenameLabel(dirname(this.resource));
@@ -169,18 +181,6 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	@FileEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
-	}
-
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
-		}
 	}
 
 	@FileEditorInput.MEMOIZER
@@ -260,10 +260,6 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 		}
 
 		return false;
-	}
-
-	revert(options?: IRevertOptions): Promise<boolean> {
-		return this.textFileService.revert(this.resource, options);
 	}
 
 	getPreferredEditorId(candidates: string[]): string {

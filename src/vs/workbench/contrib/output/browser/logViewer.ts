@@ -28,9 +28,10 @@ export class LogViewerInput extends ResourceEditorInput {
 		private readonly outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService, textFileService, editorService);
+		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService, textFileService, editorService, editorGroupService);
 	}
 
 	getTypeId(): string {
@@ -63,6 +64,7 @@ export class LogViewer extends AbstractTextResourceEditor {
 		options.wordWrap = 'off'; // all log viewers do not wrap
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
+		options.renderValidationDecorations = 'editable';
 		return options;
 	}
 }

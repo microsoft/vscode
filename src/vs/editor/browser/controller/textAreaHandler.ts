@@ -17,7 +17,7 @@ import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -62,8 +62,8 @@ export class TextAreaHandler extends ViewPart {
 	private _scrollLeft: number;
 	private _scrollTop: number;
 
-	private _accessibilitySupport: AccessibilitySupport;
-	private _accessibilityPageSize: number;
+	private _accessibilitySupport!: AccessibilitySupport;
+	private _accessibilityPageSize!: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -100,8 +100,7 @@ export class TextAreaHandler extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
@@ -159,16 +158,22 @@ export class TextAreaHandler extends ViewPart {
 				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
 
 				let html: string | null | undefined = undefined;
+				let mode: string | null = null;
 				if (generateHTML) {
 					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-						html = this._context.model.getHTMLToCopy(this._modelSelections, this._emptySelectionClipboard);
+						const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+						if (richText) {
+							html = richText.html;
+							mode = richText.mode;
+						}
 					}
 				}
 				return {
 					isFromEmptySelection,
 					multicursorText,
 					text,
-					html
+					html,
+					mode
 				};
 			},
 
@@ -222,11 +227,13 @@ export class TextAreaHandler extends ViewPart {
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
 			if (e.metadata) {
 				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
+				mode = e.metadata.mode;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText);
+			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
@@ -346,14 +353,25 @@ export class TextAreaHandler extends ViewPart {
 		return options.get(EditorOption.ariaLabel);
 	}
 
+	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
+		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
+			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 160 for a better experience
+			// If we put more than 160 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
+			this._accessibilityPageSize = 160;
+		} else {
+			this._accessibilityPageSize = accessibilityPageSize;
+		}
+	}
+
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;

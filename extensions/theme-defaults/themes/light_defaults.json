@@ -13,6 +13,7 @@
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
 		"input.placeholderForeground": "#767676",
+		"searchEditor.textInputBorder": "#CECECE",
 		"settings.textInputBorder": "#CECECE",
 		"settings.numberInputBorder": "#CECECE",
 		"statusBarItem.remoteForeground": "#FFF",

@@ -41,7 +41,7 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
+import { triggerDownload, asDomUri } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -232,13 +232,10 @@ async function deleteFiles(workingCopyService: IWorkingCopyService, textFileServ
 		});
 	}
 
-
-
 	// Check for confirmation checkbox
 	if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 	}
-
 
 	// Check for confirmation
 	if (!confirmation.confirmed) {
@@ -1004,6 +1001,7 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
+	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1017,11 +1015,18 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 
 		if (isWeb) {
 			if (!s.isDirectory) {
-				triggerDownload(asDomUri(s.resource), s.name);
+				let bufferOrUri: Uint8Array | URI;
+				try {
+					bufferOrUri = (await fileService.readFile(s.resource, { limits: { size: 1024 * 1024  /* set a limit to reduce memory pressure */ } })).value.buffer;
+				} catch (error) {
+					bufferOrUri = asDomUri(s.resource);
+				}
+
+				triggerDownload(bufferOrUri, s.name);
 			}
 		} else {
 			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
-			if (defaultUri && !s.isDirectory) {
+			if (defaultUri) {
 				defaultUri = resources.joinPath(defaultUri, s.name);
 			}
 
@@ -1032,7 +1037,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await textFileService.copy(s.resource, destination);
+				await textFileService.copy(s.resource, destination, true);
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;

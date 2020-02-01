@@ -17,17 +17,21 @@ import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/ser
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { basenameOrAuthority } from 'vs/base/common/resources';
+import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
+	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeFirstLine = this._register(new Emitter<void>());
-	readonly onDidChangeFirstLine = this._onDidChangeFirstLine.event;
+	private readonly _onDidChangeName = this._register(new Emitter<void>());
+	readonly onDidChangeName = this._onDidChangeName.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -36,6 +40,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
+
+	private cachedModelFirstLineWords: string | undefined = undefined;
+	get name(): string {
+		// Take name from first line if present and only if
+		// we have no associated file path. In that case we
+		// prefer the file name as title.
+		if (!this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
+			return this.cachedModelFirstLineWords;
+		}
+
+		// Otherwise fallback to resource
+		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
+	}
 
 	private dirty = false;
 	private versionId = 0;
@@ -50,7 +67,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
@@ -65,11 +82,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {
-		const configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
@@ -106,6 +123,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
+	isReadonly(): boolean {
+		return false;
+	}
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
@@ -119,12 +140,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this._onDidChangeDirty.fire();
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	async save(options?: ISaveOptions): Promise<boolean> {
+		const target = await this.textFileService.save(this.resource, options);
+
+		return !!target;
 	}
 
 	async revert(): Promise<boolean> {
 		this.setDirty(false);
+
+		// A reverted untitled model is invalid because it has
+		// no actual source on disk to revert to. As such we
+		// dispose the model.
+		this.dispose();
 
 		return true;
 	}
@@ -137,9 +165,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Check for backups
 		const backup = await this.backupFileService.resolve(this.resource);
-
-		// untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
 
 		let untitledContents: ITextBufferFactory;
 		if (backup) {
@@ -158,23 +183,26 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.updateTextEditorModel(untitledContents, this.preferredMode);
 		}
 
-		// Encoding
-		this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		// Figure out encoding now that model is present
+		this.configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
-		// We know for a fact there is a text editor model here
-		const textEditorModel = this.textEditorModel!;
-
-		// Listen to content changes
+		// Listen to text model events
+		const textEditorModel = assertIsDefined(this.textEditorModel);
 		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
-
-		// Listen to mode changes
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+
+		// Name
+		if (backup || this.initialValue) {
+			this.updateNameFromFirstLine();
+		}
+
+		// Untitled associated to file path are dirty right away as well as untitled with content
+		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
 
 		// If we have initial contents, make sure to emit this
 		// as the appropiate events to the outside.
 		if (backup || this.initialValue) {
 			this._onDidChangeContent.fire();
-			this._onDidChangeFirstLine.fire();
 		}
 
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
@@ -198,16 +226,35 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(true);
 		}
 
+		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_MAX_LENGTH columns
+		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)) {
+			this.updateNameFromFirstLine();
+		}
+
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
-
-		// Emit as first line change event depending on actual change
-		if (e.changes.some(change => change.range.startLineNumber === 1 || change.range.endLineNumber === 1)) {
-			this._onDidChangeFirstLine.fire();
-		}
 	}
 
-	isReadonly(): boolean {
-		return false;
+	private updateNameFromFirstLine(): void {
+		if (this.hasAssociatedFilePath) {
+			return; // not in case of an associated file path
+		}
+
+		// Determine the first words of the model following these rules:
+		// - cannot be only whitespace (so we trim())
+		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
+		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
+
+		let modelFirstWordsCandidate: string | undefined = undefined;
+
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH }).trim();
+		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
+			modelFirstWordsCandidate = firstLineText;
+		}
+
+		if (modelFirstWordsCandidate !== this.cachedModelFirstLineWords) {
+			this.cachedModelFirstLineWords = modelFirstWordsCandidate;
+			this._onDidChangeName.fire();
+		}
 	}
 }

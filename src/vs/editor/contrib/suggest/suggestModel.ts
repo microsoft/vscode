@@ -286,9 +286,7 @@ export class SuggestModel implements IDisposable {
 		) {
 			// Early exit if nothing needs to be done!
 			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-			if (this._state !== State.Idle) {
-				this.cancel();
-			}
+			this.cancel();
 			return;
 		}
 

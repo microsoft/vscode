@@ -139,7 +139,7 @@ export interface IViewModel {
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getEOL(): string;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
-	getHTMLToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): string | null;
+	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
 }
 
 export class MinimapLinesRenderingData {

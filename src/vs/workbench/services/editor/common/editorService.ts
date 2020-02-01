@@ -55,7 +55,7 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 export interface IBaseSaveRevertAllEditorOptions {
 
 	/**
-	 * Wether to include untitled editors as well.
+	 * Whether to include untitled editors as well.
 	 */
 	includeUntitled?: boolean;
 }

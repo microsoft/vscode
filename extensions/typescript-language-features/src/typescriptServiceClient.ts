@@ -724,7 +724,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					"${TypeScriptCommonProperties}",
 					"${TypeScriptRequestErrorProperties}"
 				],
-				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('fatalError', { command, ...(error instanceof TypeScriptServerError ? error.telemetry : {}) });

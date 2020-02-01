@@ -104,6 +104,7 @@ export interface TokenStylingDefaultRule {
 export interface TokenStylingRule {
 	match(classification: TokenClassification): number;
 	value: TokenStyle;
+	selector: TokenClassification;
 }
 
 /**
@@ -294,7 +295,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	public getTokenStylingRule(selector: TokenClassification, value: TokenStyle): TokenStylingRule {
 		return {
 			match: this.newMatcher(selector),
-			value
+			value,
+			selector
 		};
 	}
 
@@ -376,21 +378,21 @@ function registerDefaultClassifications(): void {
 
 	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
 
-	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']]);
+	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type'], ['support.class']]);
 	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']], 'type');
-	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.class']], 'type');
-	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), undefined, 'type');
-	registerTokenType('enum', nls.localize('enum', "Style for enums."), undefined, 'type');
-	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), undefined, 'type');
+	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class']], 'type');
+	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']], 'type');
+	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']], 'type');
+	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), [['entity.name.type', 'meta.type.parameters']], 'type');
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
-	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function'], ['support.function']]);
-	registerTokenType('macro', nls.localize('macro', "Style for macros."), undefined, 'function');
+	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function.member'], ['support.function']]);
+	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.other.preprocessor.macro']], 'function');
 
 	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable'], ['entity.name.variable']]);
-	registerTokenType('constant', nls.localize('constant', "Style for constants."), undefined, 'variable');
-	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), undefined, 'variable');
-	registerTokenType('property', nls.localize('property', "Style for properties."), undefined, 'variable');
+	registerTokenType('constant', nls.localize('constant', "Style for constants."), [['variable.other.constant']], 'variable');
+	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), [['variable.parameter']], 'variable');
+	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']], 'variable');
 
 	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
 
@@ -404,6 +406,8 @@ function registerDefaultClassifications(): void {
 	tokenClassificationRegistry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
+
+
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {

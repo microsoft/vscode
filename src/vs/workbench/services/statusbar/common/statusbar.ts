@@ -53,7 +53,7 @@ export interface IStatusbarEntry {
 	readonly arguments?: any[];
 
 	/**
-	 * Wether to show a beak above the status bar entry.
+	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
 }

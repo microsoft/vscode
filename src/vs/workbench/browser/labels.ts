@@ -338,6 +338,29 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
+		if (label.resource?.scheme === Schemas.untitled) {
+			// Untitled labels are very dynamic because they may change
+			// whenever the content changes (unless a path is associated).
+			// As such we always ask the actual editor for it's name and
+			// description to get latest in case name/description are
+			// provided. If they are not provided from the label we got
+			// we assume that the client does not want to display them
+			// and as such do not override.
+			const untitledEditor = this.textFileService.untitled.get(label.resource);
+			if (untitledEditor && !untitledEditor.hasAssociatedFilePath) {
+				if (typeof label.name === 'string') {
+					label.name = untitledEditor.getName();
+				}
+
+				if (typeof label.description === 'string') {
+					const untitledDescription = untitledEditor.getDescription(options?.descriptionVerbosity);
+					if (label.name !== untitledDescription) {
+						label.description = untitledDescription;
+					}
+				}
+			}
+		}
+
 		const hasPathLabelChanged = this.hasPathLabelChanged(label, options);
 		const clearIconCache = this.clearIconCache(label, options);
 
@@ -404,8 +427,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		let description: string | undefined;
-		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource));
-		if (!hidePath) {
+		if (!options?.hidePath) {
 			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
 		}
 
@@ -463,6 +485,7 @@ class ResourceLabelWidget extends IconLabel {
 		};
 
 		const resource = this.label.resource;
+		const label = this.label.name;
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
@@ -509,18 +532,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		let label = this.label.name || '';
-		if (resource?.scheme === Schemas.untitled) {
-			// Untitled labels are very dynamic because they may change
-			// whenever the content changes. As such we always ask the
-			// text file service for the name of the untitled editor
-			const untitledName = this.textFileService.untitled.get(resource)?.getName();
-			if (untitledName) {
-				label = untitledName;
-			}
-		}
-
-		this.setLabel(label, this.label.description, iconLabelOptions);
+		this.setLabel(label || '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 	}

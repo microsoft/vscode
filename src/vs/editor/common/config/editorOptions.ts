@@ -74,7 +74,7 @@ export interface IEditorOptions {
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
 	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
 	 * Otherwise, line numbers will not be rendered.
-	 * Defaults to true.
+	 * Defaults to `on`.
 	 */
 	lineNumbers?: LineNumbersType;
 	/**
@@ -135,6 +135,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the editor render validation decorations.
+	 * Defaults to editable.
+	 */
+	renderValidationDecorations?: 'editable' | 'on' | 'off';
 	/**
 	 * Control the behavior and rendering of the scrollbars.
 	 */
@@ -262,10 +267,10 @@ export interface IEditorOptions {
 	 */
 	wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 	/**
-	 * Controls the wrapping algorithm to use.
-	 * Defaults to 'monospace'.
+	 * Controls the wrapping strategy to use.
+	 * Defaults to 'simple'.
 	 */
-	wrappingAlgorithm?: 'monospace' | 'dom';
+	wrappingStrategy?: 'simple' | 'advanced';
 	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
 	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
@@ -380,8 +385,8 @@ export interface IEditorOptions {
 	 */
 	autoSurround?: EditorAutoSurroundStrategy;
 	/**
-	 * Enable auto indentation adjustment.
-	 * Defaults to false.
+	 * Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.
+	 * Defaults to advanced.
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
@@ -549,7 +554,7 @@ export interface IEditorOptions {
 	 * Controls whether to focus the inline editor in the peek widget by default.
 	 * Defaults to false.
 	 */
-	peekWidgetFocusInlineEditor?: boolean;
+	peekWidgetDefaultFocus?: 'tree' | 'editor';
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -2334,6 +2339,21 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 
 //#endregion
 
+//#region renderValidationDecorations
+
+/**
+ * @internal
+ */
+export function filterValidationDecorations(options: IComputedEditorOptions): boolean {
+	const renderValidationDecorations = options.get(EditorOption.renderValidationDecorations);
+	if (renderValidationDecorations === 'editable') {
+		return options.get(EditorOption.readOnly);
+	}
+	return renderValidationDecorations === 'on' ? false : true;
+}
+
+//#endregion
+
 //#region rulers
 
 class EditorRulers extends SimpleEditorOption<EditorOption.rulers, number[]> {
@@ -2648,6 +2668,10 @@ export interface ISuggestOptions {
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
+	/**
+	 * Controls the visibility of the status bar at the bottom of the suggest widget.
+	 */
+	hideStatusBar?: boolean;
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -2689,6 +2713,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
+			hideStatusBar: true
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -2873,6 +2898,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
+				},
+				'editor.suggest.hideStatusBar': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.hideStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				}
 			}
 		);
@@ -2917,6 +2947,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
 			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
+			hideStatusBar: EditorBooleanOption.boolean(input.hideStatusBar, this.defaultValue.hideStatusBar),
 		};
 	}
 }
@@ -3160,7 +3191,7 @@ export const enum EditorOption {
 	overviewRulerBorder,
 	overviewRulerLanes,
 	parameterHints,
-	peekWidgetFocusInlineEditor,
+	peekWidgetDefaultFocus,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3168,6 +3199,7 @@ export const enum EditorOption {
 	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
+	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
 	roundedSelection,
@@ -3198,7 +3230,7 @@ export const enum EditorOption {
 	wordWrapColumn,
 	wordWrapMinified,
 	wrappingIndent,
-	wrappingAlgorithm,
+	wrappingStrategy,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -3539,9 +3571,17 @@ export const EditorOptions = {
 		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
-	peekWidgetFocusInlineEditor: register(new EditorBooleanOption(
-		EditorOption.peekWidgetFocusInlineEditor, 'peekWidgetFocusInlineEditor', false,
-		{ description: nls.localize('peekWidgetFocusInlineEditor', "Controls whether to focus the inline editor in the peek widget by default.") }
+	peekWidgetDefaultFocus: register(new EditorStringEnumOption(
+		EditorOption.peekWidgetDefaultFocus, 'peekWidgetDefaultFocus',
+		'tree' as 'tree' | 'editor',
+		['tree', 'editor'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('peekWidgetDefaultFocus.tree', "Focus the tree when opening peek"),
+				nls.localize('peekWidgetDefaultFocus.editor', "Focus the editor when opening peek")
+			],
+			description: nls.localize('peekWidgetDefaultFocus', "Controls whether to focus the inline editor or the tree in the peek widget.")
+		}
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
@@ -3577,6 +3617,11 @@ export const EditorOptions = {
 			],
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		}
+	)),
+	renderValidationDecorations: register(new EditorStringEnumOption(
+		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
+		'editable' as 'editable' | 'on' | 'off',
+		['editable', 'on', 'off'] as const
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
@@ -3777,16 +3822,16 @@ export const EditorOptions = {
 			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
 		}
 	)),
-	wrappingAlgorithm: register(new EditorStringEnumOption(
-		EditorOption.wrappingAlgorithm, 'wrappingAlgorithm',
-		'monospace' as 'monospace' | 'dom',
-		['monospace', 'dom'] as const,
+	wrappingStrategy: register(new EditorStringEnumOption(
+		EditorOption.wrappingStrategy, 'wrappingStrategy',
+		'simple' as 'simple' | 'advanced',
+		['simple', 'advanced'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('wrappingAlgorithm.monospace', "Assumes that all characters are of the same width. This is a fast algorithm."),
-				nls.localize('wrappingAlgorithm.dom', "Delegates wrapping points computation to the DOM. This is a slow algorithm, that might cause freezes for large files.")
+				nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
+				nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
 			],
-			description: nls.localize('wrappingAlgorithm', "Controls the algorithm that computes wrapping points.")
+			description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points.")
 		}
 	)),
 

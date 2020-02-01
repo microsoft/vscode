@@ -856,7 +856,7 @@ export class Minimap extends ViewPart {
 		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
 		// Skip rendering the line if it's vertically outside our viewport
-		if (y + height < 0 || y > this._options.canvasOuterHeight) {
+		if (y + height < 0 || y > this._options.canvasInnerHeight) {
 			return;
 		}
 

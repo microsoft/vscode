@@ -41,7 +41,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -62,9 +62,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
@@ -566,6 +564,12 @@ class ViewModel {
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+
+		for (const item of this.items) {
+			item.disposable.dispose();
+		}
+
+		this.items = [];
 	}
 }
 
@@ -619,13 +623,14 @@ export class RepositoryPane extends ViewPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -714,18 +719,18 @@ export class RepositoryPane extends ViewPane {
 			fontSize: 13,
 			lineHeight: 20,
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			wrappingAlgorithm: 'dom',
+			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
-			suggest: {
-				showWords: false
-			}
+			// suggest: {
+			// 	showWords: false
+			// }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SuggestController.ID,
-				SnippetController2.ID,
+				// SuggestController.ID,
+				// SnippetController2.ID,
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
@@ -1068,6 +1073,29 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 }
 
 registerThemingParticipant((theme, collector) => {
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	if (inputBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .monaco-editor-background,
+		.scm-viewlet .scm-editor-container .monaco-editor,
+		.scm-viewlet .scm-editor-container .monaco-editor .margin
+		{ background-color: ${inputBackgroundColor}; }`);
+	}
+
+	const inputForegroundColor = theme.getColor(inputForeground);
+	if (inputForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
+	}
+
+	const inputBorderColor = theme.getColor(inputBorder);
+	if (inputBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+	}
+
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
+	}
+
 	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
 	if (inputPlaceholderForegroundColor) {
 		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);

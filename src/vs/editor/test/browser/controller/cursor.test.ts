@@ -4901,6 +4901,51 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #85983 - editor.autoClosingBrackets: beforeWhitespace is incorrect for Python', () => {
+		const languageId = new LanguageIdentifier('pythonMode', 5);
+		class PythonMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'r\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'R\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'u\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'U\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'f\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'F\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'b\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'r\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'R\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'u\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'U\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'f\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'F\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'b\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'B\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+		const mode = new PythonMode();
+		usingCursor({
+			text: [
+				'foo\'hello\''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
+		});
+		mode.dispose();
+	});
+
 	test('issue #78975 - Parentheses swallowing does not work when parentheses are inserted by autocomplete', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
