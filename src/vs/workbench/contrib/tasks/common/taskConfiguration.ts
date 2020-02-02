@@ -133,6 +133,7 @@ export interface PresentationOptionsConfig {
 export interface RunOptionsConfig {
 	reevaluateOnRerun?: boolean;
 	runOn?: string;
+	instances?: number;
 }
 
 export interface TaskIdentifier {
@@ -681,7 +682,8 @@ export namespace RunOptions {
 	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
-			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default
+			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
+			instances: value ? value.instances : Tasks.RunOnOptions.default
 		};
 	}
 }

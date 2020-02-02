@@ -210,6 +210,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
 	private static nextHandle: number = 0;
+	private count: { [key: string]: number; } = {};
 
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
@@ -1283,14 +1284,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
+					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
 					this.notificationService.prompt(Severity.Info, message,
 						[{
 							label: nls.localize('terminateTask', "Terminate Task"),
-							run: () => this.terminate(executeResult.task)
+							run: () => this.terminate(lastInstance)
 						},
 						{
 							label: nls.localize('restartTask', "Restart Task"),
-							run: () => this.restart(executeResult.task)
+							run: () => this.restart(lastInstance)
 						}],
 						{ sticky: true }
 					);
@@ -1973,11 +1975,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): TaskQuickPickEntry[] {
+		this.count = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			return { label: task._label, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			let entryLabel = task._label;
+			let commonKey = task._id.split('|')[0];
+			if (this.count[commonKey]) {
+				entryLabel = entryLabel + ' (' + this.count[commonKey].toString() + ')';
+				this.count[commonKey]++;
+			} else {
+				this.count[commonKey] = 1;
+			}
+			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
@@ -2040,6 +2052,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
+		this.count = {};
 		return entries;
 	}
 
