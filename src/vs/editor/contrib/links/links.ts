@@ -97,7 +97,7 @@ class LinkOccurrence {
 	}
 }
 
-class LinkDetector implements IEditorContribution {
+export class LinkDetector implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.linkDetector';
 
