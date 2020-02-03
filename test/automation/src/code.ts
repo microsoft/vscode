@@ -122,68 +122,69 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 	const handle = await createDriverHandle();
 
-	const args = [
-		options.workspacePath,
-		'--skip-getting-started',
-		'--skip-release-notes',
-		'--sticky-quickopen',
-		'--disable-telemetry',
-		'--disable-updates',
-		'--disable-crash-reporter',
-		`--extensions-dir=${options.extensionsPath}`,
-		`--user-data-dir=${options.userDataDir}`,
-		'--driver', handle
-	];
-
-	const env = process.env;
-
-	if (options.remote) {
-		// Replace workspace path with URI
-		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension
-			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
-			if (!fs.existsSync(testResolverExtPath)) {
-				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
-				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
-			}
-		}
-		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-		const remoteDataDir = `${options.userDataDir}-server`;
-		mkdirp.sync(remoteDataDir);
-		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-	}
-
-	if (options.web || !codePath) {
-		args.unshift(repoPath);
-	}
-
-	if (options.verbose) {
-		args.push('--driver-verbose');
-	}
-
-	if (options.log) {
-		args.push('--log', options.log);
-	}
-
-	if (options.extraArgs) {
-		args.push(...options.extraArgs);
-	}
-
 	let child: cp.ChildProcess | undefined;
 	let connectDriver: typeof connectElectronDriver;
 
 	if (options.web) {
-		await launch(args, options.codePath);
+		await launch(options.userDataDir, options.workspacePath, options.codePath);
 		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, !!options.headless, options.browser);
 	} else {
+		const env = process.env;
+
+		const args = [
+			options.workspacePath,
+			'--skip-getting-started',
+			'--skip-release-notes',
+			'--sticky-quickopen',
+			'--disable-telemetry',
+			'--disable-updates',
+			'--disable-crash-reporter',
+			`--extensions-dir=${options.extensionsPath}`,
+			`--user-data-dir=${options.userDataDir}`,
+			'--driver', handle
+		];
+
+		if (options.remote) {
+			// Replace workspace path with URI
+			args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+
+			if (codePath) {
+				// running against a build: copy the test resolver extension
+				const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
+				if (!fs.existsSync(testResolverExtPath)) {
+					const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
+					await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+				}
+			}
+			args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+			const remoteDataDir = `${options.userDataDir}-server`;
+			mkdirp.sync(remoteDataDir);
+			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+		}
+
+		if (!codePath) {
+			args.unshift(repoPath);
+		}
+
+		if (options.verbose) {
+			args.push('--driver-verbose');
+		}
+
+		if (options.log) {
+			args.push('--log', options.log);
+		}
+
+		if (options.extraArgs) {
+			args.push(...options.extraArgs);
+		}
+
 		const spawnOptions: cp.SpawnOptions = { env };
 		child = cp.spawn(electronPath, args, spawnOptions);
 		instances.add(child);
 		child.once('exit', () => instances.delete(child!));
 		connectDriver = connectElectronDriver;
 	}
+
 	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 

@@ -86,13 +86,13 @@ function timeout(ms: number): Promise<void> {
 
 // function runInDriver(call: string, args: (string | boolean)[]): Promise<any> {}
 
-let args: string[] | undefined;
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
+let workspacePath: string | undefined;
 
-export async function launch(_args: string[], codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH): Promise<void> {
-	args = _args;
-	const agentFolder = args.filter(e => e.includes('--user-data-dir='))[0].replace('--user-data-dir=', '');
+export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH): Promise<void> {
+	workspacePath = _workspacePath;
+	const agentFolder = userDataDir;
 	await promisify(mkdir)(agentFolder);
 	const env = {
 		VSCODE_AGENT_FOLDER: agentFolder,
@@ -103,7 +103,7 @@ export async function launch(_args: string[], codeServerPath = process.env.VSCOD
 	if (codeServerPath) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 	} else {
-		serverLocation = join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = join(__dirname, '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 	}
 	server = spawn(
 		serverLocation,
@@ -145,7 +145,7 @@ export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'fire
 		});
 		const page = (await browser.defaultContext().pages())[0];
 		await page.setViewport({ width, height });
-		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${args![1]}`);
+		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${workspacePath}`);
 		const result = {
 			client: { dispose: () => teardown() },
 			driver: buildDriver(browser, page)
