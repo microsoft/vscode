@@ -12,6 +12,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import * as path from 'vs/base/common/path';
 
 
 export interface IDimentionMessage {
@@ -76,7 +77,7 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.position = 'absolute';
 		this.element.style.margin = '0px 0 0px 24px';
 
-		const loader = URI.parse(environmentSerice.appRoot + '/out/vs/loader.js').with({ scheme: WebviewResourceScheme });
+		const loader = URI.file(path.join(environmentSerice.appRoot, '/out/vs/loader.js')).with({ scheme: WebviewResourceScheme });
 
 		let content = /* html */`
 		<html lang="en">
@@ -252,7 +253,7 @@ export class BackLayerWebView extends Disposable {
 			enableFindWidget: false,
 		}, {
 			allowScripts: true,
-			localResourceRoots: [...this.notebookService.getNotebookProviderResourceRoots(), URI.parse(this.environmentSerice.appRoot)]
+			localResourceRoots: [...this.notebookService.getNotebookProviderResourceRoots(), URI.file(this.environmentSerice.appRoot)]
 		});
 		webview.html = content;
 		return webview;

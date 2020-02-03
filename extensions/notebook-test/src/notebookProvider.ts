@@ -60,31 +60,32 @@ export class JupyterNotebook {
 			let outputs = [];
 			if (fillOutputs) {
 				outputs = raw_cell.outputs;
-			}
 
-			if (!this.preloadScript) {
-				let containHTML = this.containHTML(raw_cell);
+				if (!this.preloadScript) {
+					let containHTML = this.containHTML(raw_cell);
 
-				if (containHTML) {
-					this.preloadScript = true;
-					const scriptPathOnDisk = vscode.Uri.file(
-						path.join(this._extensionPath, 'dist', 'ipywidgets.js')
-					);
+					if (containHTML) {
+						this.preloadScript = true;
+						const scriptPathOnDisk = vscode.Uri.file(
+							path.join(this._extensionPath, 'dist', 'ipywidgets.js')
+						);
 
-					let scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+						let scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
 
-					outputs.unshift(
-						{
-							'output_type': 'display_data',
-							'data': {
-								'text/html': [
-									`<script src="${scriptUri}"></script>\n`,
-								]
+						outputs.unshift(
+							{
+								'output_type': 'display_data',
+								'data': {
+									'text/html': [
+										`<script src="${scriptUri}"></script>\n`,
+									]
+								}
 							}
-						}
-					);
+						);
+					}
 				}
 			}
+
 
 			let managedCell = editor.createCell(
 				raw_cell.source ? raw_cell.source.join('') : '',
