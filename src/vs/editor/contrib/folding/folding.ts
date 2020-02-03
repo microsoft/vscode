@@ -33,7 +33,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorSelectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionBackground, transparent, iconForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -886,10 +886,21 @@ for (let i = 1; i <= 7; i++) {
 }
 
 export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
+export const editorFoldForeground = registerColor('editor.foldForeground', { dark: iconForeground, light: iconForeground, hc: iconForeground }, nls.localize('editor.foldForeground', 'Color of the editor folding icons.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foldBackground = theme.getColor(foldBackgroundBackground);
 	if (foldBackground) {
 		collector.addRule(`.monaco-editor .folded-background { background-color: ${foldBackground}; }`);
+	}
+
+	const editorFoldColor = theme.getColor(editorFoldForeground);
+	if (editorFoldColor) {
+		collector.addRule(`
+		.monaco-editor .cldr.codicon-chevron-right,
+		.monaco-editor .cldr.codicon-chevron-down {
+			color: ${editorFoldColor} !important;
+		}
+		`);
 	}
 });
