@@ -16,15 +16,13 @@ yarn smoketest
 yarn smoketest --web --browser <chromium|firefox|webkit>
 
 # Build (Electron)
-yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_BUILD_PARENT_FOLDER
+yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
 
 # Build (Web - read instructions below)
-export VSCODE_REMOTE_SERVER_PATH=<path to server with web folder> # macOS, Linux
-set VSCODE_REMOTE_SERVER_PATH=<path to server with web folder> # Windows
-yarn smoketest --web --browser <chromium|firefox|webkit>
+yarn smoketest --build <path to web server folder> --web --browser <chromium|firefox|webkit>
 
 # Remote (Electron)
-yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --remote
+yarn smoketest --build <path latest built version> --remote
 ```
 
 ### Run for a release
@@ -43,7 +41,7 @@ The recommended way to make these builds available for the smoketest is by downl
 them into two folders. Pass the folder paths to the smoketest as follows:
 
 ```bash
-yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_RELEASE_PARENT_FOLDER
+yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
 ```
 
 #### Web
@@ -54,8 +52,10 @@ yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_
 xattr -d com.apple.quarantine <path to server with web folder zip>
 ```
 
-There is no support for testing an old version to a new one yet, so simply configure the `VSCODE_REMOTE_SERVER_PATH` variable to point to
-the web server folder which includes the web client bits (e.g. `vscode-server-darwin-web`).
+There is no support for testing an old version to a new one yet, so simply configure the `--build` command line argument to point to
+the web server folder which includes the web client bits (e.g. `vscode-server-darwin-web` for macOS).
+
+**Note**: make sure to point to the server that includes the client bits!
 
 ### Debug
 

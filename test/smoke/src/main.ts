@@ -156,7 +156,7 @@ if (!opts.web) {
 		quality = Quality.Stable;
 	}
 } else {
-	let testCodeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH;
+	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
 
 	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
 		fail(`Can't find Code server at ${testCodeServerPath}.`);

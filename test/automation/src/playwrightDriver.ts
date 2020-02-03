@@ -90,17 +90,18 @@ let args: string[] | undefined;
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 
-export async function launch(_args: string[]): Promise<void> {
+export async function launch(_args: string[], codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH): Promise<void> {
 	args = _args;
 	const agentFolder = args.filter(e => e.includes('--user-data-dir='))[0].replace('--user-data-dir=', '');
 	await promisify(mkdir)(agentFolder);
 	const env = {
 		VSCODE_AGENT_FOLDER: agentFolder,
+		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
 		...process.env
 	};
 	let serverLocation: string | undefined;
-	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
-		serverLocation = join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+	if (codeServerPath) {
+		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 	} else {
 		serverLocation = join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 	}

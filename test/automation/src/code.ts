@@ -155,7 +155,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 	}
 
-	if (!codePath) {
+	if (options.web || !codePath) {
 		args.unshift(repoPath);
 	}
 
@@ -175,7 +175,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	let connectDriver: typeof connectElectronDriver;
 
 	if (options.web) {
-		await launch(args);
+		await launch(args, options.codePath);
 		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, !!options.headless, options.browser);
 	} else {
 		const spawnOptions: cp.SpawnOptions = { env };
