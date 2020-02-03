@@ -3036,10 +3036,10 @@ declare namespace monaco.editor {
 		 */
 		peekWidgetDefaultFocus?: 'tree' | 'editor';
 		/**
-		 * Controls whether the mouse click opens element definition in the peek widget.
+		 * Controls whether the definition link opens element in the peek widget.
 		 * Defaults to false.
 		 */
-		mouseOpensDefinitionInPeek?: boolean;
+		definitionLinkOpensInPeek?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3766,7 +3766,7 @@ declare namespace monaco.editor {
 		overviewRulerLanes = 63,
 		parameterHints = 64,
 		peekWidgetDefaultFocus = 65,
-		mouseOpensDefinitionInPeek = 66,
+		definitionLinkOpensInPeek = 66,
 		quickSuggestions = 67,
 		quickSuggestionsDelay = 68,
 		readOnly = 69,
@@ -3879,7 +3879,7 @@ declare namespace monaco.editor {
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
-		mouseOpensDefinitionInPeek: IEditorOption<EditorOption.mouseOpensDefinitionInPeek, boolean>;
+		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;

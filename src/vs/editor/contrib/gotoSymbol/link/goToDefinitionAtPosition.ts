@@ -335,7 +335,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {
 		this.editor.setPosition(position);
-		const openInPeek = this.editor.getOption(EditorOption.mouseOpensDefinitionInPeek);
+		const openInPeek = this.editor.getOption(EditorOption.definitionLinkOpensInPeek);
 		const action = new DefinitionAction({ openToSide, openInPeek: openInPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}

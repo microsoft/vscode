@@ -231,7 +231,7 @@ export enum EditorOption {
 	overviewRulerLanes = 63,
 	parameterHints = 64,
 	peekWidgetDefaultFocus = 65,
-	mouseOpensDefinitionInPeek = 66,
+	definitionLinkOpensInPeek = 66,
 	quickSuggestions = 67,
 	quickSuggestionsDelay = 68,
 	readOnly = 69,
