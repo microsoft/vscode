@@ -29,7 +29,10 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition } from 'vs/workbench/services/themes/common/colorThemeData';
 import { TokenStylingRule, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import type { IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
+
+export interface IEditorSemanticHighlightingOptions {
+	enabled?: boolean;
+}
 
 class InspectEditorTokensController extends Disposable implements IEditorContribution {
 

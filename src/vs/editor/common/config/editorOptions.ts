@@ -1588,55 +1588,6 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 
 //#endregion
 
-//#region semantic highlighting
-
-/**
- * Configuration options for semantic highlighting
- */
-export interface IEditorSemanticHighlightingOptions {
-	/**
-	 * Enable semantic highlighting.
-	 * Defaults to true.
-	 */
-	enabled?: boolean;
-}
-
-/**
- * @internal
- */
-export type EditorSemanticHighlightingOptions = Readonly<Required<IEditorSemanticHighlightingOptions>>;
-
-class EditorSemanticHighlighting extends BaseEditorOption<EditorOption.semanticHighlighting, EditorSemanticHighlightingOptions> {
-
-	constructor() {
-		const defaults: EditorSemanticHighlightingOptions = {
-			enabled: true
-		};
-		super(
-			EditorOption.semanticHighlighting, 'semanticHighlighting', defaults,
-			{
-				'editor.semanticHighlighting.enabled': {
-					type: 'boolean',
-					default: defaults.enabled,
-					description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
-				}
-			}
-		);
-	}
-
-	public validate(_input: any): EditorSemanticHighlightingOptions {
-		if (typeof _input !== 'object') {
-			return this.defaultValue;
-		}
-		const input = _input as IEditorSemanticHighlightingOptions;
-		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled)
-		};
-	}
-}
-
-//#endregion
-
 //#region layoutInfo
 
 /**
@@ -3245,7 +3196,6 @@ export const enum EditorOption {
 	selectionClipboard,
 	selectionHighlight,
 	selectOnLineNumbers,
-	semanticHighlighting,
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
@@ -3715,7 +3665,6 @@ export const EditorOptions = {
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
 	)),
-	semanticHighlighting: register(new EditorSemanticHighlighting()),
 	showFoldingControls: register(new EditorStringEnumOption(
 		EditorOption.showFoldingControls, 'showFoldingControls',
 		'mouseover' as 'always' | 'mouseover',
