@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -729,33 +729,47 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				throw new Error('IPC broadcast channels are not supported for calls');
 			},
 			listen(eventName: string, arg: any): Event<T> {
-				const eventMultiplexer = new EventMultiplexer<T>();
-				const map = new Map<Connection<TContext>, IDisposable>();
+				let disposables = new DisposableStore();
 
-				const onDidAddConnection = (connection: Connection<TContext>) => {
-					const channel = connection.channelClient.getChannel(channelName);
-					const event = channel.listen<T>(eventName, arg);
-					const disposable = eventMultiplexer.add(event);
+				const emitter = new Emitter<T>({
+					onFirstListenerAdd: () => {
+						disposables = new DisposableStore();
 
-					map.set(connection, disposable);
-				};
+						const eventMultiplexer = new EventMultiplexer<T>();
+						const map = new Map<Connection<TContext>, IDisposable>();
 
-				const onDidRemoveConnection = (connection: Connection<TContext>) => {
-					const disposable = map.get(connection);
+						const onDidAddConnection = (connection: Connection<TContext>) => {
+							const channel = connection.channelClient.getChannel(channelName);
+							const event = channel.listen<T>(eventName, arg);
+							const disposable = eventMultiplexer.add(event);
 
-					if (!disposable) {
-						return;
+							map.set(connection, disposable);
+						};
+
+						const onDidRemoveConnection = (connection: Connection<TContext>) => {
+							const disposable = map.get(connection);
+
+							if (!disposable) {
+								return;
+							}
+
+							disposable.dispose();
+							map.delete(connection);
+						};
+
+						that.connections.forEach(onDidAddConnection);
+						that.onDidAddConnection(onDidAddConnection, undefined, disposables);
+						that.onDidRemoveConnection(onDidRemoveConnection, undefined, disposables);
+						eventMultiplexer.event(emitter.fire, emitter, disposables);
+
+						disposables.add(eventMultiplexer);
+					},
+					onLastListenerRemove: () => {
+						disposables.dispose();
 					}
+				});
 
-					disposable.dispose();
-					map.delete(connection);
-				};
-
-				that.connections.forEach(onDidAddConnection);
-				that.onDidAddConnection(onDidAddConnection);
-				that.onDidRemoveConnection(onDidRemoveConnection);
-
-				return eventMultiplexer.event;
+				return emitter.event;
 			}
 		} as T;
 	}
