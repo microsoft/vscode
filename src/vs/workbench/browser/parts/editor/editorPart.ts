@@ -48,7 +48,7 @@ class GridWidgetView<T extends IView> implements IView {
 	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
 
 	private _onDidChange = new Relay<{ width: number; height: number; } | undefined>();
-	readonly onDidChange: Event<{ width: number; height: number; } | undefined> = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	private _gridWidget: Grid<T> | undefined;
 
@@ -111,6 +111,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
 	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+
 	private readonly _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange = Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event);
 

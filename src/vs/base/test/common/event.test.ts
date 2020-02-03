@@ -237,6 +237,20 @@ suite('Event', function () {
 		assert.equal(calls, 2);
 	});
 
+	test('Debounce Event - leading reset', async function () {
+		const emitter = new Emitter<number>();
+		let debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
+
+		let calls: number[] = [];
+		debounced((e) => calls.push(e));
+
+		emitter.fire(1);
+		emitter.fire(1);
+
+		await timeout(1);
+		assert.deepEqual(calls, [1, 1]);
+	});
+
 	test('Emitter - In Order Delivery', function () {
 		const a = new Emitter<string>();
 		const listener2Events: string[] = [];

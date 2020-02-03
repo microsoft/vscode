@@ -3,41 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEncodingSupport, ISaveOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { Emitter } from 'vs/base/common/event';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { basenameOrAuthority } from 'vs/base/common/resources';
+import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
-export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport, IWorkingCopy {
+export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
 
-	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
+export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 
-	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeEncoding: Event<void> = this._onDidChangeEncoding.event;
+	private readonly _onDidChangeName = this._register(new Emitter<void>());
+	readonly onDidChangeName = this._onDidChangeName.event;
 
-	readonly capabilities = 0;
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
+	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+
+	readonly capabilities = WorkingCopyCapabilities.Untitled;
+
+	private cachedModelFirstLineWords: string | undefined = undefined;
+	get name(): string {
+		// Take name from first line if present and only if
+		// we have no associated file path. In that case we
+		// prefer the file name as title.
+		if (!this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
+			return this.cachedModelFirstLineWords;
+		}
+
+		// Otherwise fallback to resource
+		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
+	}
 
 	private dirty = false;
 	private versionId = 0;
-	private readonly contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
-	private configuredEncoding?: string;
+	private configuredEncoding: string | undefined;
 
 	constructor(
 		private readonly preferredMode: string | undefined,
@@ -48,7 +67,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
@@ -63,11 +82,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {
-		const configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
@@ -104,6 +123,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		}
 	}
 
+	isReadonly(): boolean {
+		return false;
+	}
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
@@ -117,42 +140,31 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		this._onDidChangeDirty.fire();
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	async save(options?: ISaveOptions): Promise<boolean> {
+		const target = await this.textFileService.save(this.resource, options);
+
+		return !!target;
 	}
 
 	async revert(): Promise<boolean> {
 		this.setDirty(false);
 
-		// Handle content change event buffered
-		this.contentChangeEventScheduler.schedule();
+		// A reverted untitled model is invalid because it has
+		// no actual source on disk to revert to. As such we
+		// dispose the model.
+		this.dispose();
 
 		return true;
 	}
 
-	backup(): Promise<void> {
-		if (this.isResolved()) {
-			return this.backupFileService.backupResource(this.resource, this.createSnapshot(), this.versionId);
-		}
-
-		return Promise.resolve();
-	}
-
-	hasBackup(): boolean {
-		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+	async backup(): Promise<IWorkingCopyBackup> {
+		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
 	async load(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 
-		// Check for backups first
-		let backup: IResolvedBackup<object> | undefined = undefined;
-		const backupResource = await this.backupFileService.loadBackupResource(this.resource);
-		if (backupResource) {
-			backup = await this.backupFileService.resolveBackupContent(backupResource);
-		}
-
-		// untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+		// Check for backups
+		const backup = await this.backupFileService.resolve(this.resource);
 
 		let untitledContents: ITextBufferFactory;
 		if (backup) {
@@ -171,22 +183,32 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 			this.updateTextEditorModel(untitledContents, this.preferredMode);
 		}
 
-		// Encoding
-		this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		// Figure out encoding now that model is present
+		this.configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
-		// We know for a fact there is a text editor model here
-		const textEditorModel = this.textEditorModel!;
-
-		// Listen to content changes
-		this._register(textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
-
-		// Listen to mode changes
+		// Listen to text model events
+		const textEditorModel = assertIsDefined(this.textEditorModel);
+		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+
+		// Name
+		if (backup || this.initialValue) {
+			this.updateNameFromFirstLine();
+		}
+
+		// Untitled associated to file path are dirty right away as well as untitled with content
+		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+
+		// If we have initial contents, make sure to emit this
+		// as the appropiate events to the outside.
+		if (backup || this.initialValue) {
+			this._onDidChangeContent.fire();
+		}
 
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
-	private onModelContentChanged(): void {
+	private onModelContentChanged(e: IModelContentChangedEvent): void {
 		if (!this.isResolved()) {
 			return;
 		}
@@ -204,11 +226,35 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 			this.setDirty(true);
 		}
 
-		// Handle content change event buffered
-		this.contentChangeEventScheduler.schedule();
+		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_MAX_LENGTH columns
+		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)) {
+			this.updateNameFromFirstLine();
+		}
+
+		// Emit as general content change event
+		this._onDidChangeContent.fire();
 	}
 
-	isReadonly(): boolean {
-		return false;
+	private updateNameFromFirstLine(): void {
+		if (this.hasAssociatedFilePath) {
+			return; // not in case of an associated file path
+		}
+
+		// Determine the first words of the model following these rules:
+		// - cannot be only whitespace (so we trim())
+		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
+		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
+
+		let modelFirstWordsCandidate: string | undefined = undefined;
+
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH }).trim();
+		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
+			modelFirstWordsCandidate = firstLineText;
+		}
+
+		if (modelFirstWordsCandidate !== this.cachedModelFirstLineWords) {
+			this.cachedModelFirstLineWords = modelFirstWordsCandidate;
+			this._onDidChangeName.fire();
+		}
 	}
 }

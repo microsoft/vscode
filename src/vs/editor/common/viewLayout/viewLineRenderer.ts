@@ -66,7 +66,9 @@ export class RenderLineInput {
 	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
 	public readonly tabSize: number;
+	public readonly startVisibleColumn: number;
 	public readonly spaceWidth: number;
+	public readonly middotWidth: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
@@ -89,7 +91,9 @@ export class RenderLineInput {
 		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
 		tabSize: number,
+		startVisibleColumn: number,
 		spaceWidth: number,
+		middotWidth: number,
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'all',
 		renderControlCharacters: boolean,
@@ -106,7 +110,9 @@ export class RenderLineInput {
 		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations;
 		this.tabSize = tabSize;
+		this.startVisibleColumn = startVisibleColumn;
 		this.spaceWidth = spaceWidth;
+		this.middotWidth = middotWidth;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = (
 			renderWhitespace === 'all'
@@ -154,6 +160,7 @@ export class RenderLineInput {
 			&& this.containsRTL === other.containsRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
+			&& this.startVisibleColumn === other.startVisibleColumn
 			&& this.spaceWidth === other.spaceWidth
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
@@ -314,21 +321,24 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations
-			let classNames: string[] = [];
+			const beforeClassNames: string[] = [];
+			const afterClassNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
 				if (lineDecoration.type === InlineDecorationType.Before) {
-					classNames.push(input.lineDecorations[i].className);
+					beforeClassNames.push(input.lineDecorations[i].className);
 					containsForeignElements |= ForeignElementType.Before;
 				}
 				if (lineDecoration.type === InlineDecorationType.After) {
-					classNames.push(input.lineDecorations[i].className);
+					afterClassNames.push(input.lineDecorations[i].className);
 					containsForeignElements |= ForeignElementType.After;
 				}
 			}
 
 			if (containsForeignElements !== ForeignElementType.None) {
-				content = `<span><span class="${classNames.join(' ')}"></span></span>`;
+				const beforeSpan = (beforeClassNames.length > 0 ? `<span class="${beforeClassNames.join(' ')}"></span>` : ``);
+				const afterSpan = (afterClassNames.length > 0 ? `<span class="${afterClassNames.join(' ')}"></span>` : ``);
+				content = `<span>${beforeSpan}${afterSpan}</span>`;
 			}
 		}
 
@@ -368,9 +378,12 @@ class ResolvedRenderLineInput {
 		public readonly isOverflowing: boolean,
 		public readonly parts: LinePart[],
 		public readonly containsForeignElements: ForeignElementType,
+		public readonly fauxIndentLength: number,
 		public readonly tabSize: number,
+		public readonly startVisibleColumn: number,
 		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
+		public readonly middotWidth: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
 	) {
@@ -395,7 +408,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary || (input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine)) {
-		tokens = _applyRenderWhitespace(lineContent, len, input.continuesWithWrappedLine, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.selectionsOnLine, input.renderWhitespace === RenderWhitespace.Boundary);
+		tokens = _applyRenderWhitespace(lineContent, len, input.continuesWithWrappedLine, tokens, input.fauxIndentLength, input.tabSize, input.startVisibleColumn, useMonospaceOptimizations, input.selectionsOnLine, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
 	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
@@ -425,9 +438,12 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		isOverflowing,
 		tokens,
 		containsForeignElements,
+		input.fauxIndentLength,
 		input.tabSize,
+		input.startVisibleColumn,
 		input.containsRTL,
 		input.spaceWidth,
+		input.middotWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
 	);
@@ -537,7 +553,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(lineContent: string, len: number, continuesWithWrappedLine: boolean, tokens: LinePart[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, selections: LineRange[] | null, onlyBoundary: boolean): LinePart[] {
+function _applyRenderWhitespace(lineContent: string, len: number, continuesWithWrappedLine: boolean, tokens: LinePart[], fauxIndentLength: number, tabSize: number, startVisibleColumn: number, useMonospaceOptimizations: boolean, selections: LineRange[] | null, onlyBoundary: boolean): LinePart[] {
 
 	let result: LinePart[] = [], resultLen = 0;
 	let tokenIndex = 0;
@@ -555,21 +571,10 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 	}
 
-	let tmpIndent = 0;
-	for (let charIndex = 0; charIndex < fauxIndentLength; charIndex++) {
-		const chCode = lineContent.charCodeAt(charIndex);
-		if (chCode === CharCode.Tab) {
-			tmpIndent = tabSize;
-		} else if (strings.isFullWidthCharacter(chCode)) {
-			tmpIndent += 2;
-		} else {
-			tmpIndent++;
-		}
-	}
-	tmpIndent = tmpIndent % tabSize;
 	let wasInWhitespace = false;
 	let currentSelectionIndex = 0;
 	let currentSelection = selections && selections[currentSelectionIndex];
+	let tmpIndent = startVisibleColumn % tabSize;
 	for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 		const chCode = lineContent.charCodeAt(charIndex);
 
@@ -729,16 +734,22 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
 	const parts = input.parts;
+	const fauxIndentLength = input.fauxIndentLength;
 	const tabSize = input.tabSize;
+	const startVisibleColumn = input.startVisibleColumn;
 	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
+	const middotWidth = input.middotWidth;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
+
+	// use U+2E31 - WORD SEPARATOR MIDDLE DOT or U+00B7 - MIDDLE DOT
+	const spaceRenderWhitespaceCharacter = (middotWidth > spaceWidth ? 0x2E31 : 0xB7);
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 
 	let charIndex = 0;
-	let tabsCharDelta = 0;
+	let visibleColumn = startVisibleColumn;
 	let charOffsetInPart = 0;
 
 	let prevPartContentCnt = 0;
@@ -764,18 +775,14 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			let partContentCnt = 0;
 			{
 				let _charIndex = charIndex;
-				let _tabsCharDelta = tabsCharDelta;
+				let _visibleColumn = visibleColumn;
 
 				for (; _charIndex < partEndIndex; _charIndex++) {
 					const charCode = lineContent.charCodeAt(_charIndex);
-
-					if (charCode === CharCode.Tab) {
-						let insertSpacesCount = tabSize - (_charIndex + _tabsCharDelta) % tabSize;
-						_tabsCharDelta += insertSpacesCount - 1;
-						partContentCnt += insertSpacesCount;
-					} else {
-						// must be CharCode.Space
-						partContentCnt++;
+					const charWidth = (charCode === CharCode.Tab ? (tabSize - (_visibleColumn % tabSize)) : 1) | 0;
+					partContentCnt += charWidth;
+					if (_charIndex >= fauxIndentLength) {
+						_visibleColumn += charWidth;
 					}
 				}
 			}
@@ -793,29 +800,30 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
 				const charCode = lineContent.charCodeAt(charIndex);
+				let charWidth: number;
 
 				if (charCode === CharCode.Tab) {
-					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
-					tabsCharDelta += insertSpacesCount - 1;
-					charOffsetInPart += insertSpacesCount - 1;
-					if (insertSpacesCount > 0) {
-						if (!canUseHalfwidthRightwardsArrow || insertSpacesCount > 1) {
-							sb.write1(0x2192); // RIGHTWARDS ARROW
-						} else {
-							sb.write1(0xFFEB); // HALFWIDTH RIGHTWARDS ARROW
-						}
-						insertSpacesCount--;
+					charWidth = (tabSize - (visibleColumn % tabSize)) | 0;
+
+					if (!canUseHalfwidthRightwardsArrow || charWidth > 1) {
+						sb.write1(0x2192); // RIGHTWARDS ARROW
+					} else {
+						sb.write1(0xFFEB); // HALFWIDTH RIGHTWARDS ARROW
 					}
-					while (insertSpacesCount > 0) {
+					for (let space = 2; space <= charWidth; space++) {
 						sb.write1(0xA0); // &nbsp;
-						insertSpacesCount--;
 					}
-				} else {
-					// must be CharCode.Space
-					sb.write1(0xB7); // &middot;
+
+				} else { // must be CharCode.Space
+					charWidth = 1;
+
+					sb.write1(spaceRenderWhitespaceCharacter); // &middot; or word separator middle dot
 				}
 
-				charOffsetInPart++;
+				charOffsetInPart += charWidth;
+				if (charIndex >= fauxIndentLength) {
+					visibleColumn += charWidth;
+				}
 			}
 
 			prevPartContentCnt = partContentCnt;
@@ -833,63 +841,59 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
 				const charCode = lineContent.charCodeAt(charIndex);
 
+				let producedCharacters = 1;
+				let charWidth = 1;
+
 				switch (charCode) {
 					case CharCode.Tab:
-						let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
-						tabsCharDelta += insertSpacesCount - 1;
-						charOffsetInPart += insertSpacesCount - 1;
-						while (insertSpacesCount > 0) {
+						producedCharacters = (tabSize - (visibleColumn % tabSize));
+						charWidth = producedCharacters;
+						for (let space = 1; space <= producedCharacters; space++) {
 							sb.write1(0xA0); // &nbsp;
-							partContentCnt++;
-							insertSpacesCount--;
 						}
 						break;
 
 					case CharCode.Space:
 						sb.write1(0xA0); // &nbsp;
-						partContentCnt++;
 						break;
 
 					case CharCode.LessThan:
 						sb.appendASCIIString('&lt;');
-						partContentCnt++;
 						break;
 
 					case CharCode.GreaterThan:
 						sb.appendASCIIString('&gt;');
-						partContentCnt++;
 						break;
 
 					case CharCode.Ampersand:
 						sb.appendASCIIString('&amp;');
-						partContentCnt++;
 						break;
 
 					case CharCode.Null:
 						sb.appendASCIIString('&#00;');
-						partContentCnt++;
 						break;
 
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
 						sb.write1(0xFFFD);
-						partContentCnt++;
 						break;
 
 					default:
 						if (strings.isFullWidthCharacter(charCode)) {
-							tabsCharDelta++;
+							charWidth++;
 						}
 						if (renderControlCharacters && charCode < 32) {
 							sb.write1(9216 + charCode);
-							partContentCnt++;
 						} else {
 							sb.write1(charCode);
-							partContentCnt++;
 						}
 				}
 
-				charOffsetInPart++;
+				charOffsetInPart += producedCharacters;
+				partContentCnt += producedCharacters;
+				if (charIndex >= fauxIndentLength) {
+					visibleColumn += charWidth;
+				}
 			}
 
 			prevPartContentCnt = partContentCnt;

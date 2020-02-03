@@ -41,12 +41,14 @@ export interface ClipboardDataToCopy {
 	multicursorText: string[] | null | undefined;
 	text: string;
 	html: string | null | undefined;
+	mode: string | null;
 }
 
 export interface ClipboardStoredMetadata {
 	version: 1;
 	isFromEmptySelection: boolean | undefined;
 	multicursorText: string[] | null | undefined;
+	mode: string | null;
 }
 
 export interface ITextAreaInputHost {
@@ -329,7 +331,7 @@ export class TextAreaInput extends Disposable {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '') {
+				if (typeInput.text !== '' || typeInput.replaceCharCnt !== 0) {
 					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
@@ -481,6 +483,9 @@ export class TextAreaInput extends Disposable {
 		// Setting this._hasFocus and writing the screen reader content
 		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
+
+		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
+		this.refreshFocusState();
 	}
 
 	public isFocused(): boolean {
@@ -488,8 +493,11 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public refreshFocusState(): void {
-		if (document.body.contains(this.textArea.domNode) && document.activeElement === this.textArea.domNode) {
-			this._setHasFocus(true);
+		const shadowRoot = dom.getShadowRoot(this.textArea.domNode);
+		if (shadowRoot) {
+			this._setHasFocus(shadowRoot.activeElement === this.textArea.domNode);
+		} else if (dom.isInDOM(this.textArea.domNode)) {
+			this._setHasFocus(document.activeElement === this.textArea.domNode);
 		} else {
 			this._setHasFocus(false);
 		}
@@ -550,7 +558,8 @@ export class TextAreaInput extends Disposable {
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText
+			multicursorText: dataToCopy.multicursorText,
+			mode: dataToCopy.mode
 		};
 		InMemoryClipboardMetadataManager.INSTANCE.set(
 			// When writing "LINE\r\n" to the clipboard and then pasting,
@@ -693,7 +702,15 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
 		const textArea = this._actual.domNode;
 
-		const currentIsFocused = (document.activeElement === textArea);
+		let activeElement: Element | null = null;
+		const shadowRoot = dom.getShadowRoot(textArea);
+		if (shadowRoot) {
+			activeElement = shadowRoot.activeElement;
+		} else {
+			activeElement = document.activeElement;
+		}
+
+		const currentIsFocused = (activeElement === textArea);
 		const currentSelectionStart = textArea.selectionStart;
 		const currentSelectionEnd = textArea.selectionEnd;
 

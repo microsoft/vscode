@@ -46,6 +46,8 @@ The client can send the following initialization options to the server:
 
 - `provideFormatter: boolean | undefined`. If defined, the value defines whether the server provides the `documentRangeFormattingProvider` capability on initialization. If undefined, the setting `json.format.enable` is used to determine whether formatting is provided. The formatter will then be registered through dynamic registration. If the client does not support dynamic registration, no formatter will be available.
 - `handledSchemaProtocols`: The URI schemas handles by the server. See section `Schema configuration` below.
+- `customCapabilities`: Additional non-LSP client capabilities:
+  - `rangeFormatting: { editLimit: x } }`: For performance reasons, limit the number of edits returned by the range formatter to `x`.
 
 ### Settings
 

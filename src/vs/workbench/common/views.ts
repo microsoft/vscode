@@ -15,10 +15,10 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys, getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
@@ -39,7 +39,7 @@ export interface IViewContainerDescriptor {
 
 	readonly name: string;
 
-	readonly ctorDescriptor: { ctor: new (...args: any[]) => IViewPaneContainer, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
 	readonly icon?: string | URI;
 
@@ -99,6 +99,11 @@ export interface IViewContainersRegistry {
 	 * Returns all view containers in the given location
 	 */
 	getViewContainers(location: ViewContainerLocation): ViewContainer[];
+
+	/**
+	 * Returns the view container location
+	 */
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
 }
 
 interface ViewOrderDelegate {
@@ -156,6 +161,10 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	getViewContainers(location: ViewContainerLocation): ViewContainer[] {
 		return [...(this.viewContainers.get(location) || [])];
 	}
+
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
+		return keys(this.viewContainers).filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
+	}
 }
 
 Registry.add(Extensions.ViewContainersRegistry, new ViewContainersRegistryImpl());
@@ -166,7 +175,7 @@ export interface IViewDescriptor {
 
 	readonly name: string;
 
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<IView>;
 
 	readonly when?: ContextKeyExpr;
 
@@ -177,6 +186,10 @@ export interface IViewDescriptor {
 	readonly collapsed?: boolean;
 
 	readonly canToggleVisibility?: boolean;
+
+	readonly canMoveView?: boolean;
+
+	readonly containerIcon?: string | URI;
 
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
@@ -192,6 +205,7 @@ export interface IViewDescriptor {
 }
 
 export interface IViewDescriptorCollection extends IDisposable {
+	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
 	readonly allViewDescriptors: IViewDescriptor[];
@@ -340,9 +354,35 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: undefined;
 
-	openView(id: string, focus?: boolean): Promise<IView | null>;
+	getActiveViewWithId(id: string): IView | null;
 
-	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection | null;
+	openView(id: string, focus?: boolean): Promise<IView | null>;
+}
+
+export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
+
+export interface IViewDescriptorService {
+
+	_serviceBrand: undefined;
+
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
+
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+
+	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
+
+	getViewDescriptor(viewId: string): IViewDescriptor | null;
+
+	getViewContainer(viewId: string): ViewContainer | null;
+
+	getViewContainerLocation(viewContainr: ViewContainer): ViewContainerLocation | null;
+
+	getDefaultContainer(viewId: string): ViewContainer | null;
+
+	getViewLocation(viewId: string): ViewContainerLocation | null;
 }
 
 // Custom views
@@ -407,9 +447,7 @@ export interface IRevealOptions {
 }
 
 export interface ITreeViewDescriptor extends IViewDescriptor {
-
-	readonly treeView: ITreeView;
-
+	treeView: ITreeView;
 }
 
 export type TreeViewItemHandleArg = {
@@ -472,3 +510,15 @@ export interface IEditableData {
 	startingValue?: string | null;
 	onFinish: (value: string, success: boolean) => void;
 }
+
+export interface IViewPaneContainer {
+	setVisible(visible: boolean): void;
+	isVisible(): boolean;
+	focus(): void;
+	getActions(): IAction[];
+	getSecondaryActions(): IAction[];
+	getActionViewItem(action: IAction): IActionViewItem | undefined;
+	getView(viewId: string): IView | undefined;
+	saveState(): void;
+}
+

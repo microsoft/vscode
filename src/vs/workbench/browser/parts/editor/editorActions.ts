@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
-import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -23,7 +23,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ResourceMap, values } from 'vs/base/common/map';
+import { values } from 'vs/base/common/map';
 
 export class ExecuteCommandAction extends Action {
 
@@ -543,13 +543,13 @@ export class RevertAndCloseEditorAction extends Action {
 
 			// first try a normal revert where the contents of the editor are restored
 			try {
-				await editor.revert();
+				await this.editorService.revert({ editor, groupId: group.id });
 			} catch (error) {
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
-				await editor.revert({ soft: true });
+				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
 			group.closeEditor(editor);
@@ -632,7 +632,7 @@ export abstract class BaseCloseAllAction extends Action {
 		// can review if the files should be changed or not.
 		await Promise.all(this.groupsToClose.map(async groupToClose => {
 			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty()) {
+				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
 					return groupToClose.openEditor(editor);
 				}
 			}
@@ -640,23 +640,24 @@ export abstract class BaseCloseAllAction extends Action {
 			return undefined;
 		}));
 
-		const dirtyEditorsToConfirmByName = new Set<string>();
-		const dirtyEditorsToConfirmByResource = new ResourceMap();
+		const dirtyEditorsToConfirm = new Set<string>();
 
 		for (const editor of this.editorService.editors) {
-			if (!editor.isDirty()) {
-				continue; // only interested in dirty editors
+			if (!editor.isDirty() || editor.isSaving()) {
+				continue; // only interested in dirty editors (unless in the process of saving)
 			}
 
-			const resource = editor.getResource();
-			if (resource) {
-				dirtyEditorsToConfirmByResource.set(resource, true);
+			let name: string;
+			if (editor instanceof SideBySideEditorInput) {
+				name = editor.master.getName(); // prefer shorter names by using master's name in this case
 			} else {
-				dirtyEditorsToConfirmByName.add(editor.getName());
+				name = editor.getName();
 			}
+
+			dirtyEditorsToConfirm.add(name);
 		}
 
-		const confirm = await this.fileDialogService.showSaveConfirm([...dirtyEditorsToConfirmByResource.keys(), ...values(dirtyEditorsToConfirmByName)]);
+		const confirm = await this.fileDialogService.showSaveConfirm(values(dirtyEditorsToConfirm));
 		if (confirm === ConfirmResult.CANCEL) {
 			return;
 		}
@@ -1338,8 +1339,8 @@ export class QuickOpenPreviousRecentlyUsedEditorAction extends BaseQuickOpenEdit
 
 export class QuickOpenNextRecentlyUsedEditorAction extends BaseQuickOpenEditorAction {
 
-	static readonly ID = 'workbench.action.quickOpenNextRecentlyUsedEditor';
-	static readonly LABEL = nls.localize('quickOpenNextRecentlyUsedEditor', "Quick Open Next Recently Used Editor");
+	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditor';
+	static readonly LABEL = nls.localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor");
 
 	constructor(
 		id: string,
@@ -1366,10 +1367,10 @@ export class QuickOpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickO
 	}
 }
 
-export class QuickOpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
+export class QuickOpenLeastRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
 
-	static readonly ID = 'workbench.action.quickOpenNextRecentlyUsedEditorInGroup';
-	static readonly LABEL = nls.localize('quickOpenNextRecentlyUsedEditorInGroup', "Quick Open Next Recently Used Editor in Group");
+	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup';
+	static readonly LABEL = nls.localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group");
 
 	constructor(
 		id: string,

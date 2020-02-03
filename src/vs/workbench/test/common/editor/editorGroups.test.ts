@@ -61,13 +61,12 @@ function groupListener(group: EditorGroup): GroupEvents {
 		disposed: []
 	};
 
-	group.onDidEditorOpen(e => groupEvents.opened.push(e));
-	group.onDidEditorClose(e => groupEvents.closed.push(e));
-	group.onDidEditorActivate(e => groupEvents.activated.push(e));
-	group.onDidEditorPin(e => groupEvents.pinned.push(e));
-	group.onDidEditorUnpin(e => groupEvents.unpinned.push(e));
-	group.onDidEditorMove(e => groupEvents.moved.push(e));
-	group.onDidEditorDispose(e => groupEvents.disposed.push(e));
+	group.onDidOpenEditor(e => groupEvents.opened.push(e));
+	group.onDidCloseEditor(e => groupEvents.closed.push(e));
+	group.onDidActivateEditor(e => groupEvents.activated.push(e));
+	group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
+	group.onDidMoveEditor(e => groupEvents.moved.push(e));
+	group.onDidDisposeEditor(e => groupEvents.disposed.push(e));
 
 	return groupEvents;
 }
@@ -271,13 +270,15 @@ suite('Workbench editor groups', () => {
 
 		const input3 = input(undefined, true, URI.parse('foo://bar'));
 
+		const input4 = input(undefined, true, URI.parse('foo://barsomething'));
+
 		group.openEditor(input3, { pinned: true, active: true });
-		assert.equal(group.contains({ resource: URI.parse('foo://barsomething') }), false);
-		assert.equal(group.contains({ resource: URI.parse('foo://bar') }), true);
+		assert.equal(group.contains(input4), false);
+		assert.equal(group.contains(input3), true);
 
 		group.closeEditor(input3);
 
-		assert.equal(group.contains({ resource: URI.parse('foo://bar') }), false);
+		assert.equal(group.contains(input3), false);
 	});
 
 	test('group serialization', function () {
@@ -1338,12 +1339,12 @@ suite('Workbench editor groups', () => {
 		group2.openEditor(input2, { pinned: true, active: true });
 
 		let dirty1Counter = 0;
-		group1.onDidEditorBecomeDirty(() => {
+		group1.onDidChangeEditorDirty(() => {
 			dirty1Counter++;
 		});
 
 		let dirty2Counter = 0;
-		group2.onDidEditorBecomeDirty(() => {
+		group2.onDidChangeEditorDirty(() => {
 			dirty2Counter++;
 		});
 

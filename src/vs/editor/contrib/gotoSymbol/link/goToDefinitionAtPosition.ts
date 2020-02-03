@@ -11,7 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -28,7 +28,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
-export class GotoDefinitionAtPositionEditorContribution implements editorCommon.IEditorContribution {
+export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.gotodefinitionatposition';
 	static readonly MAX_SOURCE_PREVIEW_LINES = 8;

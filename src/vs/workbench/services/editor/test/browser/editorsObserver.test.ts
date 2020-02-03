@@ -106,9 +106,9 @@ suite('EditorsObserver', function () {
 		disposables = [];
 	});
 
-
-	test('basics (single group)', async () => {
+	async function createPart(): Promise<EditorPart> {
 		const instantiationService = workbenchInstantiationService();
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
@@ -116,7 +116,19 @@ suite('EditorsObserver', function () {
 
 		await part.whenRestored;
 
+		return part;
+	}
+
+	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver]> {
+		const part = await createPart();
+
 		const observer = new EditorsObserver(part, new TestStorageService());
+
+		return [part, observer];
+	}
+
+	test('basics (single group)', async () => {
+		const [part, observer] = await createEditorObserver();
 
 		let observerChangeListenerCalled = false;
 		const listener = observer.onDidChange(() => {
@@ -183,17 +195,9 @@ suite('EditorsObserver', function () {
 	});
 
 	test('basics (multi group)', async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
+		const [part, observer] = await createEditorObserver();
 
 		const rootGroup = part.activeGroup;
-
-		const observer = new EditorsObserver(part, new TestStorageService());
 
 		let currentEditorsMRU = observer.editors;
 		assert.equal(currentEditorsMRU.length, 0);
@@ -252,15 +256,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('copy group', async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
-
-		const observer = new EditorsObserver(part, new TestStorageService());
+		const [part, observer] = await createEditorObserver();
 
 		const input1 = new EditorsObserverTestEditorInput(URI.parse('foo://bar1'));
 		const input2 = new EditorsObserverTestEditorInput(URI.parse('foo://bar2'));
@@ -303,14 +299,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('initial editors are part of observer and state is persisted & restored (single group)', async () => {
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
+		const part = await createPart();
 
 		const rootGroup = part.activeGroup;
 
@@ -353,13 +342,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('initial editors are part of observer (multi group)', async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
+		const part = await createPart();
 
 		const rootGroup = part.activeGroup;
 
@@ -404,14 +387,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer does not restore editors that cannot be serialized', async () => {
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
+		const part = await createPart();
 
 		const rootGroup = part.activeGroup;
 
@@ -440,17 +416,8 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer closes editors when limit reached (across all groups)', async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
+		const part = await createPart();
 		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
-
-		await part.whenRestored;
 
 		const storage = new TestStorageService();
 		const observer = new EditorsObserver(part, storage);
@@ -501,17 +468,8 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer closes editors when limit reached (in group)', async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
+		const part = await createPart();
 		part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } });
-
-		await part.whenRestored;
 
 		const storage = new TestStorageService();
 		const observer = new EditorsObserver(part, storage);

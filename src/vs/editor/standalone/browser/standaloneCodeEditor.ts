@@ -31,6 +31,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 
 /**
  * Description of an action contribution
@@ -351,6 +352,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		applyConfigurationValues(configurationService, options, false);
+		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
@@ -362,6 +364,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._register(toDispose);
+		this._register(themeDomRegistration);
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
@@ -430,6 +433,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@optional(IClipboardService) clipboardService: IClipboardService | null,
 	) {
 		applyConfigurationValues(configurationService, options, true);
+		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
@@ -441,6 +445,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._configurationService = configurationService;
 
 		this._register(toDispose);
+		this._register(themeDomRegistration);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}

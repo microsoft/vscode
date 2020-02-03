@@ -16,7 +16,7 @@ import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';

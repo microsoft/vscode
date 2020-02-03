@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
-import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, ModelState, StateChange, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { ITextFileService, ModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -34,6 +34,13 @@ function getLastModifiedTime(model: TextFileEditorModel): number {
 	return stat ? stat.mtime : -1;
 }
 
+class TestTextFileEditorModel extends TextFileEditorModel {
+
+	isReadonly(): boolean {
+		return true;
+	}
+}
+
 suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
@@ -47,9 +54,36 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 		accessor.fileService.setContent(content);
+	});
+
+	test('basic events', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.load();
+
+		let onDidChangeContentCounter = 0;
+		model.onDidChangeContent(() => onDidChangeContentCounter++);
+
+		let onDidChangeDirtyCounter = 0;
+		model.onDidChangeDirty(() => onDidChangeDirtyCounter++);
+
+		model.textEditorModel?.setValue('bar');
+
+		assert.equal(onDidChangeContentCounter, 1);
+		assert.equal(onDidChangeDirtyCounter, 1);
+
+		model.textEditorModel?.setValue('foo');
+
+		assert.equal(onDidChangeContentCounter, 2);
+		assert.equal(onDidChangeDirtyCounter, 1);
+
+		await model.revert();
+
+		assert.equal(onDidChangeDirtyCounter, 2);
+
+		model.dispose();
 	});
 
 	test('save', async function () {
@@ -67,10 +101,8 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		let savedEvent = false;
-		model.onDidStateChange(e => {
-			if (e === StateChange.SAVED) {
-				savedEvent = true;
-			}
+		model.onDidSave(e => {
+			savedEvent = true;
 		});
 
 		let workingCopyEvent = false;
@@ -104,10 +136,8 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 
 		let savedEvent = false;
-		model.onDidStateChange(e => {
-			if (e === StateChange.SAVED) {
-				savedEvent = true;
-			}
+		model.onDidSave(e => {
+			savedEvent = true;
 		});
 
 		let workingCopyEvent = false;
@@ -178,8 +208,12 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
 		assert.ok(model.hasState(ModelState.SAVED));
 
-		model.onDidStateChange(e => {
-			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
+		model.onDidSave(e => {
+			assert.fail();
+		});
+
+		model.onDidChangeDirty(e => {
+			assert.fail();
 		});
 
 		await model.load();
@@ -206,10 +240,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidStateChange(e => {
-			if (e === StateChange.REVERTED) {
-				eventCounter++;
-			}
+		model.onDidRevert(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -243,10 +275,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidStateChange(e => {
-			if (e === StateChange.REVERTED) {
-				eventCounter++;
-			}
+		model.onDidRevert(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -288,12 +318,12 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 	});
 
-	test('Make Dirty', async function () {
+	test('Update Dirty', async function () {
 		let eventCounter = 0;
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.makeDirty();
+		model.setDirty(true);
 		assert.ok(!model.isDirty()); // needs to be resolved
 
 		await model.load();
@@ -303,10 +333,8 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 
-		model.onDidStateChange(e => {
-			if (e === StateChange.DIRTY) {
-				eventCounter++;
-			}
+		model.onDidChangeDirty(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -316,10 +344,36 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		model.makeDirty();
+		model.setDirty(true);
 		assert.ok(model.isDirty());
 		assert.equal(eventCounter, 1);
 		assert.ok(workingCopyEvent);
+
+		model.setDirty(false);
+		assert.ok(!model.isDirty());
+		assert.equal(eventCounter, 2);
+
+		model.dispose();
+	});
+
+	test('No Dirty for readonly models', async function () {
+		let workingCopyEvent = false;
+		accessor.workingCopyService.onDidChangeDirty(e => {
+			if (e.resource.toString() === model.resource.toString()) {
+				workingCopyEvent = true;
+			}
+		});
+
+		const model = instantiationService.createInstance(TestTextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(!model.isDirty());
+
+		await model.revert({ soft: true });
+		assert.ok(!model.isDirty());
+
+		assert.ok(!workingCopyEvent);
 
 		model.dispose();
 	});
@@ -364,7 +418,6 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(m1Mtime > 0);
 		assert.ok(m2Mtime > 0);
 
-		assert.ok(accessor.textFileService.isDirty());
 		assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
@@ -372,7 +425,8 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
 		await timeout(10);
-		await accessor.textFileService.saveAll();
+		await accessor.textFileService.save(toResource.call(this, '/path/index_async.txt'));
+		await accessor.textFileService.save(toResource.call(this, '/path/index_async2.txt'));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 		assert.ok(assertIsDefined(model1.getStat()).mtime > m1Mtime);
@@ -388,23 +442,21 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidStateChange(e => {
-			if (e === StateChange.SAVED) {
-				assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
-				assert.ok(!model.isDirty());
-				eventCounter++;
-			}
+		model.onDidSave(e => {
+			assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
+			assert.ok(!model.isDirty());
+			eventCounter++;
 		});
 
-		TextFileEditorModel.setSaveParticipant({
-			participate: (model) => {
+		accessor.textFileService.saveParticipant = {
+			participate: model => {
 				assert.ok(model.isDirty());
-				model.textEditorModel.setValue('bar');
+				model.textEditorModel!.setValue('bar');
 				assert.ok(model.isDirty());
 				eventCounter++;
 				return Promise.resolve();
 			}
-		});
+		};
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -417,11 +469,11 @@ suite('Files - TextFileEditorModel', () => {
 	test('Save Participant, async participant', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		TextFileEditorModel.setSaveParticipant({
+		accessor.textFileService.saveParticipant = {
 			participate: (model) => {
 				return timeout(10);
 			}
-		});
+		};
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -435,95 +487,16 @@ suite('Files - TextFileEditorModel', () => {
 	test('Save Participant, bad participant', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		TextFileEditorModel.setSaveParticipant({
+		accessor.textFileService.saveParticipant = {
 			participate: (model) => {
 				return Promise.reject(new Error('boom'));
 			}
-		});
+		};
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
 
 		await model.save();
 		model.dispose();
-	});
-
-	test('SaveSequentializer - pending basics', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(2323));
-		assert.ok(!sequentializer.pendingSave);
-
-		// pending removes itself after done
-		await sequentializer.setPending(1, Promise.resolve());
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(!sequentializer.pendingSave);
-
-		// pending removes itself after done (use timeout)
-		sequentializer.setPending(2, timeout(1));
-		assert.ok(sequentializer.hasPendingSave());
-		assert.ok(sequentializer.hasPendingSave(2));
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(sequentializer.pendingSave);
-
-		await timeout(2);
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(2));
-		assert.ok(!sequentializer.pendingSave);
-	});
-
-	test('SaveSequentializer - pending and next (finishes instantly)', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
-
-		// next finishes instantly
-		let nextDone = false;
-		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
-
-		await res;
-		assert.ok(pendingDone);
-		assert.ok(nextDone);
-	});
-
-	test('SaveSequentializer - pending and next (finishes after timeout)', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
-
-		// next finishes after timeout
-		let nextDone = false;
-		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return; }));
-
-		await res;
-		assert.ok(pendingDone);
-		assert.ok(nextDone);
-	});
-
-	test('SaveSequentializer - pending and multiple next (last one wins)', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
-
-		// next finishes after timeout
-		let firstDone = false;
-		let firstRes = sequentializer.setNext(() => timeout(2).then(() => { firstDone = true; return; }));
-
-		let secondDone = false;
-		let secondRes = sequentializer.setNext(() => timeout(3).then(() => { secondDone = true; return; }));
-
-		let thirdDone = false;
-		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return; }));
-
-		await Promise.all([firstRes, secondRes, thirdRes]);
-		assert.ok(pendingDone);
-		assert.ok(!firstDone);
-		assert.ok(!secondDone);
-		assert.ok(thirdDone);
 	});
 });

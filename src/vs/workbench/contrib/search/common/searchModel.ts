@@ -543,15 +543,13 @@ export class FolderMatch extends Disposable {
 
 	replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
-			this.doRemove(match, false, true);
+			this.doRemove(match);
 		});
 	}
 
 	replaceAll(): Promise<any> {
 		const matches = this.matches();
-		return this.replaceService.replace(matches).then(() => {
-			matches.forEach(match => this.doRemove(match, false, true));
-		});
+		return this.replaceService.replace(matches).then(() => this.doRemove(matches));
 	}
 
 	matches(): FileMatch[] {

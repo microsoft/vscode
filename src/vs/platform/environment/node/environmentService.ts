@@ -112,10 +112,13 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userRoamingDataHome, '.settings.json'); }
+	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, '.sync'); }
 
 	@memoize
-	get keybindingsSyncPreviewResource(): URI { return resources.joinPath(this.userRoamingDataHome, '.keybindings.json'); }
+	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'keybindings.json'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }

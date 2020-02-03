@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { assertIsDefined, isFunction } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -21,6 +21,10 @@ import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -33,12 +37,12 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
 	getTitle(): string | undefined {
@@ -107,9 +111,9 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		const inputName = this.input?.getName();
 		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
-			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
+			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('untitledFileEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;
@@ -184,11 +188,49 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, editorService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+	}
+
+	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
+		const control = super.createEditorControl(parent, configuration);
+
+		// Install a listener for paste to update this editors
+		// language mode if the paste includes a specific mode
+		const codeEditor = getCodeEditor(control);
+		if (codeEditor) {
+			this._register(codeEditor.onDidPaste(e => this.onDidEditorPaste(e, codeEditor)));
+		}
+
+		return control;
+	}
+
+	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
+		if (!e.mode || e.mode === PLAINTEXT_MODE_ID) {
+			return; // require a specific mode
+		}
+
+		if (codeEditor.getOption(EditorOption.readOnly)) {
+			return; // not for readonly editors
+		}
+
+		const textModel = codeEditor.getModel();
+		if (!textModel) {
+			return; // require a live model
+		}
+
+		const currentMode = textModel.getModeId();
+		if (currentMode !== PLAINTEXT_MODE_ID) {
+			return; // require current mode to be unspecific
+		}
+
+		// Finally apply mode to model
+		this.modelService.setMode(textModel, this.modeService.create(e.mode));
 	}
 }

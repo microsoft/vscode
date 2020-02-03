@@ -1,5 +1,5 @@
 {
-    perform: true,
+    perform: false,
     alwaysRequireAssignee: false,
     labelsRequiringAssignee: [],
     autoAssignees: {
@@ -207,7 +207,7 @@
         quick-pick: [ chrmarti ],
         release-notes: [],
         remote: {
-            assignees: [ jrieken ],
+            assignees: [  ],
             assignLabel: false
         },
         rename: [],

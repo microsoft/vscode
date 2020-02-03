@@ -140,4 +140,42 @@ suite('workspace-fs', () => {
 			assert.equal(e.name, vscode.FileSystemError.Unavailable().name);
 		}
 	});
+
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+		const entries = await vscode.workspace.fs.readDirectory(root);
+		assert.ok(entries.length > 0);
+
+		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92') });
+
+		try {
+			await vscode.workspace.fs.delete(someFolder, { recursive: true });
+			assert.ok(false);
+		} catch (err) {
+			assert.ok(true);
+		}
+	});
+
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+		const entries = await vscode.workspace.fs.readDirectory(root);
+		assert.ok(entries.length > 0);
+
+		const folder = root.with({ path: posix.join(root.path, 'folder') });
+		const file = root.with({ path: posix.join(root.path, 'folder/file') });
+
+		await vscode.workspace.fs.createDirectory(folder);
+		await vscode.workspace.fs.writeFile(file, Buffer.from('FOO'));
+
+		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92/a564c52da70a') });
+
+		try {
+			await vscode.workspace.fs.copy(folder, someFolder, { overwrite: true });
+			assert.ok(true);
+		} catch (err) {
+			assert.ok(false, err);
+
+		} finally {
+			await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+			await vscode.workspace.fs.delete(someFolder, { recursive: true, useTrash: false });
+		}
+	});
 });

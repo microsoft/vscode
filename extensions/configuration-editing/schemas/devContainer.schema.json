@@ -2,6 +2,7 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
+	"allowTrailingCommas": true,
 	"type": "object",
 	"definitions": {
 		"devContainerCommon": {
@@ -15,12 +16,21 @@
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
-						"type": "string"
+						"type": "string",
+						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)$",
+						"errorMessage": "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'."
 					}
 				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container."
+				},
+				"forwardPorts": {
+					"type": "array",
+					"description": "Ports that are forwarded from the container to the local machine.",
+					"items": {
+						"type": "integer"
+					}
 				},
 				"remoteEnv": {
 					"type": "object",

@@ -11,7 +11,6 @@ import * as os from 'os';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import * as pfs from 'vs/base/node/pfs';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -21,7 +20,7 @@ import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configurati
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, TestTextFileService, RemoteFileSystemProvider } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService, RemoteFileSystemProvider, TestWindowConfiguration } from 'vs/workbench/test/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -32,7 +31,6 @@ import { createHash } from 'crypto';
 import { Schemas } from 'vs/base/common/network';
 import { originalFSPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -52,7 +50,7 @@ import { timeout } from 'vs/base/common/async';
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
+		super(TestWindowConfiguration, TestWindowConfiguration.execPath, TestWindowConfiguration.windowId);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -110,7 +108,7 @@ suite('WorkspaceContextService - Folder', () => {
 				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, new DiskFileSystemProvider(new NullLogService()), environmentService));
-				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()));
+				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(TestWindowConfiguration, environmentService, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
 	});
@@ -749,7 +747,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				'configurationService.folder.languageSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE_LANGUAGE
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 				}
 			}
 		});
@@ -1094,7 +1092,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('no change event when there are no global tasks', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
-		await timeout(500);
+		await timeout(5);
 		assert.ok(target.notCalled);
 	});
 
@@ -1141,7 +1139,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				'configurationService.workspace.testLanguageSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE_LANGUAGE
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 				}
 			}
 		});
@@ -1331,7 +1329,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 						'configurationService.workspace.testNewResourceLanguageSetting2': {
 							'type': 'string',
 							'default': 'isSet',
-							scope: ConfigurationScope.RESOURCE_LANGUAGE
+							scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 						}
 					}
 				});

@@ -39,8 +39,8 @@ jobs:
       name: Run Hygiene Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
-    - run: yarn valid-globals-check
-      name: Run Valid Globals Checks
+    - run: yarn valid-layers-check
+      name: Run Valid Layers Checks
     - run: yarn compile
       name: Compile Sources
     - run: yarn download-builtin-extensions
@@ -71,8 +71,8 @@ jobs:
       name: Run Hygiene Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
-    - run: yarn valid-globals-check
-      name: Run Valid Globals Checks
+    - run: yarn valid-layers-check
+      name: Run Valid Layers Checks
     - run: yarn compile
       name: Compile Sources
     - run: yarn download-builtin-extensions
@@ -100,8 +100,8 @@ jobs:
       name: Run Hygiene Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
-    - run: yarn valid-globals-check
-      name: Run Valid Globals Checks
+    - run: yarn valid-layers-check
+      name: Run Valid Layers Checks
     - run: yarn compile
       name: Compile Sources
     - run: yarn download-builtin-extensions

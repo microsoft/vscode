@@ -31,7 +31,8 @@ export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
 export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
 export const LOADED_SCRIPTS_VIEW_ID = 'workbench.debug.loadedScriptsView';
 export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
-export const REPL_ID = 'workbench.panel.repl';
+export const DEBUG_PANEL_ID = 'workbench.panel.repl';
+export const REPL_VIEW_ID = 'workbench.panel.repl.view';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
 export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined);
@@ -54,6 +55,7 @@ export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('foc
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
+export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -441,7 +443,7 @@ export interface IBreakpointsChangeEvent {
 	added?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
 	removed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
 	changed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
-	sessionOnly?: boolean;
+	sessionOnly: boolean;
 }
 
 // Debug configuration interfaces

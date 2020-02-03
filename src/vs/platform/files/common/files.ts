@@ -787,8 +787,6 @@ export const HotExitConfiguration = {
 	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
 };
 
-export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
-
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
 
@@ -806,7 +804,7 @@ export interface IFilesConfiguration {
 		eol: string;
 		enableTrash: boolean;
 		hotExit: string;
-		preventSaveConflicts: boolean;
+		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
 	};
 }
 

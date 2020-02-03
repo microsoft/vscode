@@ -8,7 +8,7 @@ import { compare, startsWith } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -18,7 +18,7 @@ import { isPatternInWord } from 'vs/base/common/filters';
 
 export class SnippetCompletion implements CompletionItem {
 
-	label: string;
+	label: CompletionItemLabel;
 	detail: string;
 	insertText: string;
 	documentation?: MarkdownString;
@@ -31,8 +31,11 @@ export class SnippetCompletion implements CompletionItem {
 		readonly snippet: Snippet,
 		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = snippet.prefix;
-		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
+		this.label = {
+			name: snippet.prefix,
+			type: localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source)
+		};
+		this.detail = this.label.type!;
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
@@ -46,7 +49,7 @@ export class SnippetCompletion implements CompletionItem {
 	}
 
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label, b.label);
+		return compare(a.label.name, b.label.name);
 	}
 }
 
@@ -139,13 +142,14 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				let item = suggestions[i];
 				let to = i + 1;
 				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
+					suggestions[to].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.name, suggestions[to].snippet.name);
 				}
 				if (to > i + 1) {
-					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
+					suggestions[i].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.name, suggestions[i].snippet.name);
 					i = to;
 				}
 			}
+
 			return { suggestions };
 		});
 	}

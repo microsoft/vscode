@@ -9,7 +9,7 @@ import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -18,6 +18,7 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
+import { once } from 'vs/base/common/functional';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -42,7 +43,7 @@ export interface IVariableTemplateData {
 }
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
-	const treeContainer = document.createElement('div');
+	const treeContainer = $('.');
 	dom.addClass(treeContainer, 'debug-view-content');
 	container.appendChild(treeContainer);
 	return treeContainer;
@@ -137,8 +138,7 @@ export interface IExpressionTemplateData {
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
-	enableInputBox(options: IInputBoxOptions): void;
-	toDispose: IDisposable[];
+	toDispose: IDisposable;
 	label: HighlightedLabel;
 }
 
@@ -159,77 +159,84 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const label = new HighlightedLabel(name, false);
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
-		const toDispose: IDisposable[] = [];
 
-		const enableInputBox = (options: IInputBoxOptions) => {
-			name.style.display = 'none';
-			value.style.display = 'none';
-			inputBoxContainer.style.display = 'initial';
-
-			const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
-			const styler = attachInputBoxStyler(inputBox, this.themeService);
-
-			inputBox.value = replaceWhitespace(options.initialValue);
-			inputBox.focus();
-			inputBox.select();
-
-			let disposed = false;
-			toDispose.push(inputBox);
-			toDispose.push(styler);
-
-			const wrapUp = (renamed: boolean) => {
-				if (!disposed) {
-					disposed = true;
-					this.debugService.getViewModel().setSelectedExpression(undefined);
-					options.onFinish(inputBox.value, renamed);
-
-					// need to remove the input box since this template will be reused.
-					inputBoxContainer.removeChild(inputBox.element);
-					name.style.display = 'initial';
-					value.style.display = 'initial';
-					inputBoxContainer.style.display = 'none';
-					dispose(toDispose);
-				}
-			};
-
-			toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
-				const isEscape = e.equals(KeyCode.Escape);
-				const isEnter = e.equals(KeyCode.Enter);
-				if (isEscape || isEnter) {
-					e.preventDefault();
-					e.stopPropagation();
-					wrapUp(isEnter);
-				}
-			}));
-			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-				wrapUp(true);
-			}));
-			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
-				// Do not expand / collapse selected elements
-				e.preventDefault();
-				e.stopPropagation();
-			}));
-		};
-
-		return { expression, name, value, label, enableInputBox, inputBoxContainer, toDispose };
+		return { expression, name, value, label, inputBoxContainer, toDispose: Disposable.None };
 	}
 
 	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.toDispose.dispose();
+		data.toDispose = Disposable.None;
 		const { element } = node;
 		if (element === this.debugService.getViewModel().getSelectedExpression() || (element instanceof Variable && element.errorMessage)) {
 			const options = this.getInputBoxOptions(element);
 			if (options) {
-				data.enableInputBox(options);
+				data.toDispose = this.renderInputBox(data.name, data.value, data.inputBoxContainer, options);
 				return;
 			}
 		}
 		this.renderExpression(element, data, createMatches(node.filterData));
 	}
 
+	renderInputBox(nameElement: HTMLElement, valueElement: HTMLElement, inputBoxContainer: HTMLElement, options: IInputBoxOptions): IDisposable {
+		nameElement.style.display = 'none';
+		valueElement.style.display = 'none';
+		inputBoxContainer.style.display = 'initial';
+
+		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
+		const styler = attachInputBoxStyler(inputBox, this.themeService);
+
+		inputBox.value = replaceWhitespace(options.initialValue);
+		inputBox.focus();
+		inputBox.select();
+
+		const done = once((success: boolean, finishEditing: boolean) => {
+			nameElement.style.display = 'initial';
+			valueElement.style.display = 'initial';
+			inputBoxContainer.style.display = 'none';
+			const value = inputBox.value;
+			dispose(toDispose);
+
+			if (finishEditing) {
+				this.debugService.getViewModel().setSelectedExpression(undefined);
+				options.onFinish(value, success);
+			}
+		});
+
+		const toDispose = [
+			inputBox,
+			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+				const isEscape = e.equals(KeyCode.Escape);
+				const isEnter = e.equals(KeyCode.Enter);
+				if (isEscape || isEnter) {
+					e.preventDefault();
+					e.stopPropagation();
+					done(isEnter, true);
+				}
+			}),
+			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
+				done(true, true);
+			}),
+			dom.addDisposableListener(inputBox.inputElement, dom.EventType.CLICK, e => {
+				// Do not expand / collapse selected elements
+				e.preventDefault();
+				e.stopPropagation();
+			}),
+			styler
+		];
+
+		return toDisposable(() => {
+			done(false, false);
+		});
+	}
+
 	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
 	protected abstract getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined;
 
+	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
+		templateData.toDispose.dispose();
+	}
+
 	disposeTemplate(templateData: IExpressionTemplateData): void {
-		dispose(templateData.toDispose);
+		templateData.toDispose.dispose();
 	}
 }
