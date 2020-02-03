@@ -72,16 +72,11 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 }
 
 export function plain(parts: Proto.SymbolDisplayPart[]): string {
-	if (!parts) {
-		return '';
-	}
 	return parts.map(part => part.text).join('');
 }
 
 export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
-	return (tags || [])
-		.map(getTagDocumentation)
-		.join('  \n\n');
+	return tags.map(getTagDocumentation).join('  \n\n');
 }
 
 export function markdownDocumentation(
