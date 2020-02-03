@@ -25,7 +25,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { Recording } from 'vs/workbench/services/bulkEdit/browser/conflicts';
+import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
@@ -234,10 +235,9 @@ class BulkEdit {
 		editor: ICodeEditor | undefined,
 		progress: IProgress<IProgressStep> | undefined,
 		edits: Edit[],
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
-		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILabelService private readonly _uriLabelServie: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -288,14 +288,15 @@ class BulkEdit {
 		// for child operations
 		this._progress.report({ total });
 
-		let progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
+		const conflicts = this._instaService.createInstance(ConflictDetector, { edits: this._edits });
+		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
 		// do it.
 		for (const group of groups) {
 			if (WorkspaceFileEdit.is(group[0])) {
 				await this._performFileEdits(<WorkspaceFileEdit[]>group, progress);
 			} else {
-				await this._performTextEdits(<WorkspaceTextEdit[]>group, progress);
+				await this._performTextEdits(<WorkspaceTextEdit[]>group, conflicts, progress);
 			}
 		}
 	}
@@ -335,25 +336,14 @@ class BulkEdit {
 		}
 	}
 
-	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: WorkspaceTextEdit[], conflicts: ConflictDetector, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
-		const recording = Recording.start(this._fileService);
-		const model = new BulkEditModel(this._editor, progress, edits, this._workerService, this._textModelService);
+		const model = this._instaService.createInstance(BulkEditModel, this._editor, progress, edits);
 
 		await model.prepare();
 
-		const conflicts = edits
-			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, { relative: true }));
-
-		recording.stop();
-
-		if (conflicts.length > 0) {
-			model.dispose();
-			throw new Error(localize('conflict', "These files have changed in the meantime: {0}", conflicts.join(', ')));
-		}
-
+		this._throwIfConflicts(conflicts);
 		const validationResult = model.validate();
 		if (validationResult.canApply === false) {
 			model.dispose();
@@ -362,6 +352,13 @@ class BulkEdit {
 
 		model.apply();
 		model.dispose();
+	}
+
+	private _throwIfConflicts(conflicts: ConflictDetector) {
+		if (conflicts.hasConflicts()) {
+			const paths = conflicts.list().map(uri => this._uriLabelServie.getUriLabel(uri, { relative: true }));
+			throw new Error(localize('conflict', "These files have changed in the meantime: {0}", paths.join(', ')));
+		}
 	}
 }
 
@@ -372,15 +369,10 @@ export class BulkEditService implements IBulkEditService {
 	private _previewHandler?: IBulkEditPreviewHandler;
 
 	constructor(
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
@@ -433,10 +425,7 @@ export class BulkEditService implements IBulkEditService {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}
-		const bulkEdit = new BulkEdit(
-			codeEditor, options?.progress, edits,
-			this._logService, this._textModelService, this._fileService, this._workerService, this._textFileService, this._labelService, this._configurationService
-		);
+		const bulkEdit = this._instaService.createInstance(BulkEdit, codeEditor, options?.progress, edits);
 		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		}).catch(err => {
