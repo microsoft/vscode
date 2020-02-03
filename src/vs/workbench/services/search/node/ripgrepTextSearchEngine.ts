@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'vs/base/common/path';
-import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import { StringDecoder } from 'string_decoder';
 import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
@@ -169,7 +169,7 @@ export class RipgrepParser extends EventEmitter {
 	private remainder = '';
 	private isDone = false;
 	private hitLimit = false;
-	private stringDecoder: NodeStringDecoder;
+	private stringDecoder: StringDecoder;
 
 	private numResults = 0;
 
@@ -532,8 +532,8 @@ export type IRgBytesOrText = { bytes: string } | { text: string };
 
 export function fixRegexNewline(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceeded by none or even number of literal \
-	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
+	// Match $ preceded by none or even number of literal \
+	return pattern.replace(/(?<=[^\\]|^)(\\\\)*\\n/g, '$1\\r?\\n');
 }
 
 export function fixNewline(pattern: string): string {

@@ -34,6 +34,30 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
+interface TunnelOptions {
+	remoteAddress: { port: number, host: string };
+	// The desired local port. If this port can't be used, then another will be chosen.
+	localAddressPort?: number;
+	label?: string;
+}
+
+interface Tunnel {
+	remoteAddress: { port: number, host: string };
+	//The complete local address(ex. localhost:1234)
+	localAddress: string;
+	// Implementers of Tunnel should fire onDidDispose when dispose is called.
+	onDidDispose: Event<void>;
+	dispose(): void;
+}
+
+interface ITunnelFactory {
+	(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
+}
+
+interface IShowCandidate {
+	(host: string, port: number, detail: string): Thenable<boolean>;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	/**
@@ -103,6 +127,16 @@ interface IWorkbenchConstructionOptions {
 	 * Resolves an external uri before it is opened.
 	 */
 	readonly resolveExternalUri?: IExternalUriResolver;
+
+	/**
+	 * Support for creating tunnels.
+	 */
+	readonly tunnelFactory?: ITunnelFactory;
+
+	/**
+	 * Support for filtering candidate ports
+	 */
+	readonly showCandidate?: IShowCandidate;
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.

@@ -129,7 +129,7 @@ export class Button extends Disposable {
 	private applyStyles(): void {
 		if (this._element) {
 			const background = this.buttonBackground ? this.buttonBackground.toString() : '';
-			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
+			const foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
 			const border = this.buttonBorder ? this.buttonBorder.toString() : '';
 
 			this._element.style.color = foreground;

@@ -141,7 +141,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes);
 			}
 		}
 		return Promise.resolve();
@@ -154,7 +154,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve();
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType
@@ -167,6 +167,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (hasResolve) {
 			provider.resolveDebugConfiguration = (folder, config, token) => {
 				return this._proxy.$resolveDebugConfiguration(handle, folder, config, token);
+			};
+		}
+		if (hasResolve2) {
+			provider.resolveDebugConfigurationWithSubstitutedVariables = (folder, config, token) => {
+				return this._proxy.$resolveDebugConfigurationWithSubstitutedVariables(handle, folder, config, token);
 			};
 		}
 		if (hasProvideDebugAdapter) {
@@ -336,7 +341,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
 					logMessage: dbp.logMessage,
-					label: dbp.label,
+					label: dbp.description,
 					canPersist: dbp.canPersist
 				};
 			} else {

@@ -392,6 +392,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		const child = this._removeChild(from);
 		this._addChild(child, to);
+
+		this.onDidChildrenChange();
 	}
 
 	swapChildren(from: number, to: number): void {
@@ -408,6 +410,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.splitview.swapViews(from, to);
 		[this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash, this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash] = [this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash, this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash];
 		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
+
+		this.onDidChildrenChange();
 	}
 
 	resizeChild(index: number, size: number): void {
@@ -1086,6 +1090,8 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid JSON: \'width\' property must be a number.');
 		} else if (typeof json.height !== 'number') {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
+		} else if (json.root?.type !== 'branch') {
+			throw new Error('Invalid JSON: \'root\' property must have \'type\' value of branch.');
 		}
 
 		const orientation = json.orientation;

@@ -11,6 +11,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -111,7 +112,7 @@ export class WalkThroughInput extends EditorInput {
 						return '';
 					};
 
-					const markdown = ref.object.textEditorModel.getLinesContent().join('\n');
+					const markdown = ref.object.textEditorModel.getValue(EndOfLinePreference.LF);
 					marked(markdown, { renderer });
 
 					return Promise.all(snippets)

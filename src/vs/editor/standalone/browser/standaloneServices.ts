@@ -12,7 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService } from 'vs/editor/standalone/browser/simpleServices';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
@@ -45,9 +45,9 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -146,7 +146,9 @@ export module StaticServices {
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o)));
+	export const logService = define(ILogService, () => new NullLogService());
+
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o)));
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
@@ -155,8 +157,6 @@ export module StaticServices {
 	export const editorProgressService = define(IEditorProgressService, () => new SimpleEditorProgressService());
 
 	export const storageService = define(IStorageService, () => new InMemoryStorageService());
-
-	export const logService = define(ILogService, () => new NullLogService());
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
 }
@@ -192,7 +192,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
-		ensure(IAccessibilityService, () => new BrowserAccessibilityService(contextKeyService, configurationService));
+		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
 
 		ensure(IListService, () => new ListService(themeService));
 

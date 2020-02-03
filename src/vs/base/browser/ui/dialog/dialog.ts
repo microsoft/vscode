@@ -46,6 +46,7 @@ interface ButtonMapEntry {
 
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
+	private shadowElement: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
 	private buttonsContainer: HTMLElement | undefined;
 	private messageDetailElement: HTMLElement | undefined;
@@ -60,8 +61,9 @@ export class Dialog extends Disposable {
 
 	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
-		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
-		this.element = this.modal.appendChild($('.dialog-box'));
+		this.modal = this.container.appendChild($(`.monaco-dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
+		this.shadowElement = this.modal.appendChild($('.dialog-shadow'));
+		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		hide(this.element);
 
 		// If no button is provided, default to OK
@@ -249,10 +251,13 @@ export class Dialog extends Disposable {
 			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
 			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
+			if (this.shadowElement) {
+				this.shadowElement.style.boxShadow = shadowColor;
+			}
+
 			if (this.element) {
 				this.element.style.color = fgColor;
 				this.element.style.backgroundColor = bgColor;
-				this.element.style.boxShadow = shadowColor;
 				this.element.style.border = border;
 
 				if (this.buttonGroup) {

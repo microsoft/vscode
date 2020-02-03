@@ -9,6 +9,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
+import { equals } from 'vs/base/common/objects';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -26,6 +27,7 @@ export interface IIconLabelValueOptions {
 	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
 	readonly separator?: string;
+	readonly domId?: string;
 }
 
 class FastLabelNode {
@@ -90,8 +92,10 @@ class FastLabelNode {
 export class IconLabel extends Disposable {
 
 	private domNode: FastLabelNode;
-	private descriptionContainer: FastLabelNode;
+
 	private nameNode: Label | LabelWithHighlights;
+
+	private descriptionContainer: FastLabelNode;
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
@@ -164,21 +168,23 @@ class Label {
 
 	private label: string | string[] | undefined = undefined;
 	private singleLabel: HTMLElement | undefined = undefined;
+	private options: IIconLabelValueOptions | undefined;
 
 	constructor(private container: HTMLElement) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
-		if (this.label === label) {
+		if (this.label === label && equals(this.options, options)) {
 			return;
 		}
 
 		this.label = label;
+		this.options = options;
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
 				dom.removeClass(this.container, 'multiple');
-				this.singleLabel = dom.append(this.container, dom.$('a.label-name'));
+				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
 
 			this.singleLabel.textContent = label;
@@ -189,8 +195,9 @@ class Label {
 
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
+				const id = options?.domId && `${options?.domId}_${i}`;
 
-				dom.append(this.container, dom.$('a.label-name', { 'data-icon-label-count': label.length, 'data-icon-label-index': i }, l));
+				dom.append(this.container, dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i }, l));
 
 				if (i < label.length - 1) {
 					dom.append(this.container, dom.$('span.label-separator', undefined, options?.separator || '/'));
@@ -224,21 +231,23 @@ class LabelWithHighlights {
 
 	private label: string | string[] | undefined = undefined;
 	private singleLabel: HighlightedLabel | undefined = undefined;
+	private options: IIconLabelValueOptions | undefined;
 
 	constructor(private container: HTMLElement, private supportCodicons: boolean) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
-		if (this.label === label) {
+		if (this.label === label && equals(this.options, options)) {
 			return;
 		}
 
 		this.label = label;
+		this.options = options;
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
 				dom.removeClass(this.container, 'multiple');
-				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name')), this.supportCodicons);
+				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportCodicons);
 			}
 
 			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
@@ -254,8 +263,9 @@ class LabelWithHighlights {
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
 				const m = matches ? matches[i] : undefined;
+				const id = options?.domId && `${options?.domId}_${i}`;
 
-				const name = dom.$('a.label-name', { 'data-icon-label-count': label.length, 'data-icon-label-index': i });
+				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i });
 				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportCodicons);
 				highlightedLabel.set(l, m, options?.title, options?.labelEscapeNewLines);
 

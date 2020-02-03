@@ -21,6 +21,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
 import product from 'vs/platform/product/common/product';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class PerfviewContrib {
 
@@ -44,14 +47,20 @@ export class PerfviewInput extends ResourceEditorInput {
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	constructor(
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(
 			localize('name', "Startup Performance"),
 			undefined,
 			PerfviewInput.Uri,
 			undefined,
-			textModelResolverService
+			textModelResolverService,
+			textFileService,
+			editorService,
+			editorGroupService
 		);
 	}
 

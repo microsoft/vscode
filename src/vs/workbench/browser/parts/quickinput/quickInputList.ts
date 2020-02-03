@@ -28,7 +28,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { QUICK_INPUT_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -254,7 +254,7 @@ export class QuickInputList {
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: QUICK_INPUT_BACKGROUND
 			}
 		} as IWorkbenchListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;

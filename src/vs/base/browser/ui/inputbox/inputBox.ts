@@ -477,7 +477,7 @@ export class InputBox extends Widget {
 
 				const styles = this.stylesForType(this.message.type);
 				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
-				spanElement.style.color = styles.foreground ? styles.foreground.toString() : null;
+				spanElement.style.color = styles.foreground ? styles.foreground.toString() : '';
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);

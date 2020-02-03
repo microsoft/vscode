@@ -21,17 +21,25 @@
 }
 
 .monaco-workbench .action-label.calls-to {
-	background-image: url(files_CallTo_CallTo_16x.svg);
+	background-image: url(action-call-to.svg);
 	background-size: 14px 14px;
 	background-repeat: no-repeat;
 	background-position: left center;
 }
 
+.vs-dark .monaco-workbench .action-label.calls-to {
+	background-image: url(action-call-to-dark.svg);
+}
+
 .monaco-workbench .action-label.calls-from {
-	background-image: url(files_CallFrom_CallFrom_16x.svg);
+	background-image: url(action-call-from.svg);
 	background-size: 14px 14px;
 	background-repeat: no-repeat;
 	background-position: left center;
+}
+
+.vs-dark .monaco-workbench .action-label.calls-from{
+	background-image: url(action-call-from-dark.svg);
 }
 
 .monaco-workbench .call-hierarchy .editor,

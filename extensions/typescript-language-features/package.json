@@ -19,14 +19,15 @@
     "jsonc-parser": "^2.1.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
+    "typescript-vscode-sh-plugin": "^0.6.4",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
-    "@types/semver": "^5.5.0",
     "@types/rimraf": "2.0.2",
-    "vscode": "^1.1.10"
+    "@types/semver": "^5.5.0",
+    "vscode": "^1.1.36"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
@@ -45,10 +46,20 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
+    "onCommand:_typescript.learnMoreAboutRefactorings",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {
+    "documentation": {
+      "refactoring": [
+        {
+          "title": "%documentation.refactoring.title%",
+          "when": "typescript.isManagedFile",
+          "command": "_typescript.learnMoreAboutRefactorings"
+        }
+      ]
+    },
     "jsonValidation": [
       {
         "fileMatch": "package.json",
@@ -942,6 +953,12 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
+      }
+    ],
+    "typescriptServerPlugins": [
+      {
+        "name": "typescript-vscode-sh-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   }

@@ -62,6 +62,17 @@ const server = http.createServer((req, res) => {
 			// favicon
 			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'win32', 'code.ico'));
 		}
+		if (pathname === '/manifest.json') {
+			// manifest
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			return res.end(JSON.stringify({
+				"name": "Code Web - OSS",
+				"short_name": "Code Web - OSS",
+				"start_url": "/",
+				"lang": "en-US",
+				"display": "standalone"
+			}));
+		}
 		if (/^\/static\//.test(pathname)) {
 			// static requests
 			return handleStatic(req, res, parsedUrl);
@@ -142,7 +153,7 @@ async function handleRoot(req, res) {
 				return; // seems to fail to JSON.parse()?!
 			}
 
-			packageJSON.extensionKind = 'web'; // enable for Web
+			packageJSON.extensionKind = ['web']; // enable for Web
 
 			mapExtensionFolderToExtensionPackageJSON.set(extensionFolder, packageJSON);
 		} catch (error) {

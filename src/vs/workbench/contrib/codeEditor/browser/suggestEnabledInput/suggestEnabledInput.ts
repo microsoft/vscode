@@ -226,8 +226,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	public style(colors: ISuggestEnabledInputStyles): void {
 		this.placeholderText.style.backgroundColor =
 			this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';

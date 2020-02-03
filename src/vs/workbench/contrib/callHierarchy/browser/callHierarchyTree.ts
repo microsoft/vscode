@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 export class Call {
 	constructor(
 		readonly item: CallHierarchyItem,
-		readonly locations: Location[],
+		readonly locations: Location[] | undefined,
 		readonly model: CallHierarchyModel,
 		readonly parent: Call | undefined
 	) { }
@@ -43,7 +43,7 @@ export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
 
 	async getChildren(element: CallHierarchyModel | Call): Promise<Call[]> {
 		if (element instanceof CallHierarchyModel) {
-			return [new Call(element.root, [], element, undefined)];
+			return element.roots.map(root => new Call(root, undefined, element, undefined));
 		}
 
 		const { model, item } = element;

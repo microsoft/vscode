@@ -27,6 +27,26 @@ export const enum Position {
 	BOTTOM
 }
 
+export function positionToString(position: Position): string {
+	switch (position) {
+		case Position.LEFT: return 'left';
+		case Position.RIGHT: return 'right';
+		case Position.BOTTOM: return 'bottom';
+	}
+
+	return 'bottom';
+}
+
+const positionsByString: { [key: string]: Position } = {
+	[positionToString(Position.LEFT)]: Position.LEFT,
+	[positionToString(Position.RIGHT)]: Position.RIGHT,
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+};
+
+export function positionFromString(str: string): Position {
+	return positionsByString[str];
+}
+
 export interface IWorkbenchLayoutService extends ILayoutService {
 
 	_serviceBrand: undefined;

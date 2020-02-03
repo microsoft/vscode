@@ -28,7 +28,6 @@ class ServiceAccessor {
 }
 
 suite('Files - FileEditorInput', () => {
-
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
@@ -153,7 +152,7 @@ suite('Files - FileEditorInput', () => {
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 
-		assert.ok(await input.revert());
+		assert.ok(await input.revert(0));
 		assert.ok(!input.isDirty());
 
 		input.dispose();

@@ -21,6 +21,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -43,14 +44,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService());
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
-			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+			files = <any>{
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();
@@ -60,7 +61,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onAfterOperation = Event.None;
 		};
 
-		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
@@ -69,9 +69,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null!,
 			fileService,
-			null!,
 			null!,
 			editorGroupService,
 			null!,
@@ -85,7 +83,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			TestEnvironmentService
 		);
-		/* tslint:enable */
 	});
 
 

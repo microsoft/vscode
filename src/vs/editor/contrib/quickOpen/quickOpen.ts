@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentSymbol } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { values } from 'vs/base/common/collections';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
 
 export async function getDocumentSymbols(document: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
 
@@ -63,26 +63,19 @@ function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideCo
 }
 
 
-registerLanguageCommand('_executeDocumentSymbolProvider', function (accessor, args) {
-	const { resource } = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument('resource');
-	}
+CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
+	const [resource] = args;
+	assertType(URI.isUri(resource));
+
 	const model = accessor.get(IModelService).getModel(resource);
 	if (model) {
 		return getDocumentSymbols(model, false, CancellationToken.None);
 	}
 
-	return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-		return new Promise((resolve, reject) => {
-			try {
-				const result = getDocumentSymbols(reference.object.textEditorModel, false, CancellationToken.None);
-				resolve(result);
-			} catch (err) {
-				reject(err);
-			}
-		}).finally(() => {
-			reference.dispose();
-		});
-	});
+	const reference = await accessor.get(ITextModelService).createModelReference(resource);
+	try {
+		return await getDocumentSymbols(reference.object.textEditorModel, false, CancellationToken.None);
+	} finally {
+		reference.dispose();
+	}
 });

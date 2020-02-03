@@ -33,6 +33,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -213,7 +214,7 @@ class CommandPaletteEditorAction extends EditorAction {
 			id: ShowAllCommandsAction.ID,
 			label: localize('showCommands.label', "Command Palette..."),
 			alias: 'Command Palette',
-			precondition: undefined,
+			precondition: EditorContextKeys.editorSimpleInput.toNegated(),
 			contextMenuOpts: {
 				group: 'z_commands',
 				order: 1

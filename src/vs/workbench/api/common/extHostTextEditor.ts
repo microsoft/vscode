@@ -13,7 +13,8 @@ import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainT
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
@@ -133,23 +134,11 @@ export class TextEditorEdit {
 	}
 }
 
-
-function deprecated(name: string, message: string = 'Refer to the documentation for further details.') {
-	return (target: Object, key: string, descriptor: TypedPropertyDescriptor<any>) => {
-		const originalMethod = descriptor.value;
-		descriptor.value = function (...args: any[]) {
-			console.warn(`[Deprecation Warning] method '${name}' is deprecated and should no longer be used. ${message}`);
-			return originalMethod.apply(this, args);
-		};
-
-		return descriptor;
-	};
-}
-
 export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 	private _proxy: MainThreadTextEditorsShape;
 	private _id: string;
+	private _logService: ILogService;
 
 	private _tabSize!: number;
 	private _indentSize!: number;
@@ -157,10 +146,11 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 	private _cursorStyle!: TextEditorCursorStyle;
 	private _lineNumbers!: TextEditorLineNumbersStyle;
 
-	constructor(proxy: MainThreadTextEditorsShape, id: string, source: IResolvedTextEditorConfiguration) {
+	constructor(proxy: MainThreadTextEditorsShape, id: string, source: IResolvedTextEditorConfiguration, logService: ILogService) {
 		this._proxy = proxy;
 		this._id = id;
 		this._accept(source);
+		this._logService = logService;
 	}
 
 	public _accept(source: IResolvedTextEditorConfiguration): void {
@@ -207,7 +197,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			// reflect the new tabSize value immediately
 			this._tabSize = tabSize;
 		}
-		warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
 			tabSize: tabSize
 		}));
 	}
@@ -248,7 +238,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			// reflect the new indentSize value immediately
 			this._indentSize = indentSize;
 		}
-		warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
 			indentSize: indentSize
 		}));
 	}
@@ -274,7 +264,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			// reflect the new insertSpaces value immediately
 			this._insertSpaces = insertSpaces;
 		}
-		warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
 			insertSpaces: insertSpaces
 		}));
 	}
@@ -289,7 +279,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			return;
 		}
 		this._cursorStyle = value;
-		warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
 			cursorStyle: value
 		}));
 	}
@@ -304,7 +294,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			return;
 		}
 		this._lineNumbers = value;
-		warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
 			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
 		}));
 	}
@@ -369,15 +359,17 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		}
 
 		if (hasUpdate) {
-			warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
+			this._warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
 		}
+	}
+
+	private _warnOnError(promise: Promise<any>): void {
+		promise.catch(err => this._logService.warn(err));
 	}
 }
 
 export class ExtHostTextEditor implements vscode.TextEditor {
 
-	private readonly _proxy: MainThreadTextEditorsShape;
-	private readonly _id: string;
 	private readonly _documentData: ExtHostDocumentData;
 
 	private _selections: Selection[];
@@ -387,18 +379,17 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _disposed: boolean = false;
 	private _hasDecorationsForKey: { [key: string]: boolean; };
 
-	get id(): string { return this._id; }
-
 	constructor(
-		proxy: MainThreadTextEditorsShape, id: string, document: ExtHostDocumentData,
+		readonly id: string,
+		private readonly _proxy: MainThreadTextEditorsShape,
+		private readonly _logService: ILogService,
+		document: ExtHostDocumentData,
 		selections: Selection[], options: IResolvedTextEditorConfiguration,
 		visibleRanges: Range[], viewColumn: vscode.ViewColumn | undefined
 	) {
-		this._proxy = proxy;
-		this._id = id;
 		this._documentData = document;
 		this._selections = selections;
-		this._options = new ExtHostTextEditorOptions(this._proxy, this._id, options);
+		this._options = new ExtHostTextEditorOptions(this._proxy, this.id, options, _logService);
 		this._visibleRanges = visibleRanges;
 		this._viewColumn = viewColumn;
 		this._hasDecorationsForKey = Object.create(null);
@@ -409,12 +400,12 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		this._disposed = true;
 	}
 
-	@deprecated('TextEditor.show') show(column: vscode.ViewColumn) {
-		this._proxy.$tryShowEditor(this._id, TypeConverters.ViewColumn.from(column));
+	show(column: vscode.ViewColumn) {
+		this._proxy.$tryShowEditor(this.id, TypeConverters.ViewColumn.from(column));
 	}
 
-	@deprecated('TextEditor.hide') hide() {
-		this._proxy.$tryHideEditor(this._id);
+	hide() {
+		this._proxy.$tryHideEditor(this.id);
 	}
 
 	// ---- the document
@@ -515,7 +506,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			() => {
 				if (TypeConverters.isDecorationOptionsArr(ranges)) {
 					return this._proxy.$trySetDecorations(
-						this._id,
+						this.id,
 						decorationType.key,
 						TypeConverters.fromRangeOrRangeWithMessage(ranges)
 					);
@@ -529,7 +520,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 						_ranges[4 * i + 3] = range.end.character + 1;
 					}
 					return this._proxy.$trySetDecorationsFast(
-						this._id,
+						this.id,
 						decorationType.key,
 						_ranges
 					);
@@ -541,7 +532,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	revealRange(range: Range, revealType: vscode.TextEditorRevealType): void {
 		this._runOnProxy(
 			() => this._proxy.$tryRevealRange(
-				this._id,
+				this.id,
 				TypeConverters.Range.from(range),
 				(revealType || TextEditorRevealType.Default)
 			)
@@ -550,7 +541,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {
 		const selection = this._selections.map(TypeConverters.Selection.from);
-		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
+		return this._runOnProxy(() => this._proxy.$trySetSelections(this.id, selection));
 	}
 
 	_acceptSelections(selections: Selection[]): void {
@@ -616,7 +607,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			};
 		});
 
-		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, {
+		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, edits, {
 			setEndOfLine: typeof editData.setEndOfLine === 'number' ? TypeConverters.EndOfLine.from(editData.setEndOfLine) : undefined,
 			undoStopBefore: editData.undoStopBefore,
 			undoStopAfter: editData.undoStopAfter
@@ -650,27 +641,22 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			}
 		}
 
-		return this._proxy.$tryInsertSnippet(this._id, snippet.value, ranges, options);
+		return this._proxy.$tryInsertSnippet(this.id, snippet.value, ranges, options);
 	}
 
 	// ---- util
 
 	private _runOnProxy(callback: () => Promise<any>): Promise<ExtHostTextEditor | undefined | null> {
 		if (this._disposed) {
-			console.warn('TextEditor is closed/disposed');
+			this._logService.warn('TextEditor is closed/disposed');
 			return Promise.resolve(undefined);
 		}
 		return callback().then(() => this, err => {
 			if (!(err instanceof Error && err.name === 'DISPOSED')) {
-				console.warn(err);
+				this._logService.warn(err);
 			}
 			return null;
 		});
 	}
 }
 
-function warnOnError(promise: Promise<any>): void {
-	promise.then(undefined, (err) => {
-		console.warn(err);
-	});
-}

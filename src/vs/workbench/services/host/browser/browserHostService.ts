@@ -43,7 +43,7 @@ export interface IWorkspaceProvider {
 	 *
 	 * @param workspace the workspace to open.
 	 * @param options optional options for the workspace to open.
-	 * - `reuse`: wether to open inside the current window or a new window
+	 * - `reuse`: whether to open inside the current window or a new window
 	 * - `payload`: arbitrary payload that should be made available
 	 * to the opening window via the `IWorkspaceProvider.payload` property.
 	 */
@@ -146,7 +146,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
 
-		let openFolderInNewWindow = !!options.forceNewWindow && !options.forceReuseWindow;
+		let openFolderInNewWindow = (options.preferNewWindow || !!options.forceNewWindow) && !options.forceReuseWindow;
 		if (!options.forceNewWindow && !options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
 			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
 		}

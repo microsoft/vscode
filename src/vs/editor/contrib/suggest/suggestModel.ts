@@ -21,6 +21,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isLowSurrogate, isHighSurrogate } from 'vs/base/common/strings';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -95,7 +96,7 @@ export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
 	private _quickSuggestDelay: number = 10;
-	private _triggerCharacterListener?: IDisposable;
+	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
 
@@ -141,10 +142,10 @@ export class SuggestModel implements IDisposable {
 		}));
 
 		let editorIsComposing = false;
-		this._toDispose.add(this._editor.onCompositionStart(() => {
+		this._toDispose.add(this._editor.onDidCompositionStart(() => {
 			editorIsComposing = true;
 		}));
-		this._toDispose.add(this._editor.onCompositionEnd(() => {
+		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
 			// refilter when composition ends
 			editorIsComposing = false;
 			this._refilterCompletionItems();
@@ -181,8 +182,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private _updateTriggerCharacters(): void {
-
-		dispose(this._triggerCharacterListener);
+		this._triggerCharacterListener.clear();
 
 		if (this._editor.getOption(EditorOption.readOnly)
 			|| !this._editor.hasModel()
@@ -191,29 +191,49 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const supportsByTriggerCharacter: { [ch: string]: Set<CompletionItemProvider> } = Object.create(null);
+		const supportsByTriggerCharacter = new Map<string, Set<CompletionItemProvider>>();
 		for (const support of CompletionProviderRegistry.all(this._editor.getModel())) {
 			for (const ch of support.triggerCharacters || []) {
-				let set = supportsByTriggerCharacter[ch];
+				let set = supportsByTriggerCharacter.get(ch);
 				if (!set) {
-					set = supportsByTriggerCharacter[ch] = new Set();
+					set = new Set();
 					set.add(getSnippetSuggestSupport());
+					supportsByTriggerCharacter.set(ch, set);
 				}
 				set.add(support);
 			}
 		}
 
-		this._triggerCharacterListener = this._editor.onDidType(text => {
-			const lastChar = text.charAt(text.length - 1);
-			const supports = supportsByTriggerCharacter[lastChar];
 
+		const checkTriggerCharacter = (text?: string) => {
+
+			if (!text) {
+				// came here from the compositionEnd-event
+				const position = this._editor.getPosition()!;
+				const model = this._editor.getModel()!;
+				text = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+			}
+
+			let lastChar = '';
+			if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
+				if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
+					lastChar = text.substr(text.length - 2);
+				}
+			} else {
+				lastChar = text.charAt(text.length - 1);
+			}
+
+			const supports = supportsByTriggerCharacter.get(lastChar);
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
 				const items: CompletionItem[] | undefined = this._completionModel ? this._completionModel.adopt(supports) : undefined;
 				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
 			}
-		});
+		};
+
+		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
+		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(checkTriggerCharacter));
 	}
 
 	// --- trigger/retrigger/cancel suggest
@@ -266,9 +286,7 @@ export class SuggestModel implements IDisposable {
 		) {
 			// Early exit if nothing needs to be done!
 			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-			if (this._state !== State.Idle) {
-				this.cancel();
-			}
+			this.cancel();
 			return;
 		}
 

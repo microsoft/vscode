@@ -114,16 +114,16 @@ steps:
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-# Web Smoke Tests disabled due to https://github.com/microsoft/vscode/issues/80308
-# - script: |
-#     set -e
-#     cd test/smoke
-#     yarn compile
-#     cd -
-#     yarn smoketest --web --headless
-#   continueOnError: true
-#   displayName: Run web smoke tests
-#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+- script: |
+    set -e
+    cd test/smoke
+    yarn compile
+    cd -
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+    yarn smoketest --web --headless
+  continueOnError: true
+  displayName: Run web smoke tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

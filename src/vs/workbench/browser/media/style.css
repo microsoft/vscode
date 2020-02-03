@@ -109,18 +109,18 @@ body.web {
 	cursor: pointer;
 }
 
-.monaco-workbench.monaco-font-aliasing-antialiased {
+.monaco-workbench.mac.monaco-font-aliasing-antialiased {
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
 
-.monaco-workbench.monaco-font-aliasing-none {
+.monaco-workbench.mac.monaco-font-aliasing-none {
 	-webkit-font-smoothing: none;
 	-moz-osx-font-smoothing: unset;
 }
 
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-	.monaco-workbench.monaco-font-aliasing-auto {
+	.monaco-workbench.mac.monaco-font-aliasing-auto {
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}
@@ -180,6 +180,8 @@ body.web {
 .monaco-workbench select {
 	-webkit-appearance: none;
 	-moz-appearance: none;
+	/* Hides inner border from FF */
+	border: 1px solid;
 }
 
 .monaco-workbench .select-container {

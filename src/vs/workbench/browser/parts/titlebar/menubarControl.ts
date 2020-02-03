@@ -31,16 +31,17 @@ import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
-// tslint:disable-next-line: import-patterns layering TODO@sbatten
+// eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-// tslint:disable-next-line: import-patterns layering TODO@sbatten
+// TODO@sbatten
+// eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
@@ -248,10 +249,8 @@ export abstract class MenubarControl extends Disposable {
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
-		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-		const config = this.configurationService.getValue('editor.accessibilitySupport');
 
-		if (hasBeenNotified || usingCustomMenubar || !(config === 'on' || (config === 'auto' && detected))) {
+		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
 			return;
 		}
 
@@ -328,12 +327,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 			if (menubarActiveWindowFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar > .menubar-menu-button {
-					color: ${menubarActiveWindowFgColor};
-				}
-
+				.monaco-workbench .menubar > .menubar-menu-button,
 				.monaco-workbench .menubar .toolbar-toggle-more {
-					background-color: ${menubarActiveWindowFgColor}
+					color: ${menubarActiveWindowFgColor};
 				}
 				`);
 			}
@@ -341,12 +337,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
 			if (activityBarInactiveFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button {
-					color: ${activityBarInactiveFgColor};
-				}
-
+				.monaco-workbench .menubar.compact > .menubar-menu-button,
 				.monaco-workbench .menubar.compact .toolbar-toggle-more {
-					background-color: ${activityBarInactiveFgColor}
+					color: ${activityBarInactiveFgColor};
 				}
 				`);
 
@@ -357,14 +350,11 @@ export class CustomMenubarControl extends MenubarControl {
 				collector.addRule(`
 				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
 				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover {
-					color: ${activityBarFgColor};
-				}
-
+				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
 				.monaco-workbench .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
 				.monaco-workbench .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
 				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
-					background-color: ${activityBarFgColor}
+					color: ${activityBarFgColor};
 				}
 			`);
 			}
@@ -372,12 +362,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 			if (menubarInactiveWindowFgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button {
+					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
+					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more  {
 						color: ${menubarInactiveWindowFgColor};
-					}
-
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more {
-						background-color: ${menubarInactiveWindowFgColor}
 					}
 				`);
 			}
@@ -388,14 +375,11 @@ export class CustomMenubarControl extends MenubarControl {
 				collector.addRule(`
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
-						color: ${menubarSelectedFgColor};
-					}
-
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover,
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .toolbar-toggle-more,
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .toolbar-toggle-more,
 					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .toolbar-toggle-more {
-						background-color: ${menubarSelectedFgColor}
+						color: ${menubarSelectedFgColor};
 					}
 				`);
 			}
@@ -589,9 +573,9 @@ export class CustomMenubarControl extends MenubarControl {
 				for (let action of actions) {
 					this.insertActionsBefore(action, target);
 					if (action instanceof SubmenuItemAction) {
-						let submenu = this.menus[action.item.submenu];
+						let submenu = this.menus[action.item.submenu.id];
 						if (!submenu) {
-							submenu = this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+							submenu = this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 							this._register(submenu.onDidChange(() => {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];

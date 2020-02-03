@@ -21,7 +21,7 @@ import { EditorExtensionsRegistry, registerEditorContribution, IEditorContributi
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { FindController } from 'vs/editor/contrib/find/findController';
 import { FoldingController } from 'vs/editor/contrib/folding/folding';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
@@ -252,7 +252,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.editorService.activeControl !== this) {
 			this.focus();
 		}
-		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.input.save(this.group!.id) : Promise.resolve(true);
+		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.editorService.save({ editor: this.input, groupId: this.group!.id }) : Promise.resolve(true);
 		promise.then(() => {
 			if (target === ConfigurationTarget.USER_LOCAL) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER_LOCAL, this.preferencesService.userSettingsResource, true);
@@ -603,14 +603,13 @@ class PreferencesRenderersController extends Disposable {
 				} else {
 					/* __GDPR__
 						"defaultSettings.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
-							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.telemetryService.publicLog('defaultSettings.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return undefined;
@@ -1022,6 +1021,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.minimap = {
 				enabled: false
 			};
+			options.renderValidationDecorations = 'editable';
 		}
 		return options;
 	}
@@ -1063,7 +1063,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly text editor.");
+		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly editor.");
 	}
 }
 

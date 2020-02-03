@@ -31,6 +31,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 
 /**
  * Description of an action contribution
@@ -78,9 +79,57 @@ export interface IActionDescriptor {
 }
 
 /**
+ * Options which apply for all editors.
+ */
+export interface IGlobalEditorOptions {
+	/**
+	 * The number of spaces a tab is equal to.
+	 * This setting is overridden based on the file contents when `detectIndentation` is on.
+	 * Defaults to 4.
+	 */
+	tabSize?: number;
+	/**
+	 * Insert spaces when pressing `Tab`.
+	 * This setting is overridden based on the file contents when detectIndentation` is on.
+	 * Defaults to true.
+	 */
+	insertSpaces?: boolean;
+	/**
+	 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
+	 * Defaults to true.
+	 */
+	detectIndentation?: boolean;
+	/**
+	 * Remove trailing auto inserted whitespace.
+	 * Defaults to true.
+	 */
+	trimAutoWhitespace?: boolean;
+	/**
+	 * Special handling for large files to disable certain memory intensive features.
+	 * Defaults to true.
+	 */
+	largeFileOptimizations?: boolean;
+	/**
+	 * Controls whether completions should be computed based on words in the document.
+	 * Defaults to true.
+	 */
+	wordBasedSuggestions?: boolean;
+	/**
+	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Defaults to false.
+	 */
+	stablePeek?: boolean;
+	/**
+	 * Lines above this length will not be tokenized for performance reasons.
+	 * Defaults to 20000.
+	 */
+	maxTokenizationLineLength?: number;
+}
+
+/**
  * The options to create an editor.
  */
-export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions {
+export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions, IGlobalEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
@@ -125,6 +174,7 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
+	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
@@ -302,6 +352,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		applyConfigurationValues(configurationService, options, false);
+		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
@@ -313,6 +364,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._register(toDispose);
+		this._register(themeDomRegistration);
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
@@ -337,7 +389,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IEditorOptions): void {
+	public updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void {
 		applyConfigurationValues(this._configurationService, newOptions, false);
 		super.updateOptions(newOptions);
 	}
@@ -381,6 +433,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@optional(IClipboardService) clipboardService: IClipboardService | null,
 	) {
 		applyConfigurationValues(configurationService, options, true);
+		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
@@ -392,6 +445,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._configurationService = configurationService;
 
 		this._register(toDispose);
+		this._register(themeDomRegistration);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}

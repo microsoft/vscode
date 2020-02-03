@@ -240,13 +240,8 @@ export class Model {
 				return;
 			}
 
-			const config = workspace.getConfiguration('git');
-			const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
-
-			for (const ignoredRepo of ignoredRepos) {
-				if (pathEquals(ignoredRepo, rawRoot)) {
-					return;
-				}
+			if (this.shouldRepositoryBeIgnored(rawRoot)) {
+				return;
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
@@ -261,6 +256,27 @@ export class Model {
 
 			// console.error('Failed to find repository:', err);
 		}
+	}
+
+	private shouldRepositoryBeIgnored(repositoryRoot: string): boolean {
+		const config = workspace.getConfiguration('git');
+		const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
+
+		for (const ignoredRepo of ignoredRepos) {
+			if (path.isAbsolute(ignoredRepo)) {
+				if (pathEquals(ignoredRepo, repositoryRoot)) {
+					return true;
+				}
+			} else {
+				for (const folder of workspace.workspaceFolders || []) {
+					if (pathEquals(path.join(folder.uri.fsPath, ignoredRepo), repositoryRoot)) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private open(repository: Repository): void {

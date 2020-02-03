@@ -57,7 +57,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		const renderSelections = isRenderedUsingBorder ? this._selections.slice(0, 1) : this._selections;
 
 		const cursorsLineNumbers = renderSelections.map(s => s.positionLineNumber);
-		cursorsLineNumbers.sort();
+		cursorsLineNumbers.sort((a, b) => a - b);
 		if (!arrays.equals(this._cursorLineNumbers, cursorsLineNumbers)) {
 			this._cursorLineNumbers = cursorsLineNumbers;
 			hasChanged = true;

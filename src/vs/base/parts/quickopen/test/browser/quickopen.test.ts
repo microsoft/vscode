@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { DataSource } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
@@ -28,7 +29,7 @@ suite('QuickOpen', () => {
 		assert.equal(entry2, model.getEntries(true)[0]);
 	});
 
-	test('QuickOpenDataSource', () => {
+	test('QuickOpenDataSource', async () => {
 		const model = new QuickOpenModel();
 
 		const entry1 = new QuickOpenEntry();
@@ -42,8 +43,7 @@ suite('QuickOpen', () => {
 		assert.equal(true, ds.hasChildren(null!, model));
 		assert.equal(false, ds.hasChildren(null!, entry1));
 
-		ds.getChildren(null!, model).then((children: any[]) => {
-			assert.equal(3, children.length);
-		});
+		const children = await ds.getChildren(null!, model);
+		assert.equal(3, children.length);
 	});
 });

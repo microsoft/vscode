@@ -308,9 +308,10 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', "...");
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'title': label, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
+		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
+		const title = this.options.compactMode !== undefined ? label : undefined;
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more.codicon.codicon-more', { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);
@@ -910,7 +911,7 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		const menuHolder = $('div.menubar-menu-items-holder');
+		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
 
 		DOM.addClass(customMenu.buttonElement, 'open');
 

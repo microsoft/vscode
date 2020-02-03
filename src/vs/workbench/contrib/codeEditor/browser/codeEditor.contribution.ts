@@ -8,7 +8,7 @@ import './accessibility/accessibility';
 import './diffEditorHelper';
 import './inspectKeybindings';
 import './largeFileOptimizations';
-import './inspectTMScopes/inspectTMScopes';
+import './inspectEditorTokens/inspectEditorTokens';
 import './toggleMinimap';
 import './toggleMultiCursorModifier';
 import './toggleRenderControlCharacter';

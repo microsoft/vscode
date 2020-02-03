@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 
 function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 	if (!tag.text) {
@@ -28,7 +28,15 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 			} else {
 				return makeCodeblock(tag.text);
 			}
+		case 'author':
+			// fix obsucated email address, #80898
+			const emailMatch = tag.text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
 
+			if (emailMatch === null) {
+				return tag.text;
+			} else {
+				return `${emailMatch[1]} ${emailMatch[2]}`;
+			}
 		case 'default':
 			return makeCodeblock(tag.text);
 	}

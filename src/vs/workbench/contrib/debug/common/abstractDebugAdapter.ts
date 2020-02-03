@@ -12,12 +12,12 @@ import { timeout } from 'vs/base/common/async';
  * Missing is how this API communicates with the debug adapter.
  */
 export abstract class AbstractDebugAdapter implements IDebugAdapter {
-
 	private sequence: number;
 	private pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
 	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
 	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
+	private queue: DebugProtocol.ProtocolMessage[] = [];
 	protected readonly _onError = new Emitter<Error>();
 	protected readonly _onExit = new Emitter<number | null>();
 
@@ -63,8 +63,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	sendResponse(response: DebugProtocol.Response): void {
 		if (response.seq > 0) {
 			this._onError.fire(new Error(`attempt to send more than one response for command ${response.command}`));
-		}
-		else {
+		} else {
 			this.internalSend('response', response);
 		}
 	}
@@ -106,8 +105,53 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
 		if (this.messageCallback) {
 			this.messageCallback(message);
+		} else {
+			this.queue.push(message);
+			if (this.queue.length === 1) {
+				// first item = need to start processing loop
+				this.processQueue();
+			}
 		}
-		else {
+	}
+
+	/**
+	 * Returns whether we should insert a timeout between processing messageA
+	 * and messageB. Artificially queueing protocol messages guarantees that any
+	 * microtasks for previous message finish before next message is processed.
+	 * This is essential ordering when using promises anywhere along the call path.
+	 *
+	 * For example, take the following, where `chooseAndSendGreeting` returns
+	 * a person name and then emits a greeting event:
+	 *
+	 * ```
+	 * let person: string;
+	 * adapter.onGreeting(() => console.log('hello', person));
+	 * person = await adapter.chooseAndSendGreeting();
+	 * ```
+	 *
+	 * Because the event is dispatched synchronously, it may fire before person
+	 * is assigned if they're processed in the same task. Inserting a task
+	 * boundary avoids this issue.
+	 */
+	protected needsTaskBoundaryBetween(messageA: DebugProtocol.ProtocolMessage, messageB: DebugProtocol.ProtocolMessage) {
+		return messageA.type !== 'event' || messageB.type !== 'event';
+	}
+
+	/**
+	 * Reads and dispatches items from the queue until it is empty.
+	 */
+	private async processQueue() {
+		let message: DebugProtocol.ProtocolMessage | undefined;
+		while (this.queue.length) {
+			if (!message || this.needsTaskBoundaryBetween(this.queue[0], message)) {
+				await timeout(0);
+			}
+
+			message = this.queue.shift();
+			if (!message) {
+				return; // may have been disposed of
+			}
+
 			switch (message.type) {
 				case 'event':
 					if (this.eventCallback) {
@@ -164,6 +208,6 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	dispose(): void {
-		// noop
+		this.queue = [];
 	}
 }

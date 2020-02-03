@@ -37,12 +37,13 @@ export interface ICodeEditorService {
 	 */
 	getFocusedCodeEditor(): ICodeEditor | null;
 
-	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
+	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
 	removeDecorationType(key: string): void;
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 
 	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
 	getTransientModelProperty(model: ITextModel, key: string): any;
+	getTransientModelProperties(model: ITextModel): [string, any][] | undefined;
 
 	getActiveCodeEditor(): ICodeEditor | null;
 	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;

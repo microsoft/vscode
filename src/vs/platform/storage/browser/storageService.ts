@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,11 +21,11 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
+	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
@@ -37,45 +37,15 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private workspaceStorageFile: URI | undefined;
 
 	private initializePromise: Promise<void> | undefined;
-	private periodicSaveScheduler = this._register(new RunOnceScheduler(() => this.collectState(), 5000));
 
-	get hasPendingUpdate(): boolean {
-		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
-	}
+	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 5000 /* every 5s */));
+	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
-
-		// In the browser we do not have support for long running unload sequences. As such,
-		// we cannot ask for saving state in that moment, because that would result in a
-		// long running operation.
-		// Instead, periodically ask customers to save save. The library will be clever enough
-		// to only save state that has actually changed.
-		this.periodicSaveScheduler.schedule();
-	}
-
-	private collectState(): void {
-		runWhenIdle(() => {
-
-			// this event will potentially cause new state to be stored
-			// since new state will only be created while the document
-			// has focus, one optimization is to not run this when the
-			// document has no focus, assuming that state has not changed
-			//
-			// another optimization is to not collect more state if we
-			// have a pending update already running which indicates
-			// that the connection is either slow or disconnected and
-			// thus unhealthy.
-			if (document.hasFocus() && !this.hasPendingUpdate) {
-				this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
-			}
-
-			// repeat
-			this.periodicSaveScheduler.schedule();
-		});
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
@@ -109,6 +79,13 @@ export class BrowserStorageService extends Disposable implements IStorageService
 			this.workspaceStorage.init(),
 			this.globalStorage.init()
 		]);
+
+		// In the browser we do not have support for long running unload sequences. As such,
+		// we cannot ask for saving state in that moment, because that would result in a
+		// long running operation.
+		// Instead, periodically ask customers to save save. The library will be clever enough
+		// to only save state that has actually changed.
+		this.periodicFlushScheduler.schedule();
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
@@ -156,6 +133,40 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
+	private doFlushWhenIdle(): void {
+
+		// Dispose any previous idle runner
+		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+
+		// Run when idle
+		this.runWhenIdleDisposable = runWhenIdle(() => {
+
+			// this event will potentially cause new state to be stored
+			// since new state will only be created while the document
+			// has focus, one optimization is to not run this when the
+			// document has no focus, assuming that state has not changed
+			//
+			// another optimization is to not collect more state if we
+			// have a pending update already running which indicates
+			// that the connection is either slow or disconnected and
+			// thus unhealthy.
+			if (document.hasFocus() && !this.hasPendingUpdate) {
+				this.flush();
+			}
+
+			// repeat
+			this.periodicFlushScheduler.schedule();
+		});
+	}
+
+	get hasPendingUpdate(): boolean {
+		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
+	}
+
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+	}
+
 	close(): void {
 		// We explicitly do not close our DBs because writing data onBeforeUnload()
 		// can result in unexpected results. Namely, it seems that - even though this
@@ -166,6 +177,12 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		// Instead we trigger dispose() to ensure that no timeouts or callbacks
 		// get triggered in this phase.
 		this.dispose();
+	}
+
+	dispose(): void {
+		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+
+		super.dispose();
 	}
 }
 

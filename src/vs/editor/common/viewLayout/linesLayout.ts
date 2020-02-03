@@ -262,7 +262,6 @@ export class LinesLayout {
 
 	private _checkPendingChanges(): void {
 		if (this._pendingChanges.mustCommit()) {
-			console.warn(`Commiting pending changes before change accessor leaves due to read access.`);
 			this._pendingChanges.commit(this);
 		}
 	}
