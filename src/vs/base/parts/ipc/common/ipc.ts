@@ -731,10 +731,17 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 			listen(eventName: string, arg: any): Event<T> {
 				let disposables = new DisposableStore();
 
+				// Create an emitter which hooks up to all clients
+				// as soon as first listener is added. It also
+				// disconnects from all clients as soon as the last listener
+				// is removed.
 				const emitter = new Emitter<T>({
 					onFirstListenerAdd: () => {
 						disposables = new DisposableStore();
 
+						// The event multiplexer is useful since the active
+						// client list is dynamic. We need to hook up and disconnection
+						// to/from clients as they come and go.
 						const eventMultiplexer = new EventMultiplexer<T>();
 						const map = new Map<Connection<TContext>, IDisposable>();
 
