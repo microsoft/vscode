@@ -612,10 +612,18 @@ export class ElectronWindow extends Disposable {
 		// are closed that the user wants to wait for. When this happens we delete
 		// the wait marker file to signal to the outside that editing is done.
 		const listener = this.editorService.onDidCloseEditor(async event => {
-			const closedResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const detailsResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.DETAILS });
+			const masterResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
 
-			// Remove from resources to wait for
-			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => !isEqual(closedResource, resourceToWaitFor));
+			// Remove from resources to wait for based on the
+			// resources from editors that got closed
+			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => {
+				if (isEqual(resourceToWaitFor, masterResource) || isEqual(resourceToWaitFor, detailsResource)) {
+					return false; // remove - the closing editor matches this resource
+				}
+
+				return true; // keep - not yet closed
+			});
 
 			if (resourcesToWaitFor.length === 0) {
 				// If auto save is configured with the default delay (1s) it is possible
@@ -770,8 +778,8 @@ class NativeMenubarControl extends MenubarControl {
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
-					if (!this.menus[menuItem.item.submenu]) {
-						const menu = this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					if (!this.menus[menuItem.item.submenu.id]) {
+						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
 						this._register(menu.onDidChange(() => this.updateMenubar()));
 					}
 

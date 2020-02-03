@@ -28,7 +28,7 @@ suite('MenuService', function () {
 
 	setup(function () {
 		menuService = new MenuService(NullCommandService);
-		testMenuId = Math.PI;
+		testMenuId = new MenuId('testo');
 		disposables.clear();
 	});
 
