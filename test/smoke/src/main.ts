@@ -28,7 +28,6 @@ import { setup as setupDataPreferencesTests } from './areas/preferences/preferen
 import { setup as setupDataSearchTests } from './areas/search/search.test';
 import { setup as setupDataCSSTests } from './areas/css/css.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataDebugTests } from './areas/debug/debug.test';
 import { setup as setupDataGitTests } from './areas/git/git.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
@@ -287,7 +286,6 @@ describe('Running Code', () => {
 	setupDataSearchTests();
 	setupDataCSSTests();
 	setupDataEditorTests();
-	if (!opts.web) { setupDataDebugTests(); }
 	setupDataGitTests();
 	setupDataStatusbarTests(!!opts.web);
 	setupDataExtensionTests();
