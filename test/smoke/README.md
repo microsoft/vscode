@@ -18,8 +18,9 @@ yarn smoketest --web --browser <chromium|firefox|webkit>
 # Build (Electron)
 yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_BUILD_PARENT_FOLDER
 
-# Build (Web)
-export VSCODE_REMOTE_SERVER_PATH=<path to server with web folder>
+# Build (Web - read instructions below)
+export VSCODE_REMOTE_SERVER_PATH=<path to server with web folder> # macOS, Linux
+set VSCODE_REMOTE_SERVER_PATH=<path to server with web folder> # Windows
 yarn smoketest --web --browser <chromium|firefox|webkit>
 
 # Remote (Electron)
@@ -46,6 +47,12 @@ yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_
 ```
 
 #### Web
+
+**macOS**: if you have downloaded the server with web bits, make sure to run the following command before unzipping it to avoid security issues on startup:
+
+```bash
+xattr -d com.apple.quarantine <path to server with web folder zip>
+```
 
 There is no support for testing an old version to a new one yet, so simply configure the `VSCODE_REMOTE_SERVER_PATH` variable to point to
 the web server folder which includes the web client bits (e.g. `vscode-server-darwin-web`).
