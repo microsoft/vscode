@@ -1468,20 +1468,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * An identifier for a single edit operation.
-	 */
-	export interface ISingleEditOperationIdentifier {
-		/**
-		 * Identifier major
-		 */
-		major: number;
-		/**
-		 * Identifier minor
-		 */
-		minor: number;
-	}
-
-	/**
 	 * A single edit operation, that acts as a simple replace.
 	 * i.e. Replace text at `range` with `text` in model.
 	 */
@@ -2377,23 +2363,6 @@ declare namespace monaco.editor {
 	 * An event describing that model decorations have changed.
 	 */
 	export interface IModelDecorationsChangedEvent {
-	}
-
-	/**
-	 * An event describing that some ranges of lines have been tokenized (their tokens have changed).
-	 */
-	export interface IModelTokensChangedEvent {
-		readonly tokenizationSupportChanged: boolean;
-		readonly ranges: {
-			/**
-			 * The start of the range (inclusive)
-			 */
-			readonly fromLineNumber: number;
-			/**
-			 * The end of the range (inclusive)
-			 */
-			readonly toLineNumber: number;
-		}[];
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -4906,6 +4875,16 @@ declare namespace monaco.languages {
 	 * Register a selection range provider
 	 */
 	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
+
+	/**
+	 * Register a document semantic tokens provider
+	 */
+	export function registerDocumentSemanticTokensProvider(languageId: string, provider: DocumentSemanticTokensProvider): IDisposable;
+
+	/**
+	 * Register a document range semantic tokens provider
+	 */
+	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 
 	/**
 	 * Contains additional diagnostic information about the context in which
