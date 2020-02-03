@@ -9,6 +9,7 @@ import { join } from 'path';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
+import { URI } from 'vscode-uri';
 
 const width = 1200;
 const height = 800;
@@ -145,7 +146,7 @@ export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'fire
 		});
 		const page = (await browser.defaultContext().pages())[0];
 		await page.setViewport({ width, height });
-		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${workspacePath}`);
+		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}`);
 		const result = {
 			client: { dispose: () => teardown() },
 			driver: buildDriver(browser, page)
