@@ -8,6 +8,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class WebviewIconManager {
 
@@ -15,7 +16,14 @@ export class WebviewIconManager {
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-	) { }
+		@IConfigurationService private readonly _configService: IConfigurationService,
+	) {
+		this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.iconTheme')) {
+				this.updateStyleSheet();
+			}
+		});
+	}
 
 	@memoize
 	private get _styleElement(): HTMLStyleElement {
@@ -34,23 +42,25 @@ export class WebviewIconManager {
 			this._icons.delete(webviewId);
 		}
 
-		this.updateStyleSheet(this._lifecycleService);
+		this.updateStyleSheet();
 	}
 
-	private async updateStyleSheet(lifecycleService: ILifecycleService) {
-		await lifecycleService.when(LifecyclePhase.Starting);
+	private async updateStyleSheet() {
+		await this._lifecycleService.when(LifecyclePhase.Starting);
 
 		try {
 			const cssRules: string[] = [];
-			this._icons.forEach((value, key) => {
-				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-				if (URI.isUri(value)) {
-					cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
-				} else {
-					cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
-					cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
-				}
-			});
+			if (this._configService.getValue('workbench.iconTheme') !== null) {
+				this._icons.forEach((value, key) => {
+					const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
+					if (URI.isUri(value)) {
+						cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
+					} else {
+						cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
+						cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
+					}
+				});
+			}
 			this._styleElement.innerHTML = cssRules.join('\n');
 		} catch {
 			// noop

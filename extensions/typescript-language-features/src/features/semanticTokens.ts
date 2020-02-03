@@ -80,7 +80,11 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 		if (versionBeforeRequest !== versionAfterRequest) {
 			// cannot convert result's offsets to (line;col) values correctly
 			// a new request will come in soon...
-			return null;
+			//
+			// here we cannot return null, because returning null would remove all semantic tokens.
+			// we must throw to indicate that the semantic tokens should not be removed.
+			// using the string busy here because it is not logged to error telemetry if the error text contains busy.
+			throw new Error('busy');
 		}
 
 		const tokenSpan = response.body.spans;

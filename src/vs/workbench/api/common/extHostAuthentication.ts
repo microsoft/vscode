@@ -55,11 +55,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, vscode.AuthenticationProvider> = new Map<string, vscode.AuthenticationProvider>();
 
-	private _onDidRegisterAuthenticationProvider = new Emitter<string>();
-	readonly onDidRegisterAuthenticationProvider: Event<string> = this._onDidRegisterAuthenticationProvider.event;
-
-	private _onDidUnregisterAuthenticationProvider = new Emitter<string>();
-	readonly onDidUnregisterAuthenticationProvider: Event<string> = this._onDidUnregisterAuthenticationProvider.event;
+	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
+	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -83,13 +80,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 
 		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);
-		this._onDidRegisterAuthenticationProvider.fire(provider.id);
+		this._onDidChangeAuthenticationProviders.fire({ added: [provider.id], removed: [] });
 
 		return new Disposable(() => {
 			listener.dispose();
 			this._authenticationProviders.delete(provider.id);
 			this._proxy.$unregisterAuthenticationProvider(provider.id);
-			this._onDidUnregisterAuthenticationProvider.fire(provider.id);
+			this._onDidChangeAuthenticationProviders.fire({ added: [], removed: [provider.id] });
 		});
 	}
 

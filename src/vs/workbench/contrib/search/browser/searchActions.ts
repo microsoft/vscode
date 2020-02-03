@@ -519,7 +519,7 @@ export class CancelSearchAction extends Action {
 export class OpenSearchEditorAction extends Action {
 
 	static readonly ID: string = Constants.OpenNewEditorCommandId;
-	static readonly LABEL = nls.localize('search.openNewEditor', "Open new Search Editor");
+	static readonly LABEL = nls.localize('search.openNewEditor', "Open New Search Editor");
 
 	constructor(id: string, label: string,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -587,7 +587,7 @@ export class ReRunSearchEditorSearchAction extends Action {
 	async run() {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
-			await (this.editorService.activeControl as SearchEditor).runSearch();
+			await (this.editorService.activeControl as SearchEditor).runSearch(false, true);
 		}
 	}
 }

@@ -18,12 +18,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
-import { values } from 'vs/base/common/map';
+import { values, ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 
 export class CheckedStates<T extends object> {
 
 	private readonly _states = new WeakMap<T, boolean>();
+	private _checkedCount: number = 0;
 
 	private readonly _onDidChange = new Emitter<T>();
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -32,15 +33,32 @@ export class CheckedStates<T extends object> {
 		this._onDidChange.dispose();
 	}
 
+	get checkedCount() {
+		return this._checkedCount;
+	}
+
 	isChecked(obj: T): boolean {
 		return this._states.get(obj) ?? false;
 	}
 
 	updateChecked(obj: T, value: boolean): void {
-		if (this._states.get(obj) !== value) {
-			this._states.set(obj, value);
-			this._onDidChange.fire(obj);
+		const valueNow = this._states.get(obj);
+		if (valueNow === value) {
+			return;
 		}
+		if (valueNow === undefined) {
+			if (value) {
+				this._checkedCount += 1;
+			}
+		} else {
+			if (value) {
+				this._checkedCount += 1;
+			} else {
+				this._checkedCount -= 1;
+			}
+		}
+		this._states.set(obj, value);
+		this._onDidChange.fire(obj);
 	}
 }
 
@@ -134,7 +152,7 @@ export class BulkFileOperations {
 		const operationByResource = new Map<string, BulkFileOperation>();
 		const operationByCategory = new Map<string, BulkCategory>();
 
-		const newToOldUri = new Map<string, string>();
+		const newToOldUri = new ResourceMap<URI>();
 
 		for (let idx = 0; idx < this._bulkEdit.edits.length; idx++) {
 			const edit = this._bulkEdit.edits[idx];
@@ -158,7 +176,7 @@ export class BulkFileOperations {
 				}
 				// map newUri onto oldUri so that text-edit appear for
 				// the same file element
-				newToOldUri.set(edit.newUri.toString(), uri.toString());
+				newToOldUri.set(edit.newUri, uri);
 
 			} else if (edit.oldUri) {
 				type = BulkFileOperationType.Delete;
@@ -181,13 +199,14 @@ export class BulkFileOperations {
 				continue;
 			}
 
-			const insert = (map: Map<string, BulkFileOperation>) => {
+			const insert = (uri: URI, map: Map<string, BulkFileOperation>) => {
 				let key = uri.toString();
 				let operation = map.get(key);
 
 				// rename
-				if (!operation && newToOldUri.has(key)) {
-					key = newToOldUri.get(key)!;
+				if (!operation && newToOldUri.has(uri)) {
+					uri = newToOldUri.get(uri)!;
+					key = uri.toString();
 					operation = map.get(key);
 				}
 
@@ -198,7 +217,7 @@ export class BulkFileOperations {
 				operation.addEdit(idx, type, edit);
 			};
 
-			insert(operationByResource);
+			insert(uri, operationByResource);
 
 			// insert into "this" category
 			let key = BulkCategory.keyOf(edit.metadata);
@@ -207,11 +226,30 @@ export class BulkFileOperations {
 				category = new BulkCategory(edit.metadata);
 				operationByCategory.set(key, category);
 			}
-			insert(category.operationByResource);
+			insert(uri, category.operationByResource);
 		}
 
 		operationByResource.forEach(value => this.fileOperations.push(value));
 		operationByCategory.forEach(value => value.metadata.needsConfirmation ? this.categories.unshift(value) : this.categories.push(value));
+
+		// "correct" invalid parent-check child states that is
+		// unchecked file edits (rename, create, delete) uncheck
+		// all edits for a file, e.g no text change without rename
+		for (let file of this.fileOperations) {
+			if (file.type !== BulkFileOperationType.TextEdit) {
+				let checked = true;
+				file.originalEdits.forEach(edit => {
+					if (WorkspaceFileEdit.is(edit)) {
+						checked = checked && this.checked.isChecked(edit);
+					}
+				});
+				if (!checked) {
+					file.originalEdits.forEach(edit => {
+						this.checked.updateChecked(edit, checked);
+					});
+				}
+			}
+		}
 
 		return this;
 	}
@@ -273,9 +311,6 @@ export class BulkFileOperations {
 	}
 
 	getUriOfEdit(edit: WorkspaceFileEdit | WorkspaceTextEdit): URI {
-		if (WorkspaceTextEdit.is(edit)) {
-			return edit.resource;
-		}
 
 		for (let file of this.fileOperations) {
 			let found = false;

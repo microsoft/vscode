@@ -75,6 +75,32 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+
+		// Without associated path: only use if name and description differ
+		if (!this.hasAssociatedFilePath) {
+			const descriptionCandidate = this.resource.path;
+			if (descriptionCandidate !== this.getName()) {
+				return descriptionCandidate;
+			}
+		}
+
+		// With associated path: use label provider
+		else {
+			switch (verbosity) {
+				case Verbosity.SHORT:
+					return this.shortDescription;
+				case Verbosity.LONG:
+					return this.longDescription;
+				case Verbosity.MEDIUM:
+				default:
+					return this.mediumDescription;
+			}
+		}
+
+		return undefined;
+	}
+
 	@UntitledTextEditorInput.MEMOIZER
 	private get shortDescription(): string {
 		return this.labelService.getUriBasenameLabel(dirname(this.resource));
@@ -88,22 +114,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	@UntitledTextEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
-	}
-
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
-		if (!this.hasAssociatedFilePath) {
-			return undefined;
-		}
-
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
-		}
 	}
 
 	@UntitledTextEditorInput.MEMOIZER

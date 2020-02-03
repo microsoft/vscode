@@ -6,6 +6,9 @@
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
 	visibility: visible;
 }
+.monaco-editor .suggest-widget.with-status-bar > .tree {
+	margin-bottom: 18px;
+}
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar span {
 	min-height: 18px;

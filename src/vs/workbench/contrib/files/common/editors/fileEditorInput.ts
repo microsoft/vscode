@@ -72,6 +72,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 		// Dirty changes
 		this._register(this.textFileService.files.onDidChangeDirty(m => this.onDirtyStateChange(m)));
 		this._register(this.textFileService.files.onDidSave(e => this.onDirtyStateChange(e.model)));
+		this._register(this.textFileService.files.onDidSaveError(m => this.onDirtyStateChange(m)));
 		this._register(this.textFileService.files.onDidRevert(m => this.onDirtyStateChange(m)));
 
 		// Label changes
@@ -155,6 +156,18 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 		return this.decorateLabel(this.labelService.getUriBasenameLabel(this.resource));
 	}
 
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortDescription;
+			case Verbosity.LONG:
+				return this.longDescription;
+			case Verbosity.MEDIUM:
+			default:
+				return this.mediumDescription;
+		}
+	}
+
 	@FileEditorInput.MEMOIZER
 	private get shortDescription(): string {
 		return this.labelService.getUriBasenameLabel(dirname(this.resource));
@@ -168,18 +181,6 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	@FileEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
-	}
-
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
-		}
 	}
 
 	@FileEditorInput.MEMOIZER

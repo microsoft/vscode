@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, Relay } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
+import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { getRandomElement } from 'vs/base/common/arrays';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -95,7 +96,8 @@ export interface Client<TContext> {
 
 export interface IConnectionHub<TContext> {
 	readonly connections: Connection<TContext>[];
-	readonly onDidChangeConnections: Event<Connection<TContext>>;
+	readonly onDidAddConnection: Event<Connection<TContext>>;
+	readonly onDidRemoveConnection: Event<Connection<TContext>>;
 }
 
 /**
@@ -116,7 +118,7 @@ export interface IClientRouter<TContext = string> {
  * order to pick the right one.
  */
 export interface IRoutingChannelClient<TContext = string> {
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
+	getChannel<T extends IChannel>(channelName: string, router?: IClientRouter<TContext>): T;
 }
 
 interface IReader {
@@ -659,8 +661,11 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private channels = new Map<string, IServerChannel<TContext>>();
 	private _connections = new Set<Connection<TContext>>();
 
-	private readonly _onDidChangeConnections = new Emitter<Connection<TContext>>();
-	readonly onDidChangeConnections: Event<Connection<TContext>> = this._onDidChangeConnections.event;
+	private readonly _onDidAddConnection = new Emitter<Connection<TContext>>();
+	readonly onDidAddConnection: Event<Connection<TContext>> = this._onDidAddConnection.event;
+
+	private readonly _onDidRemoveConnection = new Emitter<Connection<TContext>>();
+	readonly onDidRemoveConnection: Event<Connection<TContext>> = this._onDidRemoveConnection.event;
 
 	get connections(): Connection<TContext>[] {
 		const result: Connection<TContext>[] = [];
@@ -683,29 +688,38 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				const connection: Connection<TContext> = { channelServer, channelClient, ctx };
 				this._connections.add(connection);
-				this._onDidChangeConnections.fire(connection);
+				this._onDidAddConnection.fire(connection);
 
 				onDidClientDisconnect(() => {
 					channelServer.dispose();
 					channelClient.dispose();
 					this._connections.delete(connection);
+					this._onDidRemoveConnection.fire(connection);
 				});
 			});
 		});
 	}
 
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T {
+	getChannel<T extends IChannel>(channelName: string, router?: IClientRouter<TContext>): T {
 		const that = this;
 
 		return {
-			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
-				const channelPromise = router.routeCall(that, command, arg)
+			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				const connectionPromise = router
+					? router.routeCall(that, command, arg)
+					: Promise.resolve(getRandomElement(that.connections));
+
+				const channelPromise = connectionPromise
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
 					.call(command, arg, cancellationToken);
 			},
-			listen(event: string, arg: any) {
+			listen(event: string, arg: any): Event<T> {
+				if (!router) {
+					return that.getMulticastEvent(channelName, event, arg);
+				}
+
 				const channelPromise = router.routeEvent(that, event, arg)
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
@@ -713,6 +727,58 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 					.listen(event, arg);
 			}
 		} as T;
+	}
+
+	private getMulticastEvent<T extends IChannel>(channelName: string, eventName: string, arg: any): Event<T> {
+		const that = this;
+		let disposables = new DisposableStore();
+
+		// Create an emitter which hooks up to all clients
+		// as soon as first listener is added. It also
+		// disconnects from all clients as soon as the last listener
+		// is removed.
+		const emitter = new Emitter<T>({
+			onFirstListenerAdd: () => {
+				disposables = new DisposableStore();
+
+				// The event multiplexer is useful since the active
+				// client list is dynamic. We need to hook up and disconnection
+				// to/from clients as they come and go.
+				const eventMultiplexer = new EventMultiplexer<T>();
+				const map = new Map<Connection<TContext>, IDisposable>();
+
+				const onDidAddConnection = (connection: Connection<TContext>) => {
+					const channel = connection.channelClient.getChannel(channelName);
+					const event = channel.listen<T>(eventName, arg);
+					const disposable = eventMultiplexer.add(event);
+
+					map.set(connection, disposable);
+				};
+
+				const onDidRemoveConnection = (connection: Connection<TContext>) => {
+					const disposable = map.get(connection);
+
+					if (!disposable) {
+						return;
+					}
+
+					disposable.dispose();
+					map.delete(connection);
+				};
+
+				that.connections.forEach(onDidAddConnection);
+				that.onDidAddConnection(onDidAddConnection, undefined, disposables);
+				that.onDidRemoveConnection(onDidRemoveConnection, undefined, disposables);
+				eventMultiplexer.event(emitter.fire, emitter, disposables);
+
+				disposables.add(eventMultiplexer);
+			},
+			onLastListenerRemove: () => {
+				disposables.dispose();
+			}
+		});
+
+		return emitter.event;
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
@@ -726,7 +792,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	dispose(): void {
 		this.channels.clear();
 		this._connections.clear();
-		this._onDidChangeConnections.dispose();
+		this._onDidAddConnection.dispose();
+		this._onDidRemoveConnection.dispose();
 	}
 }
 
@@ -827,7 +894,7 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 			}
 		}
 
-		await Event.toPromise(hub.onDidChangeConnections);
+		await Event.toPromise(hub.onDidAddConnection);
 		return await this.route(hub);
 	}
 }

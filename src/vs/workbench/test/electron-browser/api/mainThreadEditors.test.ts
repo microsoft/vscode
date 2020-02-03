@@ -21,13 +21,25 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 suite('MainThreadEditors', () => {
 
@@ -42,18 +54,30 @@ suite('MainThreadEditors', () => {
 	const deletedResources = new Set<URI>();
 
 	setup(() => {
-		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
-		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
 		copiedResources.clear();
 		createdResources.clear();
 		deletedResources.clear();
 
-		const fileService = new TestFileService();
 
-		const textFileService = new class extends mock<ITextFileService>() {
+		const configService = new TestConfigurationService();
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
+
+
+		const services = new ServiceCollection();
+		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
+		services.set(ILabelService, new SyncDescriptor(LabelService));
+		services.set(ILogService, new NullLogService());
+		services.set(IWorkspaceContextService, new TestContextService());
+		services.set(IWorkbenchEnvironmentService, TestEnvironmentService);
+		services.set(IConfigurationService, configService);
+		services.set(IModelService, modelService);
+		services.set(ICodeEditorService, new TestCodeEditorService());
+		services.set(IFileService, new TestFileService());
+		services.set(IEditorService, new TestEditorService());
+		services.set(IEditorGroupsService, new TestEditorGroupsService());
+		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
@@ -76,10 +100,8 @@ suite('MainThreadEditors', () => {
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
 			};
-		};
-		const workbenchEditorService = new TestEditorService();
-		const editorGroupService = new TestEditorGroupsService();
-		const textModelService = new class extends mock<ITextModelService>() {
+		});
+		services.set(ITextModelService, new class extends mock<ITextModelService>() {
 			createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
 					textEditorModel = modelService.getModel(resource)!;
@@ -87,13 +109,20 @@ suite('MainThreadEditors', () => {
 				textEditorModel.isReadonly = () => false;
 				return Promise.resolve(new ImmortalReference(textEditorModel));
 			}
-		};
+		});
+		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 
-		const editorWorkerService = new class extends mock<IEditorWorkerService>() {
+		});
+		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
+			_serviceBrand: undefined;
+			onDidPanelOpen = Event.None;
+			onDidPanelClose = Event.None;
+			getActivePanel() {
+				return undefined;
+			}
+		});
 
-		};
-
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), editorWorkerService, textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
+		const instaService = new InstantiationService(services);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -105,35 +134,9 @@ suite('MainThreadEditors', () => {
 			}
 		});
 
-		const documentAndEditor = new MainThreadDocumentsAndEditors(
-			rpcProtocol,
-			modelService,
-			textFileService,
-			workbenchEditorService,
-			codeEditorService,
-			fileService,
-			null!,
-			editorGroupService,
-			bulkEditService,
-			new class extends mock<IPanelService>() implements IPanelService {
-				_serviceBrand: undefined;
-				onDidPanelOpen = Event.None;
-				onDidPanelClose = Event.None;
-				getActivePanel() {
-					return undefined;
-				}
-			},
-			TestEnvironmentService
-		);
+		const documentAndEditor = instaService.createInstance(MainThreadDocumentsAndEditors, rpcProtocol);
 
-		editors = new MainThreadTextEditors(
-			documentAndEditor,
-			SingleProxyRPCProtocol(null),
-			codeEditorService,
-			bulkEditService,
-			workbenchEditorService,
-			editorGroupService,
-		);
+		editors = instaService.createInstance(MainThreadTextEditors, documentAndEditor, SingleProxyRPCProtocol(null));
 	});
 
 	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {

@@ -115,4 +115,20 @@ suite('BulkEditPreview', function () {
 		assert.equal(edit.edits.length, 2);
 		assert.equal(newEdit.edits.length, 1);
 	});
+
+	test('fix bad metadata', async function () {
+
+		// bogous edit that wants creation to be confirmed, but not it's textedit-child...
+		const edit: WorkspaceEdit = {
+			edits: [
+				{ newUri: URI.parse('some:///uri1'), metadata: { label: 'C1', needsConfirmation: true } },
+				{ resource: URI.parse('some:///uri1'), edit: { text: 'foo', range: new Range(1, 1, 1, 1) }, metadata: { label: 'C2', needsConfirmation: false } }
+			]
+		};
+
+		const ops = await instaService.invokeFunction(BulkFileOperations.create, edit);
+
+		assert.equal(ops.checked.isChecked(edit.edits[0]), false);
+		assert.equal(ops.checked.isChecked(edit.edits[1]), false);
+	});
 });

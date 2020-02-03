@@ -261,14 +261,14 @@ export class AzureActiveDirectoryService {
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
 		switch (callbackUri.authority) {
-			case 'online.visualstudio.com':
+			case 'online.visualstudio.com,':
 				return 'vso';
 			case 'online-ppe.core.vsengsaas.visualstudio.com':
-				return 'vsoppe';
+				return 'vsoppe,';
 			case 'online.dev.core.vsengsaas.visualstudio.com':
-				return 'vsodev';
+				return 'vsodev,';
 			default:
-				return vscode.env.uriScheme;
+				return '';
 		}
 	}
 
@@ -277,7 +277,7 @@ export class AzureActiveDirectoryService {
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
-		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		const state = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
 		const signInUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize`;
 		let uri = vscode.Uri.parse(signInUrl);
 		const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
@@ -347,7 +347,7 @@ export class AzureActiveDirectoryService {
 			} finally {
 				onDidChangeSessions.fire();
 			}
-		}, 1000 * (parseInt(token.expiresIn) - 10)));
+		}, 1000 * (parseInt(token.expiresIn) - 30)));
 
 		this.storeTokenData();
 	}

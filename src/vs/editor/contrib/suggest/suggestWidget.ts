@@ -1077,7 +1077,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	showDetails(loading: boolean): void {
-		this.expandSideOrBelow();
+		if (!loading) {
+			// When loading, don't re-layout docs, as item is not resolved yet #88731
+			this.expandSideOrBelow();
+		}
 
 		show(this.details.element);
 
@@ -1229,7 +1232,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	/**
-	 * Adds the proper classes for positioning the docs to the side or below
+	 * Adds the proper classes for positioning the docs to the side or below depending on item
 	 */
 	private expandSideOrBelow() {
 		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {

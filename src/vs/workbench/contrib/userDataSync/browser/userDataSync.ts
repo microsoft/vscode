@@ -23,7 +23,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataAutoSync } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSync';
+import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -119,7 +119,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
 				if (isWeb) {
-					this._register(instantiationService.createInstance(UserDataAutoSync));
+					this._register(instantiationService.createInstance(UserDataAutoSyncService));
 				} else {
 					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
 				}
@@ -131,31 +131,31 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async initializeActiveAccount(): Promise<void> {
-		const accounts = await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId);
+		const sessions = await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId);
 		// Auth provider has not yet been registered
-		if (!accounts) {
+		if (!sessions) {
 			return;
 		}
 
-		if (accounts.length === 0) {
+		if (sessions.length === 0) {
 			this.activeAccount = undefined;
 			return;
 		}
 
-		if (accounts.length === 1) {
-			this.activeAccount = accounts[0];
+		if (sessions.length === 1) {
+			this.activeAccount = sessions[0];
 			return;
 		}
 
-		const selectedAccount = await this.quickInputService.pick(accounts.map(account => {
+		const selectedAccount = await this.quickInputService.pick(sessions.map(session => {
 			return {
-				id: account.id,
-				label: account.displayName
+				id: session.id,
+				label: session.accountName
 			};
 		}), { canPickMany: false });
 
 		if (selectedAccount) {
-			this.activeAccount = accounts.filter(account => selectedAccount.id === account.id)[0];
+			this.activeAccount = sessions.filter(account => selectedAccount.id === account.id)[0];
 		}
 	}
 
@@ -368,7 +368,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: 'sync.enableUIState',
 			label: getSyncAreaLabel(SyncSource.GlobalState),
-			description: localize('ui state description', "Display Language (Only)")
+			description: localize('ui state description', "only 'Display Language' for now")
 		}];
 	}
 
@@ -427,13 +427,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			],
 			{
 				cancelId: 1,
-				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from cloud?"),
+				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from the cloud?"),
 			}
 		);
 		switch (result.choice) {
 			case 0:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
-				await this.userDataSyncService.sync();
 				break;
 			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
@@ -464,6 +463,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (result.checkboxChecked) {
 				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
+			} else {
+				await this.userDataSyncService.resetLocal();
 			}
 		}
 	}
@@ -781,7 +782,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 						}
 					}
 					try {
-						await this.userDataSyncService.resolveConflictsAndContinueSync(model.getValue());
+						await this.userDataSyncService.resolveConflictsAndContinueSync(model.getValue(), syncSource !== undefined);
 					} catch (e) {
 						this.userDataSyncService.restart().then(() => {
 							if (conflictsSource === this.userDataSyncService.conflictsSource) {

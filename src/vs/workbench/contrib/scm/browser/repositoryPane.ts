@@ -63,8 +63,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
@@ -566,6 +564,12 @@ class ViewModel {
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+
+		for (const item of this.items) {
+			item.disposable.dispose();
+		}
+
+		this.items = [];
 	}
 }
 
@@ -715,18 +719,18 @@ export class RepositoryPane extends ViewPane {
 			fontSize: 13,
 			lineHeight: 20,
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			wrappingAlgorithm: 'dom',
+			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
-			suggest: {
-				showWords: false
-			}
+			// suggest: {
+			// 	showWords: false
+			// }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SuggestController.ID,
-				SnippetController2.ID,
+				// SuggestController.ID,
+				// SnippetController2.ID,
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
@@ -765,7 +769,12 @@ export class RepositoryPane extends ViewPane {
 
 		// Keep model in sync with API
 		this.inputModel.setValue(this.repository.input.value);
-		this._register(this.repository.input.onDidChange(value => this.inputModel.setValue(value)));
+		this._register(this.repository.input.onDidChange(value => {
+			if (value === this.inputModel.getValue()) {
+				return;
+			}
+			this.inputModel.setValue(value);
+		}));
 
 		// Keep API in sync with model and update placeholder and validation
 		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);

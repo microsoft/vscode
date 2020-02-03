@@ -5,11 +5,16 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../utils/commandManager';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
 
 export class LearnMoreAboutRefactoringsCommand implements Command {
 	public readonly id = '_typescript.learnMoreAboutRefactorings';
 
 	public execute() {
-		vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=2114477'));
+		const docUrl = vscode.window.activeTextEditor && isTypeScriptDocument(vscode.window.activeTextEditor.document)
+			? 'https://go.microsoft.com/fwlink/?linkid=2114477'
+			: 'https://go.microsoft.com/fwlink/?linkid=2116761';
+
+		vscode.env.openExternal(vscode.Uri.parse(docUrl));
 	}
 }

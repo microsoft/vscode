@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, ITheme, DARK, IIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, DARK, IIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 export class TestTheme implements ITheme {
@@ -24,7 +24,7 @@ export class TestTheme implements ITheme {
 		throw new Error('Method not implemented.');
 	}
 
-	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
 		return undefined;
 	}
 

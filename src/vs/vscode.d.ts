@@ -4360,7 +4360,7 @@ declare module 'vscode' {
 			workspaceFolderValue?: T,
 
 			defaultLanguageValue?: T;
-			userLanguageValue?: T;
+			globalLanguageValue?: T;
 			workspaceLanguageValue?: T;
 			workspaceFolderLanguageValue?: T;
 
@@ -4387,7 +4387,7 @@ declare module 'vscode' {
 		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
 		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
 		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
-		 * @param scopeToLanguage Whether to update the value in the scope of requested languageId or not.
+		 * @param overrideInLanguage Whether to update the value in the scope of requested languageId or not.
 		 *	- If `true` updates the value under the requested languageId.
 		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
 		 * @throws error while updating
@@ -4397,7 +4397,7 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when there is no workspace folder settings.
 		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -8048,19 +8048,19 @@ declare module 'vscode' {
 		/**
 		 * The range that got replaced.
 		 */
-		range: Range;
+		readonly range: Range;
 		/**
 		 * The offset of the range that got replaced.
 		 */
-		rangeOffset: number;
+		readonly rangeOffset: number;
 		/**
 		 * The length of the range that got replaced.
 		 */
-		rangeLength: number;
+		readonly rangeLength: number;
 		/**
 		 * The new text for the range.
 		 */
-		text: string;
+		readonly text: string;
 	}
 
 	/**
@@ -8747,6 +8747,7 @@ declare module 'vscode' {
 		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
 		 *
 		 * @param section A dot-separated identifier.
+		 * @param scope A scope for which the configuration is asked for.
 		 * @return The full configuration or a subset.
 		 */
 		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
@@ -8781,6 +8782,12 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
 	}
 
+	/**
+	 * The configuration scope which can be a
+	 * a 'resource' or a languageId or both or
+	 * a '[TextDocument](#TextDocument)' or
+	 * a '[WorkspaceFolder](#WorkspaceFolder)'
+	 */
 	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
 
 	/**

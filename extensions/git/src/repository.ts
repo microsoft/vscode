@@ -10,7 +10,7 @@ import * as nls from 'vscode-nls';
 import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule } from './git';
+import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
@@ -304,6 +304,7 @@ export const enum Operation {
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
+	LogFile = 'LogFile',
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -866,6 +867,11 @@ export class Repository implements Disposable {
 
 	log(options?: LogOptions): Promise<Commit[]> {
 		return this.run(Operation.Log, () => this.repository.log(options));
+	}
+
+	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+		// TODO: This probably needs per-uri granularity
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
 	}
 
 	@throttle
