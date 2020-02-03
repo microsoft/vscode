@@ -1608,7 +1608,7 @@ class EditorSemanticHighlighting extends BaseEditorOption<EditorOption.semanticH
 
 	constructor() {
 		const defaults: EditorSemanticHighlightingOptions = {
-			enabled: true
+			enabled: false
 		};
 		super(
 			EditorOption.semanticHighlighting, 'semanticHighlighting', defaults,
