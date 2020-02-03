@@ -142,8 +142,7 @@ export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'fire
 			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
 			headless
 		});
-		const context = await browser.newContext();
-		const page = await context.newPage();
+		const page = (await browser.defaultContext().pages())[0];
 		await page.setViewport({ width, height });
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${args![1]}`);
 		const result = {
