@@ -164,7 +164,9 @@ class WebviewKeyboardHandler extends Disposable {
 			this._register(_webviewHandle.onFirstLoad(contents => {
 				contents.on('before-input-event', (_event, input) => {
 					if (input.type === 'keyDown' && document.activeElement === this._webviewHandle.webview) {
-						this._ignoreMenuShortcut = input.control || input.meta;
+						// These commands are handled explicitly by webviewCommands.ts. Everything else doesn't need to be prevented.
+						const isHandledCommand = input.key === 'c' || input.key === 'v' || input.key === 'a' || input.key === 'x' || input.key === 'z';
+						this._ignoreMenuShortcut = (input.control || input.meta) && isHandledCommand;
 						this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
 					}
 				});
