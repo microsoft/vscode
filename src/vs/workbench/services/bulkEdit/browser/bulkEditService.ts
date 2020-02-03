@@ -392,6 +392,10 @@ export class BulkEditService implements IBulkEditService {
 		});
 	}
 
+	hasPreviewHandler(): boolean {
+		return Boolean(this._previewHandler);
+	}
+
 	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		if (edit.edits.length === 0) {
