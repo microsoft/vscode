@@ -21,11 +21,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
@@ -239,7 +237,6 @@ class BulkEdit {
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILabelService private readonly _uriLabelServie: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
@@ -288,7 +285,6 @@ class BulkEdit {
 		// for child operations
 		this._progress.report({ total });
 
-		const conflicts = this._instaService.createInstance(ConflictDetector, { edits: this._edits });
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
 		// do it.
@@ -296,7 +292,7 @@ class BulkEdit {
 			if (WorkspaceFileEdit.is(group[0])) {
 				await this._performFileEdits(<WorkspaceFileEdit[]>group, progress);
 			} else {
-				await this._performTextEdits(<WorkspaceTextEdit[]>group, conflicts, progress);
+				await this._performTextEdits(<WorkspaceTextEdit[]>group, progress);
 			}
 		}
 	}
@@ -336,14 +332,14 @@ class BulkEdit {
 		}
 	}
 
-	private async _performTextEdits(edits: WorkspaceTextEdit[], conflicts: ConflictDetector, progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const model = this._instaService.createInstance(BulkEditModel, this._editor, progress, edits);
 
 		await model.prepare();
 
-		this._throwIfConflicts(conflicts);
+		// this._throwIfConflicts(conflicts);
 		const validationResult = model.validate();
 		if (validationResult.canApply === false) {
 			model.dispose();
@@ -352,13 +348,6 @@ class BulkEdit {
 
 		model.apply();
 		model.dispose();
-	}
-
-	private _throwIfConflicts(conflicts: ConflictDetector) {
-		if (conflicts.hasConflicts()) {
-			const paths = conflicts.list().map(uri => this._uriLabelServie.getUriLabel(uri, { relative: true }));
-			throw new Error(localize('conflict', "These files have changed in the meantime: {0}", paths.join(', ')));
-		}
 	}
 }
 
