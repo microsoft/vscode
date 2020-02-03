@@ -17,7 +17,7 @@ const opts = minimist(args, {
 });
 
 const options = {
-	useColors: true,
+	color: true,
 	timeout: 60000,
 	slow: 30000,
 	grep: opts['f']

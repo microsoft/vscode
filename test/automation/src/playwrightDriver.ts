@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as puppeteer from 'puppeteer';
+import * as playwright from 'playwright';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
@@ -13,7 +13,7 @@ import { IDriver, IDisposable } from './driver';
 const width = 1200;
 const height = 800;
 
-const vscodeToPuppeteerKey: { [key: string]: string } = {
+const vscodeToPlaywrightKey: { [key: string]: string } = {
 	cmd: 'Meta',
 	ctrl: 'Control',
 	shift: 'Shift',
@@ -26,7 +26,7 @@ const vscodeToPuppeteerKey: { [key: string]: string } = {
 	home: 'Home'
 };
 
-function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver {
+function buildDriver(browser: playwright.Browser, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
@@ -45,8 +45,8 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 				const keys = chord.split('+');
 				const keysDown: string[] = [];
 				for (let i = 0; i < keys.length; i++) {
-					if (keys[i] in vscodeToPuppeteerKey) {
-						keys[i] = vscodeToPuppeteerKey[keys[i]];
+					if (keys[i] in vscodeToPlaywrightKey) {
+						keys[i] = vscodeToPlaywrightKey[keys[i]];
 					}
 					await page.keyboard.down(keys[i]);
 					keysDown.push(keys[i]);
@@ -68,7 +68,7 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 			await driver.click(windowId, selector, 0, 0);
 			await timeout(100);
 		},
-		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`),
+		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`).then(undefined),
 		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),
 		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
 		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
@@ -109,8 +109,8 @@ export async function launch(_args: string[]): Promise<void> {
 		['--browser', 'none', '--driver', 'web'],
 		{ env }
 	);
-	server.stderr.on('data', e => console.log('Server stderr: ' + e));
-	server.stdout.on('data', e => console.log('Server stdout: ' + e));
+	server.stderr?.on('data', e => console.log('Server stderr: ' + e));
+	server.stdout?.on('data', e => console.log('Server stdout: ' + e));
 	process.on('exit', teardown);
 	process.on('SIGINT', teardown);
 	process.on('SIGTERM', teardown);
@@ -126,7 +126,7 @@ function teardown(): void {
 
 function waitForEndpoint(): Promise<string> {
 	return new Promise<string>(r => {
-		server!.stdout.on('data', (d: Buffer) => {
+		server!.stdout?.on('data', (d: Buffer) => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				r(matches[1]);
@@ -135,20 +135,19 @@ function waitForEndpoint(): Promise<string> {
 	});
 }
 
-export function connect(headless: boolean, outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }> {
+export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
-		const browser = await puppeteer.launch({
+		const browser = await playwright[engine].launch({
 			// Run in Edge dev on macOS
 			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
-			headless,
-			slowMo: 80,
-			args: [`--window-size=${width},${height}`]
+			headless
 		});
-		const page = (await browser.pages())[0];
+		const context = await browser.newContext();
+		const page = await context.newPage();
 		await page.setViewport({ width, height });
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${args![1]}`);
 		const result = {
-			client: { dispose: () => teardown },
+			client: { dispose: () => teardown() },
 			driver: buildDriver(browser, page)
 		};
 		c(result);

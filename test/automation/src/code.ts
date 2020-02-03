@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
-import { connect as connectPuppeteerDriver, launch } from './puppeteerDriver';
+import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -101,6 +101,8 @@ export interface SpawnOptions {
 	remote?: boolean;
 	/** Run in the web */
 	web?: boolean;
+	/** A specific browser to use (requires web: true) */
+	browser?: 'chromium' | 'webkit' | 'firefox';
 	/** Run in headless mode (only applies when web is true) */
 	headless?: boolean;
 }
@@ -174,7 +176,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.web) {
 		await launch(args);
-		connectDriver = connectPuppeteerDriver.bind(connectPuppeteerDriver, !!options.headless);
+		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, !!options.headless, options.browser);
 	} else {
 		const spawnOptions: cp.SpawnOptions = { env };
 		child = cp.spawn(electronPath, args, spawnOptions);

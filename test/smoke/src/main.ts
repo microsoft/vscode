@@ -49,6 +49,7 @@ process.once('exit', () => rimraf.sync(testDataPath));
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
 	string: [
+		'browser',
 		'build',
 		'stable-build',
 		'wait-time',
@@ -238,6 +239,7 @@ function createOptions(): ApplicationOptions {
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
+		browser: opts.browser,
 		headless: opts.headless
 	};
 }
