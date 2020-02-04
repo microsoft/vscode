@@ -29,11 +29,8 @@ function isExclusive(selector: LanguageSelector): boolean {
 export class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
-	private _entries: Entry<T>[] = [];
+	private readonly _entries: Entry<T>[] = [];
 	private readonly _onDidChange = new Emitter<number>();
-
-	constructor() {
-	}
 
 	get onDidChange(): Event<number> {
 		return this._onDidChange.event;

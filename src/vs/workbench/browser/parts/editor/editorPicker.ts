@@ -13,17 +13,17 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor, IEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	constructor(
-		private editor: EditorInput,
-		private _group: IEditorGroup,
+		private editor: IEditorInput,
+		public readonly group: IEditorGroup,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService
 	) {
@@ -32,25 +32,21 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	getLabelOptions(): IIconLabelValueOptions {
 		return {
-			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource() || undefined),
-			italic: !this._group.isPinned(this.editor)
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
+			italic: !this.group.isPinned(this.editor)
 		};
 	}
 
-	getLabel() {
+	getLabel(): string {
 		return this.editor.getName();
 	}
 
 	getIcon(): string {
-		return this.editor.isDirty() ? 'dirty' : '';
-	}
-
-	get group(): IEditorGroup {
-		return this._group;
+		return this.editor.isDirty() && !this.editor.isSaving() ? 'codicon codicon-circle-filled' : '';
 	}
 
 	getResource() {
-		return toResource(this.editor, { supportSideBySide: true });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 
 	getAriaLabel(): string {
@@ -70,7 +66,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IEntryRunContext): boolean {
-		this._group.openEditor(this.editor);
+		this.group.openEditor(this.editor);
 
 		return true;
 	}
@@ -144,28 +140,9 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
+	protected abstract count(): number;
+
 	protected abstract getEditorEntries(): EditorPickerEntry[];
-}
-
-export class ActiveEditorGroupPicker extends BaseEditorPicker {
-
-	static readonly ID = 'workbench.picker.activeEditors';
-
-	protected getEditorEntries(): EditorPickerEntry[] {
-		return this.group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, this.group));
-	}
-
-	private get group(): IEditorGroup {
-		return this.editorGroupService.activeGroup;
-	}
-
-	getEmptyLabel(searchString: string): string {
-		if (searchString) {
-			return nls.localize('noResultsFoundInGroup', "No matching opened editor found in group");
-		}
-
-		return nls.localize('noOpenedEditors', "List of opened editors is currently empty in group");
-	}
 
 	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		if (searchValue || !context.quickNavigateConfiguration) {
@@ -189,7 +166,7 @@ export class ActiveEditorGroupPicker extends BaseEditorPicker {
 			};
 		}
 
-		const editors = this.group.count;
+		const editors = this.count();
 		return {
 			autoFocusFirstEntry: editors === 1,
 			autoFocusSecondEntry: editors > 1
@@ -197,20 +174,43 @@ export class ActiveEditorGroupPicker extends BaseEditorPicker {
 	}
 }
 
-export class AllEditorsPicker extends BaseEditorPicker {
+export class ActiveGroupEditorsByMostRecentlyUsedPicker extends BaseEditorPicker {
 
-	static readonly ID = 'workbench.picker.editors';
+	static readonly ID = 'workbench.picker.activeGroupEditorsByMostRecentlyUsed';
+
+	protected count(): number {
+		return this.group.count;
+	}
 
 	protected getEditorEntries(): EditorPickerEntry[] {
-		const entries: EditorPickerEntry[] = [];
+		return this.group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => this.instantiationService.createInstance(EditorPickerEntry, editor, this.group));
+	}
 
-		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
-			group.editors.forEach(editor => {
-				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));
-			});
-		});
+	private get group(): IEditorGroup {
+		return this.editorGroupService.activeGroup;
+	}
 
-		return entries;
+	getEmptyLabel(searchString: string): string {
+		if (searchString) {
+			return nls.localize('noResultsFoundInGroup', "No matching opened editor found in active editor group");
+		}
+
+		return nls.localize('noOpenedEditors', "List of opened editors is currently empty in active editor group");
+	}
+}
+
+export abstract class BaseAllEditorsPicker extends BaseEditorPicker {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(instantiationService, editorService, editorGroupService);
+	}
+
+	protected count(): number {
+		return this.editorService.count;
 	}
 
 	getEmptyLabel(searchString: string): string {
@@ -229,5 +229,37 @@ export class AllEditorsPicker extends BaseEditorPicker {
 		}
 
 		return super.getAutoFocus(searchValue, context);
+	}
+}
+
+export class AllEditorsByAppearancePicker extends BaseAllEditorsPicker {
+
+	static readonly ID = 'workbench.picker.editorsByAppearance';
+
+	protected getEditorEntries(): EditorPickerEntry[] {
+		const entries: EditorPickerEntry[] = [];
+
+		for (const group of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
+				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));
+			}
+		}
+
+		return entries;
+	}
+}
+
+export class AllEditorsByMostRecentlyUsedPicker extends BaseAllEditorsPicker {
+
+	static readonly ID = 'workbench.picker.editorsByMostRecentlyUsed';
+
+	protected getEditorEntries(): EditorPickerEntry[] {
+		const entries: EditorPickerEntry[] = [];
+
+		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, this.editorGroupService.getGroup(groupId)!));
+		}
+
+		return entries;
 	}
 }

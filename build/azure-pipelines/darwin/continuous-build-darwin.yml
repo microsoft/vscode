@@ -1,15 +1,27 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'vscode-build-cache'
 - script: |
-    yarn
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install Dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'vscode-build-cache'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - script: |
-    yarn gulp electron-x64
+    yarn electron x64
   displayName: Download Electron
 - script: |
     yarn gulp hygiene
@@ -18,8 +30,8 @@ steps:
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
-    yarn strict-null-check
-  displayName: Run Strict Null Checks
+    yarn valid-layers-check
+  displayName: Run Valid Layers Checks
 - script: |
     yarn compile
   displayName: Compile Sources

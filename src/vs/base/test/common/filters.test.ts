@@ -7,14 +7,14 @@ import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matc
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
-	assert(r);
+	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
 	}
 }
 
-function filterNotOk(filter: IFilter, word: string, suggestion: string) {
-	assert(!filter(word, suggestion));
+function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) {
+	assert(!filter(word, wordToMatchAgainst), `${word} matched ${wordToMatchAgainst}`);
 }
 
 suite('Filters', () => {
@@ -185,23 +185,39 @@ suite('Filters', () => {
 		assert(matchesWords('Debug Console', 'Open: Debug Console'));
 
 		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
-		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
+		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 3, end: 4 }, { start: 5, end: 6 }]);
 		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
-		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 14, end: 16 }]);
+		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 13, end: 14 }, { start: 15, end: 16 }]);
 		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17 }]);
 
 		filterNotOk(matchesWords, 'it', 'Git: Pull');
 		filterNotOk(matchesWords, 'll', 'Git: Pull');
 
 		filterOk(matchesWords, 'git: プル', 'git: プル', [{ start: 0, end: 7 }]);
-		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 4, end: 7 }]);
+		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 4 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
-		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
+		// assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+
+		filterOk(matchesWords, 'bar', 'foo-bar');
+		filterOk(matchesWords, 'bar test', 'foo-bar test');
+		filterOk(matchesWords, 'fbt', 'foo-bar test');
+		filterOk(matchesWords, 'bar test', 'foo-bar (test)');
+		filterOk(matchesWords, 'foo bar', 'foo (bar)');
+
+		filterNotOk(matchesWords, 'bar est', 'foo-bar test');
+		filterNotOk(matchesWords, 'fo ar', 'foo-bar test');
+		filterNotOk(matchesWords, 'for', 'foo-bar test');
+
+		filterOk(matchesWords, 'foo bar', 'foo-bar');
+		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
+		filterOk(matchesWords, 'foo+bar', 'foo-bar');
+		filterOk(matchesWords, 'foo-bar', 'foo bar');
+		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
@@ -350,6 +366,10 @@ suite('Filters', () => {
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
 	});
 
+	test('Separator only match should not be weak #79558', function () {
+		assertMatches('.', 'foo.bar', 'foo^.bar', fuzzyScore);
+	});
+
 	test('Cannot set property \'1\' of undefined, #26511', function () {
 		let word = new Array<void>(123).join('a');
 		let pattern = new Array<void>(120).join('a');
@@ -367,6 +387,15 @@ suite('Filters', () => {
 		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
 		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
 		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
+	});
+
+	test('patternPos isn\'t working correctly #79815', function () {
+		assertMatches(':p'.substr(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
+		assertMatches(':p', 'prop', '^prop', fuzzyScore, { patternPos: 1 });
+		assertMatches(':p', 'prop', undefined, fuzzyScore, { patternPos: 2 });
+		assertMatches(':p', 'proP', 'pro^P', fuzzyScore, { patternPos: 1, wordPos: 1 });
+		assertMatches(':p', 'aprop', 'a^prop', fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: true });
+		assertMatches(':p', 'aprop', undefined, fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: false });
 	});
 
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
@@ -453,5 +482,30 @@ suite('Filters', () => {
 
 	test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
 		assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
+	});
+
+	test('Autocompletion is matched against truncated filterText to 54 characters #74133', () => {
+		assertMatches(
+			'foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
+			'foo',
+			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			undefined,
+			fuzzyScore
+		);
+	});
+
+	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
+		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
+		assert.ok(Boolean(match));
+	});
+
+	test('Suggestion is not highlighted #85826', function () {
+		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
+		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);
 	});
 });

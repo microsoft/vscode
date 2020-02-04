@@ -10,9 +10,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
@@ -26,6 +25,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
+	ArrayOfString = 'array-of-string',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
@@ -54,7 +54,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
-	descriptionIsMarkdown: boolean;
+	descriptionIsMarkdown?: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
@@ -62,16 +62,18 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	arrayItemType?: string;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
-	validator?: (value: any) => string;
+	extensionInfo?: IConfigurationExtensionInfo;
+	validator?: (value: any) => string | null;
 }
 
 export interface IExtensionSetting extends ISetting {
-	extensionName: string;
-	extensionPublisher: string;
+	extensionName?: string;
+	extensionPublisher?: string;
 }
 
 export interface ISearchResult {
@@ -98,7 +100,7 @@ export interface IFilterResult {
 
 export interface ISettingMatch {
 	setting: ISetting;
-	matches: IRange[];
+	matches: IRange[] | null;
 	score: number;
 }
 
@@ -123,7 +125,6 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
-	extensions?: ILocalExtension[];
 
 	/** The number of requests made, since requests are split by number of filters */
 	requestCount?: number;
@@ -134,19 +135,19 @@ export interface IFilterMetadata {
 
 export interface IPreferencesEditorModel<T> {
 	uri?: URI;
-	getPreference(key: string): T | null;
+	getPreference(key: string): T | undefined;
 	dispose(): void;
 }
 
-export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number };
+export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult | null;
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined;
 }
 
 export interface ISettingsEditorOptions extends IEditorOptions {
@@ -164,25 +165,13 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	folderUri?: URI;
 	query?: string;
 
-	static create(settings: ISettingsEditorOptions): SettingsEditorOptions | null {
-		if (!settings) {
-			return null;
-		}
-
+	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
+		options.overwrite(settings);
 
 		options.target = settings.target;
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
-
-		// IEditorOptions
-		options.preserveFocus = settings.preserveFocus;
-		options.forceReload = settings.forceReload;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-		options.inactive = settings.inactive;
 
 		return options;
 	}
@@ -194,31 +183,33 @@ export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
 export interface IPreferencesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	userSettingsResource: URI;
-	workspaceSettingsResource: URI;
-	getFolderSettingsResource(resource: URI): URI;
+	workspaceSettingsResource: URI | null;
+	getFolderSettingsResource(resource: URI): URI | null;
 
-	resolveModel(uri: URI): Promise<ITextModel>;
-	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
+	resolveModel(uri: URI): Promise<ITextModel | null>;
+	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T> | null>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
-	openRawDefaultSettings(): Promise<IEditor>;
-	openSettings(jsonEditor?: boolean): Promise<IEditor>;
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	openRawDefaultSettings(): Promise<IEditor | undefined>;
+	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditor | undefined>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
+	openRemoteSettings(): Promise<IEditor | undefined>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
-	openDefaultKeybindingsFile(): Promise<IEditor>;
+	openDefaultKeybindingsFile(): Promise<IEditor | undefined>;
 
-	configureSettingsForLanguage(language: string): void;
+	configureSettingsForLanguage(language: string | null): void;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
 	switch (target) {
 		case ConfigurationTarget.USER:
+		case ConfigurationTarget.USER_LOCAL:
 			return localize('userSettingsTarget', "User Settings");
 		case ConfigurationTarget.WORKSPACE:
 			return localize('workspaceSettingsTarget', "Workspace Settings");

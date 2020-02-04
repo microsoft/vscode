@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerModelCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -22,6 +22,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 class SelectionRanges {
 
@@ -46,10 +47,10 @@ class SelectionRanges {
 
 class SmartSelectController implements IEditorContribution {
 
-	private static readonly _id = 'editor.contrib.smartSelectController';
+	public static readonly ID = 'editor.contrib.smartSelectController';
 
 	static get(editor: ICodeEditor): SmartSelectController {
-		return editor.getContribution<SmartSelectController>(SmartSelectController._id);
+		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
@@ -64,10 +65,6 @@ class SmartSelectController implements IEditorContribution {
 
 	dispose(): void {
 		dispose(this._selectionListener);
-	}
-
-	getId(): string {
-		return SmartSelectController._id;
 	}
 
 	run(forward: boolean): Promise<void> | void {
@@ -160,14 +157,17 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			id: 'editor.action.smartSelect.expand',
 			label: nls.localize('smartSelect.expand', "Expand Selection"),
 			alias: 'Expand Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow,
+					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow],
+				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
 				title: nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"),
@@ -186,14 +186,17 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			id: 'editor.action.smartSelect.shrink',
 			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
 			alias: 'Shrink Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow,
+					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow],
+				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
 				title: nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"),
@@ -203,7 +206,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
@@ -237,7 +240,7 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 					}
 				}
 			}
-		}));
+		}, onUnexpectedExternalError));
 	}
 
 	return Promise.all(work).then(() => {
@@ -283,12 +286,12 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 				if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
 					// add line/block range without leading/failing whitespace
 					const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
-					if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev)) {
+					if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev) && cur.containsRange(rangeNoWhitespace) && !cur.equalsRange(rangeNoWhitespace)) {
 						oneRangesWithTrivia.push(rangeNoWhitespace);
 					}
 					// add line/block range
 					const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
-					if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace)) {
+					if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace) && cur.containsRange(rangeFull) && !cur.equalsRange(rangeFull)) {
 						oneRangesWithTrivia.push(rangeFull);
 					}
 				}
@@ -299,6 +302,7 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 	});
 }
 
-registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, _position, args) {
-	return provideSelectionRanges(model, args.positions, CancellationToken.None);
+registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
+	const [positions] = args;
+	return provideSelectionRanges(model, positions, CancellationToken.None);
 });

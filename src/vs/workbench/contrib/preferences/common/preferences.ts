@@ -33,19 +33,19 @@ export interface IEndpointDetails {
 export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
 
 export interface IPreferencesSearchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
-	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider;
+	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
 }
 
 export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult>;
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
 }
 
 export interface IKeybindingsEditor extends IEditor {
 
-	readonly activeKeybindingEntry: IKeybindingItemEntry;
+	readonly activeKeybindingEntry: IKeybindingItemEntry | null;
 	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
 	readonly onLayout: Event<void>;
 
@@ -55,15 +55,14 @@ export interface IKeybindingsEditor extends IEditor {
 	focusKeybindings(): void;
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
-	layoutColumns(columns: HTMLElement[]): void;
 	selectKeybinding(keybindingEntry: IKeybindingItemEntry): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void;
 	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
-	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
-	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): void;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
 }
 
@@ -108,5 +107,8 @@ export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.show
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';
+export const EXTENSION_SETTING_TAG = 'ext:';
 
 export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+
+export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';

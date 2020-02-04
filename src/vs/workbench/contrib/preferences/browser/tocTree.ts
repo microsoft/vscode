@@ -5,26 +5,31 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterator } from 'vs/base/common/iterator';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, transparent, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { localize } from 'vs/nls';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
 
 export class TOCTreeModel {
 
-	private _currentSearchModel: SearchResultModel;
-	private _settingsTreeRoot: SettingsTreeGroupElement;
+	private _currentSearchModel: SearchResultModel | null = null;
+	private _settingsTreeRoot!: SettingsTreeGroupElement;
 
-	constructor(private _viewState: ISettingsEditorViewState) {
+	constructor(
+		private _viewState: ISettingsEditorViewState,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+	) {
 	}
 
 	get settingsTreeRoot(): SettingsTreeGroupElement {
@@ -36,7 +41,11 @@ export class TOCTreeModel {
 		this.update();
 	}
 
-	set currentSearchModel(model: SearchResultModel) {
+	get currentSearchModel(): SearchResultModel | null {
+		return this._currentSearchModel;
+	}
+
+	set currentSearchModel(model: SearchResultModel | null) {
 		this._currentSearchModel = model;
 		this.update();
 	}
@@ -60,7 +69,7 @@ export class TOCTreeModel {
 
 		const childCount = group.children
 			.filter(child => child instanceof SettingsTreeGroupElement)
-			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
+			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count!, 0);
 
 		group.count = childCount + this.getGroupCount(group);
 	}
@@ -76,7 +85,8 @@ export class TOCTreeModel {
 			}
 
 			// Check everything that the SettingsFilter checks except whether it's filtered by a category
-			return child.matchesScope(this._viewState.settingsTarget) && child.matchesAllTags(this._viewState.tagFilters);
+			const isRemote = !!this.environmentService.configuration.remoteAuthority;
+			return child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAllTags(this._viewState.tagFilters) && child.matchesAnyExtension(this._viewState.extensionFilters);
 		}).length;
 	}
 }
@@ -105,6 +115,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const label = element.label;
 
 		template.labelElement.textContent = label;
+		template.labelElement.title = label;
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;
@@ -131,22 +142,42 @@ export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement
 	const groupChildren = <SettingsTreeGroupElement[]>model.children.filter(c => c instanceof SettingsTreeGroupElement);
 	const groupsIt = Iterator.fromArray(groupChildren);
 
-
 	return Iterator.map(groupsIt, g => {
-		let nodeExists = true;
-		try { tree.getNode(g); } catch (e) { nodeExists = false; }
-
 		const hasGroupChildren = g.children.some(c => c instanceof SettingsTreeGroupElement);
 
 		return {
 			element: g,
-			collapsed: nodeExists ? undefined : true,
+			collapsed: undefined,
 			collapsible: hasGroupChildren,
 			children: g instanceof SettingsTreeGroupElement ?
 				createTOCIterator(g, tree) :
 				undefined
 		};
 	});
+}
+
+class SettingsAccessibilityProvider implements IAccessibilityProvider<SettingsTreeGroupElement> {
+	getAriaLabel(element: SettingsTreeElement): string {
+		if (!element) {
+			return '';
+		}
+
+		if (element instanceof SettingsTreeGroupElement) {
+			return localize('groupRowAriaLabel', "{0}, group", element.label);
+		}
+
+		return '';
+	}
+
+	getAriaLevel(element: SettingsTreeGroupElement): number {
+		let i = 1;
+		while (element instanceof SettingsTreeGroupElement && element.parent) {
+			i++;
+			element = element.parent;
+		}
+
+		return i;
+	}
 }
 
 export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
@@ -158,7 +189,6 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 	) {
 		// test open mode
 
-		const treeClass = 'settings-toc-tree';
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const options: IObjectTreeOptions<SettingsTreeGroupElement> = {
 			filter,
@@ -168,24 +198,25 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 					return e.id;
 				}
 			},
-			styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass)
+			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
+			collapseByDefault: true
 		};
 
-		super(container,
+		super('SettingsTOC', container,
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options);
 
-		this.getHTMLElement().classList.add(treeClass);
-
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
+			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,
-			listFocusForeground: settingsHeaderForeground,
-			listHoverForeground: settingsHeaderForeground,
+			listFocusForeground: transparent(foreground, 0.9),
+			listHoverForeground: transparent(foreground, 0.9),
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,

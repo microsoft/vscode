@@ -7,10 +7,10 @@ import 'vs/css!./messageController';
 import * as nls from 'vs/nls';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -19,24 +19,22 @@ import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/com
 import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class MessageController extends Disposable implements editorCommon.IEditorContribution {
+export class MessageController extends Disposable implements IEditorContribution {
 
-	private static readonly _id = 'editor.contrib.messageController';
+	public static readonly ID = 'editor.contrib.messageController';
 
-	static MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
+	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
 
 	static get(editor: ICodeEditor): MessageController {
-		return editor.getContribution<MessageController>(MessageController._id);
+		return editor.getContribution<MessageController>(MessageController.ID);
 	}
 
-	getId(): string {
-		return MessageController._id;
-	}
+	private readonly closeTimeout = 3000; // close after 3s
 
-	private _editor: ICodeEditor;
-	private _visible: IContextKey<boolean>;
-	private _messageWidget: MessageWidget;
-	private _messageListeners: IDisposable[] = [];
+	private readonly _editor: ICodeEditor;
+	private readonly _visible: IContextKey<boolean>;
+	private readonly _messageWidget = this._register(new MutableDisposable<MessageWidget>());
+	private readonly _messageListeners = this._register(new DisposableStore());
 
 	constructor(
 		editor: ICodeEditor,
@@ -62,22 +60,21 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		alert(message);
 
 		this._visible.set(true);
-		dispose(this._messageWidget);
-		this._messageListeners = dispose(this._messageListeners);
-		this._messageWidget = new MessageWidget(this._editor, position, message);
+		this._messageWidget.clear();
+		this._messageListeners.clear();
+		this._messageWidget.value = new MessageWidget(this._editor, position, message);
 
 		// close on blur, cursor, model change, dispose
-		this._messageListeners.push(this._editor.onDidBlurEditorText(() => this.closeMessage()));
-		this._messageListeners.push(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
-		this._messageListeners.push(this._editor.onDidDispose(() => this.closeMessage()));
-		this._messageListeners.push(this._editor.onDidChangeModel(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidBlurEditorText(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
 
-		// close after 3s
-		this._messageListeners.push(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), this.closeTimeout));
 
 		// close on mouse move
 		let bounds: Range;
-		this._messageListeners.push(this._editor.onMouseMove(e => {
+		this._messageListeners.add(this._editor.onMouseMove(e => {
 			// outside the text area
 			if (!e.target.position) {
 				return;
@@ -95,8 +92,10 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 
 	closeMessage(): void {
 		this._visible.reset();
-		this._messageListeners = dispose(this._messageListeners);
-		this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+		this._messageListeners.clear();
+		if (this._messageWidget.value) {
+			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
+		}
 	}
 
 	private _onDidAttemptReadOnlyEdit(): void {
@@ -125,9 +124,9 @@ class MessageWidget implements IContentWidget {
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
-	private _editor: ICodeEditor;
-	private _position: IPosition;
-	private _domNode: HTMLDivElement;
+	private readonly _editor: ICodeEditor;
+	private readonly _position: IPosition;
+	private readonly _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
 		let handle: any;
@@ -145,7 +144,7 @@ class MessageWidget implements IContentWidget {
 	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
 
 		this._editor = editor;
-		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, editorCommon.ScrollType.Smooth);
+		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
 		this._position = { lineNumber, column: column - 1 };
 
 		this._domNode = document.createElement('div');
@@ -177,11 +176,11 @@ class MessageWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
+		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW] };
 	}
 }
 
-registerEditorContribution(MessageController);
+registerEditorContribution(MessageController.ID, MessageController);
 
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(inputValidationInfoBorder);

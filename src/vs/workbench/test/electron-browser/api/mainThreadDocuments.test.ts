@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
+import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { timeout } from 'vs/base/common/async';
 

@@ -66,34 +66,34 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(1, 2, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 0, 'c1'),
-				new DecorationSegment(2, 2, 'c2')
-			]);
+			new DecorationSegment(0, 0, 'c1'),
+			new DecorationSegment(2, 2, 'c2')
+		]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 3, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 1, 'c1'),
-				new DecorationSegment(2, 2, 'c2')
-			]);
+			new DecorationSegment(0, 1, 'c1'),
+			new DecorationSegment(2, 2, 'c2')
+		]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 1, 'c1'),
-				new DecorationSegment(2, 2, 'c1 c2')
-			]);
+			new DecorationSegment(0, 1, 'c1'),
+			new DecorationSegment(2, 2, 'c1 c2')
+		]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(1, 4, 'c1*', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 1, 'c1 c1*'),
-				new DecorationSegment(2, 2, 'c1 c1* c2')
-			]);
+			new DecorationSegment(0, 1, 'c1 c1*'),
+			new DecorationSegment(2, 2, 'c1 c1* c2')
+		]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
@@ -101,9 +101,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(1, 4, 'c1**', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 1, 'c1 c1* c1**'),
-				new DecorationSegment(2, 2, 'c1 c1* c1** c2')
-			]);
+			new DecorationSegment(0, 1, 'c1 c1* c1**'),
+			new DecorationSegment(2, 2, 'c1 c1* c1** c2')
+		]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
@@ -112,9 +112,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2*', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 1, 'c1 c1* c1**'),
-				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
-			]);
+			new DecorationSegment(0, 1, 'c1 c1* c1**'),
+			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
+		]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
@@ -123,9 +123,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular),
 			new LineDecoration(3, 5, 'c2*', InlineDecorationType.Regular)
 		]), [
-				new DecorationSegment(0, 1, 'c1 c1* c1**'),
-				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
-				new DecorationSegment(3, 3, 'c2*')
-			]);
+			new DecorationSegment(0, 1, 'c1 c1* c1**'),
+			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
+			new DecorationSegment(3, 3, 'c2*')
+		]);
 	});
 });

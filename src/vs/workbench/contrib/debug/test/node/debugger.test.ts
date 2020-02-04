@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as extpath from 'vs/base/common/extpath';
+import { join, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 
 suite('Debug - Debugger', () => {
@@ -144,15 +143,15 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae!.command, extpath.joinWithSlashes(extensionFolderPath, debuggerContribution.program));
+		assert.equal(ae!.command, join(extensionFolderPath, debuggerContribution.program));
 		assert.deepEqual(ae!.args, debuggerContribution.args);
 	});
 
 	test('schema attributes', () => {
-		const schemaAttribute = _debugger.getSchemaAttributes()[0];
+		const schemaAttribute = _debugger.getSchemaAttributes()![0];
 		assert.notDeepEqual(schemaAttribute, debuggerContribution.configurationAttributes);
 		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
-			assert.deepEqual(schemaAttribute[key], debuggerContribution.configurationAttributes.launch[key]);
+			assert.deepEqual((<any>schemaAttribute)[key], (<any>debuggerContribution.configurationAttributes.launch)[key]);
 		});
 
 		assert.equal(schemaAttribute['additionalProperties'], false);
@@ -166,7 +165,7 @@ suite('Debug - Debugger', () => {
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock')!;
 		assert.equal(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
 		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
-		assert.deepEqual(ae.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
+		assert.deepEqual(ae.args, ['rarg', normalize('/e2/b/c/') + xprogram, 'parg']);
 	});
 
 	test('initial config file content', () => {

@@ -37,8 +37,14 @@
 			}
 		}
 	],
+	"eslint.options": {
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
+	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
+	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
@@ -56,5 +62,10 @@
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
-	"git.ignoreLimitWarning": true
+	"git.ignoreLimitWarning": true,
+	"remote.extensionKind": {
+		"msjsdiag.debugger-for-chrome": "workspace"
+	},
+	"gulp.autoDetect": "off",
+	"files.insertFinalNewline": true
 }

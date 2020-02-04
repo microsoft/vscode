@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { merge, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
+import { mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 
 suite('Configuration', () => {
 
@@ -32,7 +33,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': { 'b': 2 } });
 	});
 
-	test('removeFromValueTree: remove a single segemented key', () => {
+	test('removeFromValueTree: remove a single segmented key', () => {
 		let target = { 'a': 1 };
 
 		removeFromValueTree(target, 'a');
@@ -40,7 +41,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a single segemented key when its value is undefined', () => {
+	test('removeFromValueTree: remove a single segmented key when its value is undefined', () => {
 		let target = { 'a': undefined };
 
 		removeFromValueTree(target, 'a');
@@ -48,7 +49,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when its value is undefined', () => {
+	test('removeFromValueTree: remove a multi segmented key when its value is undefined', () => {
 		let target = { 'a': { 'b': 1 } };
 
 		removeFromValueTree(target, 'a.b');
@@ -56,7 +57,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when its value is array', () => {
+	test('removeFromValueTree: remove a multi segmented key when its value is array', () => {
 		let target = { 'a': { 'b': [1] } };
 
 		removeFromValueTree(target, 'a.b');
@@ -64,7 +65,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key first segment value is array', () => {
+	test('removeFromValueTree: remove a multi segmented key first segment value is array', () => {
 		let target = { 'a': [1] };
 
 		removeFromValueTree(target, 'a.0');
@@ -80,7 +81,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, {});
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when the first node has more values', () => {
+	test('removeFromValueTree: remove a multi segmented key when the first node has more values', () => {
 		let target = { 'a': { 'b': { 'c': 1 }, 'd': 1 } };
 
 		removeFromValueTree(target, 'a.b.c');
@@ -88,7 +89,7 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': { 'd': 1 } });
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when in between node has more values', () => {
+	test('removeFromValueTree: remove a multi segmented key when in between node has more values', () => {
 		let target = { 'a': { 'b': { 'c': { 'd': 1 }, 'd': 1 } } };
 
 		removeFromValueTree(target, 'a.b.c.d');
@@ -96,12 +97,51 @@ suite('Configuration', () => {
 		assert.deepEqual(target, { 'a': { 'b': { 'd': 1 } } });
 	});
 
-	test('removeFromValueTree: remove a multi segemented key when the last but one node has more values', () => {
+	test('removeFromValueTree: remove a multi segmented key when the last but one node has more values', () => {
 		let target = { 'a': { 'b': { 'c': 1, 'd': 1 } } };
 
 		removeFromValueTree(target, 'a.b.c');
 
 		assert.deepEqual(target, { 'a': { 'b': { 'd': 1 } } });
+	});
+
+});
+
+suite('Configuration Changes: Merge', () => {
+
+	test('merge only keys', () => {
+		const actual = mergeChanges({ keys: ['a', 'b'], overrides: [] }, { keys: ['c', 'd'], overrides: [] });
+		assert.deepEqual(actual, { keys: ['a', 'b', 'c', 'd'], overrides: [] });
+	});
+
+	test('merge only keys with duplicates', () => {
+		const actual = mergeChanges({ keys: ['a', 'b'], overrides: [] }, { keys: ['c', 'd'], overrides: [] }, { keys: ['a', 'd', 'e'], overrides: [] });
+		assert.deepEqual(actual, { keys: ['a', 'b', 'c', 'd', 'e'], overrides: [] });
+	});
+
+	test('merge only overrides', () => {
+		const actual = mergeChanges({ keys: [], overrides: [['a', ['1', '2']]] }, { keys: [], overrides: [['b', ['3', '4']]] });
+		assert.deepEqual(actual, { keys: [], overrides: [['a', ['1', '2']], ['b', ['3', '4']]] });
+	});
+
+	test('merge only overrides with duplicates', () => {
+		const actual = mergeChanges({ keys: [], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] }, { keys: [], overrides: [['b', ['3', '4']]] }, { keys: [], overrides: [['c', ['1', '4']], ['a', ['2', '3']]] });
+		assert.deepEqual(actual, { keys: [], overrides: [['a', ['1', '2', '3']], ['b', ['5', '4', '3']], ['c', ['1', '4']]] });
+	});
+
+	test('merge', () => {
+		const actual = mergeChanges({ keys: ['b', 'b'], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] }, { keys: ['b'], overrides: [['b', ['3', '4']]] }, { keys: ['c', 'a'], overrides: [['c', ['1', '4']], ['a', ['2', '3']]] });
+		assert.deepEqual(actual, { keys: ['b', 'c', 'a'], overrides: [['a', ['1', '2', '3']], ['b', ['5', '4', '3']], ['c', ['1', '4']]] });
+	});
+
+	test('merge single change', () => {
+		const actual = mergeChanges({ keys: ['b', 'b'], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] });
+		assert.deepEqual(actual, { keys: ['b', 'b'], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] });
+	});
+
+	test('merge no changes', () => {
+		const actual = mergeChanges();
+		assert.deepEqual(actual, { keys: [], overrides: [] });
 	});
 
 });

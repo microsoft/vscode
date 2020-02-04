@@ -14,17 +14,28 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["InnerFile"] = 1] = "InnerFile";
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
 })(ShakeLevel = exports.ShakeLevel || (exports.ShakeLevel = {}));
-function printDiagnostics(diagnostics) {
+function toStringShakeLevel(shakeLevel) {
+    switch (shakeLevel) {
+        case 0 /* Files */:
+            return 'Files (0)';
+        case 1 /* InnerFile */:
+            return 'InnerFile (1)';
+        case 2 /* ClassMembers */:
+            return 'ClassMembers (2)';
+    }
+}
+exports.toStringShakeLevel = toStringShakeLevel;
+function printDiagnostics(options, diagnostics) {
     for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
-            result += `${diag.file.fileName}: `;
+            result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
         }
         if (diag.file && diag.start) {
             let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-            result += `- ${location.line + 1},${location.character} - `;
+            result += `:${location.line + 1}:${location.character}`;
         }
-        result += JSON.stringify(diag.messageText);
+        result += ` - ` + JSON.stringify(diag.messageText);
         console.log(result);
     }
 }
@@ -33,17 +44,17 @@ function shake(options) {
     const program = languageService.getProgram();
     const globalDiagnostics = program.getGlobalDiagnostics();
     if (globalDiagnostics.length > 0) {
-        printDiagnostics(globalDiagnostics);
+        printDiagnostics(options, globalDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     const syntacticDiagnostics = program.getSyntacticDiagnostics();
     if (syntacticDiagnostics.length > 0) {
-        printDiagnostics(syntacticDiagnostics);
+        printDiagnostics(options, syntacticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     const semanticDiagnostics = program.getSemanticDiagnostics();
     if (semanticDiagnostics.length > 0) {
-        printDiagnostics(semanticDiagnostics);
+        printDiagnostics(options, semanticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     markNodes(languageService, options);
@@ -347,7 +358,7 @@ function markNodes(languageService, options) {
         ++step;
         let node;
         if (step % 100 === 0) {
-            console.log(`${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+            console.log(`Treeshaking - ${Math.floor(100 * step / (step + black_queue.length + gray_queue.length))}% - ${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
         }
         if (black_queue.length === 0) {
             for (let i = 0; i < gray_queue.length; i++) {
@@ -394,6 +405,7 @@ function markNodes(languageService, options) {
                                 || memberName === 'toJSON'
                                 || memberName === 'toString'
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
+                                || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
                             ) {
                                 enqueue_black(member);
                             }
@@ -511,10 +523,6 @@ function generateResult(languageService, shakeLevel) {
                     const member = node.members[i];
                     if (getColor(member) === 2 /* Black */ || !member.name) {
                         // keep method
-                        continue;
-                    }
-                    if (/^_(.*)Brand$/.test(member.name.getText())) {
-                        // TODO: keep all members ending with `Brand`...
                         continue;
                     }
                     let pos = member.pos - node.pos;

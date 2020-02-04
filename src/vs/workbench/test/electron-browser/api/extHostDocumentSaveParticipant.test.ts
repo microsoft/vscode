@@ -4,20 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
-import { MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
+import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import * as vscode from 'vscode';
+import { SaveReason } from 'vs/workbench/common/editor';
+import type * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -38,7 +36,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	};
 
 	setup(() => {
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -86,7 +84,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.throws(() => { event.document = null!; });
+			assert.throws(() => { (event.document as any) = null!; });
 		});
 	});
 
@@ -263,9 +261,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, pushEdits sync', () => {
 
-		let dto: WorkspaceEditDto;
+		let dto: IWorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
 				dto = _edits;
 				return Promise.resolve(true);
 			}
@@ -279,17 +277,17 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
-			assert.equal(dto.edits.length, 1);
-			assert.ok(isResourceTextEdit(dto.edits[0]));
-			assert.equal((<ResourceTextEdit>dto.edits[0]).edits.length, 2);
+			assert.equal(dto.edits.length, 2);
+			assert.ok((<IWorkspaceTextEditDto>dto.edits[0]).edit);
+			assert.ok((<IWorkspaceTextEditDto>dto.edits[1]).edit);
 		});
 	});
 
 	test('event delivery, concurrent change', () => {
 
-		let edits: WorkspaceEditDto;
+		let edits: IWorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
 				edits = _edits;
 				return Promise.resolve(true);
 			}
@@ -324,26 +322,23 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, two listeners -> two document states', () => {
 
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(dto: WorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto) {
 
 				for (const edit of dto.edits) {
-					if (!isResourceTextEdit(edit)) {
-						continue;
-					}
-					const { resource, edits } = edit;
-					const uri = URI.revive(resource);
-					for (const { text, range } of edits) {
-						documents.$acceptModelChanged(uri, {
-							changes: [{
-								range,
-								text,
-								rangeOffset: undefined!,
-								rangeLength: undefined!,
-							}],
-							eol: undefined!,
-							versionId: documents.getDocumentData(uri)!.version + 1
-						}, true);
-					}
+
+					const uri = URI.revive((<IWorkspaceTextEditDto>edit).resource);
+					const { text, range } = (<IWorkspaceTextEditDto>edit).edit;
+					documents.$acceptModelChanged(uri, {
+						changes: [{
+							range,
+							text,
+							rangeOffset: undefined!,
+							rangeLength: undefined!,
+						}],
+						eol: undefined!,
+						versionId: documents.getDocumentData(uri)!.version + 1
+					}, true);
+					// }
 				}
 
 				return Promise.resolve(true);

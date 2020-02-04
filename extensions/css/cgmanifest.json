@@ -4,14 +4,14 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-css",
-					"repositoryUrl": "https://github.com/atom/language-css",
-					"commitHash": "7e06c88b89218fe6e8eba77fb674152f1cea0b10"
+					"name": "octref/language-css",
+					"repositoryUrl": "https://github.com/octref/language-css",
+					"commitHash": "dcdc1cb4403266f4ebdb1a4f526f8b6d09fd39d6"
 				}
 			},
 			"license": "MIT",
-			"description": "The file syntaxes/css.tmLanguage.json was derived from the Atom package https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
-			"version": "0.0.0"
+			"description": "The file syntaxes/css.tmLanguage.json was derived from https://github.com/octref/language-css which was derived from the Atom package https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
+			"version": "0.42.11"
 		}
 	],
 	"version": 1

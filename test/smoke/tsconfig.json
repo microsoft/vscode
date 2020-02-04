@@ -4,7 +4,7 @@
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es2016",
+		"target": "es2017",
 		"strictNullChecks": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,

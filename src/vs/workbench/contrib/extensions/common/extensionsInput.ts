@@ -27,7 +27,11 @@ export class ExtensionsInput extends EditorInput {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	matches(other: any): boolean {
+	matches(other: unknown): boolean {
+		if (super.matches(other) === true) {
+			return true;
+		}
+
 		if (!(other instanceof ExtensionsInput)) {
 			return false;
 		}

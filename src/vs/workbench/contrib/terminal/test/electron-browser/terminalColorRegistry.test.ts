@@ -18,8 +18,11 @@ function getMockTheme(type: ThemeType): ITheme {
 		selector: '',
 		label: '',
 		type: type,
-		getColor: (colorId: ColorIdentifier) => themingRegistry.resolveDefaultColor(colorId, theme),
-		defines: () => true
+		getColor: (colorId: ColorIdentifier): Color | undefined => themingRegistry.resolveDefaultColor(colorId, theme),
+		defines: () => true,
+		getTokenStyleMetadata: () => undefined,
+		tokenColorMap: []
+
 	};
 	return theme;
 }

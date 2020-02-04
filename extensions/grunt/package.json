@@ -5,6 +5,7 @@
   "displayName": "Grunt support for VS Code",
   "version": "1.0.0",
   "icon": "images/grunt.png",
+  "license": "MIT",
   "engines": {
     "vscode": "*"
   },
@@ -19,7 +20,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^12.11.7"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -53,6 +54,10 @@
           "task": {
             "type": "string",
             "description": "%grunt.taskDefinition.type.description%"
+          },
+          "args": {
+            "type": "array",
+            "description": "%grunt.taskDefinition.args.description%"
           },
           "file": {
             "type": "string",

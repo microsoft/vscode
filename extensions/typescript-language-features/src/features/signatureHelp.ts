@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
@@ -112,7 +112,7 @@ export function register(
 ) {
 	return vscode.languages.registerSignatureHelpProvider(selector,
 		new TypeScriptSignatureHelpProvider(client), {
-			triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
-			retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
-		});
+		triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
+		retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
+	});
 }

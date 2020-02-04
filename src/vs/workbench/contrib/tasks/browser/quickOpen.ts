@@ -28,15 +28,8 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this.task._label;
 	}
 
-	public getDescription(): string | null {
-		if (!this.taskService.needsFolderQualification()) {
-			return null;
-		}
-		let workspaceFolder = this.task.getWorkspaceFolder();
-		if (!workspaceFolder) {
-			return null;
-		}
-		return `${workspaceFolder.name}`;
+	public getDescription(): string | undefined {
+		return this.taskService.getTaskDescription(this.task);
 	}
 
 	public getAriaLabel(): string {
@@ -173,7 +166,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public updateClass(): void {
-		this.class = 'quick-open-task-configure';
+		this.class = 'codicon-gear';
 	}
 
 	public run(element: any): Promise<any> {
@@ -214,7 +207,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		return !!task;
 	}
 
-	public getActions(context: any): IAction[] {
+	public getActions(context: any): ReadonlyArray<IAction> {
 		let actions: Action[] = [];
 		let task = this.getTask(context);
 		if (task && ContributedTask.is(task) || CustomTask.is(task)) {

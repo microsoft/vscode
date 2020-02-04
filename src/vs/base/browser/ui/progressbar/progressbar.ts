@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./progressbar';
-import * as assert from 'vs/base/common/assert';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { removeClasses, addClass, hasClass, addClasses, removeClass, hide, show } from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { isNumber } from 'vs/base/common/types';
 
 const css_done = 'done';
 const css_active = 'active';
@@ -35,8 +35,8 @@ const defaultOpts = {
 export class ProgressBar extends Disposable {
 	private options: IProgressBarOptions;
 	private workedVal: number;
-	private element: HTMLElement;
-	private bit: HTMLElement;
+	private element!: HTMLElement;
+	private bit!: HTMLElement;
 	private totalWork: number | undefined;
 	private progressBarBackground: Color | undefined;
 	private showDelayedScheduler: RunOnceScheduler;
@@ -146,16 +146,14 @@ export class ProgressBar extends Disposable {
 	 * Finds out if this progress bar is configured with total work
 	 */
 	hasTotal(): boolean {
-		return !isNaN(this.totalWork as number);
+		return isNumber(this.totalWork);
 	}
 
 	/**
 	 * Tells the progress bar that an increment of work has been completed.
 	 */
 	worked(value: number): ProgressBar {
-		value = Number(value);
-		assert.ok(!isNaN(value), 'Value is not a number');
-		value = Math.max(1, value);
+		value = Math.max(1, Number(value));
 
 		return this.doSetWorked(this.workedVal + value);
 	}
@@ -164,18 +162,16 @@ export class ProgressBar extends Disposable {
 	 * Tells the progress bar the total amount of work that has been completed.
 	 */
 	setWorked(value: number): ProgressBar {
-		value = Number(value);
-		assert.ok(!isNaN(value), 'Value is not a number');
-		value = Math.max(1, value);
+		value = Math.max(1, Number(value));
 
 		return this.doSetWorked(value);
 	}
 
 	private doSetWorked(value: number): ProgressBar {
-		assert.ok(!isNaN(this.totalWork as number), 'Total work not set');
+		const totalWork = this.totalWork || 100;
 
 		this.workedVal = value;
-		this.workedVal = Math.min(this.totalWork as number, this.workedVal);
+		this.workedVal = Math.min(totalWork, this.workedVal);
 
 		if (hasClass(this.element, css_infinite)) {
 			removeClass(this.element, css_infinite);
@@ -193,7 +189,7 @@ export class ProgressBar extends Disposable {
 			addClass(this.element, css_discrete);
 		}
 
-		this.bit.style.width = 100 * (this.workedVal / (this.totalWork as number)) + '%';
+		this.bit.style.width = 100 * (this.workedVal / (totalWork)) + '%';
 
 		return this;
 	}
@@ -225,7 +221,7 @@ export class ProgressBar extends Disposable {
 
 	protected applyStyles(): void {
 		if (this.bit) {
-			const background = this.progressBarBackground ? this.progressBarBackground.toString() : null;
+			const background = this.progressBarBackground ? this.progressBarBackground.toString() : '';
 
 			this.bit.style.backgroundColor = background;
 		}

@@ -101,6 +101,29 @@ suite('SuggestMemories', function () {
 		]), 0);
 	});
 
+	test('`"editor.suggestSelection": "recentlyUsed"` should be a little more sticky #78571', function () {
+
+		let item1 = createSuggestItem('gamma', 0);
+		let item2 = createSuggestItem('game', 0);
+		items = [item1, item2];
+
+		let mem = new LRUMemory();
+		buffer.setValue('    foo.');
+		mem.memorize(buffer, { lineNumber: 1, column: 1 }, item2);
+
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 2 }, items), 0); // leading whitespace -> ignore recent items
+
+		mem.memorize(buffer, { lineNumber: 1, column: 9 }, item2);
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 9 }, items), 1); // foo.
+
+		buffer.setValue('    foo.g');
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 1); // foo.g, 'gamma' and 'game' have the same score
+
+		item1.score = [10, 0, 0];
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 0); // foo.g, 'gamma' has higher score
+
+	});
+
 	test('intellisense is not showing top options first #43429', function () {
 		// ensure we don't memorize for whitespace prefixes
 

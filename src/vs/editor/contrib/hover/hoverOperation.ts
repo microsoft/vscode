@@ -47,19 +47,19 @@ export const enum HoverStartMode {
 
 export class HoverOperation<Result> {
 
-	private _computer: IHoverComputer<Result>;
+	private readonly _computer: IHoverComputer<Result>;
 	private _state: ComputeHoverOperationState;
 	private _hoverTime: number;
 
-	private _firstWaitScheduler: RunOnceScheduler;
-	private _secondWaitScheduler: RunOnceScheduler;
-	private _loadingMessageScheduler: RunOnceScheduler;
+	private readonly _firstWaitScheduler: RunOnceScheduler;
+	private readonly _secondWaitScheduler: RunOnceScheduler;
+	private readonly _loadingMessageScheduler: RunOnceScheduler;
 	private _asyncComputationPromise: CancelablePromise<Result> | null;
 	private _asyncComputationPromiseDone: boolean;
 
-	private _completeCallback: (r: Result) => void;
-	private _errorCallback: ((err: any) => void) | null | undefined;
-	private _progressCallback: (progress: any) => void;
+	private readonly _completeCallback: (r: Result) => void;
+	private readonly _errorCallback: ((err: any) => void) | null | undefined;
+	private readonly _progressCallback: (progress: any) => void;
 
 	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: ((err: any) => void) | null | undefined, progress: (progress: any) => void, hoverTime: number) {
 		this._computer = computer;

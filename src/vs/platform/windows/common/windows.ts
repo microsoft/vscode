@@ -3,237 +3,79 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export const IWindowsService = createDecorator<IWindowsService>('windowsService');
+export interface IOpenedWindow {
+	id: number;
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+	title: string;
+	filename?: string;
+}
 
-export interface INativeOpenDialogOptions {
-	windowId?: number;
+export interface IBaseOpenWindowsOptions {
+	forceReuseWindow?: boolean;
+}
+
+export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	forceNewWindow?: boolean;
+	preferNewWindow?: boolean;
 
-	dialogOptions?: OpenDialogOptions;
-
-	telemetryEventName?: string;
-	telemetryExtraData?: ITelemetryData;
+	noRecentEntry?: boolean;
 }
 
-export interface IEnterWorkspaceResult {
-	workspace: IWorkspaceIdentifier;
-	backupPath?: string;
-}
-
-export interface CrashReporterStartOptions {
-	companyName?: string;
-	submitURL: string;
-	productName?: string;
-	uploadToServer?: boolean;
-	ignoreSystemCrashHandler?: boolean;
-	extra?: any;
-	crashesDirectory?: string;
-}
-
-export interface OpenDialogOptions {
-	title?: string;
-	defaultPath?: string;
-	buttonLabel?: string;
-	filters?: FileFilter[];
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
-	message?: string;
-}
-
-export interface FileFilter {
-	extensions: string[];
-	name: string;
-}
-
-export interface MessageBoxOptions {
-	type?: string;
-	buttons?: string[];
-	defaultId?: number;
-	title?: string;
-	message: string;
-	detail?: string;
-	checkboxLabel?: string;
-	checkboxChecked?: boolean;
-	cancelId?: number;
-	noLink?: boolean;
-	normalizeAccessKeys?: boolean;
-}
-
-export interface SaveDialogOptions {
-	title?: string;
-	defaultPath?: string;
-	buttonLabel?: string;
-	filters?: FileFilter[];
-	message?: string;
-	nameFieldLabel?: string;
-	showsTagField?: boolean;
-}
-
-export interface INewWindowOptions {
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
 	remoteAuthority?: string;
 }
 
-export interface IDevToolsOptions {
-	mode: 'right' | 'bottom' | 'undocked' | 'detach';
+export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
+
+export interface IBaseWindowOpenable {
+	label?: string;
 }
 
-export interface IWindowsService {
-
-	_serviceBrand: any;
-
-	onWindowOpen: Event<number>;
-	onWindowFocus: Event<number>;
-	onWindowBlur: Event<number>;
-	onWindowMaximize: Event<number>;
-	onWindowUnmaximize: Event<number>;
-	onRecentlyOpenedChange: Event<void>;
-
-	// Dialogs
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]>;
-
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(windowId: number): Promise<void>;
-	closeWorkspace(windowId: number): Promise<void>;
-	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(windowId: number): Promise<void>;
-	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
-	addRecentlyOpened(files: URI[]): Promise<void>;
-	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
-	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
-	focusWindow(windowId: number): Promise<void>;
-	closeWindow(windowId: number): Promise<void>;
-	isFocused(windowId: number): Promise<boolean>;
-	isMaximized(windowId: number): Promise<boolean>;
-	maximizeWindow(windowId: number): Promise<void>;
-	unmaximizeWindow(windowId: number): Promise<void>;
-	minimizeWindow(windowId: number): Promise<void>;
-	onWindowTitleDoubleClick(windowId: number): Promise<void>;
-	setDocumentEdited(windowId: number, flag: boolean): Promise<void>;
-	quit(): Promise<void>;
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
-
-	// macOS Native Tabs
-	newWindowTab(): Promise<void>;
-	showPreviousWindowTab(): Promise<void>;
-	showNextWindowTab(): Promise<void>;
-	moveWindowTabToNewWindow(): Promise<void>;
-	mergeAllWindowTabs(): Promise<void>;
-	toggleWindowTabsBar(): Promise<void>;
-
-	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void>;
-
-	// Shared process
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcess(): Promise<void>;
-
-	// Global methods
-	openWindow(windowId: number, uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
-	openNewWindow(options?: INewWindowOptions): Promise<void>;
-	showWindow(windowId: number): Promise<void>;
-	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
-	getWindowCount(): Promise<number>;
-	log(severity: string, ...messages: string[]): Promise<void>;
-	showItemInFolder(path: string): Promise<void>;
-	getActiveWindowId(): Promise<number | undefined>;
-
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(url: string): Promise<boolean>;
-
-	// TODO: this is a bit backwards
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
-
-	openAboutDialog(): Promise<void>;
-	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
+export interface IWorkspaceToOpen extends IBaseWindowOpenable {
+	workspaceUri: URI;
 }
 
-export const IWindowService = createDecorator<IWindowService>('windowService');
-
-export interface IMessageBoxResult {
-	button: number;
-	checkboxChecked?: boolean;
+export interface IFolderToOpen extends IBaseWindowOpenable {
+	folderUri: URI;
 }
 
-export interface IOpenSettings {
-	forceNewWindow?: boolean;
-	forceReuseWindow?: boolean;
-	forceOpenWorkspaceAsFile?: boolean;
-	diffMode?: boolean;
-	addMode?: boolean;
-	args?: ParsedArgs;
+export interface IFileToOpen extends IBaseWindowOpenable {
+	fileUri: URI;
 }
 
-export type URIType = 'file' | 'folder';
-
-export interface IURIToOpen {
-	uri: URI;
-	typeHint?: URIType;
+export function isWorkspaceToOpen(uriToOpen: IWindowOpenable): uriToOpen is IWorkspaceToOpen {
+	return !!(uriToOpen as IWorkspaceToOpen).workspaceUri;
 }
 
-export interface IWindowService {
-
-	_serviceBrand: any;
-
-	readonly onDidChangeFocus: Event<boolean>;
-	readonly onDidChangeMaximize: Event<boolean>;
-
-	readonly hasFocus: boolean;
-
-	getConfiguration(): IWindowConfiguration;
-	getCurrentWindowId(): number;
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	reloadWindow(args?: ParsedArgs): Promise<void>;
-	openDevTools(options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
-	closeWorkspace(): Promise<void>;
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(): Promise<void>;
-	setRepresentedFilename(fileName: string): Promise<void>;
-	getRecentlyOpened(): Promise<IRecentlyOpened>;
-	focusWindow(): Promise<void>;
-	closeWindow(): Promise<void>;
-	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
-	isFocused(): Promise<boolean>;
-	setDocumentEdited(flag: boolean): Promise<void>;
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
-	onWindowTitleDoubleClick(): Promise<void>;
-	show(): Promise<void>;
-	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;
-	resolveProxy(url: string): Promise<string | undefined>;
+export function isFolderToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFolderToOpen {
+	return !!(uriToOpen as IFolderToOpen).folderUri;
 }
 
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
+export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOpen {
+	return !!(uriToOpen as IFileToOpen).fileUri;
+}
+
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
+
+export function getMenuBarVisibility(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): MenuBarVisibility {
+	const titleBarStyle = getTitleBarStyle(configurationService, environment, isExtensionDevelopment);
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+
+	if (titleBarStyle === 'native' && menuBarVisibility === 'compact') {
+		return 'default';
+	} else {
+		return menuBarVisibility;
+	}
+}
 
 export interface IWindowsConfiguration {
 	window: IWindowSettings;
@@ -249,7 +91,7 @@ export interface IWindowSettings {
 	titleBarStyle: 'native' | 'custom';
 	autoDetectHighContrast: boolean;
 	menuBarVisibility: MenuBarVisibility;
-	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
+	newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
@@ -258,6 +100,10 @@ export interface IWindowSettings {
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
+	if (isWeb) {
+		return 'custom';
+	}
+
 	const configuration = configurationService.getValue<IWindowSettings>('window');
 
 	const isDev = !environment.isBuilt || isExtensionDevelopment;
@@ -331,22 +177,23 @@ export const enum ReadyState {
 
 export interface IPath extends IPathData {
 
-	// the file path to open within a Code instance
+	// the file path to open within the instance
 	fileUri?: URI;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
 	paths: IPath[];
+	waitMarkerFileUri: URI;
 }
 
 export interface IPathsToWaitForData {
 	paths: IPathData[];
-	waitMarkerFilePath: string;
+	waitMarkerFileUri: UriComponents;
 }
 
 export interface IPathData {
 
-	// the file path to open within a Code instance
+	// the file path to open within the instance
 	fileUri?: UriComponents;
 
 	// the line number in the file path to open
@@ -354,11 +201,15 @@ export interface IPathData {
 
 	// the column number in the file path to open
 	columnNumber?: number;
+
+	// a hint that the file exists. if true, the
+	// file exists, if false it does not. with
+	// undefined the state is unknown.
+	exists?: boolean;
 }
 
 export interface IOpenFileRequest {
-	filesToOpen?: IPathData[];
-	filesToCreate?: IPathData[];
+	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
 	filesToWait?: IPathsToWaitForData;
 	termProgram?: string;
@@ -369,8 +220,9 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs {
-	machineId: string;
-	windowId: number;
+	machineId?: string; // NOTE: This is undefined in the web, the telemetry service directly resolves this.
+	windowId: number; // TODO: should we deprecate this in favor of sessionId?
+	sessionId: string;
 	logLevel: LogLevel;
 
 	mainPid: number;
@@ -383,30 +235,26 @@ export interface IWindowConfiguration extends ParsedArgs {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
 	remoteAuthority?: string;
+	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	maximized?: boolean;
 	highContrast?: boolean;
-	frameless?: boolean;
 	accessibilitySupport?: boolean;
 	partsSplashPath?: string;
 
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
 	perfEntries: ExportData;
 
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
+	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
-	termProgram?: string;
 }
 
 export interface IRunActionInWindowRequest {
@@ -417,39 +265,4 @@ export interface IRunActionInWindowRequest {
 
 export interface IRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
-}
-
-export class ActiveWindowManager implements IDisposable {
-
-	private disposables: IDisposable[] = [];
-	private firstActiveWindowIdPromise: Promise<any> | null;
-	private _activeWindowId: number | undefined;
-
-	constructor(@IWindowsService windowsService: IWindowsService) {
-		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
-		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
-
-		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
-			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
-	}
-
-	private setActiveWindow(windowId: number | undefined) {
-		if (this.firstActiveWindowIdPromise) {
-			this.firstActiveWindowIdPromise = null;
-		}
-
-		this._activeWindowId = windowId;
-	}
-
-	getActiveClientId(): Promise<string> {
-		if (this.firstActiveWindowIdPromise) {
-			return this.firstActiveWindowIdPromise;
-		}
-
-		return Promise.resolve(`window:${this._activeWindowId}`);
-	}
-
-	dispose() {
-		this.disposables = dispose(this.disposables);
-	}
 }

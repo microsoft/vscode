@@ -95,11 +95,11 @@ export function getMappingForIncludedLanguages(): any {
 
 /**
 * Get the corresponding emmet mode for given vscode language mode
-* Eg: jsx for typescriptreact/javascriptreact or pug for jade
-* If the language is not supported by emmet or has been exlcuded via `exlcudeLanguages` setting,
+* E.g.: jsx for typescriptreact/javascriptreact or pug for jade
+* If the language is not supported by emmet or has been excluded via `excludeLanguages` setting,
 * then nothing is returned
 *
-* @param exlcudedLanguages Array of language ids that user has chosen to exlcude for emmet
+* @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
 */
 export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
 	if (!language || excludedLanguages.indexOf(language) > -1) {
@@ -608,3 +608,18 @@ export function isStyleAttribute(currentNode: Node | null, position: vscode.Posi
 }
 
 
+export function trimQuotes(s: string) {
+	if (s.length <= 1) {
+		return s.replace(/['"]/, '');
+	}
+
+	if (s[0] === `'` || s[0] === `"`) {
+		s = s.slice(1);
+	}
+
+	if (s[s.length - 1] === `'` || s[s.length - 1] === `"`) {
+		s = s.slice(0, -1);
+	}
+
+	return s;
+}

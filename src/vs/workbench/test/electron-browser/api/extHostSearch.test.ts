@@ -2,38 +2,39 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
+import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
+import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
-import { Range } from 'vs/workbench/api/node/extHostTypes';
-import { extensionResultIsMatch } from 'vs/workbench/services/search/node/textSearchManager';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
-import { TestLogService } from 'vs/workbench/test/workbenchTestServices';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 
 let rpcProtocol: TestRPCProtocol;
-let extHostSearch: ExtHostSearch;
-let disposables: vscode.Disposable[] = [];
+let extHostSearch: NativeExtHostSearch;
+const disposables = new DisposableStore();
 
 let mockMainThreadSearch: MockMainThreadSearch;
 class MockMainThreadSearch implements MainThreadSearchShape {
-	lastHandle: number;
+	lastHandle!: number;
 
 	results: Array<UriComponents | IRawFileMatch2> = [];
 
 	$registerFileSearchProvider(handle: number, scheme: string): void {
-		this.lastHandle = handle;
-	}
-
-	$registerFileIndexProvider(handle: number, scheme: string): void {
 		this.lastHandle = handle;
 	}
 
@@ -59,16 +60,20 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	}
 }
 
-let mockExtfs: Partial<typeof extfs>;
+let mockPFS: Partial<typeof pfs>;
+
+export function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
+	return !!(<vscode.TextSearchMatch>data).preview;
+}
 
 suite('ExtHostSearch', () => {
 	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.push(extHostSearch.registerTextSearchProvider(scheme, provider));
+		disposables.add(extHostSearch.registerTextSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
 	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.push(extHostSearch.registerFileSearchProvider(scheme, provider));
+		disposables.add(extHostSearch.registerFileSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
@@ -130,16 +135,30 @@ suite('ExtHostSearch', () => {
 		rpcProtocol = new TestRPCProtocol();
 
 		mockMainThreadSearch = new MockMainThreadSearch();
-		const logService = new TestLogService();
+		const logService = new NullLogService();
 
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
 
-		mockExtfs = {};
-		extHostSearch = new ExtHostSearch(rpcProtocol, null!, logService, mockExtfs as typeof extfs);
+		mockPFS = {};
+		extHostSearch = new class extends NativeExtHostSearch {
+			constructor() {
+				super(
+					rpcProtocol,
+					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined }; },
+					new URITransformerService(null),
+					logService
+				);
+				this._pfs = mockPFS as any;
+			}
+
+			protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+				return new NativeTextSearchManager(query, provider, this._pfs);
+			}
+		};
 	});
 
 	teardown(() => {
-		dispose(disposables);
+		disposables.clear();
 		return rpcProtocol.sync();
 	});
 
@@ -185,7 +204,7 @@ suite('ExtHostSearch', () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'file3.ts')
+				joinPath(rootFolderA, 'subfolder/file3.ts')
 			];
 
 			await registerTestFileSearchProvider({
@@ -590,7 +609,7 @@ suite('ExtHostSearch', () => {
 			const reportedResults = [
 				joinPath(fancySchemeFolderA, 'file1.ts'),
 				joinPath(fancySchemeFolderA, 'file2.ts'),
-				joinPath(fancySchemeFolderA, 'file3.ts'),
+				joinPath(fancySchemeFolderA, 'subfolder/file3.ts'),
 
 			];
 
@@ -860,14 +879,14 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
-			mockExtfs.readdir = (_path: string, callback: (error: Error, files: string[]) => void) => {
+			mockPFS.readdir = (_path: string) => {
 				if (_path === rootFolderA.fsPath) {
-					callback(null!, [
+					return Promise.resolve([
 						'file1.js',
 						'file1.ts'
 					]);
 				} else {
-					callback(new Error('Wrong path'), null!);
+					return Promise.reject(new Error('Wrong path'));
 				}
 			};
 
@@ -903,21 +922,21 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
-			mockExtfs.readdir = (_path: string, callback: (error: Error, files: string[]) => void) => {
+			mockPFS.readdir = (_path: string) => {
 				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
-					callback(null!, [
+					return Promise.resolve([
 						'fileA.scss',
 						'fileA.css',
 						'file2.css'
 					]);
 				} else if (_path === rootFolderB.fsPath) {
-					callback(null!, [
+					return Promise.resolve([
 						'fileB.ts',
 						'fileB.js',
 						'file3.js'
 					]);
 				} else {
-					callback(new Error('Wrong path'), null!);
+					return Promise.reject(new Error('Wrong path'));
 				}
 			};
 

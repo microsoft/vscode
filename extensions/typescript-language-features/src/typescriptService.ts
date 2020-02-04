@@ -21,12 +21,12 @@ export namespace ServerResponse {
 		) { }
 	}
 
-	export const NoContent = new class { readonly type = 'noContent'; };
+	export const NoContent = { type: 'noContent' } as const;
 
 	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
 
-export interface TypeScriptRequestTypes {
+interface StandardTsServerRequests {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
 	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
 	'completionInfo': [Proto.CompletionsRequestArgs, Proto.CompletionInfoResponse];
@@ -49,15 +49,40 @@ export interface TypeScriptRequestTypes {
 	'jsxClosingTag': [Proto.JsxClosingTagRequestArgs, Proto.JsxClosingTagResponse];
 	'navto': [Proto.NavtoRequestArgs, Proto.NavtoResponse];
 	'navtree': [Proto.FileRequestArgs, Proto.NavTreeResponse];
-	'occurrences': [Proto.FileLocationRequestArgs, Proto.OccurrencesResponse];
 	'organizeImports': [Proto.OrganizeImportsRequestArgs, Proto.OrganizeImportsResponse];
 	'projectInfo': [Proto.ProjectInfoRequestArgs, Proto.ProjectInfoResponse];
 	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];
 	'references': [Proto.FileLocationRequestArgs, Proto.ReferencesResponse];
 	'rename': [Proto.RenameRequestArgs, Proto.RenameResponse];
+	'selectionRange': [Proto.SelectionRangeRequestArgs, Proto.SelectionRangeResponse];
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
+	'updateOpen': [Proto.UpdateOpenRequestArgs, Proto.Response];
+	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
+	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
+	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
 }
+
+interface NoResponseTsServerRequests {
+	'open': [Proto.OpenRequestArgs, null];
+	'close': [Proto.FileRequestArgs, null];
+	'change': [Proto.ChangeRequestArgs, null];
+	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
+	'reloadProjects': [null, null];
+	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
+}
+
+interface AsyncTsServerRequests {
+	'geterr': [Proto.GeterrRequestArgs, Proto.Response];
+}
+
+export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRequests & AsyncTsServerRequests;
+
+export type ExecConfig = {
+	readonly lowPriority?: boolean;
+	readonly nonRecoverable?: boolean;
+	readonly cancelOnResourceChange?: vscode.Uri
+};
 
 export interface ITypeScriptServiceClient {
 	/**
@@ -100,18 +125,17 @@ export interface ITypeScriptServiceClient {
 	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;
 
-	execute<K extends keyof TypeScriptRequestTypes>(
+	execute<K extends keyof StandardTsServerRequests>(
 		command: K,
-		args: TypeScriptRequestTypes[K][0],
+		args: StandardTsServerRequests[K][0],
 		token: vscode.CancellationToken,
-		lowPriority?: boolean
-	): Promise<ServerResponse.Response<TypeScriptRequestTypes[K][1]>>;
+		config?: ExecConfig
+	): Promise<ServerResponse.Response<StandardTsServerRequests[K][1]>>;
 
-	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
-	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
-	executeWithoutWaitingForResponse(command: 'change', args: Proto.ChangeRequestArgs): void;
-	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
-	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
+	executeWithoutWaitingForResponse<K extends keyof NoResponseTsServerRequests>(
+		command: K,
+		args: NoResponseTsServerRequests[K][0]
+	): void;
 
 	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>>;
 

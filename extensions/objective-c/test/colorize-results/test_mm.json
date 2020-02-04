@@ -1,0 +1,3093 @@
+[
+	{
+		"c": "//",
+		"t": "source.objcpp comment.line.double-slash.objcpp punctuation.definition.comment.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.objcpp comment.line.double-slash.objcpp punctuation.definition.comment.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "  Copyright (c) Microsoft Corporation. All rights reserved.",
+		"t": "source.objcpp comment.line.double-slash.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.objcpp comment.line.double-slash.objcpp punctuation.definition.comment.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp punctuation.definition.directive.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.preprocessor.include.objcpp",
+		"r": {
+			"dark_plus": "meta.preprocessor: #569CD6",
+			"light_plus": "meta.preprocessor: #0000FF",
+			"dark_vs": "meta.preprocessor: #569CD6",
+			"light_vs": "meta.preprocessor: #0000FF",
+			"hc_black": "meta.preprocessor: #569CD6"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.objcpp meta.preprocessor.include.objcpp string.quoted.double.include.objcpp punctuation.definition.string.begin.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "UseQuotes.h",
+		"t": "source.objcpp meta.preprocessor.include.objcpp string.quoted.double.include.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.objcpp meta.preprocessor.include.objcpp string.quoted.double.include.objcpp punctuation.definition.string.end.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp punctuation.definition.directive.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.preprocessor.include.objcpp",
+		"r": {
+			"dark_plus": "meta.preprocessor: #569CD6",
+			"light_plus": "meta.preprocessor: #0000FF",
+			"dark_vs": "meta.preprocessor: #569CD6",
+			"light_vs": "meta.preprocessor: #0000FF",
+			"hc_black": "meta.preprocessor: #569CD6"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.objcpp meta.preprocessor.include.objcpp string.quoted.other.lt-gt.include.objcpp punctuation.definition.string.begin.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "Use/GTLT.h",
+		"t": "source.objcpp meta.preprocessor.include.objcpp string.quoted.other.lt-gt.include.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.objcpp meta.preprocessor.include.objcpp string.quoted.other.lt-gt.include.objcpp punctuation.definition.string.end.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "/*",
+		"t": "source.objcpp comment.block.objcpp punctuation.definition.comment.begin.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\tMulti",
+		"t": "source.objcpp comment.block.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\tLine",
+		"t": "source.objcpp comment.block.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\tComments",
+		"t": "source.objcpp comment.block.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "*/",
+		"t": "source.objcpp comment.block.objcpp punctuation.definition.comment.end.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.objcpp meta.implementation.objcpp storage.type.objcpp punctuation.definition.storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "implementation",
+		"t": "source.objcpp meta.implementation.objcpp storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Test",
+		"t": "source.objcpp meta.implementation.objcpp entity.name.type.objcpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "- ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": "void",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp storage.type.built-in.primitive.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": "applicationWillFinishLaunching",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp entity.name.function.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp entity.name.function.name-of-parameter.objcpp punctuation.separator.arguments.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSNotification",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp keyword.operator.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "notification",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp variable.parameter.function.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.section.block.begin.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.section.block.end.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "- ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": "IBAction",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": "onSelectInput",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp entity.name.function.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp entity.name.function.name-of-parameter.objcpp punctuation.separator.arguments.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "id",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp storage.type.id.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "sender",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp variable.parameter.function.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.section.block.begin.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSString",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " defaultDir ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.whitespace.support.function.leading.cocoa.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSSearchPathForDirectoriesInDomains",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp support.function.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp punctuation.section.parens.begin.bracket.round.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSDocumentDirectory",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp support.constant.cocoa.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp punctuation.separator.delimiter.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSUserDomainMask",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp support.constant.cocoa.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp punctuation.separator.delimiter.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "true",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp constant.language.objcpp",
+		"r": {
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.parens.block.objcpp punctuation.section.parens.end.bracket.round.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSOpenPanel",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " panel ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSOpenPanel",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": " openPanel",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "panel setAllowedFileTypes:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSArray",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": " alloc",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " initWithObjects:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@\"",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp punctuation.definition.string.begin.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ipa",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp punctuation.definition.string.end.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.separator.delimiter.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@\"",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp punctuation.definition.string.begin.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "xcarchive",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp punctuation.definition.string.end.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.separator.delimiter.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@\"",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp punctuation.definition.string.begin.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "app",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp string.quoted.double.objcpp punctuation.definition.string.end.objcpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.separator.delimiter.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "nil",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp constant.language.objcpp",
+		"r": {
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "panel beginWithCompletionHandler:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "^",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp keyword.operator.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.section.parens.begin.bracket.round.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSInteger",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp support.type.cocoa.leopard.objcpp",
+		"r": {
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.type: #4EC9B0"
+		}
+	},
+	{
+		"c": " result",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.section.parens.end.bracket.round.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "     ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.section.block.begin.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "         ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "if",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp keyword.control.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.parens.block.objcpp punctuation.section.parens.begin.bracket.round.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "result ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.parens.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "==",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.parens.block.objcpp keyword.operator.comparison.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.parens.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSFileHandlingPanelOKButton",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.parens.block.objcpp support.constant.cocoa.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.parens.block.objcpp punctuation.section.parens.end.bracket.round.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "             ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "self",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp variable.other.object.access.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.separator.dot-access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "inputTextField",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp variable.other.member.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " setStringValue:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "panel",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp variable.other.object.access.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.separator.dot-access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "URL",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp variable.other.member.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " path",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "     ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.section.block.end.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "     ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.control.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "YES",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.language.objcpp",
+		"r": {
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "     ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "int",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp storage.type.built-in.primitive.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " hex ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0x",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.other.unit.hexadecimal.objcpp",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": "FEF1F0F",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.hexadecimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "float",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp storage.type.built-in.primitive.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ing ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "3",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.point.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "14",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t ing ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "3",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.point.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "14",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "e",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.other.unit.exponent.decimal.objcpp",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.exponent.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t ing ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "31",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.point.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "4",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "e",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.other.unit.exponent.decimal.objcpp",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.minus.exponent.decimal.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator.minus.exponent: #B5CEA8",
+			"light_plus": "keyword.operator.minus.exponent: #098658",
+			"dark_vs": "keyword.operator.minus.exponent: #B5CEA8",
+			"light_vs": "keyword.operator.minus.exponent: #098658",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.numeric.exponent.decimal.objcpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.section.block.end.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": "id",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp storage.type.id.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp",
+		"r": {
+			"dark_plus": "meta.return-type: #4EC9B0",
+			"light_plus": "meta.return-type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "meta.return-type: #4EC9B0"
+		}
+	},
+	{
+		"c": "initWithParams",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp entity.name.function.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp entity.name.function.name-of-parameter.objcpp punctuation.separator.arguments.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "id",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp meta.protocol-list.objcpp punctuation.section.scope.begin.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "anObject",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp meta.protocol-list.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp meta.protocol-list.objcpp punctuation.section.scope.end.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "aHandler",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp variable.parameter.function.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "withDeviceStateManager",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp entity.name.function.name-of-parameter.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp entity.name.function.name-of-parameter.objcpp punctuation.separator.arguments.objcpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.begin.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "id",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp meta.protocol-list.objcpp punctuation.section.scope.begin.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "anotherObject",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp meta.protocol-list.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp meta.id-with-protocol.objcpp meta.protocol-list.objcpp punctuation.section.scope.end.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp punctuation.definition.type.end.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "deviceStateManager",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.argument-type.objcpp variable.parameter.function.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.section.block.begin.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.whitespace.comment.leading.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp comment.line.double-slash.objcpp punctuation.definition.comment.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " add a tap gesture recognizer",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp comment.line.double-slash.objcpp",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "    UITapGestureRecognizer ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "tapGesture ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "UITapGestureRecognizer alloc",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " initWithTarget:self action:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.selector.objcpp storage.type.objcpp punctuation.definition.storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "selector",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.selector.objcpp storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.selector.objcpp punctuation.definition.storage.type.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "handleTap:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.selector.objcpp meta.selector.method-name.objcpp support.function.any-method.name-of-parameter.objcpp",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp meta.selector.objcpp punctuation.definition.storage.type.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSMutableArray",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "gestureRecognizers ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSMutableArray",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp support.class.cocoa.objcpp",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.class: #4EC9B0"
+		}
+	},
+	{
+		"c": " array",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "gestureRecognizers addObject:tapGesture",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.begin.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "gestureRecognizers addObjectsFromArray:",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "scnView",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp variable.other.object.access.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.separator.dot-access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "gestureRecognizers",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp variable.other.member.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp meta.bracket.square.access.objcpp punctuation.definition.end.bracket.square.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "scnView",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp variable.other.object.access.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.separator.dot-access.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "gestureRecognizers",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp variable.other.member.objcpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.operator.assignment.objcpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " gestureRecognizers",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.control.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " tapGesture",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp keyword.control.objcpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "nil",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp constant.language.objcpp",
+		"r": {
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.terminator.statement.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.block.objcpp punctuation.section.block.end.bracket.curly.objcpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.objcpp meta.implementation.objcpp storage.type.objcpp punctuation.definition.storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "end",
+		"t": "source.objcpp meta.implementation.objcpp storage.type.objcpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	}
+]

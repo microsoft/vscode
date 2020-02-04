@@ -94,7 +94,7 @@ export class PreviewSecuritySelector {
 		private readonly webviewManager: MarkdownPreviewManager
 	) { }
 
-	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
+	public async showSecuritySelectorForResource(resource: vscode.Uri): Promise<void> {
 		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
 			readonly type: 'moreinfo' | 'toggle' | MarkdownPreviewSecurityLevel;
 		}
@@ -134,10 +134,10 @@ export class PreviewSecuritySelector {
 					description: localize('toggleSecurityWarning.description', 'Does not affect the content security level')
 				},
 			], {
-				placeHolder: localize(
-					'preview.showPreviewSecuritySelector.title',
-					'Select security settings for Markdown previews in this workspace'),
-			});
+			placeHolder: localize(
+				'preview.showPreviewSecuritySelector.title',
+				'Select security settings for Markdown previews in this workspace'),
+		});
 		if (!selection) {
 			return;
 		}

@@ -5,6 +5,7 @@
 
 import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -14,6 +15,24 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 		return true;
 	}
 	return compareIgnoreCase(a.id, b.id) === 0;
+}
+
+export class ExtensionIdentifierWithVersion {
+	constructor(
+		readonly identifier: IExtensionIdentifier,
+		readonly version: string
+	) { }
+
+	key(): string {
+		return `${this.identifier.id}-${this.version}`;
+	}
+
+	equals(o: any): boolean {
+		if (!(o instanceof ExtensionIdentifierWithVersion)) {
+			return false;
+		}
+		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+	}
 }
 
 export function adoptToGalleryExtensionId(id: string): string {
@@ -26,7 +45,7 @@ export function getGalleryExtensionId(publisher: string, name: string): string {
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
 	const byExtension: T[][] = [];
-	const findGroup = extension => {
+	const findGroup = (extension: T) => {
 		for (const group of byExtension) {
 			if (group.some(e => areSameExtensions(getExtensionIdentifier(e), getExtensionIdentifier(extension)))) {
 				return group;
@@ -85,7 +104,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 	};
 }
 
-export const BetterMergeId = 'pprice.better-merge';
+export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
 export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
 	const result = new Set<string>();
@@ -97,4 +116,25 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	}
 
 	return result;
+}
+
+export interface IBuiltInExtension {
+	name: string;
+	version: string;
+	repo: string;
+	forQualities?: ReadonlyArray<string>;
+	metadata: any;
+}
+
+/**
+ * Parses the built-in extension JSON data and filters it down to the
+ * extensions built into this product quality.
+ */
+export function parseBuiltInExtensions(rawJson: string, productQuality: string | undefined) {
+	const parsed: IBuiltInExtension[] = JSON.parse(rawJson);
+	if (!productQuality) {
+		return parsed;
+	}
+
+	return parsed.filter(ext => ext.forQualities?.indexOf?.(productQuality) !== -1);
 }

@@ -85,7 +85,7 @@ export class KeybindingParser {
 			return null;
 		}
 
-		let parts: SimpleKeybinding[] = [];
+		const parts: SimpleKeybinding[] = [];
 		let part: SimpleKeybinding;
 
 		do {
@@ -112,7 +112,7 @@ export class KeybindingParser {
 			return [];
 		}
 
-		let parts: (SimpleKeybinding | ScanCodeBinding)[] = [];
+		const parts: (SimpleKeybinding | ScanCodeBinding)[] = [];
 		let part: SimpleKeybinding | ScanCodeBinding;
 
 		while (input.length > 0) {

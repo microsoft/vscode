@@ -6,6 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { CharCode } from 'vs/base/common/charCode';
+import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
 
 export class ReplacePattern {
 
@@ -26,7 +27,7 @@ export class ReplacePattern {
 		} else {
 			searchPatternInfo = arg2;
 			parseParameters = !!searchPatternInfo.isRegExp;
-			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false });
+			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false, unicode: true });
 		}
 
 		if (parseParameters) {
@@ -54,21 +55,29 @@ export class ReplacePattern {
 	* Returns the replace string for the first match in the given text.
 	* If text has no matches then returns null.
 	*/
-	getReplaceString(text: string): string | null {
+	getReplaceString(text: string, preserveCase?: boolean): string | null {
 		this._regExp.lastIndex = 0;
 		let match = this._regExp.exec(text);
 		if (match) {
 			if (this.hasParameters) {
 				if (match[0] === text) {
-					return text.replace(this._regExp, this.pattern);
+					return text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				}
-				let replaceString = text.replace(this._regExp, this.pattern);
+				let replaceString = text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
 			}
-			return this.pattern;
+			return this.buildReplaceString(match, preserveCase);
 		}
 
 		return null;
+	}
+
+	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
+		if (preserveCase) {
+			return buildReplaceStringWithCasePreserved(matches, this._replacePattern);
+		} else {
+			return this._replacePattern;
+		}
 	}
 
 	/**

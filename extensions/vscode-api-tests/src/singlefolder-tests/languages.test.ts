@@ -6,9 +6,11 @@
 import * as assert from 'assert';
 import { join } from 'path';
 import * as vscode from 'vscode';
-import { createRandomFile } from '../utils';
+import { createRandomFile, testFs } from '../utils';
 
 suite('languages namespace tests', () => {
+
+	const isWindows = process.platform === 'win32';
 
 	function positionToString(p: vscode.Position) {
 		return `[${p.character}/${p.line}]`;
@@ -93,7 +95,7 @@ suite('languages namespace tests', () => {
 		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
 		const doc = await vscode.workspace.openTextDocument(uri);
 
-		const target = vscode.Uri.parse('file://foo/bar');
+		const target = vscode.Uri.file(isWindows ? 'c:\\foo\\bar' : '/foo/bar');
 		const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5));
 
 		const linkProvider: vscode.DocumentLinkProvider = {
@@ -101,7 +103,7 @@ suite('languages namespace tests', () => {
 				return [new vscode.DocumentLink(range, target)];
 			}
 		};
-		vscode.languages.registerDocumentLinkProvider({ language: 'java', scheme: 'file' }, linkProvider);
+		vscode.languages.registerDocumentLinkProvider({ language: 'java', scheme: testFs.scheme }, linkProvider);
 
 		const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', doc.uri);
 		assert.equal(2, links && links.length);
@@ -178,8 +180,8 @@ suite('languages namespace tests', () => {
 		await vscode.workspace.openTextDocument(uri);
 		const result = await vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
 		r1.dispose();
-		assert.ok(ran);
-		assert.equal(result!.items[0].label, 'foo');
+		assert.ok(ran, 'Provider has not been invoked');
+		assert.ok(result!.items.some(i => i.label === 'foo'), 'Results do not include "foo"');
 	});
 
 });

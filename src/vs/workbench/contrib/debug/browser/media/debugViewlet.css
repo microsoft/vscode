@@ -13,45 +13,41 @@
 	height: 100%;
 }
 
-/* Actionbar actions */
-
-.monaco-workbench .debug-action.configure {
-	background: url('configure.svg') center center no-repeat;
+.debug-viewlet .debug-start-view {
+	padding: 0 20px 0 20px;
 }
 
-.monaco-workbench .debug-action.start {
-	background: url('start.svg') center center no-repeat;
+.debug-viewlet .debug-start-view .monaco-button,
+.debug-viewlet .debug-start-view .section {
+	margin-top: 20px;
 }
 
-.monaco-workbench .debug-action.toggle-repl {
-	background: url('repl.svg') center center no-repeat;
+.debug-viewlet .debug-start-view .top-section {
+	margin-top: 10px;
 }
 
-.monaco-workbench .debug-action.notification:before {
+.debug-viewlet .debug-start-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
+.debug-viewlet .debug-start-view .click {
+	cursor: pointer;
+	color: #007ACC;
+}
+
+.monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;
 	height: 6px;
 	background-color: #CC6633;
 	position: absolute;
-	top: 11px;
-	right: 5px;
+	top: 10px;
+	right: 6px;
 	border-radius: 10px;
 	border: 1px solid white;
-}
-
-.vs-dark .monaco-workbench .debug-action.start,
-.hc-black .monaco-workbench .debug-action.start {
-	background: url('continue-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-action.configure,
-.hc-black .monaco-workbench .debug-action.configure {
-	background: url('configure-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-action.toggle-repl,
-.hc-black .monaco-workbench .debug-action.toggle-repl {
-	background: url('repl-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item {
@@ -68,19 +64,9 @@
 	border-radius: 4px;
 }
 
-.monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon {
-	height: 20px;
-	width: 20px;
-	background: url('start.svg') no-repeat;
-	background-size: 16px 16px;
-	background-position: center center;
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon {
 	flex-shrink: 0;
 	transition: transform 50ms ease;
-}
-
-.vs-dark .monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon,
-.hc-black .monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon {
-	background-image: url('start-inverse.svg');
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
@@ -95,7 +81,7 @@
 	cursor: initial;
 }
 
-.monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon.active {
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon.active {
 	transform: scale(1.272019649, 1.272019649);
 }
 
@@ -117,8 +103,12 @@
 	color: #666;
 }
 
+.debug-viewlet .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 .debug-viewlet .disabled {
-	opacity: 0.35;
+	opacity: 0.65;
 }
 
 /* Call stack */
@@ -163,14 +153,48 @@
 	display: flex;
 }
 
+.debug-viewlet .debug-call-stack .thread > .name,
+.debug-viewlet .debug-call-stack .session > .name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .debug-viewlet .debug-call-stack .thread > .state,
 .debug-viewlet .debug-call-stack .session > .state {
-	flex: 1;
 	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding: 0 10px;
 	text-transform: uppercase;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .state {
+	display: none;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file .line-number {
+	visibility: hidden;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .monaco-action-bar {
+	position: absolute;
+	right: 2px;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row .monaco-action-bar {
+	display: none;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
+	display: initial;
+}
+
+.monaco-workbench  .debug-viewlet .debug-call-stack .monaco-action-bar .action-item > .action-label {
+	width: 16px;
+	height: 100%;
+	margin-right: 8px;
+	vertical-align: text-top;
 }
 
 .debug-viewlet .debug-call-stack .thread > .state > .label,
@@ -197,6 +221,7 @@
 	flex: 1;
 	flex-shrink: 0;
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame.subtle {
@@ -245,14 +270,14 @@
 	opacity: 0.35;
 }
 
-.monaco-workbench .debug-viewlet .monaco-list-row .expression {
-	white-space: pre;
-}
-
 .debug-viewlet .debug-call-stack .error {
 	font-style: italic;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .codicon {
+	color: inherit !important;
 }
 
 /* Variables & Expression view */
@@ -316,17 +341,6 @@
 	flex : 1;
 }
 
-.debug-viewlet .debug-action.add-watch-expression,
-.debug-viewlet .debug-action.add-function-breakpoint {
-	background: url('add.svg') center center no-repeat;
-}
-
-.vs-dark .debug-viewlet .debug-action.add-watch-expression,
-.vs-dark .debug-viewlet .debug-action.add-function-breakpoint,
-.hc-black .debug-viewlet .debug-action.add-watch-expression {
-	background: url('add-inverse.svg') center center no-repeat;
-}
-
 .vs-dark .debug-viewlet .monaco-list-row .expression .value.changed {
 	animation-name: debugViewletValueChanged;
 }
@@ -356,10 +370,13 @@
 	flex-shrink: 0;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon {
 	width: 19px;
 	height: 19px;
 	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
@@ -374,32 +391,4 @@
 .debug-viewlet .debug-breakpoints .breakpoint .name {
 	overflow: hidden;
 	text-overflow: ellipsis
-}
-
-.debug-viewlet .debug-action.remove-all {
-	background: url('remove-all.svg') center center no-repeat;
-}
-
-.debug-viewlet .debug-action.breakpoints-activate {
-	background: url('breakpoints-activate.svg') center center no-repeat;
-}
-
-.vs-dark .debug-viewlet .debug-action.remove-all,
-.hc-black .debug-viewlet .debug-action.remove-all {
-	background: url('remove-all-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .debug-viewlet .debug-action.breakpoints-activate,
-.hc-black .debug-viewlet .debug-action.breakpoints-activate {
-	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
-}
-
-/* No workspace view */
-
-.debug-viewlet > .noworkspace-view {
-	padding: 0 20px 0 20px;
-}
-
-.debug-viewlet > .noworkspace-view > p {
-	line-height: 1.5em;
 }

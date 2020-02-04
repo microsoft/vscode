@@ -3,16 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../browser/menuPreventer';
-import './accessibility';
-import './inspectKeybindings';
-import '../browser/largeFileOptimizations';
-import './selectionClipboard';
+import './inputClipboardActions';
 import './sleepResumeRepaintMinimap';
-import './textMate/inspectTMScopes';
-import './toggleMinimap';
-import './toggleMultiCursorModifier';
-import './toggleRenderControlCharacter';
-import './toggleRenderWhitespace';
-import './toggleWordWrap';
-import './workbenchReferenceSearch';
+import './selectionClipboard';

@@ -14,10 +14,6 @@ suite('RangeMap', () => {
 		rangeMap = new RangeMap();
 	});
 
-	teardown(() => {
-		rangeMap.dispose();
-	});
-
 	test('intersection', () => {
 		assert.deepEqual(Range.intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), { start: 0, end: 0 });
 		assert.deepEqual(Range.intersect({ start: 0, end: 0 }, { start: 5, end: 5 }), { start: 0, end: 0 });

@@ -31,7 +31,7 @@ export class ErrorHandler {
 		};
 	}
 
-	public addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
+	addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
 		this.listeners.push(listener);
 
 		return () => {
@@ -49,21 +49,21 @@ export class ErrorHandler {
 		this.listeners.splice(this.listeners.indexOf(listener), 1);
 	}
 
-	public setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
+	setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 		this.unexpectedErrorHandler = newUnexpectedErrorHandler;
 	}
 
-	public getUnexpectedErrorHandler(): (e: any) => void {
+	getUnexpectedErrorHandler(): (e: any) => void {
 		return this.unexpectedErrorHandler;
 	}
 
-	public onUnexpectedError(e: any): void {
+	onUnexpectedError(e: any): void {
 		this.unexpectedErrorHandler(e);
 		this.emit(e);
 	}
 
 	// For external errors, we don't want the listeners to be called
-	public onUnexpectedExternalError(e: any): void {
+	onUnexpectedExternalError(e: any): void {
 		this.unexpectedErrorHandler(e);
 	}
 }
@@ -102,7 +102,7 @@ export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		let { name, message } = error;
-		let stack: string = (<any>error).stacktrace || (<any>error).stack;
+		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
 			name,
@@ -146,7 +146,7 @@ export function isPromiseCanceledError(error: any): boolean {
  * Returns an error that signals cancellation.
  */
 export function canceled(): Error {
-	let error = new Error(canceledName);
+	const error = new Error(canceledName);
 	error.name = error.message;
 	return error;
 }
@@ -193,4 +193,13 @@ export function getErrorMessage(err: any): string {
 	}
 
 	return String(err);
+}
+
+export class NotImplementedError extends Error {
+	constructor(message?: string) {
+		super('NotImplemented');
+		if (message) {
+			this.message = message;
+		}
+	}
 }

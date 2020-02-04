@@ -38,7 +38,7 @@ export interface IQuickNavigateConfiguration {
 export interface IPickOptions<T extends IQuickPickItem> {
 
 	/**
-	 * an optional string to show as place holder in the input box to guide the user what she picks on
+	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
 
@@ -51,6 +51,16 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to include the detail when filtering the picks
 	 */
 	matchOnDetail?: boolean;
+
+	/**
+	 * an optional flag to filter the picks based on label. Defaults to true.
+	 */
+	matchOnLabel?: boolean;
+
+	/**
+	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
+	 */
+	autoFocusOnList?: boolean;
 
 	/**
 	 * an optional flag to not close the picker on focus lost
@@ -100,7 +110,7 @@ export interface IInputOptions {
 	prompt?: string;
 
 	/**
-	 * an optional string to show as place holder in the input box to guide the user what to type
+	 * an optional string to show as placeholder in the input box to guide the user what to type
 	 */
 	placeHolder?: string;
 
@@ -120,6 +130,8 @@ export interface IInputOptions {
 export interface IQuickInput {
 
 	title: string | undefined;
+
+	description: string | undefined;
 
 	step: number | undefined;
 
@@ -152,6 +164,16 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidAccept: Event<void>;
 
+	ok: boolean;
+
+	readonly onDidCustom: Event<void>;
+
+	customButton: boolean;
+
+	customLabel: string | undefined;
+
+	customHover: string | undefined;
+
 	buttons: ReadonlyArray<IQuickInputButton>;
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
@@ -166,6 +188,12 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnDetail: boolean;
 
+	matchOnLabel: boolean;
+
+	sortByLabel: boolean;
+
+	autoFocusOnList: boolean;
+
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
@@ -177,6 +205,12 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	readonly onDidChangeSelection: Event<T[]>;
 
 	readonly keyMods: IKeyMods;
+
+	valueSelection: Readonly<[number, number]> | undefined;
+
+	validationMessage: string | undefined;
+
+	inputHasFocus(): boolean;
 }
 
 export interface IInputBox extends IQuickInput {
@@ -227,7 +261,7 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export interface IQuickInputService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.

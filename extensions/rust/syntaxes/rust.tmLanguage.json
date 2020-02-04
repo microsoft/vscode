@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/5238d9834953ed7c58d9b5b9bb0c084c3c11ecd6",
+	"version": "https://github.com/zargony/atom-language-rust/commit/7d59e2ad79fbe5925bd2fd3bd3857bf9f421ff6f",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -160,7 +160,7 @@
 		{
 			"comment": "Control keyword",
 			"name": "keyword.control.rust",
-			"match": "\\b(break|continue|else|if|in|for|loop|match|return|while)\\b"
+			"match": "\\b(async|await|break|continue|else|if|in|for|loop|match|return|try|while)\\b"
 		},
 		{
 			"comment": "Keyword",

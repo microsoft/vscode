@@ -102,7 +102,7 @@ export interface IUndoRedoResult {
 
 export class EditStack {
 
-	private model: TextModel;
+	private readonly model: TextModel;
 	private currentOpenStackElement: IStackElement | null;
 	private past: IStackElement[];
 	private future: IStackElement[];
@@ -210,7 +210,7 @@ export class EditStack {
 	}
 
 	public canUndo(): boolean {
-		return (this.past.length > 0);
+		return (this.past.length > 0) || this.currentOpenStackElement !== null;
 	}
 
 	public redo(): IUndoRedoResult | null {

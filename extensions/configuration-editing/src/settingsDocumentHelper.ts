@@ -34,7 +34,11 @@ export class SettingsDocument {
 
 		// files.defaultLanguage
 		if (location.path[0] === 'files.defaultLanguage') {
-			return this.provideLanguageCompletionItems(location, range);
+			return this.provideLanguageCompletionItems(location, range).then(items => {
+
+				// Add special item '${activeEditorLanguage}'
+				return [this.newSimpleCompletionItem(JSON.stringify('${activeEditorLanguage}'), range, localize('activeEditor', "Use the language of the currently active text editor if any")), ...items];
+			});
 		}
 
 		return this.provideLanguageOverridesCompletionItems(location, position);
@@ -54,6 +58,7 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
 		completions.push(this.newSimpleCompletionItem('${folderPath}', range, localize('folderPath', "file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
 		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
+		completions.push(this.newSimpleCompletionItem('${remoteName}', range, localize('remoteName', "e.g. SSH")));
 		completions.push(this.newSimpleCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
 		completions.push(this.newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
 
@@ -152,7 +157,7 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): Thenable<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
 			const completionItems = [];
 			const configuration = vscode.workspace.getConfiguration();

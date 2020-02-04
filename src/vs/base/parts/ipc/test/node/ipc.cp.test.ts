@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { always } from 'vs/base/common/async';
 import { TestServiceClient } from './testService';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
@@ -27,7 +26,7 @@ suite('IPC, Child Process', () => {
 			assert.equal(r.outgoing, 'pong');
 		});
 
-		return always(result, () => client.dispose());
+		return result.finally(() => client.dispose());
 	});
 
 	test('events', () => {
@@ -49,7 +48,7 @@ suite('IPC, Child Process', () => {
 		const request = service.marco();
 		const result = Promise.all([request, event]);
 
-		return always(result, () => client.dispose());
+		return result.finally(() => client.dispose());
 	});
 
 	test('event dispose', () => {
@@ -74,6 +73,6 @@ suite('IPC, Child Process', () => {
 			assert.equal(count, 2);
 		});
 
-		return always(result, () => client.dispose());
+		return result.finally(() => client.dispose());
 	});
 });

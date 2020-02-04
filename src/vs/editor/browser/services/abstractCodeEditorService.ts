@@ -13,7 +13,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
@@ -31,8 +31,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	public readonly onDidChangeTransientModelProperty: Event<ITextModel> = this._onDidChangeTransientModelProperty.event;
 
 
-	private _codeEditors: { [editorId: string]: ICodeEditor; };
-	private _diffEditors: { [editorId: string]: IDiffEditor; };
+	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
+	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
 
 	constructor() {
 		super();
@@ -73,7 +73,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	getFocusedCodeEditor(): ICodeEditor | null {
 		let editorWithWidgetFocus: ICodeEditor | null = null;
 
-		let editors = this.listCodeEditors();
+		const editors = this.listCodeEditors();
 		for (const editor of editors) {
 
 			if (editor.hasTextFocus()) {
@@ -89,11 +89,11 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return editorWithWidgetFocus;
 	}
 
-	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
+	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
 	abstract removeDecorationType(key: string): void;
 	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
 
-	private _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
 
 	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
 		const uri = model.uri.toString();
@@ -120,6 +120,16 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return this._transientWatchers[uri].get(key);
 	}
 
+	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].keys().map(key => [key, this._transientWatchers[uri].get(key)]);
+	}
+
 	_removeWatcher(w: ModelTransientSettingWatcher): void {
 		delete this._transientWatchers[w.uri];
 	}
@@ -144,5 +154,9 @@ export class ModelTransientSettingWatcher {
 
 	public get(key: string): any {
 		return this._values[key];
+	}
+
+	public keys(): string[] {
+		return Object.keys(this._values);
 	}
 }

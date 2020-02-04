@@ -10,10 +10,15 @@ import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -29,18 +34,24 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	static readonly ID = 'workbench.editorinputs.defaultpreferences';
-	constructor(defaultSettingsResource: URI,
+	constructor(
+		defaultSettingsResource: URI,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService, textFileService, editorService, editorGroupService, fileService, labelService, filesConfigurationService);
 	}
 
 	getTypeId(): string {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
-	matches(other: any): boolean {
+	matches(other: unknown): boolean {
 		if (other instanceof DefaultPreferencesEditorInput) {
 			return true;
 		}
@@ -51,10 +62,18 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	}
 }
 
+export interface IKeybindingsEditorSearchOptions {
+	searchValue: string;
+	recordKeybindings: boolean;
+	sortByPrecedence: boolean;
+}
+
 export class KeybindingsEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.keybindings';
 	readonly keybindingsModel: KeybindingsEditorModel;
+
+	searchOptions: IKeybindingsEditorSearchOptions | null = null;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
@@ -73,7 +92,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return Promise.resolve(this.keybindingsModel);
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
 	}
 }
@@ -95,7 +114,7 @@ export class SettingsEditor2Input extends EditorInput {
 		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return otherInput instanceof SettingsEditor2Input;
 	}
 

@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
-import { Position } from 'vs/workbench/api/node/extHostTypes';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { Position } from 'vs/workbench/api/common/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
@@ -251,11 +251,7 @@ suite('ExtHostDocumentData', () => {
 		assert.equal(range.end.character, 4);
 
 		// ignore bad regular expresson /.*/
-		range = data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.start.character, 0);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 4);
+		assert.throws(() => data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!);
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/)!;
 		assert.equal(range.start.line, 0);

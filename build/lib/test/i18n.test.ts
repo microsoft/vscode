@@ -39,7 +39,7 @@ suite('XLF Parser Tests', () => {
 			base = { name: 'vs/base', project: editorProject },
 			code = { name: 'vs/code', project: workbenchProject },
 			workbenchParts = { name: 'vs/workbench/contrib/html', project: workbenchProject },
-			workbenchServices = { name: 'vs/workbench/services/files', project: workbenchProject },
+			workbenchServices = { name: 'vs/workbench/services/textfile', project: workbenchProject },
 			workbench = { name: 'vs/workbench', project: workbenchProject};
 
 		assert.deepEqual(i18n.getResource('vs/platform/actions/browser/menusExtensionPoint'), platform);
@@ -48,7 +48,7 @@ suite('XLF Parser Tests', () => {
 		assert.deepEqual(i18n.getResource('vs/base/common/errorMessage'), base);
 		assert.deepEqual(i18n.getResource('vs/code/electron-main/window'), code);
 		assert.deepEqual(i18n.getResource('vs/workbench/contrib/html/browser/webview'), workbenchParts);
-		assert.deepEqual(i18n.getResource('vs/workbench/services/files/node/fileService'), workbenchServices);
+		assert.deepEqual(i18n.getResource('vs/workbench/services/textfile/node/testFileService'), workbenchServices);
 		assert.deepEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
 	});
 });

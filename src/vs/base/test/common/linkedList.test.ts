@@ -52,6 +52,14 @@ suite('LinkedList', function () {
 		disp = list.push(2);
 		disp();
 		assertElements(list, 0, 1);
+
+		list = new LinkedList<number>();
+		list.push(0);
+		list.push(1);
+		disp = list.push(2);
+		disp();
+		disp();
+		assertElements(list, 0, 1);
 	});
 
 	test('Push/toArray', () => {

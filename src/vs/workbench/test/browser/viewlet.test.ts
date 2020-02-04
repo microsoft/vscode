@@ -13,16 +13,16 @@ suite('Viewlets', () => {
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null!, null!, null!, null!, null!);
+			super('id', null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
 		}
 
-		public layout(dimension: any): void {
+		layout(dimension: any): void {
 			throw new Error('Method not implemented.');
 		}
 	}
 
 	test('ViewletDescriptor API', function () {
-		let d = new ViewletDescriptor(TestViewlet, 'id', 'name', 'class', 5);
+		let d = ViewletDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 		assert.strictEqual(d.cssClass, 'class');
@@ -30,11 +30,11 @@ suite('Viewlets', () => {
 	});
 
 	test('Editor Aware ViewletDescriptor API', function () {
-		let d = new ViewletDescriptor(TestViewlet, 'id', 'name', 'class', 5);
+		let d = ViewletDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 
-		d = new ViewletDescriptor(TestViewlet, 'id', 'name', 'class', 5);
+		d = ViewletDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 	});
@@ -45,7 +45,7 @@ suite('Viewlets', () => {
 		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets));
 
 		let oldCount = Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length;
-		let d = new ViewletDescriptor(TestViewlet, 'reg-test-id', 'name');
+		let d = ViewletDescriptor.create(TestViewlet, 'reg-test-id', 'name');
 		Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet(d);
 
 		assert(d === Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));

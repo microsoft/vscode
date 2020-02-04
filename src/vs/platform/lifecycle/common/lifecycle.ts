@@ -29,7 +29,7 @@ export interface BeforeShutdownEvent {
 	/**
 	 * The reason why the application will be shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface WillShutdownEvent {
 	/**
 	 * The reason why the application is shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 export const enum ShutdownReason {
@@ -123,7 +123,7 @@ export function LifecyclePhaseToString(phase: LifecyclePhase) {
  */
 export interface ILifecycleService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Value indicates how this window got loaded.
@@ -133,7 +133,7 @@ export interface ILifecycleService {
 	/**
 	 * A flag indicating in what phase of the lifecycle we currently are.
 	 */
-	readonly phase: LifecyclePhase;
+	phase: LifecyclePhase;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
@@ -166,12 +166,16 @@ export interface ILifecycleService {
 }
 
 export const NullLifecycleService: ILifecycleService = {
-	_serviceBrand: null,
+
+	_serviceBrand: undefined,
+
 	onBeforeShutdown: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None,
+
 	phase: LifecyclePhase.Restored,
 	startupKind: StartupKind.NewWindow,
+
 	when() { return Promise.resolve(); }
 };
 

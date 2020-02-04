@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./gotoLine';
-import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -12,11 +12,12 @@ import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editor
 import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { BaseEditorQuickOpenAction, IDecorator } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { GoToLineNLS } from 'vs/editor/common/standaloneStrings';
 
 interface ParseResult {
 	position: Position;
@@ -25,11 +26,11 @@ interface ParseResult {
 }
 
 export class GotoLineEntry extends QuickOpenEntry {
-	private parseResult: ParseResult;
-	private decorator: IDecorator;
-	private editor: editorCommon.IEditor;
+	private readonly parseResult: ParseResult;
+	private readonly decorator: IDecorator;
+	private readonly editor: IEditor;
 
-	constructor(line: string, editor: editorCommon.IEditor, decorator: IDecorator) {
+	constructor(line: string, editor: IEditor, decorator: IDecorator) {
 		super();
 
 		this.editor = editor;
@@ -62,14 +63,14 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		if (isValid) {
 			if (position.column && position.column > 1) {
-				label = nls.localize('gotoLineLabelValidLineAndColumn', "Go to line {0} and character {1}", position.lineNumber, position.column);
+				label = strings.format(GoToLineNLS.gotoLineLabelValidLineAndColumn, position.lineNumber, position.column);
 			} else {
-				label = nls.localize('gotoLineLabelValidLine', "Go to line {0}", position.lineNumber, position.column);
+				label = strings.format(GoToLineNLS.gotoLineLabelValidLine, position.lineNumber);
 			}
 		} else if (position.lineNumber < 1 || position.lineNumber > (model ? model.getLineCount() : 0)) {
-			label = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to", model ? model.getLineCount() : 0);
+			label = strings.format(GoToLineNLS.gotoLineLabelEmptyWithLineLimit, model ? model.getLineCount() : 0);
 		} else {
-			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to", model ? model.getLineMaxColumn(position.lineNumber) : 0);
+			label = strings.format(GoToLineNLS.gotoLineLabelEmptyWithLineAndColumnLimit, model ? model.getLineMaxColumn(position.lineNumber) : 0);
 		}
 
 		return {
@@ -86,7 +87,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 	getAriaLabel(): string {
 		const position = this.editor.getPosition();
 		const currentLine = position ? position.lineNumber : 0;
-		return nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {0}.", currentLine, this.parseResult.label);
+		return strings.format(GoToLineNLS.gotoLineAriaLabel, currentLine, this.parseResult.label);
 	}
 
 	run(mode: Mode, _context: IEntryRunContext): boolean {
@@ -107,7 +108,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 		// Apply selection and focus
 		const range = this.toSelection();
 		(<ICodeEditor>this.editor).setSelection(range);
-		(<ICodeEditor>this.editor).revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
+		(<ICodeEditor>this.editor).revealRangeInCenter(range, ScrollType.Smooth);
 		this.editor.focus();
 
 		return true;
@@ -123,7 +124,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		// Select Line Position
 		const range = this.toSelection();
-		this.editor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
+		this.editor.revealRangeInCenter(range, ScrollType.Smooth);
 
 		// Decorate if possible
 		this.decorator.decorateLine(range, this.editor);
@@ -144,11 +145,11 @@ export class GotoLineEntry extends QuickOpenEntry {
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
-		super(nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a character number to navigate to"), {
+		super(GoToLineNLS.gotoLineActionInput, {
 			id: 'editor.action.gotoLine',
-			label: nls.localize('GotoLineAction.label', "Go to Line..."),
+			label: GoToLineNLS.gotoLineActionLabel,
 			alias: 'Go to Line...',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,

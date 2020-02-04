@@ -3,33 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
-
-/**
- * This implementation doesn't perform well since it uses base64 encoding for buffers.
- * Electron 3.0 should have suport for buffers in IPC: https://github.com/electron/electron/pull/13055
- */
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { Event } from 'vs/base/common/event';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface Sender {
-	send(channel: string, msg: string | null): void;
+	send(channel: string, msg: Buffer | null): void;
 }
 
 export class Protocol implements IMessagePassingProtocol {
 
-	private listener: IDisposable;
+	constructor(private sender: Sender, readonly onMessage: Event<VSBuffer>) { }
 
-	private _onMessage = new Emitter<Buffer>();
-	get onMessage(): Event<Buffer> { return this._onMessage.event; }
-
-	constructor(private sender: Sender, onMessageEvent: Event<string>) {
-		onMessageEvent(msg => this._onMessage.fire(Buffer.from(msg, 'base64')));
-	}
-
-	send(message: Buffer): void {
+	send(message: VSBuffer): void {
 		try {
-			this.sender.send('ipc:message', message.toString('base64'));
+			this.sender.send('ipc:message', (<Buffer>message.buffer));
 		} catch (e) {
 			// systems are going down
 		}
@@ -37,6 +25,5 @@ export class Protocol implements IMessagePassingProtocol {
 
 	dispose(): void {
 		this.sender.send('ipc:disconnect', null);
-		this.listener = dispose(this.listener);
 	}
 }

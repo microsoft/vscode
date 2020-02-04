@@ -17,7 +17,7 @@ export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenSe
 
 export interface IQuickOpenService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Asks the container to show the quick open control with the optional prefix set. If the optional parameter

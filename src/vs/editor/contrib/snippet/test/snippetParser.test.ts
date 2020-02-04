@@ -418,7 +418,7 @@ suite('SnippetParser', () => {
 		assert.ok(children[3] instanceof Placeholder);
 		assert.equal(children[3].children.length, 0);
 		assert.notEqual((<Placeholder>children[3]).transform, undefined);
-		let transform = (<Placeholder>children[3]).transform;
+		let transform = (<Placeholder>children[3]).transform!;
 		assert.equal(transform.regexp, '/\\s:=(.*)/');
 		assert.equal(transform.children.length, 2);
 		assert.ok(transform.children[0] instanceof FormatString);
@@ -753,5 +753,31 @@ suite('SnippetParser', () => {
 
 		let snippet = new SnippetParser().parse('namespace ${TM_DIRECTORY/[\\/]/\\\\/g};');
 		assertMarker(snippet, Text, Variable, Text);
+	});
+
+	test('Snippet cannot escape closing bracket inside conditional insertion variable replacement #78883', function () {
+
+		let snippet = new SnippetParser().parse('${TM_DIRECTORY/(.+)/${1:+import { hello \\} from world}/}');
+		let variable = <Variable>snippet.children[0];
+		assert.equal(snippet.children.length, 1);
+		assert.ok(variable instanceof Variable);
+		assert.ok(variable.transform);
+		assert.equal(variable.transform!.children.length, 1);
+		assert.ok(variable.transform!.children[0] instanceof FormatString);
+		assert.equal((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
+		assert.equal((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+	});
+
+	test('Snippet escape backslashes inside conditional insertion variable replacement #80394', function () {
+
+		let snippet = new SnippetParser().parse('${CURRENT_YEAR/(.+)/${1:+\\\\}/}');
+		let variable = <Variable>snippet.children[0];
+		assert.equal(snippet.children.length, 1);
+		assert.ok(variable instanceof Variable);
+		assert.ok(variable.transform);
+		assert.equal(variable.transform!.children.length, 1);
+		assert.ok(variable.transform!.children[0] instanceof FormatString);
+		assert.equal((<FormatString>variable.transform!.children[0]).ifValue, '\\');
+		assert.equal((<FormatString>variable.transform!.children[0]).elseValue, undefined);
 	});
 });

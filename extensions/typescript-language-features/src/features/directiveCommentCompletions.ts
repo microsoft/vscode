@@ -6,8 +6,6 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 const localize = nls.loadMessageBundle();
 
@@ -36,6 +34,7 @@ const directives: Directive[] = [
 ];
 
 class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvider {
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 	) { }
@@ -69,9 +68,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v230, () => {
-		return vscode.languages.registerCompletionItemProvider(selector,
-			new DirectiveCommentCompletionProvider(client),
-			'@');
-	});
+	return vscode.languages.registerCompletionItemProvider(selector,
+		new DirectiveCommentCompletionProvider(client),
+		'@');
 }

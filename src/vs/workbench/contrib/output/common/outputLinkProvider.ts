@@ -19,7 +19,7 @@ export class OutputLinkProvider {
 
 	private worker?: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
-	private linkProviderRegistration: IDisposable;
+	private linkProviderRegistration: IDisposable | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -42,13 +42,16 @@ export class OutputLinkProvider {
 		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
-					provideLinks: (model, token): Promise<ILink[]> => {
-						return this.provideLinks(model.uri);
+					provideLinks: async model => {
+						const links = await this.provideLinks(model.uri);
+
+						return links && { links };
 					}
 				});
 			}
 		} else {
-			this.linkProviderRegistration = dispose(this.linkProviderRegistration);
+			dispose(this.linkProviderRegistration);
+			this.linkProviderRegistration = undefined;
 		}
 
 		// Dispose worker to recreate with folders on next provideLinks request
@@ -74,10 +77,10 @@ export class OutputLinkProvider {
 		return this.worker;
 	}
 
-	private provideLinks(modelUri: URI): Promise<ILink[]> {
-		return this.getOrCreateWorker().withSyncedResources([modelUri]).then(linkComputer => {
-			return linkComputer.computeLinks(modelUri.toString());
-		});
+	private async provideLinks(modelUri: URI): Promise<ILink[]> {
+		const linkComputer = await this.getOrCreateWorker().withSyncedResources([modelUri]);
+
+		return linkComputer.computeLinks(modelUri.toString());
 	}
 
 	private disposeWorker(): void {

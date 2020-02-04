@@ -6,39 +6,19 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { LanguageIdentifier, SelectionRangeProvider } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SelectionRangeProvider, SelectionRangeRegistry } from 'vs/editor/common/modes';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
-
-class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
-
-	_serviceBrand: any;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-	) {
-	}
-
-	getEOL(resource: URI | undefined): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
-		}
-		return (isLinux || isMacintosh) ? '\n' : '\r\n';
-	}
-}
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 class MockJSMode extends MockMode {
 
@@ -67,7 +47,7 @@ suite('SmartSelect', () => {
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService));
+		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService), new TestThemeService(), new NullLogService());
 		mode = new MockJSMode();
 	});
 
@@ -96,21 +76,21 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 20, [
-				new Range(1, 1, 5, 2), // all
-				new Range(1, 21, 5, 2), // {} outside
-				new Range(1, 22, 5, 1), // {} inside
-				new Range(2, 1, 4, 3), // block
-				new Range(2, 1, 4, 3),
-				new Range(2, 2, 4, 3),
-				new Range(2, 11, 4, 3),
-				new Range(2, 12, 4, 2),
-				new Range(3, 1, 3, 27), // line w/ triva
-				new Range(3, 3, 3, 27), // line w/o triva
-				new Range(3, 10, 3, 27), // () outside
-				new Range(3, 11, 3, 26), // () inside
-				new Range(3, 17, 3, 26), // () outside
-				new Range(3, 18, 3, 25), // () inside
-			]);
+			new Range(1, 1, 5, 2), // all
+			new Range(1, 21, 5, 2), // {} outside
+			new Range(1, 22, 5, 1), // {} inside
+			new Range(2, 1, 4, 3), // block
+			new Range(2, 1, 4, 3),
+			new Range(2, 2, 4, 3),
+			new Range(2, 11, 4, 3),
+			new Range(2, 12, 4, 2),
+			new Range(3, 1, 3, 27), // line w/ triva
+			new Range(3, 3, 3, 27), // line w/o triva
+			new Range(3, 10, 3, 27), // () outside
+			new Range(3, 11, 3, 26), // () inside
+			new Range(3, 17, 3, 26), // () outside
+			new Range(3, 18, 3, 25), // () inside
+		]);
 	});
 
 	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
@@ -122,15 +102,15 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 1, [
-				new Range(1, 1, 5, 2),
-				new Range(1, 21, 5, 2),
-				new Range(1, 22, 5, 1),
-				new Range(2, 1, 4, 3),
-				new Range(2, 1, 4, 3),
-				new Range(2, 2, 4, 3),
-				new Range(2, 11, 4, 3),
-				new Range(2, 12, 4, 2),
-			]);
+			new Range(1, 1, 5, 2),
+			new Range(1, 21, 5, 2),
+			new Range(1, 22, 5, 1),
+			new Range(2, 1, 4, 3),
+			new Range(2, 1, 4, 3),
+			new Range(2, 2, 4, 3),
+			new Range(2, 11, 4, 3),
+			new Range(2, 12, 4, 2),
+		]);
 	});
 
 	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
@@ -142,17 +122,17 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 1, [
-				new Range(1, 1, 5, 2), // all
-				new Range(1, 21, 5, 2), // {} outside
-				new Range(1, 22, 5, 1), // {} inside
-				new Range(2, 1, 4, 3),
-				new Range(2, 1, 4, 3),
-				new Range(2, 2, 4, 3),
-				new Range(2, 11, 4, 3),
-				new Range(2, 12, 4, 2),
-				new Range(3, 1, 3, 2), // block
-				new Range(3, 1, 3, 2) // empty line
-			]);
+			new Range(1, 1, 5, 2), // all
+			new Range(1, 21, 5, 2), // {} outside
+			new Range(1, 22, 5, 1), // {} inside
+			new Range(2, 1, 4, 3),
+			new Range(2, 1, 4, 3),
+			new Range(2, 2, 4, 3),
+			new Range(2, 11, 4, 3),
+			new Range(2, 12, 4, 2),
+			new Range(3, 1, 3, 2), // block
+			new Range(3, 1, 3, 2) // empty line
+		]);
 	});
 
 	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
@@ -162,11 +142,11 @@ suite('SmartSelect', () => {
 			' { } ',
 			'( ) '
 		], 2, 3, [
-				new Range(1, 1, 3, 5),
-				new Range(2, 1, 2, 6), // line w/ triava
-				new Range(2, 2, 2, 5), // {} inside, line w/o triva
-				new Range(2, 3, 2, 4) // {} inside
-			]);
+			new Range(1, 1, 3, 5),
+			new Range(2, 1, 2, 6), // line w/ triava
+			new Range(2, 2, 2, 5), // {} inside, line w/o triva
+			new Range(2, 3, 2, 4) // {} inside
+		]);
 	});
 
 	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
@@ -176,11 +156,11 @@ suite('SmartSelect', () => {
 			' { } ',
 			'  ( ) '
 		], 1, 3, [
-				new Range(1, 1, 3, 7), // all
-				new Range(1, 1, 1, 5), // line w/ trival
-				new Range(1, 2, 1, 4), // [] outside, line w/o trival
-				new Range(1, 3, 1, 3), // [] inside
-			]);
+			new Range(1, 1, 3, 7), // all
+			new Range(1, 1, 1, 5), // line w/ trival
+			new Range(1, 2, 1, 4), // [] outside, line w/o trival
+			new Range(1, 3, 1, 3), // [] inside
+		]);
 	});
 
 	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
@@ -190,11 +170,11 @@ suite('SmartSelect', () => {
 			' { } ',
 			'selectthis( ) '
 		], 3, 11, [
-				new Range(1, 1, 3, 15), // all
-				new Range(3, 1, 3, 15), // line w/ trivia
-				new Range(3, 1, 3, 14), // line w/o trivia
-				new Range(3, 1, 3, 11) // word
-			]);
+			new Range(1, 1, 3, 15), // all
+			new Range(3, 1, 3, 15), // line w/ trivia
+			new Range(3, 1, 3, 14), // line w/o trivia
+			new Range(3, 1, 3, 11) // word
+		]);
 	});
 
 	// -- bracket selections
@@ -319,5 +299,26 @@ suite('SmartSelect', () => {
 			new Range(1, 1, 1, 21),
 			new Range(1, 1, 1, 21),
 		);
+	});
+
+	test('Smart select: only add line ranges if they’re contained by the next range #73850', async function () {
+
+		const reg = SelectionRangeRegistry.register('*', {
+			provideSelectionRanges() {
+				return [[
+					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 11 } },
+					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 3, endColumn: 2 } },
+					{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 3, endColumn: 2 } },
+				]];
+			}
+		});
+
+		await assertGetRangesToPosition(['type T = {', '\tx: number', '}'], 1, 10, [
+			new Range(1, 1, 3, 2), // all
+			new Range(1, 10, 3, 2), // { ... }
+			new Range(1, 10, 1, 11), // {
+		]);
+
+		reg.dispose();
 	});
 });

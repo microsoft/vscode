@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/node/extHostTypes';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/common/extHostTypes';
+import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTextEditor', () => {
 
@@ -19,7 +20,7 @@ suite('ExtHostTextEditor', () => {
 	], '\n', 'text', 1, false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor(null!, 'fake', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -40,12 +41,13 @@ suite('ExtHostTextEditor', () => {
 
 	test('API [bug]: registerTextEditorCommand clears redo stack even if no edits are made #55163', async function () {
 		let applyCount = 0;
-		let editor = new ExtHostTextEditor(new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyEdits(): Promise<boolean> {
-				applyCount += 1;
-				return Promise.resolve(true);
-			}
-		}, 'edt1', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		let editor = new ExtHostTextEditor('edt1',
+			new class extends mock<MainThreadTextEditorsShape>() {
+				$tryApplyEdits(): Promise<boolean> {
+					applyCount += 1;
+					return Promise.resolve(true);
+				}
+			}, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 
 		await editor.edit(edit => { });
 		assert.equal(applyCount, 0);
@@ -91,8 +93,8 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
-		});
+			lineNumbers: RenderLineNumbersType.On
+		}, new NullLogService());
 	});
 
 	teardown(() => {
@@ -118,7 +120,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -130,7 +132,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ tabSize: 1 }]);
 	});
@@ -142,7 +144,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ tabSize: 2 }]);
 	});
@@ -154,7 +156,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ tabSize: 2 }]);
 	});
@@ -166,7 +168,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ tabSize: 'auto' }]);
 	});
@@ -178,7 +180,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -190,7 +192,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -202,7 +204,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -214,7 +216,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -226,7 +228,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -238,7 +240,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 1,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ indentSize: 1 }]);
 	});
@@ -250,7 +252,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 2,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ indentSize: 2 }]);
 	});
@@ -262,7 +264,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 2,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ indentSize: 2 }]);
 	});
@@ -274,7 +276,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ indentSize: 'tabSize' }]);
 	});
@@ -286,19 +288,19 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 1', () => {
-		opts.indentSize = null;
+		opts.indentSize = null!;
 		assertState(opts, {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -310,7 +312,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -322,7 +324,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -334,7 +336,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -346,7 +348,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -358,7 +360,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: true,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ insertSpaces: true }]);
 	});
@@ -370,7 +372,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -382,7 +384,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: true,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ insertSpaces: true }]);
 	});
@@ -394,7 +396,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ insertSpaces: 'auto' }]);
 	});
@@ -406,7 +408,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -418,7 +420,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Block,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block }]);
 	});
@@ -430,7 +432,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -442,9 +444,9 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.Off
+			lineNumbers: RenderLineNumbersType.Off
 		});
-		assert.deepEqual(calls, [{ lineNumbers: TextEditorLineNumbersStyle.Off }]);
+		assert.deepEqual(calls, [{ lineNumbers: RenderLineNumbersType.Off }]);
 	});
 
 	test('can do bulk updates 0', () => {
@@ -459,7 +461,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, []);
 	});
@@ -474,7 +476,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: true,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ tabSize: 'auto', insertSpaces: true }]);
 	});
@@ -489,7 +491,7 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			lineNumbers: RenderLineNumbersType.On
 		});
 		assert.deepEqual(calls, [{ tabSize: 3, insertSpaces: 'auto' }]);
 	});
@@ -504,9 +506,9 @@ suite('ExtHostTextEditorOptions', () => {
 			indentSize: 4,
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Block,
-			lineNumbers: TextEditorLineNumbersStyle.Relative
+			lineNumbers: RenderLineNumbersType.Relative
 		});
-		assert.deepEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: TextEditorLineNumbersStyle.Relative }]);
+		assert.deepEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
 	});
 
 });

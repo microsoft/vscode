@@ -115,10 +115,23 @@ let textMateScopes = [
 
 export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
 export const textmateColorSettingsSchemaId = `${textmateColorsSchemaId}#definitions/settings`;
+export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#definitions/colorGroup`;
 
 const textmateColorSchema: IJSONSchema = {
 	type: 'array',
 	definitions: {
+		colorGroup: {
+			default: '#FF0000',
+			anyOf: [
+				{
+					type: 'string',
+					format: 'color-hex'
+				},
+				{
+					$ref: '#definitions/settings'
+				}
+			]
+		},
 		settings: {
 			type: 'object',
 			description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
@@ -192,6 +205,7 @@ export const colorThemeSchemaId = 'vscode://schemas/color-theme';
 const colorThemeSchema: IJSONSchema = {
 	type: 'object',
 	allowComments: true,
+	allowTrailingCommas: true,
 	properties: {
 		colors: {
 			description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),

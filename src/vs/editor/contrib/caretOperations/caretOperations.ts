@@ -12,7 +12,7 @@ import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCom
 
 class MoveCaretAction extends EditorAction {
 
-	private left: boolean;
+	private readonly left: boolean;
 
 	constructor(left: boolean, opts: IActionOptions) {
 		super(opts);

@@ -6,19 +6,20 @@
 import * as assert from 'assert';
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionsListView } from 'vs/workbench/contrib/extensions/electron-browser/extensionsViews';
+import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
@@ -26,19 +27,24 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestSharedProcessService, TestMenuService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { URLService } from 'vs/platform/url/common/urlService';
+import { URLService } from 'vs/platform/url/node/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
-import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/contrib/experiments/node/experimentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -73,12 +79,12 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
-		instantiationService.stub(IWindowService, TestWindowService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 		instantiationService.stub(IExperimentService, ExperimentService);
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
@@ -87,10 +93,19 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IMenuService, new TestMenuService());
 
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
+		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
+			private _localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', authority: 'vscode-local' };
+			constructor() {
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IConfigurationService), instantiationService.get(IProductService), instantiationService.get(ILogService), instantiationService.get(ILabelService));
+			}
+			get localExtensionManagementServer(): IExtensionManagementServer { return this._localExtensionManagementServer; }
+			set localExtensionManagementServer(server: IExtensionManagementServer) { }
+		}());
 
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
 		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IURLService, URLService);
@@ -104,7 +119,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExtensionTipsService, 'getOtherRecommendations', [
 			{ extensionId: otherRecommendationA.identifier.id }
 		]);
-		const reasons = {};
+		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[workspaceRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[fileBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
@@ -122,18 +137,18 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IExtensionService, {
-			getExtensions: () => {
+			getExtensions: (): Promise<IExtensionDescription[]> => {
 				return Promise.resolve([
-					{ identifier: new ExtensionIdentifier(localEnabledTheme.identifier.id) },
-					{ identifier: new ExtensionIdentifier(localEnabledLanguage.identifier.id) },
-					{ identifier: new ExtensionIdentifier(localRandom.identifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInTheme.identifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInBasic.identifier.id) }
+					toExtensionDescription(localEnabledTheme),
+					toExtensionDescription(localEnabledLanguage),
+					toExtensionDescription(localRandom),
+					toExtensionDescription(builtInTheme),
+					toExtensionDescription(builtInBasic)
 				]);
 			}
 		});
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.Disabled);
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
+		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		testableView = instantiationService.createInstance(ExtensionsListView, {});
@@ -146,14 +161,14 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test query types', () => {
 		assert.equal(ExtensionsListView.isBuiltInExtensionsQuery('@builtin'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@installed'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@installed searchText'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled searchText'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled searchText'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@installed'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@enabled'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@disabled'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@outdated'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@installed searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@enabled searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
 	});
 
 	test('Test empty query equates to sort by install count', () => {
@@ -183,8 +198,8 @@ suite('ExtensionsListView Tests', () => {
 		});
 	});
 
-	test('Test installed query results', () => {
-		const allInstalledCheck = testableView.show('@installed').then(result => {
+	test('Test installed query results', async () => {
+		await testableView.show('@installed').then(result => {
 			assert.equal(result.length, 5, 'Unexpected number of results for @installed query');
 			const actual = [result.get(0).name, result.get(1).name, result.get(2).name, result.get(3).name, result.get(4).name].sort();
 			const expected = [localDisabledTheme.manifest.name, localEnabledTheme.manifest.name, localRandom.manifest.name, localDisabledLanguage.manifest.name, localEnabledLanguage.manifest.name];
@@ -193,125 +208,102 @@ suite('ExtensionsListView Tests', () => {
 			}
 		});
 
-		const installedCheck = testableView.show('@installed first').then(result => {
+		await testableView.show('@installed first').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query');
-			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
-			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
+			assert.equal(result.get(1).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
 		});
 
-		const allDisabledCheck = testableView.show('@disabled').then(result => {
+		await testableView.show('@disabled').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @disabled query');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query.');
 			assert.equal(result.get(1).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query.');
 		});
 
-		const allEnabledCheck = testableView.show('@enabled').then(result => {
+		await testableView.show('@enabled').then(result => {
 			assert.equal(result.length, 3, 'Unexpected number of results for @enabled query');
 			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query.');
 			assert.equal(result.get(1).name, localRandom.manifest.name, 'Unexpected extension for @enabled query.');
 			assert.equal(result.get(2).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query.');
 		});
 
-		const allBuiltinThemesCheck = testableView.show('@builtin:themes').then(result => {
+		await testableView.show('@builtin:themes').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @builtin:themes query');
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin:themes query.');
 		});
 
-		const allBuiltinBasicsCheck = testableView.show('@builtin:basics').then(result => {
+		await testableView.show('@builtin:basics').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @builtin:basics query');
 			assert.equal(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin:basics query.');
 		});
 
-		const allBuiltinCheck = testableView.show('@builtin').then(result => {
+		await testableView.show('@builtin').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @builtin query');
 			assert.equal(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin query.');
 			assert.equal(result.get(1).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
 
-		const builtinCheck = testableView.show('@builtin my-theme').then(result => {
+		await testableView.show('@builtin my-theme').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @builtin query');
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
-
-		return Promise.all([
-			allInstalledCheck,
-			installedCheck,
-			allDisabledCheck,
-			allEnabledCheck,
-			allBuiltinThemesCheck,
-			allBuiltinBasicsCheck,
-			allBuiltinCheck,
-			builtinCheck]);
 	});
 
-	test('Test installed query with category', () => {
-		const installedCategoryWithoutQuotesCheck = testableView.show('@installed category:themes').then(result => {
+	test('Test installed query with category', async () => {
+		await testableView.show('@installed category:themes').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with category');
-			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
-			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
+			assert.equal(result.get(1).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
 		});
 
-		const installedCategoryWithQuotesCheck = testableView.show('@installed category:"themes"').then(result => {
+		await testableView.show('@installed category:"themes"').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with quoted category');
-			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
-			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
+			assert.equal(result.get(1).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
 		});
 
-		const installedCategoryWithSpaceCheck = testableView.show('@installed category:"programming languages"').then(result => {
+		await testableView.show('@installed category:"programming languages"').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with quoted category including space');
-			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category inlcuding space.');
-			assert.equal(result.get(1).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category including space.');
+			assert.equal(result.get(0).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category including space.');
+			assert.equal(result.get(1).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category inlcuding space.');
 		});
 
-		const installedMultipleCategoryCheck = testableView.show('@installed category:themes category:random').then(result => {
+		await testableView.show('@installed category:themes category:random').then(result => {
 			assert.equal(result.length, 3, 'Unexpected number of results for @installed query with multiple category');
-			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
-			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
-			assert.equal(result.get(2).name, localRandom.manifest.name, 'Unexpected extension for @installed query with multiple category.');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
+			assert.equal(result.get(1).name, localRandom.manifest.name, 'Unexpected extension for @installed query with multiple category.');
+			assert.equal(result.get(2).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
 		});
 
-		const enabledCategoryWithoutQuotesCheck = testableView.show('@enabled category:themes').then(result => {
+		await testableView.show('@enabled category:themes').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with category');
 			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with category.');
 		});
 
-		const enabledCategoryWithQuotesCheck = testableView.show('@enabled category:"themes"').then(result => {
+		await testableView.show('@enabled category:"themes"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with quoted category');
 			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with quoted category.');
 		});
 
-		const enabledCategoryWithSpaceCheck = testableView.show('@enabled category:"programming languages"').then(result => {
+		await testableView.show('@enabled category:"programming languages"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with quoted category inlcuding space');
 			assert.equal(result.get(0).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query with quoted category including space.');
 		});
 
-		const disabledCategoryWithoutQuotesCheck = testableView.show('@disabled category:themes').then(result => {
+		await testableView.show('@disabled category:themes').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with category.');
 		});
 
-		const disabledCategoryWithQuotesCheck = testableView.show('@disabled category:"themes"').then(result => {
+		await testableView.show('@disabled category:"themes"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with quoted category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with quoted category.');
 		});
 
-		const disabledCategoryWithSpaceCheck = testableView.show('@disabled category:"programming languages"').then(result => {
+		await testableView.show('@disabled category:"programming languages"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with quoted category inlcuding space');
 			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
 		});
-
-		return Promise.resolve([
-			installedCategoryWithoutQuotesCheck,
-			installedCategoryWithQuotesCheck,
-			installedCategoryWithSpaceCheck,
-			installedMultipleCategoryCheck,
-			enabledCategoryWithoutQuotesCheck,
-			enabledCategoryWithQuotesCheck,
-			enabledCategoryWithSpaceCheck,
-			disabledCategoryWithoutQuotesCheck,
-			disabledCategoryWithQuotesCheck,
-			disabledCategoryWithSpaceCheck
-		]);
 	});
 
 	test('Test @recommended:workspace query', () => {
@@ -520,6 +512,16 @@ suite('ExtensionsListView Tests', () => {
 
 	function aPage<T>(...objects: T[]): IPager<T> {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	}
+
+	function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
+		return {
+			identifier: new ExtensionIdentifier(local.identifier.id),
+			isBuiltin: local.type === ExtensionType.System,
+			isUnderDevelopment: false,
+			extensionLocation: local.location,
+			...local.manifest
+		};
 	}
 });
 

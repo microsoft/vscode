@@ -22,7 +22,6 @@ const colorIdPattern = '^\\w+[.\\w+]*$';
 
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorExtensionPoint[]>({
 	extensionPoint: 'colors',
-	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('contributes.color', 'Contributes extension defined themable colors'),
 		type: 'array',

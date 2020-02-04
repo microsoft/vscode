@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
+import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -42,14 +44,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
-			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+			files = <any>{
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();
@@ -59,7 +61,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onAfterOperation = Event.None;
 		};
 
-		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
@@ -68,29 +69,27 @@ suite('MainThreadDocumentsAndEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null!,
 			fileService,
-			null!,
 			null!,
 			editorGroupService,
 			null!,
 			new class extends mock<IPanelService>() implements IPanelService {
-				_serviceBrand: any;
+				_serviceBrand: undefined;
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
-					return null;
+					return undefined;
 				}
-			}
+			},
+			TestEnvironmentService
 		);
-		/* tslint:enable */
 	});
 
 
 	test('Model#add', () => {
 		deltas.length = 0;
 
-		modelService.createModel('farboo', null, null);
+		modelService.createModel('farboo', null);
 
 		assert.equal(deltas.length, 1);
 		const [delta] = deltas;
@@ -105,7 +104,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel(hugeModelString, null, null);
+		const model = modelService.createModel(hugeModelString, null);
 		assert.ok(model.isTooLargeForSyncing());
 
 		assert.equal(deltas.length, 1);
@@ -120,7 +119,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore simple widget model', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel('test', null, null, true);
+		const model = modelService.createModel('test', null, undefined, true);
 		assert.ok(model.isForSimpleWidget);
 
 		assert.equal(deltas.length, 1);
@@ -135,7 +134,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model from editor', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel(hugeModelString, null, null);
+		const model = modelService.createModel(hugeModelString, null);
 		const editor = myCreateTestCodeEditor(model);
 
 		assert.equal(deltas.length, 1);
@@ -161,7 +160,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('editor with model', () => {
 		deltas.length = 0;
 
-		const model = modelService.createModel('farboo', null, null);
+		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
 		assert.equal(deltas.length, 2);
@@ -182,8 +181,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('editor with dispos-ed/-ing model', () => {
-		modelService.createModel('foobar', null, null);
-		const model = modelService.createModel('farboo', null, null);
+		modelService.createModel('foobar', null);
+		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
 		// ignore things until now

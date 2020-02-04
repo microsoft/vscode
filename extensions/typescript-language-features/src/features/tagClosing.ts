@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConditionalRegistration, ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
@@ -12,6 +12,7 @@ import { Disposable } from '../utils/dispose';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing extends Disposable {
+	public static readonly minVersion = API.v300;
 
 	private _disposed = false;
 	private _timeout: NodeJS.Timer | undefined = undefined;
@@ -45,7 +46,7 @@ class TagClosing extends Disposable {
 
 	private onDidChangeTextDocument(
 		document: vscode.TextDocument,
-		changes: vscode.TextDocumentContentChangeEvent[]
+		changes: readonly vscode.TextDocumentContentChangeEvent[]
 	) {
 		const activeDocument = vscode.window.activeTextEditor && vscode.window.activeTextEditor.document;
 		if (document !== activeDocument || changes.length === 0) {
@@ -167,7 +168,7 @@ export function register(
 	modeId: string,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () =>
+	return new VersionDependentRegistration(client, TagClosing.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'autoClosingTags', () =>
 			new ActiveDocumentDependentRegistration(selector, () =>
 				new TagClosing(client))));

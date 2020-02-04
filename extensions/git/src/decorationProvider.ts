@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, Decoration, DecorationProvider, ThemeColor } from 'vscode';
 import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
@@ -20,7 +20,6 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		//todo@joh -> events when the ignore status actually changes, not only when the file changes
 		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
 			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore')),
 			model.onDidOpenRepository,
@@ -30,7 +29,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 		this.disposables.push(window.registerDecorationProvider(this));
 	}
 
-	provideDecoration(uri: Uri): Promise<DecorationData | undefined> {
+	provideDecoration(uri: Uri): Promise<Decoration | undefined> {
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
@@ -49,7 +48,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 			this.checkIgnoreSoon();
 		}).then(ignored => {
 			if (ignored) {
-				return <DecorationData>{
+				return <Decoration>{
 					priority: 3,
 					color: new ThemeColor('gitDecoration.ignoredResourceForeground')
 				};
@@ -90,7 +89,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 class GitDecorationProvider implements DecorationProvider {
 
-	private static SubmoduleDecorationData: DecorationData = {
+	private static SubmoduleDecorationData: Decoration = {
 		title: 'Submodule',
 		letter: 'S',
 		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
@@ -100,7 +99,7 @@ class GitDecorationProvider implements DecorationProvider {
 	readonly onDidChangeDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private disposables: Disposable[] = [];
-	private decorations = new Map<string, DecorationData>();
+	private decorations = new Map<string, Decoration>();
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
@@ -110,37 +109,41 @@ class GitDecorationProvider implements DecorationProvider {
 	}
 
 	private onDidRunGitStatus(): void {
-		let newDecorations = new Map<string, DecorationData>();
+		let newDecorations = new Map<string, Decoration>();
 
 		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
+		this.collectDecorationData(this.repository.untrackedGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
 		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire([...uris.values()].map(Uri.parse));
+		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
-	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, DecorationData>): void {
-		group.resourceStates.forEach(r => {
-			if (r.resourceDecoration
-				&& r.type !== Status.DELETED
-				&& r.type !== Status.INDEX_DELETED
-			) {
+	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, Decoration>): void {
+		for (const r of group.resourceStates) {
+			const decoration = r.resourceDecoration;
+
+			if (decoration) {
 				// not deleted and has a decoration
-				bucket.set(r.original.toString(), r.resourceDecoration);
+				bucket.set(r.original.toString(), decoration);
+
+				if (r.type === Status.INDEX_RENAMED) {
+					bucket.set(r.resourceUri.toString(), decoration);
+				}
 			}
-		});
+		}
 	}
 
-	private collectSubmoduleDecorationData(bucket: Map<string, DecorationData>): void {
+	private collectSubmoduleDecorationData(bucket: Map<string, Decoration>): void {
 		for (const submodule of this.repository.submodules) {
 			bucket.set(Uri.file(path.join(this.repository.root, submodule.path)).toString(), GitDecorationProvider.SubmoduleDecorationData);
 		}
 	}
 
-	provideDecoration(uri: Uri): DecorationData | undefined {
+	provideDecoration(uri: Uri): Decoration | undefined {
 		return this.decorations.get(uri.toString());
 	}
 

@@ -28,7 +28,7 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 		super(telemetryService, instantiationService, themeService, storageService);
 	}
 
-	getMetadata(): string | null {
+	getMetadata(): string | undefined {
 		const master = this.masterEditor;
 		const details = this.detailsEditor;
 
@@ -36,6 +36,6 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 			return nls.localize('metadataDiff', "{0} ↔ {1}", details.getMetadata(), master.getMetadata());
 		}
 
-		return null;
+		return undefined;
 	}
 }

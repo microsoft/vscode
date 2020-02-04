@@ -5,11 +5,12 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IView, GridNode, isGridBranchNode, } from 'vs/base/browser/ui/grid/gridview';
+import { GridNode, isGridBranchNode } from 'vs/base/browser/ui/grid/gridview';
+import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export class TestView implements IView {
 
-	private _onDidChange = new Emitter<{ width: number; height: number; } | undefined>();
+	private readonly _onDidChange = new Emitter<{ width: number; height: number; } | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumWidth(): number { return this._minimumWidth; }
@@ -27,7 +28,7 @@ export class TestView implements IView {
 	private _element: HTMLElement = document.createElement('div');
 	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
 
-	private _onDidGetElement = new Emitter<void>();
+	private readonly _onDidGetElement = new Emitter<void>();
 	readonly onDidGetElement = this._onDidGetElement.event;
 
 	private _width = 0;
@@ -38,10 +39,10 @@ export class TestView implements IView {
 
 	get size(): [number, number] { return [this.width, this.height]; }
 
-	private _onDidLayout = new Emitter<{ width: number; height: number; }>();
+	private readonly _onDidLayout = new Emitter<{ width: number; height: number; }>();
 	readonly onDidLayout: Event<{ width: number; height: number; }> = this._onDidLayout.event;
 
-	private _onDidFocus = new Emitter<void>();
+	private readonly _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	constructor(

@@ -72,6 +72,14 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 25));
 	});
 
+	// #35245
+	test('Should handle links with escaped characters in name', () => {
+		const links = getLinksForFile('a [b\\]](./file)');
+		assert.strictEqual(links.length, 1);
+		const [link] = links;
+		assertRangeEqual(link.range, new vscode.Range(0, 8, 0, 14));
+	});
+
 
 	test('Should handle links with balanced parens', () => {
 		{

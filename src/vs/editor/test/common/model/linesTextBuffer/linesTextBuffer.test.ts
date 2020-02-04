@@ -306,10 +306,10 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 			'',
 			'1'
 		], [
-				editOp(1, 1, 1, 3, 0, 2, ['Your']),
-				editOp(1, 4, 1, 4, 3, 0, ['Interesting ']),
-				editOp(2, 3, 2, 6, 16, 3, null)
-			],
+			editOp(1, 1, 1, 3, 0, 2, ['Your']),
+			editOp(1, 4, 1, 4, 3, 0, ['Interesting ']),
+			editOp(2, 3, 2, 6, 16, 3, null)
+		],
 			editOp(1, 1, 2, 6, 0, 19, [
 				'Your Interesting First Line',
 				'\t\t'

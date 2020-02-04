@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { MainThreadDocumentContentProviders } from 'vs/workbench/api/electron-browser/mainThreadDocumentContentProviders';
+import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
+import { TextEdit } from 'vs/editor/common/modes';
 
 suite('MainThreadDocumentContentProviders', function () {
 
@@ -21,13 +22,13 @@ suite('MainThreadDocumentContentProviders', function () {
 
 		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {
-				getModel(_uri) {
+				getModel(_uri: URI) {
 					assert.equal(uri.toString(), _uri.toString());
 					return model;
 				}
 			},
 			new class extends mock<IEditorWorkerService>() {
-				computeMoreMinimalEdits(_uri, data) {
+				computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
 					assert.equal(model.getValue(), '1');
 					return Promise.resolve(data);
 				}

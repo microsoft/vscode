@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
@@ -89,6 +88,25 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
+export interface IWebviewEditor {
+	readonly viewType: string;
+	readonly priority: string;
+	readonly selector: readonly {
+		readonly filenamePattern?: string;
+	}[];
+}
+
+export interface ICodeActionContributionAction {
+	readonly kind: string;
+	readonly title: string;
+	readonly description?: string;
+}
+
+export interface ICodeActionContribution {
+	readonly languages: readonly string[];
+	readonly actions: readonly ICodeActionContributionAction[];
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -105,27 +123,11 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
+	readonly webviewEditors?: readonly IWebviewEditor[];
+	readonly codeActions?: readonly ICodeActionContribution[];
 }
 
-export type ExtensionKind = 'ui' | 'workspace';
-
-export class ExtensionIdentifierWithVersion {
-	constructor(
-		readonly identifier: IExtensionIdentifier,
-		readonly version: string
-	) { }
-
-	key(): string {
-		return `${this.identifier.id}-${this.version}`;
-	}
-
-	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
-			return false;
-		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
-	}
-}
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -153,12 +155,13 @@ export interface IExtensionManifest {
 	readonly activationEvents?: string[];
 	readonly extensionDependencies?: string[];
 	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind;
+	readonly extensionKind?: ExtensionKind | ExtensionKind[];
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
+	readonly scripts?: { [key: string]: string; };
 }
 
 export const enum ExtensionType {
@@ -226,6 +229,15 @@ export class ExtensionIdentifier {
 		}
 		return id._lower;
 	}
+}
+
+export interface IExtensionDescription extends IExtensionManifest {
+	readonly identifier: ExtensionIdentifier;
+	readonly uuid?: string;
+	readonly isBuiltin: boolean;
+	readonly isUnderDevelopment: boolean;
+	readonly extensionLocation: URI;
+	enableProposedApi?: boolean;
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {

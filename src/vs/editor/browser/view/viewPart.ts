@@ -50,7 +50,7 @@ export class PartFingerprints {
 	}
 
 	public static read(target: Element): PartFingerprint {
-		let r = target.getAttribute('data-mprt');
+		const r = target.getAttribute('data-mprt');
 		if (r === null) {
 			return PartFingerprint.None;
 		}
@@ -70,7 +70,7 @@ export class PartFingerprints {
 			child = child.parentElement;
 		}
 
-		let r = new Uint8Array(resultLen);
+		const r = new Uint8Array(resultLen);
 		for (let i = 0; i < resultLen; i++) {
 			r[i] = result[resultLen - i - 1];
 		}

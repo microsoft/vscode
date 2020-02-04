@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// todo@matt
+/* eslint code-no-unexternalized-strings: 0 */
+
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { snippetForFunctionCall } from "../utils/snippetForFunctionCall";
+import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 suite('typescript function call snippets', () => {
 	test('Should use label as function name', async () => {

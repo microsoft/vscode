@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { CachedListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -25,15 +26,15 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { isIOS } from 'vs/base/common/platform';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IAccessibilityProvider, ITree } from 'vs/base/parts/tree/browser/tree';
+import { isArray } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -41,15 +42,17 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsSync';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IExcludeChangeEvent, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, IListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
-function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
+function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	const data = element.isConfigured ?
 		{ ...element.defaultValue, ...element.scopeValue } :
 		element.defaultValue;
@@ -62,10 +65,22 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDa
 
 			return {
 				id: key,
-				pattern: key,
+				value: key,
 				sibling
 			};
 		});
+}
+
+function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
+	if (!element.value || !isArray(element.value)) {
+		return [];
+	}
+
+	return element.value.map((key: string) => {
+		return {
+			value: key
+		};
+	});
 }
 
 export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
@@ -113,7 +128,7 @@ function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): I
 	}
 
 	if (!children && !settings) {
-		return null;
+		throw new Error(`TOC node has no child groups or settings: ${tocData.id}`);
 	}
 
 	return {
@@ -189,6 +204,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	deprecationWarningElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 	toolbar: ToolBar;
+	elementDisposables: IDisposable[];
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
@@ -211,8 +227,13 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	button: Button;
 }
 
+interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
+	listWidget: ListSettingWidget;
+	validationErrorMessageElement: HTMLElement;
+}
+
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
-	excludeWidget: ExcludeSettingWidget;
+	excludeWidget: ListSettingWidget;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -229,6 +250,7 @@ const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
+const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
 const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
@@ -250,7 +272,7 @@ export interface ISettingOverrideClickEvent {
 	targetKey: string;
 }
 
-export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsTreeElement, never, any> {
+export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
 
@@ -262,24 +284,25 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
 
-	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
+	private readonly _onDidClickOverrideElement = this._register(new Emitter<ISettingOverrideClickEvent>());
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
-	protected readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
+	protected readonly _onDidChangeSetting = this._register(new Emitter<ISettingChangeEvent>());
 	readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	protected readonly _onDidOpenSettings = new Emitter<string>();
+	protected readonly _onDidOpenSettings = this._register(new Emitter<string>());
 	readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink = new Emitter<ISettingLinkClickEvent>();
+	private readonly _onDidClickSettingLink = this._register(new Emitter<ISettingLinkClickEvent>());
 	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
-	private readonly _onDidFocusSetting = new Emitter<SettingsTreeSettingElement>();
+	private readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	// Put common injections back here
 	constructor(
 		private readonly settingActions: IAction[],
+		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
 		@IThemeService protected readonly _themeService: IThemeService,
 		@IContextViewService protected readonly _contextViewService: IContextViewService,
 		@IOpenerService protected readonly _openerService: IOpenerService,
@@ -288,6 +311,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 	) {
+		super();
 	}
 
 	renderTemplate(container: HTMLElement): any {
@@ -324,6 +348,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 
 		const template: ISettingItemTemplate = {
 			toDispose,
+			elementDisposables: [],
 
 			containerElement: container,
 			categoryElement,
@@ -372,24 +397,31 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle
 		});
-		toolbar.setActions([], this.settingActions)();
-		const button = container.querySelector('.toolbar-toggle-more');
+		return toolbar;
+	}
+
+	private fixToolbarIcon(toolbar: ToolBar): void {
+		const button = toolbar.getContainer().querySelector('.codicon-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
-		}
 
-		return toolbar;
+			// change icon from ellipsis to gear
+			(<HTMLElement>button).classList.add('codicon-gear');
+		}
 	}
 
 	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const element = node.element;
 		template.context = element;
 		template.toolbar.context = element;
+		const actions = this.disposableActionFactory(element.setting);
+		template.elementDisposables?.push(...actions);
+		template.toolbar.setActions([], [...this.settingActions, ...actions])();
+		this.fixToolbarIcon(template.toolbar);
 
 		const setting = element.setting;
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
-		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
@@ -402,7 +434,9 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
-			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, template.toDispose);
+			const disposables = new DisposableStore();
+			template.toDispose.push(disposables);
+			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -429,24 +463,27 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 					DOM.append(template.otherOverridesElement, $('span', undefined, ')'));
 				}
 
-				DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-					this._onDidClickOverrideElement.fire({
-						targetKey: element.setting.key,
-						scope: element.overriddenScopeList[i]
-					});
-					e.preventDefault();
-					e.stopPropagation();
-				});
+				template.elementDisposables.push(
+					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+						this._onDidClickOverrideElement.fire({
+							targetKey: element.setting.key,
+							scope: element.overriddenScopeList[i]
+						});
+						e.preventDefault();
+						e.stopPropagation();
+					}));
 			}
 		}
 
-		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context.valueType });
-		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
-		this.renderValue(element, <ISettingItemTemplate>template, onChange);
+		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
+		const deprecationText = element.setting.deprecationMessage || '';
+		template.deprecationWarningElement.innerText = deprecationText;
+		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
 
+		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 	}
 
-	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: IDisposable[]): HTMLElement {
+	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
@@ -460,15 +497,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						let uri: URI | undefined;
-						try {
-							uri = URI.parse(content);
-						} catch (err) {
-							// ignore
-						}
-						if (uri) {
-							this._openerService.open(uri).catch(onUnexpectedError);
-						}
+						this._openerService.open(content).catch(onUnexpectedError);
 					}
 				},
 				disposeables
@@ -489,7 +518,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		const modifiedText = template.otherOverridesElement.textContent ?
 			template.otherOverridesElement.textContent : (dataElement.isConfigured ? localize('settings.Modified', ' Modified. ') : '');
 
-		let itemElement = null;
+		let itemElement: HTMLElement | null = null;
 
 		// Use '.' as reader pause
 		let label = dataElement.displayCategory + ' ' + dataElement.displayLabel + '. ';
@@ -515,7 +544,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 				template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
 			}
 		} else if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
-			if (itemElement = template.controlElement.firstElementChild) {
+			if (itemElement = <HTMLElement>template.controlElement.firstElementChild) {
 				itemElement.setAttribute('role', 'combobox');
 				label += modifiedText;
 			}
@@ -541,6 +570,12 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 
 	disposeTemplate(template: IDisposableTemplate): void {
 		dispose(template.toDispose);
+	}
+
+	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
+		if ((template as ISettingItemTemplate).elementDisposables) {
+			dispose((template as ISettingItemTemplate).elementDisposables);
+		}
 	}
 }
 
@@ -588,7 +623,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 
 		container.classList.add('setting-item-new-extensions');
 
-		const button = new Button(container, { title: true, buttonBackground: null, buttonHoverBackground: null });
+		const button = new Button(container, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
 		toDispose.push(button);
 		toDispose.push(button.onDidClick(() => {
 			if (template.context) {
@@ -622,9 +657,9 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	renderTemplate(container: HTMLElement): ISettingComplexItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'complex');
 
-		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
+		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
 		common.toDispose.push(openSettingsButton);
-		common.toDispose.push(openSettingsButton.onDidClick(() => template.onChange(null)));
+		common.toDispose.push(openSettingsButton.onDidClick(() => template.onChange!()));
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 
@@ -653,11 +688,120 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
+export class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingListItemTemplate> {
+	templateId = SETTINGS_ARRAY_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		descriptionElement.after(validationErrorMessageElement);
+
+		const listWidget = this._instantiationService.createInstance(ListSettingWidget, common.controlElement);
+		listWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.push(listWidget);
+
+		const template: ISettingListItemTemplate = {
+			...common,
+			listWidget,
+			validationErrorMessageElement
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		common.toDispose.push(
+			listWidget.onDidChangeList(e => {
+				const newList = this.computeNewList(template, e);
+				this.onDidChangeList(template, newList);
+				if (newList !== null && template.onChange) {
+					template.onChange(newList);
+				}
+			})
+		);
+
+		return template;
+	}
+
+	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
+		if (!template.context || newList === null) {
+			return;
+		}
+
+		this._onDidChangeSetting.fire({
+			key: template.context.setting.key,
+			value: newList,
+			type: template.context.valueType
+		});
+	}
+
+	private computeNewList(template: ISettingListItemTemplate, e: IListChangeEvent): string[] | undefined | null {
+		if (template.context) {
+			let newValue: string[] = [];
+			if (isArray(template.context.scopeValue)) {
+				newValue = [...template.context.scopeValue];
+			} else if (isArray(template.context.value)) {
+				newValue = [...template.context.value];
+			}
+
+			if (e.targetIndex !== undefined) {
+				// Delete value
+				if (!e.value && e.originalValue && e.targetIndex > -1) {
+					newValue.splice(e.targetIndex, 1);
+				}
+				// Update value
+				else if (e.value && e.originalValue) {
+					if (e.targetIndex > -1) {
+						newValue[e.targetIndex] = e.value;
+					}
+					// For some reason, we are updating and cannot find original value
+					// Just append the value in this case
+					else {
+						newValue.push(e.value);
+					}
+				}
+				// Add value
+				else if (e.value && !e.originalValue && e.targetIndex >= newValue.length) {
+					newValue.push(e.value);
+				}
+			}
+			if (
+				template.context.defaultValue &&
+				isArray(template.context.defaultValue) &&
+				template.context.defaultValue.length === newValue.length &&
+				template.context.defaultValue.join() === newValue.join()
+			) {
+				return undefined;
+			}
+
+			return newValue;
+		}
+
+		return undefined;
+	}
+
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingListItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+		const value = getListDisplayValue(dataElement);
+		template.listWidget.setValue(value);
+		template.context = dataElement;
+
+		template.onChange = (v) => {
+			onChange(v);
+			renderArrayValidations(dataElement, template, v, false);
+		};
+
+		renderArrayValidations(dataElement, template, value.map(v => v.value), true);
+	}
+}
+
 export class SettingExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
 	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'exclude');
+		const common = this.renderCommonTemplate(null, container, 'list');
 
 		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
 		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -670,46 +814,45 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(excludeWidget.onDidChangeExclude(e => this.onDidChangeExclude(template, e)));
+		common.toDispose.push(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
 
 		return template;
 	}
 
-	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IExcludeChangeEvent): void {
+	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IListChangeEvent): void {
 		if (template.context) {
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalPattern) {
-				if (e.originalPattern in template.context.defaultValue) {
+			if (e.originalValue) {
+				if (e.originalValue in template.context.defaultValue) {
 					// delete a default by overriding it
-					newValue[e.originalPattern] = false;
+					newValue[e.originalValue] = false;
 				} else {
-					delete newValue[e.originalPattern];
+					delete newValue[e.originalValue];
 				}
 			}
 
 			// then add the new or updated entry, if present
-			if (e.pattern) {
-				if (e.pattern in template.context.defaultValue && !e.sibling) {
+			if (e.value) {
+				if (e.value in template.context.defaultValue && !e.sibling) {
 					// add a default by deleting its override
-					delete newValue[e.pattern];
+					delete newValue[e.value];
 				} else {
-					newValue[e.pattern] = e.sibling ? { when: e.sibling } : true;
+					newValue[e.value] = e.sibling ? { when: e.sibling } : true;
 				}
 			}
 
-			const sortKeys = (obj) => {
-				const keyArray = Object.keys(obj)
-					.map(key => ({ key, val: obj[key] }))
-					.sort((a, b) => a.key.localeCompare(b.key));
+			function sortKeys<T extends object>(obj: T) {
+				const sortedKeys = Object.keys(obj)
+					.sort((a, b) => a.localeCompare(b)) as Array<keyof T>;
 
-				const retVal = {};
-				keyArray.forEach(pair => {
-					retVal[pair.key] = pair.val;
-				});
+				const retVal: Partial<T> = {};
+				for (const key of sortedKeys) {
+					retVal[key] = obj[key];
+				}
 				return retVal;
-			};
+			}
 
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
@@ -771,7 +914,7 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_TEXT_TEMPLATE_ID, template);
 
-		template.onChange = null;
+		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
@@ -785,7 +928,9 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	renderTemplate(container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this._contextViewService, undefined, { useCustomDrawn: true });
+		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this._themeService, {
@@ -828,13 +973,22 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
-		const displayOptions = dataElement.setting.enum
+		const disposables = new DisposableStore();
+		template.toDispose.push(disposables);
+
+		const displayOptions = dataElement.setting.enum!
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => <ISelectOptionItem>{
 				text: data,
 				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
 				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+				descriptionMarkdownActionHandler: {
+					callback: (content) => {
+						this._openerService.open(content).catch(onUnexpectedError);
+					},
+					disposeables: disposables
+				},
 				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
 			});
 
@@ -843,10 +997,17 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
 		template.selectBox.setAriaLabel(label);
 
-		const idx = dataElement.setting.enum.indexOf(dataElement.value);
-		template.onChange = null;
+		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		if (idx === -1) {
+			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
+			if (idx === -1) {
+				idx = 0;
+			}
+		}
+
+		template.onChange = undefined;
 		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
+		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
 
 		template.enumDescriptionElement.innerHTML = '';
 	}
@@ -890,18 +1051,21 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingNumberItemTemplate, onChange: (value: number) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingNumberItemTemplate, onChange: (value: number | null) => void): void {
 		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
-			? (v => v === '' ? null : numParseFn(v)) : numParseFn;
+			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
 
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_NUMBER_TEMPLATE_ID, template);
 
-		template.onChange = null;
+		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(nullNumParseFn(value)); };
+		template.onChange = value => {
+			renderValidations(dataElement, template, false, label);
+			onChange(nullNumParseFn(value));
+		};
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -930,11 +1094,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose: IDisposable[] = [];
-		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
+		const toDispose = new DisposableStore();
+		const checkbox = new Checkbox({ actionClassName: 'codicon-check setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
-		toDispose.push(checkbox);
-		toDispose.push(checkbox.onChange(() => {
+		toDispose.add(checkbox);
+		toDispose.add(checkbox.onChange(() => {
 			if (template.onChange) {
 				template.onChange(checkbox.checked);
 			}
@@ -942,7 +1106,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
-		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
+		toDispose.add(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.target;
 			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
@@ -950,7 +1114,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			// Toggle target checkbox
 			if (targetElement.tagName.toLowerCase() !== 'a' && targetId === template.checkbox.domNode.id) {
 				template.checkbox.checked = template.checkbox.checked ? false : true;
-				template.onChange(checkbox.checked);
+				template.onChange!(checkbox.checked);
 			}
 			DOM.EventHelper.stop(e);
 		}));
@@ -959,10 +1123,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		checkbox.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
-		toDispose.push(toolbar);
+		toDispose.add(toolbar);
 
 		const template: ISettingBoolItemTemplate = {
-			toDispose,
+			toDispose: [toDispose],
+			elementDisposables: [],
 
 			containerElement: container,
 			categoryElement,
@@ -978,13 +1143,16 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		this.addSettingElementFocusHandler(template);
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.add(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
 
-		toDispose.push(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
+		toDispose.add(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
 				e.browserEvent.stopPropagation();
 			}
 		}));
+
+		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
 		return template;
 	}
@@ -994,7 +1162,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
-		template.onChange = null;
+		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
 		template.onChange = onChange;
 
@@ -1022,7 +1190,8 @@ export class SettingTreeRenderers {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
@@ -1037,14 +1206,16 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
 		];
 
+		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
 		const settingRenderers = [
-			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions),
-			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions),
-			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions),
-			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions),
-			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions),
-			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions),
-			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions),
+			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 		];
 
 		this.onDidClickOverrideElement = Event.any(...settingRenderers.map(r => r.onDidClickOverrideElement));
@@ -1063,22 +1234,29 @@ export class SettingTreeRenderers {
 		];
 	}
 
+	private getActionsForSetting(setting: ISetting): IAction[] {
+		const enableSync = this._configService.getValue<boolean>('sync.enable');
+		return enableSync ?
+			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
+			[];
+	}
+
 	cancelSuggesters() {
 		this._contextViewService.hideContextView();
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
-		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
+		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
 				getActions: () => this.settingActions,
-				getAnchor: () => toolbarElement,
+				getAnchor: () => <HTMLElement>toolbarElement,
 				getActionsContext: () => element
 			});
 		}
 	}
 
-	getSettingDOMElementForDOMElement(domElement: HTMLElement): HTMLElement {
+	getSettingDOMElementForDOMElement(domElement: HTMLElement): HTMLElement | null {
 		const parent = DOM.findParentWithClass(domElement, AbstractSettingRenderer.CONTENTS_CLASS);
 		if (parent) {
 			return parent;
@@ -1091,12 +1269,12 @@ export class SettingTreeRenderers {
 		return treeContainer.querySelectorAll(`[${AbstractSettingRenderer.SETTING_KEY_ATTR}="${key}"]`);
 	}
 
-	getKeyForDOMElementInSetting(element: HTMLElement): string {
+	getKeyForDOMElementInSetting(element: HTMLElement): string | null {
 		const settingElement = this.getSettingDOMElementForDOMElement(element);
 		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 	}
 
-	getIdForDOMElementInSetting(element: HTMLElement): string {
+	getIdForDOMElementInSetting(element: HTMLElement): string | null {
 		const settingElement = this.getSettingDOMElementForDOMElement(element);
 		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_ID_ATTR);
 	}
@@ -1109,14 +1287,37 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 			DOM.addClass(template.containerElement, 'invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
-			template.inputBox.inputElement.parentElement.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
+			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
 			return;
 		} else {
-			template.inputBox.inputElement.parentElement.setAttribute('aria-label', originalAriaLabel);
+			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', originalAriaLabel);
 		}
 	}
 	DOM.removeClass(template.containerElement, 'invalid-input');
+}
+
+function renderArrayValidations(
+	dataElement: SettingsTreeSettingElement,
+	template: ISettingListItemTemplate,
+	value: string[] | undefined,
+	calledOnStartup: boolean
+) {
+	DOM.addClass(template.containerElement, 'invalid-input');
+	if (dataElement.setting.validator) {
+		const errMsg = dataElement.setting.validator(value);
+		if (errMsg && errMsg !== '') {
+			DOM.addClass(template.containerElement, 'invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			const validationError = localize('validationError', "Validation Error.");
+			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
+			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
+			return;
+		} else {
+			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
+			DOM.removeClass(template.containerElement, 'invalid-input');
+		}
+	}
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -1151,6 +1352,7 @@ function escapeInvisibleChars(enumValue: string): string {
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
 		private viewState: ISettingsEditorViewState,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) { }
 
 	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
@@ -1162,8 +1364,9 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		}
 
 		// Non-user scope selected
-		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER) {
-			if (!element.matchesScope(this.viewState.settingsTarget)) {
+		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL) {
+			const isRemote = !!this.environmentService.configuration.remoteAuthority;
+			if (!element.matchesScope(this.viewState.settingsTarget, isRemote)) {
 				return false;
 			}
 		}
@@ -1207,39 +1410,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	}
 }
 
-export class SettingsAccessibilityProvider implements IAccessibilityProvider {
-	getAriaLabel(tree: ITree, element: SettingsTreeElement): string {
-		if (!element) {
-			return '';
-		}
-
-		if (element instanceof SettingsTreeSettingElement) {
-			if (element.valueType === 'boolean') {
-				return '';
-			}
-			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
-		}
-
-		if (element instanceof SettingsTreeGroupElement) {
-			return localize('groupRowAriaLabel', "{0}, group", element.label);
-		}
-
-		return '';
-	}
-}
-
-class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChild> {
-	getHeight(element: SettingsTreeElement): number {
-		if (element instanceof SettingsTreeGroupElement) {
-			if (element.isFirstGroup) {
-				return 31;
-			}
-
-			return 40 + (7 * element.level);
-		}
-
-		return 78;
-	}
+class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
 
 	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {
 		if (element instanceof SettingsTreeGroupElement) {
@@ -1247,23 +1418,27 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
-			if (element.valueType === 'boolean') {
+			if (element.valueType === SettingValueType.Boolean) {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'integer' || element.valueType === 'number' || element.valueType === 'nullable-integer' || element.valueType === 'nullable-number') {
+			if (element.valueType === SettingValueType.Integer || element.valueType === SettingValueType.Number || element.valueType === SettingValueType.NullableInteger || element.valueType === SettingValueType.NullableNumber) {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'string') {
+			if (element.valueType === SettingValueType.String) {
 				return SETTINGS_TEXT_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'enum') {
+			if (element.valueType === SettingValueType.Enum) {
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'exclude') {
+			if (element.valueType === SettingValueType.ArrayOfString) {
+				return SETTINGS_ARRAY_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.Exclude) {
 				return SETTINGS_EXCLUDE_TEMPLATE_ID;
 			}
 
@@ -1279,6 +1454,18 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 
 	hasDynamicHeight(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): boolean {
 		return !(element instanceof SettingsTreeGroupElement);
+	}
+
+	protected estimateHeight(element: SettingsTreeGroupChild): number {
+		if (element instanceof SettingsTreeGroupElement) {
+			if (element.isFirstGroup) {
+				return 31;
+			}
+
+			return 40 + (7 * element.level);
+		}
+
+		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ? 78 : 104;
 	}
 }
 
@@ -1297,11 +1484,10 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
 		renderers: ITreeRenderer<any, void, any>[],
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const treeClass = 'settings-editor-tree';
-
-		super(container,
+		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
 			renderers,
 			{
@@ -1313,12 +1499,12 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
-				filter: new SettingsTreeFilter(viewState)
+				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+				filter: instantiationService.createInstance(SettingsTreeFilter, viewState)
 			});
 
-		this.disposables = [];
-		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+		this.disposables.clear();
+		this.disposables.add(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
@@ -1331,6 +1517,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+
+				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
@@ -1366,9 +1554,10 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			}
 		}));
 
-		this.getHTMLElement().classList.add(treeClass);
+		this.getHTMLElement().classList.add('settings-editor-tree');
 
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
+			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
 			listFocusAndSelectionBackground: editorBackground,
@@ -1388,8 +1577,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
-		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(view, options);
+	protected createModel(user: string, view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
 	}
 }
 
@@ -1403,9 +1592,9 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): Promise<void> {
+	async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
-			this.clipboardService.writeText(context.setting.key);
+			await this.clipboardService.writeText(context.setting.key);
 		}
 
 		return Promise.resolve(undefined);
@@ -1422,10 +1611,39 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): Promise<void> {
+	async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
-			this.clipboardService.writeText(jsonResult);
+			await this.clipboardService.writeText(jsonResult);
+		}
+
+		return Promise.resolve(undefined);
+	}
+}
+
+class StopSyncingSettingAction extends Action {
+	static readonly ID = 'settings.stopSyncingSetting';
+	static readonly LABEL = localize('stopSyncingSetting', "Don't Sync This Setting");
+
+	constructor(
+		private readonly setting: ISetting,
+		@IConfigurationService private readonly configService: IConfigurationService,
+	) {
+		super(StopSyncingSettingAction.ID, StopSyncingSettingAction.LABEL);
+		this.update();
+	}
+
+	update() {
+		const ignoredSettings = getIgnoredSettings(this.configService);
+		this.checked = ignoredSettings.includes(this.setting.key);
+	}
+
+	async run(): Promise<void> {
+		const currentValue = this.configService.getValue<string[]>('sync.ignoredSettings');
+		if (this.checked) {
+			this.configService.updateValue('sync.ignoredSettings', currentValue.filter(v => v !== this.setting.key));
+		} else {
+			this.configService.updateValue('sync.ignoredSettings', [...currentValue, this.setting.key]);
 		}
 
 		return Promise.resolve(undefined);

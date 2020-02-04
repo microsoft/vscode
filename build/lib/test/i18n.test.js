@@ -27,14 +27,14 @@ suite('XLF Parser Tests', () => {
     });
     test('JSON file source path to Transifex resource match', () => {
         const editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench';
-        const platform = { name: 'vs/platform', project: editorProject }, editorContrib = { name: 'vs/editor/contrib', project: editorProject }, editor = { name: 'vs/editor', project: editorProject }, base = { name: 'vs/base', project: editorProject }, code = { name: 'vs/code', project: workbenchProject }, workbenchParts = { name: 'vs/workbench/contrib/html', project: workbenchProject }, workbenchServices = { name: 'vs/workbench/services/files', project: workbenchProject }, workbench = { name: 'vs/workbench', project: workbenchProject };
+        const platform = { name: 'vs/platform', project: editorProject }, editorContrib = { name: 'vs/editor/contrib', project: editorProject }, editor = { name: 'vs/editor', project: editorProject }, base = { name: 'vs/base', project: editorProject }, code = { name: 'vs/code', project: workbenchProject }, workbenchParts = { name: 'vs/workbench/contrib/html', project: workbenchProject }, workbenchServices = { name: 'vs/workbench/services/textfile', project: workbenchProject }, workbench = { name: 'vs/workbench', project: workbenchProject };
         assert.deepEqual(i18n.getResource('vs/platform/actions/browser/menusExtensionPoint'), platform);
         assert.deepEqual(i18n.getResource('vs/editor/contrib/clipboard/browser/clipboard'), editorContrib);
         assert.deepEqual(i18n.getResource('vs/editor/common/modes/modesRegistry'), editor);
         assert.deepEqual(i18n.getResource('vs/base/common/errorMessage'), base);
         assert.deepEqual(i18n.getResource('vs/code/electron-main/window'), code);
         assert.deepEqual(i18n.getResource('vs/workbench/contrib/html/browser/webview'), workbenchParts);
-        assert.deepEqual(i18n.getResource('vs/workbench/services/files/node/fileService'), workbenchServices);
+        assert.deepEqual(i18n.getResource('vs/workbench/services/textfile/node/testFileService'), workbenchServices);
         assert.deepEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
     });
 });

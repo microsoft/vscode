@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isLinux } from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -23,11 +23,12 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 export class PreferencesContribution implements IWorkbenchContribution {
-	private editorOpeningListener: IDisposable;
+	private editorOpeningListener: IDisposable | undefined;
 	private settingsListener: IDisposable;
 
 	constructor(
@@ -53,7 +54,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private handleSettingsEditorOverride(): void {
 
 		// dispose any old listener we had
-		this.editorOpeningListener = dispose(this.editorOpeningListener);
+		dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
@@ -61,7 +62,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride {
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 		const resource = editor.getResource();
 		if (
 			!resource ||
@@ -79,7 +80,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (isEqual(resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+		if (isEqual(resource, this.environmentService.settingsResource)) {
 			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 
@@ -108,7 +109,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): Promise<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel | null> | null => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
@@ -123,20 +124,20 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private getSchemaModel(uri: URI): ITextModel {
+	private getSchemaModel(uri: URI): ITextModel | null {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 		if (schema) {
 			const modelContent = JSON.stringify(schema);
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this.modelService.createModel(modelContent, languageSelection, uri);
-			const disposables: IDisposable[] = [];
-			disposables.push(schemaRegistry.onDidChangeSchema(schemaUri => {
+			const disposables = new DisposableStore();
+			disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
 				if (schemaUri === uri.toString()) {
 					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 					model.setValue(JSON.stringify(schema));
 				}
 			}));
-			disposables.push(model.onWillDispose(() => dispose(disposables)));
+			disposables.add(model.onWillDispose(() => disposables.dispose()));
 
 			return model;
 		}
@@ -144,7 +145,31 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		this.editorOpeningListener = dispose(this.editorOpeningListener);
-		this.settingsListener = dispose(this.settingsListener);
+		dispose(this.editorOpeningListener);
+		dispose(this.settingsListener);
 	}
 }
+
+const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+registry.registerConfiguration({
+	'properties': {
+		'workbench.settings.enableNaturalLanguageSearch': {
+			'type': 'boolean',
+			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
+			'default': true,
+			'scope': ConfigurationScope.WINDOW,
+			'tags': ['usesOnlineServices']
+		},
+		'workbench.settings.settingsSearchTocBehavior': {
+			'type': 'string',
+			'enum': ['hide', 'filter'],
+			'enumDescriptions': [
+				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
+				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
+			],
+			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
+			'default': 'filter',
+			'scope': ConfigurationScope.WINDOW
+		},
+	}
+});

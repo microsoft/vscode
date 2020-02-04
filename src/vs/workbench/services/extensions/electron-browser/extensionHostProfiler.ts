@@ -5,8 +5,12 @@
 
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extfs';
-import { IExtensionDescription, IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { realpathSync } from 'vs/base/node/extpath';
+import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtensionHostProfiler {
 
@@ -28,7 +32,9 @@ export class ExtensionHostProfiler {
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
 		let searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
 		for (let extension of extensions) {
-			searchTree.set(realpathSync(extension.extensionLocation.fsPath), extension);
+			if (extension.extensionLocation.scheme === Schemas.file) {
+				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)).toString(), extension);
+			}
 		}
 
 		let nodes = profile.nodes;
@@ -54,7 +60,12 @@ export class ExtensionHostProfiler {
 						break;
 				}
 			} else if (segmentId === 'self' && node.callFrame.url) {
-				let extension = searchTree.findSubstr(node.callFrame.url);
+				let extension: IExtensionDescription | undefined;
+				try {
+					extension = searchTree.findSubstr(URI.parse(node.callFrame.url).toString());
+				} catch {
+					// ignore
+				}
 				if (extension) {
 					segmentId = extension.identifier.value;
 				}
@@ -87,7 +98,7 @@ export class ExtensionHostProfiler {
 					distilledIds.push(currSegmentId);
 					distilledDeltas.push(currSegmentTime);
 				}
-				currSegmentId = segmentId || undefined;
+				currSegmentId = withNullAsUndefined(segmentId);
 				currSegmentTime = 0;
 			}
 			currSegmentTime += timeDeltas[i];

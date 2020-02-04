@@ -16,16 +16,15 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
 
 gracefulFs.gracefulify(fs);
 
-type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
-type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
+export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
+export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
 export class SearchService implements IRawSearchService {
 
@@ -98,7 +97,7 @@ export class SearchService implements IRawSearchService {
 				resultCount++;
 				progressCallback(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 			} else {
-				progressCallback(<IProgress>progress);
+				progressCallback(<IProgressMessage>progress);
 			}
 		};
 
@@ -255,7 +254,7 @@ export class SearchService implements IRawSearchService {
 		const query = prepareQuery(config.filePattern || '');
 		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		const maxResults = config.maxResults || Number.MAX_VALUE;
+		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : Number.MAX_VALUE;
 		return arrays.topAsync(results, compare, maxResults, 10000, token);
 	}
 
@@ -278,7 +277,7 @@ export class SearchService implements IRawSearchService {
 		for (const previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0 && previousSearch !== '') {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
@@ -313,7 +312,7 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).lowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
@@ -381,16 +380,17 @@ export class SearchService implements IRawSearchService {
 	 */
 	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
 		return new class implements CancelablePromise<C> {
+			get [Symbol.toStringTag]() { return this.toString(); }
 			cancel() {
 				// Do nothing
 			}
-			then(resolve, reject) {
+			then<TResult1 = C, TResult2 = never>(resolve?: ((value: C) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 				return promise.then(resolve, reject);
 			}
-			catch(reject?) {
+			catch(reject?: any) {
 				return this.then(undefined, reject);
 			}
-			finally(onFinally) {
+			finally(onFinally: any) {
 				return promise.finally(onFinally);
 			}
 		};

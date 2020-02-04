@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
-
+import * as path from 'path';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
+import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, TextDocument, SelectionRange, SelectionRangeKind } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable, TextDocumentIdentifier } from 'vscode-languageclient';
-import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+const localize = nls.loadMessageBundle();
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -44,6 +43,41 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			dataPaths
+		},
+		middleware: {
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				// testing the replace / insert mode
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
+
+					}
+				}
+				function updateLabel(item: CompletionItem) {
+					if (item.kind === CompletionItemKind.Color) {
+						item.label2 = {
+							name: item.label,
+							type: (item.documentation as string)
+						};
+					}
+				}
+				// testing the new completion
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+						(Array.isArray(r) ? r : r.items).forEach(updateLabel);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
+			}
 		}
 	};
 
@@ -78,46 +112,6 @@ export function activate(context: ExtensionContext) {
 
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
-
-		documentSelector.forEach(selector => {
-			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
-					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					return Promise.all(positions.map(async position => {
-						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-						if (Array.isArray(rawRanges)) {
-							return rawRanges.map(r => {
-								return {
-									range: client.protocol2CodeConverter.asRange(r),
-									kind: SelectionRangeKind.Declaration
-								};
-							});
-						}
-						return [];
-					}));
-				}
-			}));
-		});
-	});
-
-	const selectionRangeProvider = {
-		async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
-			const textDocument = TextDocumentIdentifier.create(document.uri.toString());
-			return Promise.all(positions.map(async position => {
-				const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
-
-				return rawRanges.map(r => {
-					const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));
-					return {
-						range: actualRange,
-						kind: SelectionRangeKind.Declaration
-					};
-				});
-			}));
-		}
-	};
-	documentSelector.forEach(selector => {
-		languages.registerSelectionRangeProvider(selector, selectionRangeProvider);
 	});
 
 	function initCompletionProvider(): Disposable {

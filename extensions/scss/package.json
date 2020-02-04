@@ -4,6 +4,7 @@
 	  "description": "%description%",
     "version": "1.0.0",
     "publisher": "vscode",
+    "license": "MIT",
     "engines": { "vscode": "*" },
     "scripts": {
         "update-grammar": "node ../../build/npm/update-grammar.js atom/language-sass grammars/scss.cson ./syntaxes/scss.tmLanguage.json grammars/sassdoc.cson ./syntaxes/sassdoc.tmLanguage.json"

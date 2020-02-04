@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as Uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResolveContentOptions, IUpdateContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
-export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf8' };
-export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'utf8' };
+export interface IResolvedBackup<T extends object> {
+	value: ITextBufferFactory;
+	meta?: T;
+}
 
 /**
  * A service that handles any I/O and state associated with the backup system.
  */
 export interface IBackupFileService {
-	_serviceBrand: any;
+
+	_serviceBrand: undefined;
 
 	/**
 	 * Finds out if there are any backups stored.
@@ -25,55 +27,45 @@ export interface IBackupFileService {
 	hasBackups(): Promise<boolean>;
 
 	/**
-	 * Loads the backup resource for a particular resource within the current workspace.
+	 * Finds out if the provided resource with the given version is backed up.
 	 *
-	 * @param resource The resource that is backed up.
-	 * @return The backup resource if any.
+	 * Note: if the backup service has not been initialized yet, this may return
+	 * the wrong result. Always use `resolve()` if you can do a long running
+	 * operation.
 	 */
-	loadBackupResource(resource: Uri): Promise<Uri | undefined>;
-
-	/**
-	 * Given a resource, returns the associated backup resource.
-	 *
-	 * @param resource The resource to get the backup resource for.
-	 * @return The backup resource.
-	 */
-	toBackupResource(resource: Uri): Uri;
-
-	/**
-	 * Backs up a resource.
-	 *
-	 * @param resource The resource to back up.
-	 * @param content The content of the resource as snapshot.
-	 * @param versionId The version id of the resource to backup.
-	 */
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void>;
+	hasBackupSync(resource: URI, versionId?: number): boolean;
 
 	/**
 	 * Gets a list of file backups for the current workspace.
 	 *
 	 * @return The list of backups.
 	 */
-	getWorkspaceFileBackups(): Promise<Uri[]>;
+	getBackups(): Promise<URI[]>;
 
 	/**
-	 * Resolves the backup for the given resource.
+	 * Resolves the backup for the given resource if that exists.
 	 *
-	 * @param value The contents from a backup resource as stream.
-	 * @return The backup file's backed up content as text buffer factory.
+	 * @param resource The resource to get the backup for.
+	 * @return The backup file's backed up content and metadata if available or undefined
+	 * if not backup exists.
 	 */
-	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory | undefined>;
+	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined>;
+
+	/**
+	 * Backs up a resource.
+	 *
+	 * @param resource The resource to back up.
+	 * @param content The optional content of the resource as snapshot.
+	 * @param versionId The optionsl version id of the resource to backup.
+	 * @param meta The optional meta data of the resource to backup. This information
+	 * can be restored later when loading the backup again.
+	 */
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
-	discardResourceBackup(resource: Uri): Promise<void>;
-
-	/**
-	 * Discards all backups associated with the current workspace and prevents further backups from
-	 * being made.
-	 */
-	discardAllWorkspaceBackups(): Promise<void>;
+	discardBackup(resource: URI): Promise<void>;
 }

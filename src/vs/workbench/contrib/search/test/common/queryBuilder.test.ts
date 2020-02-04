@@ -11,9 +11,10 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IFolderQuery, IPatternInfo, QueryType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { isWindows } from 'vs/base/common/platform';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
@@ -24,6 +25,7 @@ suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);
+	const WS_CONFIG_PATH = getUri('/bar/test.code-workspace'); // location of the workspace file (not important except that it is a file URI)
 
 	let instantiationService: TestInstantiationService;
 	let queryBuilder: QueryBuilder;
@@ -40,7 +42,7 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
+		mockWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI)]);
 		mockContextService.setWorkspace(mockWorkspace);
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
@@ -56,6 +58,46 @@ suite('QueryBuilder', () => {
 				folderQueries: [],
 				contentPattern: PATTERN_INFO,
 				type: QueryType.Text
+			});
+	});
+
+	test('normalize literal newlines', () => {
+		assertEqualTextQueries(
+			queryBuilder.text({ pattern: 'foo\nbar', isRegExp: true }),
+			{
+				folderQueries: [],
+				contentPattern: {
+					pattern: 'foo\\nbar',
+					isRegExp: true,
+					isMultiline: true
+				},
+				type: QueryType.Text
+			});
+
+		assertEqualTextQueries(
+			queryBuilder.text({ pattern: 'foo\nbar', isRegExp: false }),
+			{
+				folderQueries: [],
+				contentPattern: {
+					pattern: 'foo\nbar',
+					isRegExp: false,
+					isMultiline: true
+				},
+				type: QueryType.Text
+			});
+	});
+
+	test('does not split glob pattern when expandPatterns disabled', () => {
+		assertEqualQueries(
+			queryBuilder.file([ROOT_1_URI], { includePattern: '**/foo, **/bar' }),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo, **/bar': true
+				}
 			});
 	});
 
@@ -237,7 +279,7 @@ suite('QueryBuilder', () => {
 		const ROOT_2_URI = getUri(ROOT_2);
 		const ROOT_3 = fixPath('/project/root3');
 		const ROOT_3_URI = getUri(ROOT_3);
-		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }]);
+		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }], WS_CONFIG_PATH);
 		mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 		mockConfigService.setUserConfiguration('search', {
@@ -619,22 +661,37 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-				// TODO @ rob
-				// [
-				// 	'../',
-				// 	{
-				// 		searchPaths: [{
-				// 			searchPath: getUri('foo/')
-				// 		}]
-				// 	}
-				// ]
+				[
+					'../',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo')
+						}]
+					}
+				],
+				[
+					'..',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo')
+						}]
+					}
+				],
+				[
+					'..\\bar',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo/bar')
+						}]
+					}
+				]
 			];
 			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/two root folders', () => {
 			const ROOT_2 = '/project/root2';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }], WS_CONFIG_PATH);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
 			const cases: [string, ISearchPathsInfo][] = [
@@ -675,7 +732,7 @@ suite('QueryBuilder', () => {
 		test('include ./foldername', () => {
 			const ROOT_2 = '/project/root2';
 			const ROOT_1_FOLDERNAME = 'foldername';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }]);
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }], WS_CONFIG_PATH);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
 			const cases: [string, ISearchPathsInfo][] = [
@@ -703,7 +760,7 @@ suite('QueryBuilder', () => {
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }], WS_CONFIG_PATH);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 			const cases: [string, ISearchPathsInfo][] = [
@@ -976,7 +1033,7 @@ function getUri(...slashPathParts: string[]): uri {
 }
 
 function fixPath(...slashPathParts: string[]): string {
-	if (process.platform === 'win32' && slashPathParts.length && !slashPathParts[0].match(/^c:/i)) {
+	if (isWindows && slashPathParts.length && !slashPathParts[0].match(/^c:/i)) {
 		slashPathParts.unshift('c:');
 	}
 

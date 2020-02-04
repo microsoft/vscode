@@ -49,14 +49,13 @@ function registerMarkdownLanguageFeatures(
 	symbolProvider: MDDocumentSymbolProvider,
 	engine: MarkdownEngine
 ): vscode.Disposable {
-	const selector: vscode.DocumentSelector = [
-		{ language: 'markdown', scheme: 'file' },
-		{ language: 'markdown', scheme: 'untitled' }
-	];
+	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
+
+	const charPattern = '(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})';
 
 	return vscode.Disposable.from(
 		vscode.languages.setLanguageConfiguration('markdown', {
-			wordPattern: new RegExp('(\\p{Alphabetic}|\\p{Number})+', 'ug'),
+			wordPattern: new RegExp(`${charPattern}((${charPattern}|[_])?${charPattern})*`, 'ug'),
 		}),
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
@@ -78,11 +77,12 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
+	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 	commandManager.register(new commands.ToggleLockCommand(previewManager));
+	commandManager.register(new commands.RenderDocument(engine));
 	return commandManager;
 }
 

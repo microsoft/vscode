@@ -8,7 +8,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -23,12 +23,13 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCom
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 // copy lines
 
 abstract class AbstractCopyLinesAction extends EditorAction {
 
-	private down: boolean;
+	private readonly down: boolean;
 
 	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
@@ -75,7 +76,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
@@ -98,7 +99,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
@@ -108,11 +109,52 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 	}
 }
 
+export class DuplicateSelectionAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.duplicateSelection',
+			label: nls.localize('duplicateSelection', "Duplicate Selection"),
+			alias: 'Duplicate Selection',
+			precondition: EditorContextKeys.writable,
+			menuOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
+				order: 5
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
+		const model = editor.getModel();
+
+		for (const selection of selections) {
+			if (selection.isEmpty()) {
+				commands.push(new CopyLinesCommand(selection, true));
+			} else {
+				const insertSelection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
+				commands.push(new ReplaceCommandThatSelectsText(insertSelection, model.getValueInRange(selection)));
+			}
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+}
+
 // move lines
 
 abstract class AbstractMoveLinesAction extends EditorAction {
 
-	private down: boolean;
+	private readonly down: boolean;
 
 	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
@@ -123,7 +165,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections() || [];
-		let autoIndent = editor.getConfiguration().autoIndent;
+		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
 		for (const selection of selections) {
 			commands.push(new MoveLinesCommand(selection, this.down, autoIndent));
@@ -148,7 +190,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
@@ -171,7 +213,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
@@ -182,7 +224,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 }
 
 export abstract class AbstractSortLinesAction extends EditorAction {
-	private descending: boolean;
+	private readonly descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
 		super(opts);
@@ -593,7 +635,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
 				}
 			} else {
-				return selection;
+				return new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
 			}
 		});
 
@@ -898,6 +940,8 @@ export abstract class AbstractCaseAction extends EditorAction {
 			return;
 		}
 
+		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+
 		let commands: ICommand[] = [];
 
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -912,12 +956,12 @@ export abstract class AbstractCaseAction extends EditorAction {
 
 				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
 				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text),
+				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
 					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
 
 			} else {
 				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text), selection));
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
 			}
 		}
 
@@ -926,7 +970,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 		editor.pushUndoStop();
 	}
 
-	protected abstract _modifyText(text: string): string;
+	protected abstract _modifyText(text: string, wordSeparators: string): string;
 }
 
 export class UpperCaseAction extends AbstractCaseAction {
@@ -939,7 +983,7 @@ export class UpperCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
+	protected _modifyText(text: string, wordSeparators: string): string {
 		return text.toLocaleUpperCase();
 	}
 }
@@ -954,13 +998,51 @@ export class LowerCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
+	protected _modifyText(text: string, wordSeparators: string): string {
 		return text.toLocaleLowerCase();
+	}
+}
+
+export class TitleCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToTitlecase',
+			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
+			alias: 'Transform to Title Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const separators = '\r\n\t ' + wordSeparators;
+		const excludedChars = separators.split('');
+
+		let title = '';
+		let startUpperCase = true;
+
+		for (let i = 0; i < text.length; i++) {
+			let currentChar = text[i];
+
+			if (excludedChars.indexOf(currentChar) >= 0) {
+				startUpperCase = true;
+
+				title += currentChar;
+			} else if (startUpperCase) {
+				startUpperCase = false;
+
+				title += currentChar.toLocaleUpperCase();
+			} else {
+				title += currentChar.toLocaleLowerCase();
+			}
+		}
+
+		return title;
 	}
 }
 
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
+registerEditorAction(DuplicateSelectionAction);
 registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);
@@ -977,3 +1059,4 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
+registerEditorAction(TitleCaseAction);

@@ -3,62 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { clipboard } from 'electron';
+import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
-	private static SELECTION_LENGTH_LIMIT = 65536;
-	private static readonly ID = 'editor.contrib.selectionClipboard';
+	private static readonly SELECTION_LENGTH_LIMIT = 65536;
 
-	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, @IClipboardService clipboardService: IClipboardService) {
 		super();
 
 		if (platform.isLinux) {
-			let isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
+			let isEnabled = editor.getOption(EditorOption.selectionClipboard);
 
-			this._register(editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-				if (e.contribInfo) {
-					isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
-				}
-			}));
-
-			this._register(editor.onMouseDown((e: IEditorMouseEvent) => {
-				if (!isEnabled) {
-					return;
-				}
-				if (!editor.hasModel()) {
-					return;
-				}
-				if (e.event.middleButton) {
-					e.event.preventDefault();
-					editor.focus();
-
-					if (e.target.position) {
-						editor.setPosition(e.target.position);
-					}
-
-					if (e.target.type === MouseTargetType.SCROLLBAR) {
-						return;
-					}
-
-					process.nextTick(() => {
-						// TODO@Alex: electron weirdness: calling clipboard.readText('selection') generates a paste event, so no need to execute paste ourselves
-						clipboard.readText('selection');
-						// keybindingService.executeCommand(Handler.Paste, {
-						// 	text: clipboard.readText('selection'),
-						// 	pasteOnNewLine: false
-						// });
-					});
+			this._register(editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+				if (e.hasChanged(EditorOption.selectionClipboard)) {
+					isEnabled = editor.getOption(EditorOption.selectionClipboard);
 				}
 			}));
 
@@ -92,11 +70,16 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 
 				let textToCopy = result.join(model.getEOL());
-				clipboard.writeText(textToCopy, 'selection');
+				clipboardService.writeText(textToCopy, 'selection');
 			}, 100));
 
 			this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 				if (!isEnabled) {
+					return;
+				}
+				if (e.source === 'restoreState') {
+					// do not set selection to clipboard if this selection change
+					// was caused by restoring editors...
 					return;
 				}
 				setSelectionToClipboard.schedule();
@@ -104,13 +87,66 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		}
 	}
 
-	public getId(): string {
-		return SelectionClipboard.ID;
-	}
-
 	public dispose(): void {
 		super.dispose();
 	}
 }
 
-registerEditorContribution(SelectionClipboard);
+class SelectionClipboardPastePreventer implements IWorkbenchContribution {
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		if (platform.isLinux) {
+			document.addEventListener('mouseup', (e) => {
+				if (e.button === 1) {
+					// middle button
+					const config = configurationService.getValue<{ selectionClipboard: boolean; }>('editor');
+					if (!config.selectionClipboard) {
+						// selection clipboard is disabled
+						// try to stop the upcoming paste
+						e.preventDefault();
+					}
+				}
+			});
+		}
+	}
+}
+
+class PasteSelectionClipboardAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.selectionClipboardPaste',
+			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
+			alias: 'Paste Selection Clipboard',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(
+					EditorContextKeys.editorTextFocus,
+					ContextKeyExpr.has('config.editor.selectionClipboard')
+				),
+				primary: KeyMod.Shift | KeyCode.Insert,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+
+		// read selection clipboard
+		const text = await clipboardService.readText('selection');
+
+		editor.trigger('keyboard', Handler.Paste, {
+			text: text,
+			pasteOnNewLine: false,
+			multicursorText: null
+		});
+	}
+}
+
+registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
+if (platform.isLinux) {
+	registerEditorAction(PasteSelectionClipboardAction);
+}

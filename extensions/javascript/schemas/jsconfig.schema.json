@@ -1,9 +1,0 @@
-{
-	"title": "JSON schema for the JavaScript configuration file",
-	"type": "object",
-	"default": {
-		"compilerOptions": {
-			"target": "es6"
-		}
-	}
-}

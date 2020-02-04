@@ -13,6 +13,8 @@ import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from
 export class VerticalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+		const scrollDimensions = scrollable.getScrollDimensions();
+		const scrollPosition = scrollable.getCurrentScrollPosition();
 		super({
 			lazyRender: options.lazyRender,
 			host: host,
@@ -20,7 +22,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				(options.verticalHasArrows ? options.arrowSize : 0),
 				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
 				// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
-				0
+				0,
+				scrollDimensions.height,
+				scrollDimensions.scrollHeight,
+				scrollPosition.scrollTop
 			),
 			visibility: options.vertical,
 			extraScrollbarClassName: 'vertical',

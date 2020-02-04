@@ -10,7 +10,7 @@ declare module DebugProtocol {
 
 	/** Base class of requests, responses, and events. */
 	export interface ProtocolMessage {
-		/** Sequence number. */
+		/** Sequence number (also known as message ID). For protocol messages of type 'request' this ID can be used to cancel the request. */
 		seq: number;
 		/** Message type.
 			Values: 'request', 'response', 'event', etc.
@@ -41,11 +41,20 @@ declare module DebugProtocol {
 		// type: 'response';
 		/** Sequence number of the corresponding request. */
 		request_seq: number;
-		/** Outcome of the request. */
+		/** Outcome of the request.
+			If true, the request was successful and the 'body' attribute may contain the result of the request.
+			If the value is false, the attribute 'message' contains the error in short form and the 'body' may contain additional information (see 'ErrorResponse.body.error').
+		*/
 		success: boolean;
 		/** The command requested. */
 		command: string;
-		/** Contains error message if success == false. */
+		/** Contains the raw error in short form if 'success' is false.
+			This raw error might be interpreted by the frontend and is not shown in the UI.
+			Some predefined values exist.
+			Values:
+			'cancelled': request was cancelled.
+			etc.
+		*/
 		message?: string;
 		/** Contains request result if success is true and optional error details if success is false. */
 		body?: any;
@@ -57,6 +66,30 @@ declare module DebugProtocol {
 			/** An optional, structured error message. */
 			error?: Message;
 		};
+	}
+
+	/** Cancel request; value of command field is 'cancel'.
+		The 'cancel' request is used by the frontend to indicate that it is no longer interested in the result produced by a specific request issued earlier.
+		This request has a hint characteristic: a debug adapter can only be expected to make a 'best effort' in honouring this request but there are no guarantees.
+		The 'cancel' request may return an error if it could not cancel an operation but a frontend should refrain from presenting this error to end users.
+		A frontend client should only call this request if the capability 'supportsCancelRequest' is true.
+		The request that got canceled still needs to send a response back.
+		This can either be a normal result ('success' attribute true) or an error response ('success' attribute false and the 'message' set to 'cancelled').
+		Returning partial results from a cancelled request is possible but please note that a frontend client has no generic way for detecting that a response is partial or not.
+	*/
+	export interface CancelRequest extends Request {
+		// command: 'cancel';
+		arguments?: CancelArguments;
+	}
+
+	/** Arguments for 'cancel' request. */
+	export interface CancelArguments {
+		/** The ID (attribute 'seq') of the request to cancel. */
+		requestId?: number;
+	}
+
+	/** Response to 'cancel' request. This is just an acknowledgement, so no body field is required. */
+	export interface CancelResponse extends Response {
 	}
 
 	/** Event message for 'initialized' event type.
@@ -168,7 +201,7 @@ declare module DebugProtocol {
 			category?: string;
 			/** The output to report. */
 			output: string;
-			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. */
+			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			variablesReference?: number;
 			/** An optional source location where the output was produced. */
 			source?: Source;
@@ -240,6 +273,8 @@ declare module DebugProtocol {
 				'attachForSuspendedLaunch': A project launcher component has launched a new process in a suspended state and then asked the debugger to attach.
 			*/
 			startMethod?: 'launch' | 'attach' | 'attachForSuspendedLaunch';
+			/** The size of a pointer or address for this process, in bits. This value may be used by clients when formatting addresses for display. */
+			pointerSize?: number;
 		};
 	}
 
@@ -282,9 +317,9 @@ declare module DebugProtocol {
 	/** Response to 'runInTerminal' request. */
 	export interface RunInTerminalResponse extends Response {
 		body: {
-			/** The process ID. */
+			/** The process ID. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			processId?: number;
-			/** The process ID of the terminal shell. */
+			/** The process ID of the terminal shell. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			shellProcessId?: number;
 		};
 	}
@@ -323,6 +358,8 @@ declare module DebugProtocol {
 		supportsVariablePaging?: boolean;
 		/** Client supports the runInTerminal request. */
 		supportsRunInTerminalRequest?: boolean;
+		/** Client supports memory references. */
+		supportsMemoryReferences?: boolean;
 	}
 
 	/** Response to 'initialize' request. */
@@ -449,6 +486,38 @@ declare module DebugProtocol {
 
 	/** Response to 'terminate' request. This is just an acknowledgement, so no body field is required. */
 	export interface TerminateResponse extends Response {
+	}
+
+	/** BreakpointLocations request; value of command field is 'breakpointLocations'.
+		The 'breakpointLocations' request returns all possible locations for source breakpoints in a given range.
+	*/
+	export interface BreakpointLocationsRequest extends Request {
+		// command: 'breakpointLocations';
+		arguments?: BreakpointLocationsArguments;
+	}
+
+	/** Arguments for 'breakpointLocations' request. */
+	export interface BreakpointLocationsArguments {
+		/** The source location of the breakpoints; either 'source.path' or 'source.reference' must be specified. */
+		source: Source;
+		/** Start line of range to search possible breakpoint locations in. If only the line is specified, the request returns all possible locations in that line. */
+		line: number;
+		/** Optional start column of range to search possible breakpoint locations in. If no start column is given, the first column in the start line is assumed. */
+		column?: number;
+		/** Optional end line of range to search possible breakpoint locations in. If no end line is given, then the end line is assumed to be the start line. */
+		endLine?: number;
+		/** Optional end column of range to search possible breakpoint locations in. If no end column is given, then it is assumed to be in the last column of the end line. */
+		endColumn?: number;
+	}
+
+	/** Response to 'breakpointLocations' request.
+		Contains possible locations for source breakpoints.
+	*/
+	export interface BreakpointLocationsResponse extends Response {
+		body: {
+			/** Sorted set of possible breakpoint locations. */
+			breakpoints: BreakpointLocation[];
+		};
 	}
 
 	/** SetBreakpoints request; value of command field is 'setBreakpoints'.
@@ -753,7 +822,7 @@ declare module DebugProtocol {
 	}
 
 	/** Pause request; value of command field is 'pause'.
-		The request suspenses the debuggee.
+		The request suspends the debuggee.
 		The debug adapter first sends the response and then a 'stopped' event (with reason 'pause') after the thread has been paused successfully.
 	*/
 	export interface PauseRequest extends Request {
@@ -838,7 +907,7 @@ declare module DebugProtocol {
 	export interface VariablesArguments {
 		/** The Variable reference. */
 		variablesReference: number;
-		/** Optional filter to limit the child variables to either named or indexed. If ommited, both types are fetched. */
+		/** Optional filter to limit the child variables to either named or indexed. If omitted, both types are fetched. */
 		filter?: 'indexed' | 'named';
 		/** The index of the first variable to return; if omitted children start at 0. */
 		start?: number;
@@ -883,14 +952,14 @@ declare module DebugProtocol {
 			value: string;
 			/** The type of the new value. Typically shown in the UI when hovering over the value. */
 			type?: string;
-			/** If variablesReference is > 0, the new value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
+			/** If variablesReference is > 0, the new value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			variablesReference?: number;
 			/** The number of named child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. The value should be less than or equal to 2147483647 (2^31 - 1).
 			*/
 			namedVariables?: number;
 			/** The number of indexed child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. The value should be less than or equal to 2147483647 (2^31 - 1).
 			*/
 			indexedVariables?: number;
 		};
@@ -1037,16 +1106,18 @@ declare module DebugProtocol {
 			type?: string;
 			/** Properties of a evaluate result that can be used to determine how to render the result in the UI. */
 			presentationHint?: VariablePresentationHint;
-			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
+			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			variablesReference: number;
 			/** The number of named child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. The value should be less than or equal to 2147483647 (2^31 - 1).
 			*/
 			namedVariables?: number;
 			/** The number of indexed child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. The value should be less than or equal to 2147483647 (2^31 - 1).
 			*/
 			indexedVariables?: number;
+			/** Memory reference to a location appropriate for this result. For pointer type eval results, this is generally a reference to the memory address contained in the pointer. */
+			memoryReference?: string;
 		};
 	}
 
@@ -1080,14 +1151,14 @@ declare module DebugProtocol {
 			type?: string;
 			/** Properties of a value that can be used to determine how to render the result in the UI. */
 			presentationHint?: VariablePresentationHint;
-			/** If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
+			/** If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			variablesReference?: number;
 			/** The number of named child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. The value should be less than or equal to 2147483647 (2^31 - 1).
 			*/
 			namedVariables?: number;
 			/** The number of indexed child variables.
-				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. The value should be less than or equal to 2147483647 (2^31 - 1).
 			*/
 			indexedVariables?: number;
 		};
@@ -1202,6 +1273,66 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** ReadMemory request; value of command field is 'readMemory'.
+		Reads bytes from memory at the provided location.
+	*/
+	export interface ReadMemoryRequest extends Request {
+		// command: 'readMemory';
+		arguments: ReadMemoryArguments;
+	}
+
+	/** Arguments for 'readMemory' request. */
+	export interface ReadMemoryArguments {
+		/** Memory reference to the base location from which data should be read. */
+		memoryReference: string;
+		/** Optional offset (in bytes) to be applied to the reference location before reading data. Can be negative. */
+		offset?: number;
+		/** Number of bytes to read at the specified location and offset. */
+		count: number;
+	}
+
+	/** Response to 'readMemory' request. */
+	export interface ReadMemoryResponse extends Response {
+		body?: {
+			/** The address of the first byte of data returned. Treated as a hex value if prefixed with '0x', or as a decimal value otherwise. */
+			address: string;
+			/** The number of unreadable bytes encountered after the last successfully read byte. This can be used to determine the number of bytes that must be skipped before a subsequent 'readMemory' request will succeed. */
+			unreadableBytes?: number;
+			/** The bytes read from memory, encoded using base64. */
+			data?: string;
+		};
+	}
+
+	/** Disassemble request; value of command field is 'disassemble'.
+		Disassembles code stored at the provided location.
+	*/
+	export interface DisassembleRequest extends Request {
+		// command: 'disassemble';
+		arguments: DisassembleArguments;
+	}
+
+	/** Arguments for 'disassemble' request. */
+	export interface DisassembleArguments {
+		/** Memory reference to the base location containing the instructions to disassemble. */
+		memoryReference: string;
+		/** Optional offset (in bytes) to be applied to the reference location before disassembling. Can be negative. */
+		offset?: number;
+		/** Optional offset (in instructions) to be applied after the byte offset (if any) before disassembling. Can be negative. */
+		instructionOffset?: number;
+		/** Number of instructions to disassemble starting at the specified location and offset. An adapter must return exactly this number of instructions - any unavailable instructions should be replaced with an implementation-defined 'invalid instruction' value. */
+		instructionCount: number;
+		/** If true, the adapter should attempt to resolve memory addresses and other values to symbolic names. */
+		resolveSymbols?: boolean;
+	}
+
+	/** Response to 'disassemble' request. */
+	export interface DisassembleResponse extends Response {
+		body?: {
+			/** The list of disassembled instructions. */
+			instructions: DisassembledInstruction[];
+		};
+	}
+
 	/** Information about the capabilities of a debug adapter. */
 	export interface Capabilities {
 		/** The debug adapter supports the 'configurationDone' request. */
@@ -1228,6 +1359,8 @@ declare module DebugProtocol {
 		supportsStepInTargetsRequest?: boolean;
 		/** The debug adapter supports the 'completions' request. */
 		supportsCompletionsRequest?: boolean;
+		/** The set of characters that should trigger completion in a REPL. If not specified, the UI should assume the '.' character. */
+		completionTriggerCharacters?: string[];
 		/** The debug adapter supports the 'modules' request. */
 		supportsModulesRequest?: boolean;
 		/** The set of additional module information exposed by the debug adapter. */
@@ -1258,6 +1391,14 @@ declare module DebugProtocol {
 		supportsTerminateRequest?: boolean;
 		/** The debug adapter supports data breakpoints. */
 		supportsDataBreakpoints?: boolean;
+		/** The debug adapter supports the 'readMemory' request. */
+		supportsReadMemoryRequest?: boolean;
+		/** The debug adapter supports the 'disassemble' request. */
+		supportsDisassembleRequest?: boolean;
+		/** The debug adapter supports the 'cancel' request. */
+		supportsCancelRequest?: boolean;
+		/** The debug adapter supports the 'breakpointLocations' request. */
+		supportsBreakpointLocationsRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1363,7 +1504,7 @@ declare module DebugProtocol {
 		name?: string;
 		/** The path of the source to be shown in the UI. It is only used to locate and load the content of the source if no sourceReference is specified (or its value is 0). */
 		path?: string;
-		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified). A sourceReference is only valid for a session, so it must not be used to persist a source. */
+		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified). A sourceReference is only valid for a session, so it must not be used to persist a source. The value should be less than or equal to 2147483647 (2^31 - 1). */
 		sourceReference?: number;
 		/** An optional hint for how to present the source in the UI. A value of 'deemphasize' can be used to indicate that the source is not available or that it is skipped on stepping. */
 		presentationHint?: 'normal' | 'emphasize' | 'deemphasize';
@@ -1393,6 +1534,8 @@ declare module DebugProtocol {
 		endLine?: number;
 		/** An optional end column of the range covered by the stack frame. */
 		endColumn?: number;
+		/** Optional memory reference for the current instruction pointer in this frame. */
+		instructionPointerReference?: string;
 		/** The module associated with this frame, if any. */
 		moduleId?: number | string;
 		/** An optional hint for how to present this frame in the UI. A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. A value of 'subtle' can be used to change the appearance of a frame in a 'subtle' way. */
@@ -1401,8 +1544,16 @@ declare module DebugProtocol {
 
 	/** A Scope is a named container for variables. Optionally a scope can map to a source or a range within a source. */
 	export interface Scope {
-		/** Name of the scope such as 'Arguments', 'Locals'. */
+		/** Name of the scope such as 'Arguments', 'Locals', or 'Registers'. This string is shown in the UI as is and can be translated. */
 		name: string;
+		/** An optional hint for how to present this scope in the UI. If this attribute is missing, the scope is shown with a generic UI.
+			Values:
+			'arguments': Scope contains method arguments.
+			'locals': Scope contains local variables.
+			'registers': Scope contains registers. Only a single 'registers' scope should be returned from a 'scopes' request.
+			etc.
+		*/
+		presentationHint?: string;
 		/** The variables of this scope can be retrieved by passing the value of variablesReference to the VariablesRequest. */
 		variablesReference: number;
 		/** The number of named variables in this scope.
@@ -1455,6 +1606,8 @@ declare module DebugProtocol {
 			The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 		*/
 		indexedVariables?: number;
+		/** Optional memory reference for the variable if the variable represents executable code, such as a function pointer. */
+		memoryReference?: string;
 	}
 
 	/** Optional properties of a variable that can be used to determine how to render the variable in the UI. */
@@ -1491,6 +1644,18 @@ declare module DebugProtocol {
 			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
 		*/
 		visibility?: string;
+	}
+
+	/** Properties of a breakpoint location returned from the 'breakpointLocations' request. */
+	export interface BreakpointLocation {
+		/** Start line of breakpoint location. */
+		line: number;
+		/** Optional start column of breakpoint location. */
+		column?: number;
+		/** Optional end line of breakpoint location if the location covers a range. */
+		endLine?: number;
+		/** Optional end column of breakpoint location if the location covers a range. */
+		endColumn?: number;
 	}
 
 	/** Properties of a breakpoint or logpoint passed to the setBreakpoints request. */
@@ -1576,6 +1741,8 @@ declare module DebugProtocol {
 		endLine?: number;
 		/** An optional end column of the range covered by the goto target. */
 		endColumn?: number;
+		/** Optional memory reference for the instruction pointer value represented by this target. */
+		instructionPointerReference?: string;
 	}
 
 	/** CompletionItems are the suggestions returned from the CompletionsRequest. */
@@ -1584,6 +1751,8 @@ declare module DebugProtocol {
 		label: string;
 		/** If text is not falsy then it is inserted instead of the label. */
 		text?: string;
+		/** A string that should be used when comparing this item with other items. When `falsy` the label is used. */
+		sortText?: string;
 		/** The item's type. Typically the client uses this information to render the item in the UI with an icon. */
 		type?: CompletionItemType;
 		/** This value determines the location (in the CompletionsRequest's 'text' attribute) where the completion text is added.
@@ -1645,7 +1814,7 @@ declare module DebugProtocol {
 	/** This enumeration defines all possible conditions when a thrown exception should result in a break.
 		never: never breaks,
 		always: always breaks,
-		unhandled: breaks when excpetion unhandled,
+		unhandled: breaks when exception unhandled,
 		userUnhandled: breaks if the exception is not handled by user code.
 	*/
 	export type ExceptionBreakMode = 'never' | 'always' | 'unhandled' | 'userUnhandled';
@@ -1672,6 +1841,28 @@ declare module DebugProtocol {
 		stackTrace?: string;
 		/** Details of the exception contained by this exception, if any. */
 		innerException?: ExceptionDetails[];
+	}
+
+	/** Represents a single disassembled instruction. */
+	export interface DisassembledInstruction {
+		/** The address of the instruction. Treated as a hex value if prefixed with '0x', or as a decimal value otherwise. */
+		address: string;
+		/** Optional raw bytes representing the instruction and its operands, in an implementation-defined format. */
+		instructionBytes?: string;
+		/** Text representing the instruction and its operands, in an implementation-defined format. */
+		instruction: string;
+		/** Name of the symbol that corresponds with the location of this instruction, if any. */
+		symbol?: string;
+		/** Source location that corresponds to this instruction, if any. Should always be set (if available) on the first instruction returned, but can be omitted afterwards if this instruction maps to the same source file as the previous instruction. */
+		location?: Source;
+		/** The line within the source location that corresponds to this instruction, if any. */
+		line?: number;
+		/** The column within the line that corresponds to this instruction, if any. */
+		column?: number;
+		/** The end line of the range that corresponds to this instruction, if any. */
+		endLine?: number;
+		/** The end column of the range that corresponds to this instruction, if any. */
+		endColumn?: number;
 	}
 }
 

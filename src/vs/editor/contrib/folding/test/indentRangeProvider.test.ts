@@ -316,5 +316,17 @@ suite('Folding with regions', () => {
 		/* 8*/	'#endregionff',
 		], [], true, markers);
 	});
-
+	test('Issue 79359', () => {
+		assertRanges([
+		/* 1*/	'#region',
+		/* 2*/	'',
+		/* 3*/	'class A',
+		/* 4*/	'  foo',
+		/* 5*/	'',
+		/* 6*/	'class A',
+		/* 7*/	'  foo',
+		/* 8*/	'',
+		/* 9*/	'#endregion',
+		], [r(1, 9, -1, true), r(3, 4, 0), r(6, 7, 0)], true, markers);
+	});
 });

@@ -25,7 +25,7 @@ const zipDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'archive')
 const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
 const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
-const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
+const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signPS1 = path.join(repoPath, 'build', 'azure-pipelines', 'win32', 'sign.ps1');
 
 function packageInnoSetup(iss, options, cb) {
@@ -135,12 +135,17 @@ function copyInnoUpdater(arch) {
 	};
 }
 
-function patchInnoUpdater(arch) {
+function updateIcon(executablePath) {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
-		rcedit(path.join(buildPath(arch), 'tools', 'inno_updater.exe'), { icon }, cb);
+		rcedit(executablePath, { icon }, cb);
 	};
 }
 
-gulp.task(task.define('vscode-win32-ia32-inno-updater', task.series(copyInnoUpdater('ia32'), patchInnoUpdater('ia32'))));
-gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), patchInnoUpdater('x64'))));
+gulp.task(task.define('vscode-win32-ia32-inno-updater', task.series(copyInnoUpdater('ia32'), updateIcon(path.join(buildPath('ia32'), 'tools', 'inno_updater.exe')))));
+gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
+
+// CodeHelper.exe icon
+
+gulp.task(task.define('vscode-win32-ia32-code-helper', task.series(updateIcon(path.join(buildPath('ia32'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));
+gulp.task(task.define('vscode-win32-x64-code-helper', task.series(updateIcon(path.join(buildPath('x64'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));

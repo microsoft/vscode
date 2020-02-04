@@ -6,7 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -22,7 +22,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range: Range, text: string | null): void;
+	addEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Add a new edit operation (a replace operation).
@@ -30,7 +30,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addTrackedEditOperation(range: Range, text: string | null): void;
+	addTrackedEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -149,13 +149,13 @@ export interface ILineChange extends IChange {
  * @internal
  */
 export interface IConfiguration extends IDisposable {
-	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
+	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 
-	readonly editor: editorOptions.InternalEditorOptions;
+	readonly options: IComputedEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
-	updateOptions(newOptions: editorOptions.IEditorOptions): void;
-	getRawOptions(): editorOptions.IEditorOptions;
+	updateOptions(newOptions: IEditorOptions): void;
+	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
@@ -172,6 +172,14 @@ export interface IScrollEvent {
 	readonly scrollLeftChanged: boolean;
 	readonly scrollWidthChanged: boolean;
 	readonly scrollHeightChanged: boolean;
+}
+
+export interface IContentSizeChangedEvent {
+	readonly contentWidth: number;
+	readonly contentHeight: number;
+
+	readonly contentWidthChanged: boolean;
+	readonly contentHeightChanged: boolean;
 }
 
 export interface INewScrollPosition {
@@ -263,7 +271,7 @@ export interface IEditor {
 	/**
 	 * Update the editor's options after the editor has been created.
 	 */
-	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	updateOptions(newOptions: IEditorOptions): void;
 
 	/**
 	 * Indicates that the editor becomes visible.
@@ -280,6 +288,8 @@ export interface IEditor {
 	/**
 	 * Instructs the editor to remeasure its container. This method should
 	 * be called when the container of the editor gets resized.
+	 *
+	 * If a dimension is passed in, the passed in value will be used.
 	 */
 	layout(dimension?: IDimension): void;
 
@@ -312,6 +322,12 @@ export interface IEditor {
 	 * Given a position, returns a column number that takes tab-widths into account.
 	 */
 	getVisibleColumnFromPosition(position: IPosition): number;
+
+	/**
+	 * Given a position, returns a column number that takes tab-widths into account.
+	 * @internal
+	 */
+	getStatusbarColumn(position: IPosition): number;
 
 	/**
 	 * Returns the primary position of the cursor.
@@ -389,7 +405,7 @@ export interface IEditor {
 	 * Set the selections for all the cursors of the editor.
 	 * Cursors will be removed or added, as necessary.
 	 */
-	setSelections(selections: ISelection[]): void;
+	setSelections(selections: readonly ISelection[]): void;
 
 	/**
 	 * Scroll vertically as necessary and reveal lines.
@@ -469,7 +485,7 @@ export interface IDiffEditor extends IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): IDiffEditorModel;
+	getModel(): IDiffEditorModel | null;
 
 	/**
 	 * Get the `original` editor.
@@ -487,10 +503,6 @@ export interface IDiffEditor extends IEditor {
  */
 export interface IEditorContribution {
 	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
-	/**
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
@@ -502,6 +514,17 @@ export interface IEditorContribution {
 	 * Restore view state.
 	 */
 	restoreViewState?(state: any): void;
+}
+
+/**
+ * A diff editor contribution that gets created every time a new  diffeditor gets created and gets disposed when the diff editor gets disposed.
+ * @internal
+ */
+export interface IDiffEditorContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
 }
 
 /**

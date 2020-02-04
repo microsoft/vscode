@@ -5,7 +5,27 @@
 
 import * as vscode from 'vscode';
 import { ResourceMap } from '../utils/resourceMap';
-import { DiagnosticLanguage, allDiagnosticLangauges } from '../utils/languageDescription';
+import { DiagnosticLanguage } from '../utils/languageDescription';
+import * as arrays from '../utils/arrays';
+import { Disposable } from '../utils/dispose';
+
+function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	return a.code === b.code
+		&& a.message === b.message
+		&& a.severity === b.severity
+		&& a.source === b.source
+		&& a.range.isEqual(b.range)
+		&& arrays.equals(a.relatedInformation || arrays.empty, b.relatedInformation || arrays.empty, (a, b) => {
+			return a.message === b.message
+				&& a.location.range.isEqual(b.location.range)
+				&& a.location.uri.fsPath === b.location.uri.fsPath;
+		})
+		&& arrays.equals(a.tags || arrays.empty, b.tags || arrays.empty);
+}
 
 export const enum DiagnosticKind {
 	Syntax,
@@ -14,7 +34,7 @@ export const enum DiagnosticKind {
 }
 
 class FileDiagnostics {
-	private readonly _diagnostics = new Map<DiagnosticKind, vscode.Diagnostic[]>();
+	private readonly _diagnostics = new Map<DiagnosticKind, ReadonlyArray<vscode.Diagnostic>>();
 
 	constructor(
 		public readonly file: vscode.Uri,
@@ -24,19 +44,17 @@ class FileDiagnostics {
 	public updateDiagnostics(
 		language: DiagnosticLanguage,
 		kind: DiagnosticKind,
-		diagnostics: vscode.Diagnostic[]
+		diagnostics: ReadonlyArray<vscode.Diagnostic>
 	): boolean {
 		if (language !== this.language) {
 			this._diagnostics.clear();
 			this.language = language;
 		}
 
-		if (diagnostics.length === 0) {
-			const existing = this._diagnostics.get(kind);
-			if (!existing || existing && existing.length === 0) {
-				// No need to update
-				return false;
-			}
+		const existing = this._diagnostics.get(kind);
+		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+			// No need to update
+			return false;
 		}
 
 		this._diagnostics.set(kind, diagnostics);
@@ -60,35 +78,34 @@ class FileDiagnostics {
 		return this.get(DiagnosticKind.Suggestion).filter(x => {
 			if (!enableSuggestions) {
 				// Still show unused
-				return x.tags && x.tags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
+				return x.tags && x.tags.includes(vscode.DiagnosticTag.Unnecessary);
 			}
 			return true;
 		});
 	}
 
-	private get(kind: DiagnosticKind): vscode.Diagnostic[] {
+	private get(kind: DiagnosticKind): ReadonlyArray<vscode.Diagnostic> {
 		return this._diagnostics.get(kind) || [];
 	}
 }
 
-interface LangaugeDiagnosticSettings {
+interface LanguageDiagnosticSettings {
 	readonly validate: boolean;
 	readonly enableSuggestions: boolean;
 }
 
+function areLanguageDiagnosticSettingsEqual(currentSettings: LanguageDiagnosticSettings, newSettings: LanguageDiagnosticSettings): boolean {
+	return currentSettings.validate === newSettings.validate
+		&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+}
+
 class DiagnosticSettings {
-	private static readonly defaultSettings: LangaugeDiagnosticSettings = {
+	private static readonly defaultSettings: LanguageDiagnosticSettings = {
 		validate: true,
 		enableSuggestions: true
 	};
 
-	private readonly _languageSettings = new Map<DiagnosticLanguage, LangaugeDiagnosticSettings>();
-
-	constructor() {
-		for (const language of allDiagnosticLangauges) {
-			this._languageSettings.set(language, DiagnosticSettings.defaultSettings);
-		}
-	}
+	private readonly _languageSettings = new Map<DiagnosticLanguage, LanguageDiagnosticSettings>();
 
 	public getValidate(language: DiagnosticLanguage): boolean {
 		return this.get(language).validate;
@@ -112,20 +129,19 @@ class DiagnosticSettings {
 		}));
 	}
 
-	private get(language: DiagnosticLanguage): LangaugeDiagnosticSettings {
+	private get(language: DiagnosticLanguage): LanguageDiagnosticSettings {
 		return this._languageSettings.get(language) || DiagnosticSettings.defaultSettings;
 	}
 
-	private update(language: DiagnosticLanguage, f: (x: LangaugeDiagnosticSettings) => LangaugeDiagnosticSettings): boolean {
+	private update(language: DiagnosticLanguage, f: (x: LanguageDiagnosticSettings) => LanguageDiagnosticSettings): boolean {
 		const currentSettings = this.get(language);
 		const newSettings = f(currentSettings);
 		this._languageSettings.set(language, newSettings);
-		return currentSettings.validate === newSettings.validate
-			&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+		return areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
 	}
 }
 
-export class DiagnosticsManager {
+export class DiagnosticsManager extends Disposable {
 	private readonly _diagnostics = new ResourceMap<FileDiagnostics>();
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
@@ -136,11 +152,12 @@ export class DiagnosticsManager {
 	constructor(
 		owner: string
 	) {
-		this._currentDiagnostics = vscode.languages.createDiagnosticCollection(owner);
+		super();
+		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 	}
 
 	public dispose() {
-		this._currentDiagnostics.dispose();
+		super.dispose();
 
 		for (const value of this._pendingUpdates.values) {
 			clearTimeout(value);
@@ -171,7 +188,7 @@ export class DiagnosticsManager {
 		file: vscode.Uri,
 		language: DiagnosticLanguage,
 		kind: DiagnosticKind,
-		diagnostics: vscode.Diagnostic[]
+		diagnostics: ReadonlyArray<vscode.Diagnostic>
 	): void {
 		let didUpdate = false;
 		const entry = this._diagnostics.get(file);
@@ -191,7 +208,7 @@ export class DiagnosticsManager {
 
 	public configFileDiagnosticsReceived(
 		file: vscode.Uri,
-		diagnostics: vscode.Diagnostic[]
+		diagnostics: ReadonlyArray<vscode.Diagnostic>
 	): void {
 		this._currentDiagnostics.set(file, diagnostics);
 	}
@@ -201,7 +218,7 @@ export class DiagnosticsManager {
 		this._diagnostics.delete(resource);
 	}
 
-	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
+	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		return this._currentDiagnostics.get(file) || [];
 	}
 

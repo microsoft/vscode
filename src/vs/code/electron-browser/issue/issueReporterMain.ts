@@ -3,44 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame, clipboard } from 'electron';
-import { localize } from 'vs/nls';
-import { $ } from 'vs/base/browser/dom';
-import * as collections from 'vs/base/common/collections';
-import * as browser from 'vs/base/browser/browser';
-import { escape } from 'vs/base/common/strings';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import { clipboard, ipcRenderer, shell, webFrame } from 'electron';
 import * as os from 'os';
-import { debounce } from 'vs/base/common/decorators';
-import * as platform from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
-import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
-import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import * as browser from 'vs/base/browser/browser';
+import { $ } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import * as collections from 'vs/base/common/collections';
+import { debounce } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
+import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
+import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
+import 'vs/css!./media/issueReporter';
+import { localize } from 'vs/nls';
+import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/node/issue';
+import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
+import { FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import product from 'vs/platform/product/common/product';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
-const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
+const MAX_URL_LENGTH = 2045;
 
 interface SearchResult {
 	html_url: string;
@@ -58,33 +59,37 @@ export function startup(configuration: IssueReporterConfiguration) {
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();
 	document.body.style.display = 'block';
+	issueReporter.setInitialFocus();
 }
 
 export class IssueReporter extends Disposable {
-	private environmentService: IEnvironmentService;
-	private telemetryService: ITelemetryService;
-	private logService: ILogService;
-	private issueReporterModel: IssueReporterModel;
+	private environmentService!: IEnvironmentService;
+	private telemetryService!: ITelemetryService;
+	private logService!: ILogService;
+	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
 
-	private previewButton: Button;
+	private readonly previewButton!: Button;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
 		this.initServices(configuration);
 
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
-				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-				os: `${os.type()} ${os.arch()} ${os.release()}`
+				vscodeVersion: `${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
+			fileOnExtension: configuration.data.extensionId ? true : undefined,
+			selectedExtension: configuration.data.extensionId ? configuration.data.enabledExtensions.filter(extension => extension.id === configuration.data.extensionId)[0] : undefined
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
@@ -92,7 +97,7 @@ export class IssueReporter extends Disposable {
 			this.previewButton = new Button(issueReporterElement);
 		}
 
-		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_, info) => {
+		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
 			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
@@ -103,7 +108,7 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 
-		ipcRenderer.on('vscode:issueSystemInfoResponse', (_, info) => {
+		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
 			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
@@ -137,6 +142,21 @@ export class IssueReporter extends Disposable {
 		this.renderBlocks();
 	}
 
+	setInitialFocus() {
+		const { fileOnExtension } = this.issueReporterModel.getData();
+		if (fileOnExtension) {
+			const issueTitle = document.getElementById('issue-title');
+			if (issueTitle) {
+				issueTitle.focus();
+			}
+		} else {
+			const issueType = document.getElementById('issue-type');
+			if (issueType) {
+				issueType.focus();
+			}
+		}
+	}
+
 	private applyZoom(zoomLevel: number) {
 		webFrame.setZoomLevel(zoomLevel);
 		browser.setZoomFactor(webFrame.getZoomFactor());
@@ -165,8 +185,16 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.validation-error, .required-input { color: ${styles.inputErrorBorder}; }`);
+			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
+			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
+		}
+
+		if (styles.inputErrorBackground) {
+			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
+		}
+
+		if (styles.inputErrorForeground) {
+			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
@@ -206,12 +234,12 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
+			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-		document.body.style.color = styles.color || null;
+		document.body.style.color = styles.color || '';
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
@@ -273,25 +301,26 @@ export class IssueReporter extends Disposable {
 
 	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
-		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+		const mainProcessService = new MainProcessService(configuration.windowId);
+		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		const windowsChannel = mainProcessClient.getChannel('windows');
-		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
-		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
-		this.logService = new FollowerLogService(logLevelClient, logService);
+		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
+		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		this.logService = new FollowerLogService(loggerClient, logService);
 
-		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+		const sharedProcessService = createChannelSender<ISharedProcessService>(mainProcessService.getChannel('sharedProcess'));
+
+		const sharedProcess = sharedProcessService.whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
-			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', pkg.version, configuration.machineId, this.environmentService.installSourcePath);
-			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
+			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', product.version, configuration.machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -315,7 +344,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'].forEach(elementId => {
+		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -324,8 +353,8 @@ export class IssueReporter extends Disposable {
 
 		const showInfoElements = document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
-			const showInfo = showInfoElements.item(i);
-			showInfo!.addEventListener('click', (e) => {
+			const showInfo = showInfoElements.item(i)!;
+			(showInfo as HTMLAnchorElement).addEventListener('click', (e: MouseEvent) => {
 				e.preventDefault();
 				const label = (<HTMLDivElement>e.target);
 				if (label) {
@@ -346,7 +375,7 @@ export class IssueReporter extends Disposable {
 			const value = (<HTMLInputElement>e.target).value;
 			const problemSourceHelpText = this.getElementById('problem-source-help-text')!;
 			if (value === '') {
-				this.issueReporterModel.update({ fileOnExtension: undefined, includeExtensions: false });
+				this.issueReporterModel.update({ fileOnExtension: undefined });
 				show(problemSourceHelpText);
 				this.clearSearchResults();
 				this.render();
@@ -356,7 +385,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			const fileOnExtension = JSON.parse(value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension, includeExtensions: !fileOnExtension });
+			this.issueReporterModel.update({ fileOnExtension: fileOnExtension });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -411,19 +440,24 @@ export class IssueReporter extends Disposable {
 			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
-		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
+		this.addEventListener('extensionBugsLink', 'click', (e: MouseEvent) => {
+			const url = (<HTMLElement>e.target).innerText;
+			shell.openExternal(url);
+		});
+
+		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
-			if (e.keyCode === 13 || e.keyCode === 32) {
+			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
 				sendWorkbenchCommand('workbench.extensions.action.disableAll');
 				sendWorkbenchCommand('workbench.action.reloadWindow');
 			}
 		});
 
-		document.onkeydown = (e: KeyboardEvent) => {
+		document.onkeydown = async (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
-				if (this.createIssue()) {
+				if (await this.createIssue()) {
 					ipcRenderer.send('vscode:closeIssueReporter');
 				}
 			}
@@ -626,8 +660,8 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const octicon = new OcticonLabel(issueIcon);
-					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					const codicon = new CodiconLabel(issueIcon);
+					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
@@ -655,12 +689,14 @@ export class IssueReporter extends Disposable {
 
 	private logSearchError(error: Error) {
 		this.logService.warn('issueReporter#search ', error.message);
-		/* __GDPR__
-		"issueReporterSearchError" : {
-				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-			}
-		*/
-		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
+		type IssueReporterSearchErrorClassification = {
+			message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' }
+		};
+
+		type IssueReporterSearchError = {
+			message: string;
+		};
+		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {
@@ -695,9 +731,13 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const selected = sourceSelect.selectedIndex;
+		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		let selected = sourceSelect.selectedIndex;
+		if (selected === -1 && fileOnExtension !== undefined) {
+			selected = fileOnExtension ? 2 : 1;
+		}
+
 		sourceSelect.innerHTML = '';
-		const { issueType } = this.issueReporterModel.getData();
 		if (issueType === IssueType.FeatureRequest) {
 			sourceSelect.append(...[
 				this.makeOption('', localize('selectSource', "Select source"), true),
@@ -818,7 +858,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private createIssue(): boolean {
+	private async createIssue(): Promise<boolean> {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -848,13 +888,15 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		/* __GDPR__
-			"issueReporterSubmit" : {
-				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
+		type IssueReporterSubmitClassification = {
+			issueType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			numSimilarIssuesDisplayed: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+		type IssueReporterSubmitEvent = {
+			issueType: any;
+			numSimilarIssuesDisplayed: number;
+		};
+		this.telemetryService.publicLog2<IssueReporterSubmitEvent, IssueReporterSubmitClassification>('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
@@ -862,12 +904,30 @@ export class IssueReporter extends Disposable {
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
-			clipboard.writeText(issueBody);
-			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+			try {
+				url = await this.writeToClipboard(baseUrl, issueBody);
+			} catch (_) {
+				return false;
+			}
 		}
 
 		ipcRenderer.send('vscode:openExternal', url);
 		return true;
+	}
+
+	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
+		return new Promise((resolve, reject) => {
+			ipcRenderer.once('vscode:issueReporterClipboardResponse', (_: unknown, shouldWrite: boolean) => {
+				if (shouldWrite) {
+					clipboard.writeText(issueBody);
+					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
+				} else {
+					reject();
+				}
+			});
+
+			ipcRenderer.send('vscode:issueReporterClipboard');
+		});
 	}
 
 	private getExtensionGitHubUrl(): string {
@@ -893,26 +953,47 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = product.reportIssueUrl && product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
-	private updateSystemInfo = (state) => {
+	private updateSystemInfo(state: IssueReporterModelData) {
 		const target = document.querySelector('.block-system .block-info');
 		if (target) {
-			let tableHtml = '';
-			Object.keys(state.systemInfo).forEach(k => {
-				const data = typeof state.systemInfo[k] === 'object'
-					? Object.keys(state.systemInfo[k]).map(key => `${key}: ${state.systemInfo[k][key]}`).join('<br>')
-					: state.systemInfo[k];
+			const systemInfo = state.systemInfo!;
+			let renderedData = `
+			<table>
+				<tr><td>CPUs</td><td>${systemInfo.cpus}</td></tr>
+				<tr><td>GPU Status</td><td>${Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('<br>')}</td></tr>
+				<tr><td>Load (avg)</td><td>${systemInfo.load}</td></tr>
+				<tr><td>Memory (System)</td><td>${systemInfo.memory}</td></tr>
+				<tr><td>Process Argv</td><td>${systemInfo.processArgs}</td></tr>
+				<tr><td>Screen Reader</td><td>${systemInfo.screenReader}</td></tr>
+				<tr><td>VM</td><td>${systemInfo.vmHint}</td></tr>
+			</table>`;
 
-				tableHtml += `
-					<tr>
-						<td>${k}</td>
-						<td>${data}</td>
-					</tr>`;
+			systemInfo.remoteData.forEach(remote => {
+				if (isRemoteDiagnosticError(remote)) {
+					renderedData += `
+					<hr>
+					<table>
+						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+						<tr><td></td><td>${remote.errorMessage}</td></tr>
+					</table>`;
+				} else {
+					renderedData += `
+					<hr>
+					<table>
+						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+						<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
+						<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
+						<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
+						<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
+					</table>`;
+				}
 			});
-			target.innerHTML = `<table>${tableHtml}</table>`;
+
+			target.innerHTML = renderedData;
 		}
 	}
 
@@ -944,10 +1025,15 @@ export class IssueReporter extends Disposable {
 			return 0;
 		});
 
-		const makeOption = (extension: IOption) => `<option value="${extension.id}">${escape(extension.name)}</option>`;
+		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData) => {
+			const selected = selectedExtension && extension.id === selectedExtension.id;
+			return `<option value="${extension.id}" ${selected ? 'selected' : ''}>${escape(extension.name)}</option>`;
+		};
+
 		const extensionsSelector = this.getElementById('extension-selector');
 		if (extensionsSelector) {
-			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(makeOption).join('\n');
+			const { selectedExtension } = this.issueReporterModel.getData();
+			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(extension => makeOption(extension, selectedExtension)).join('\n');
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
@@ -955,25 +1041,73 @@ export class IssueReporter extends Disposable {
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
+					this.validateSelectedExtension();
 
 					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 					this.searchExtensionIssues(title);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
+					this.validateSelectedExtension();
 				}
 			});
 		}
+
+		this.addEventListener('problem-source', 'change', (_) => {
+			this.validateSelectedExtension();
+		});
 	}
 
-	private updateProcessInfo = (state) => {
+	private validateSelectedExtension(): void {
+		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
+		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
+		hide(extensionValidationMessage);
+		hide(extensionValidationNoUrlsMessage);
+
+		if (!this.issueReporterModel.getData().selectedExtension) {
+			this.previewButton.enabled = true;
+			return;
+		}
+
+		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
+		if (hasValidGitHubUrl) {
+			this.previewButton.enabled = true;
+		} else {
+			this.setExtensionValidationMessage();
+			this.previewButton.enabled = false;
+		}
+	}
+
+	private setExtensionValidationMessage(): void {
+		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
+		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
+		const bugsUrl = this.getExtensionBugsUrl();
+		if (bugsUrl) {
+			show(extensionValidationMessage);
+			const link = this.getElementById('extensionBugsLink')!;
+			link.textContent = bugsUrl;
+			return;
+		}
+
+		const extensionUrl = this.getExtensionRepositoryUrl();
+		if (extensionUrl) {
+			show(extensionValidationMessage);
+			const link = this.getElementById('extensionBugsLink');
+			link!.textContent = extensionUrl;
+			return;
+		}
+
+		show(extensionValidationNoUrlsMessage);
+	}
+
+	private updateProcessInfo(state: IssueReporterModelData) {
 		const target = document.querySelector('.block-process .block-info');
 		if (target) {
 			target.innerHTML = `<code>${state.processInfo}</code>`;
 		}
 	}
 
-	private updateWorkspaceInfo = (state) => {
+	private updateWorkspaceInfo(state: IssueReporterModelData) {
 		document.querySelector('.block-workspace .block-info code')!.textContent = '\n' + state.workspaceInfo;
 	}
 
@@ -1037,11 +1171,7 @@ export class IssueReporter extends Disposable {
 		// Exclude right click
 		if (event.which < 3) {
 			shell.openExternal((<HTMLAnchorElement>event.target).href);
-
-			/* __GDPR__
-				"issueReporterViewSimilarIssue" : { }
-			*/
-			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
+			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}
 
@@ -1050,15 +1180,6 @@ export class IssueReporter extends Disposable {
 		if (element) {
 			return element;
 		} else {
-			const error = new Error(`${elementId} not found.`);
-			this.logService.error(error);
-			/* __GDPR__
-				"issueReporterGetElementError" : {
-						"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-					}
-				*/
-			this.telemetryService.publicLog('issueReporterGetElementError', { message: error.message });
-
 			return undefined;
 		}
 	}
@@ -1073,9 +1194,13 @@ export class IssueReporter extends Disposable {
 
 // helper functions
 
-function hide(el) {
-	el.classList.add('hidden');
+function hide(el: Element | undefined | null) {
+	if (el) {
+		el.classList.add('hidden');
+	}
 }
-function show(el) {
-	el.classList.remove('hidden');
+function show(el: Element | undefined | null) {
+	if (el) {
+		el.classList.remove('hidden');
+	}
 }

@@ -7,6 +7,8 @@ import * as assert from 'assert';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { find } from 'vs/base/common/arrays';
 
 suite('CharacterPairSupport', () => {
 
@@ -52,8 +54,16 @@ suite('CharacterPairSupport', () => {
 		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), []);
 	});
 
+	function findAutoClosingPair(characterPairSupport: CharacterPairSupport, character: string): StandardAutoClosingPairConditional | undefined {
+		return find(characterPairSupport.getAutoClosingPairs(), autoClosingPair => autoClosingPair.open === character);
+	}
+
 	function testShouldAutoClose(characterPairSupport: CharacterPairSupport, line: TokenText[], character: string, column: number): boolean {
-		return characterPairSupport.shouldAutoClosePair(character, createFakeScopedLineTokens(line), column);
+		const autoClosingPair = findAutoClosingPair(characterPairSupport, character);
+		if (!autoClosingPair) {
+			return false;
+		}
+		return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, createFakeScopedLineTokens(line), column);
 	}
 
 	test('shouldAutoClosePair in empty line', () => {

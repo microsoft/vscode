@@ -11,11 +11,11 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -32,9 +32,11 @@ import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/contrib/sea
 import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-declare var __dirname: string;
+// declare var __dirname: string;
 
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
@@ -58,18 +60,19 @@ suite.skip('TextSearch performance (integration)', () => {
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
 		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+		const logService = new NullLogService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
-			[ILogService, new NullLogService()]
+			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
+			[ILogService, logService]
 		));
 
 		const queryOptions: ITextQueryBuilderOptions = {
@@ -97,15 +100,15 @@ suite.skip('TextSearch performance (integration)', () => {
 
 					telemetryService.events = [];
 
-					resolve(resultsFinishedEvent);
+					resolve!(resultsFinishedEvent);
 				} catch (e) {
 					// Fail the runSearch() promise
-					error(e);
+					error!(e);
 				}
 			}
 
-			let resolve;
-			let error;
+			let resolve: (result: any) => void;
+			let error: (error: Error) => void;
 			return new Promise((_resolve, _error) => {
 				resolve = _resolve;
 				error = _error;
@@ -122,7 +125,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
 					let i = n;
-					return (function iterate() {
+					return (function iterate(): Promise<undefined> | undefined {
 						if (!i--) {
 							return;
 						}
@@ -133,25 +136,29 @@ suite.skip('TextSearch performance (integration)', () => {
 								finishedEvents.push(resultsFinishedEvent);
 								return iterate();
 							});
-					})().then(() => {
+					})()!.then(() => {
 						const totalTime = finishedEvents.reduce((sum, e) => sum + e.data.duration, 0);
 						console.log(`Avg duration: ${totalTime / n / 1000}s`);
 					});
 				}
+				return undefined;
 			});
 	});
 });
 
 class TestTelemetryService implements ITelemetryService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public isOptedIn = true;
 
 	public events: any[] = [];
 
-	private emitter = new Emitter<any>();
+	private readonly emitter = new Emitter<any>();
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;
+	}
+
+	public setEnabled(value: boolean): void {
 	}
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
@@ -159,6 +166,10 @@ class TestTelemetryService implements ITelemetryService {
 		this.events.push(event);
 		this.emitter.fire(event);
 		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

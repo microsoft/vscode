@@ -5,8 +5,9 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
+import { assertType } from 'vs/base/common/types';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -31,6 +32,7 @@ suite('ExtHostTypes', function () {
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+			_sep: isWindows ? 1 : undefined,
 		});
 
 		assert.ok(uri.toString());
@@ -39,6 +41,7 @@ suite('ExtHostTypes', function () {
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+			_sep: isWindows ? 1 : undefined,
 			external: 'file:///path/test.file'
 		});
 	});
@@ -381,33 +384,22 @@ suite('ExtHostTypes', function () {
 		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
 		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
 
-		const all = edit._allEntries();
+		const all = edit.allEntries();
 		assert.equal(all.length, 4);
 
-		function isFileChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI?, URI?, { overwrite?: boolean }?] {
-			const [f, s] = thing;
-			return URI.isUri(f) && URI.isUri(s);
-		}
-
-		function isTextChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI, types.TextEdit[]] {
-			const [f, s] = thing;
-			return URI.isUri(f) && Array.isArray(s);
-		}
-
 		const [first, second, third, fourth] = all;
-		assert.equal(first[0]!.toString(), 'foo:a');
-		assert.ok(!isFileChange(first));
-		assert.ok(isTextChange(first) && first[1].length === 1);
+		assertType(first._type === 2);
+		assert.equal(first.uri.toString(), 'foo:a');
 
-		assert.equal(second[0]!.toString(), 'foo:a');
-		assert.ok(isFileChange(second));
+		assertType(second._type === 1);
+		assert.equal(second.from!.toString(), 'foo:a');
+		assert.equal(second.to!.toString(), 'foo:b');
 
-		assert.equal(third[0]!.toString(), 'foo:a');
-		assert.ok(isTextChange(third) && third[1].length === 1);
+		assertType(third._type === 2);
+		assert.equal(third.uri.toString(), 'foo:a');
 
-		assert.equal(fourth[0]!.toString(), 'foo:b');
-		assert.ok(!isFileChange(fourth));
-		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
+		assertType(fourth._type === 2);
+		assert.equal(fourth.uri.toString(), 'foo:b');
 	});
 
 	test('WorkspaceEdit - two edits for one resource', function () {
@@ -416,10 +408,13 @@ suite('ExtHostTypes', function () {
 		edit.insert(uri, new types.Position(0, 0), 'Hello');
 		edit.insert(uri, new types.Position(0, 0), 'Foo');
 
-		assert.equal(edit._allEntries().length, 2);
-		let [first, second] = edit._allEntries();
-		assert.equal((first as [URI, types.TextEdit[]])[1][0].newText, 'Hello');
-		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
+		assert.equal(edit.allEntries().length, 2);
+		let [first, second] = edit.allEntries();
+
+		assertType(first._type === 2);
+		assertType(second._type === 2);
+		assert.equal(first.edit.newText, 'Hello');
+		assert.equal(second.edit.newText, 'Foo');
 	});
 
 	test('DocumentLink', () => {
@@ -525,6 +520,25 @@ suite('ExtHostTypes', function () {
 		string.appendVariable('BAR', b => { });
 		assert.equal(string.value, '${BAR}');
 
+		string = new types.SnippetString();
+		string.appendChoice(['b', 'a', 'r']);
+		assert.equal(string.value, '${1|b,a,r|}');
+
+		string = new types.SnippetString();
+		string.appendChoice(['b', 'a', 'r'], 0);
+		assert.equal(string.value, '${0|b,a,r|}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendChoice(['far', 'boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1|far,boo|}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1|far,\\$boo|}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1:farboo}${2|far,boo|}bar');
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {

@@ -4,26 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { assertIsDefined, isFunction } from 'vs/base/common/types';
+import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
+import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -36,17 +38,15 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IEditorService editorService: IEditorService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	getTitle(): string | null {
+	getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -54,81 +54,67 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then((resolvedModel: EditorModel) => {
+		await super.setInput(input, options, token);
+		const resolvedModel = await input.resolve();
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
-				// Assert Model instance
-				if (!(resolvedModel instanceof BaseTextEditorModel)) {
-					return Promise.reject(new Error('Unable to open file as text'));
-				}
+		// Assert Model instance
+		if (!(resolvedModel instanceof BaseTextEditorModel)) {
+			throw new Error('Unable to open file as text');
+		}
 
-				// Set Editor Model
-				const textEditor = this.getControl();
-				const textEditorModel = resolvedModel.textEditorModel;
-				textEditor.setModel(textEditorModel);
+		// Set Editor Model
+		const textEditor = assertIsDefined(this.getControl());
+		const textEditorModel = resolvedModel.textEditorModel;
+		textEditor.setModel(textEditorModel);
 
-				// Apply Options from TextOptions
-				let optionsGotApplied = false;
-				const textOptions = <TextEditorOptions>options;
-				if (textOptions && types.isFunction(textOptions.apply)) {
-					optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
-				}
+		// Apply Options from TextOptions
+		let optionsGotApplied = false;
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && isFunction(textOptions.apply)) {
+			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+		}
 
-				// Otherwise restore View State
-				if (!optionsGotApplied) {
-					this.restoreTextResourceEditorViewState(input);
-				}
+		// Otherwise restore View State
+		if (!optionsGotApplied) {
+			this.restoreTextResourceEditorViewState(input, textEditor);
+		}
 
-				return undefined;
-			});
-		});
+		// Since the resolved model provides information about being readonly
+		// or not, we apply it here to the editor even though the editor input
+		// was already asked for being readonly or not. The rationale is that
+		// a resolved model might have more specific information about being
+		// readonly or not that the input did not have.
+		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
-	private restoreTextResourceEditorViewState(input: EditorInput) {
-		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(input.getResource());
+	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
+		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
+			const viewState = this.loadTextEditorViewState(editor.getResource());
 			if (viewState) {
-				this.getControl().restoreViewState(viewState);
+				control.restoreViewState(viewState);
 			}
 		}
 	}
 
-	setOptions(options: EditorOptions): void {
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
-		}
-	}
-
-	protected getConfigurationOverrides(): IEditorOptions {
-		const options = super.getConfigurationOverrides();
-
-		options.readOnly = !(this.input instanceof UntitledEditorInput); // all resource editors are readonly except for the untitled one;
-
-		return options;
-	}
-
 	protected getAriaLabel(): string {
-		const input = this.input;
-		const isReadonly = !(this.input instanceof UntitledEditorInput);
-
 		let ariaLabel: string;
-		const inputName = input && input.getName();
-		if (isReadonly) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
+
+		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.getResource()) : this.input?.getName();
+		if (this.input?.isReadonly()) {
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
-			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
+			ariaLabel = inputName ? nls.localize('writeableEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('writeableEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;
@@ -153,7 +139,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		super.clearInput();
 	}
@@ -161,15 +150,15 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected saveState(): void {
 
 		// Save View State (only for untitled)
-		if (this.input instanceof UntitledEditorInput) {
+		if (this.input instanceof UntitledTextEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput | null): void {
-		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
+	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
+		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
 
@@ -200,13 +189,49 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWindowService windowService: IWindowService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+	}
+
+	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
+		const control = super.createEditorControl(parent, configuration);
+
+		// Install a listener for paste to update this editors
+		// language mode if the paste includes a specific mode
+		const codeEditor = getCodeEditor(control);
+		if (codeEditor) {
+			this._register(codeEditor.onDidPaste(e => this.onDidEditorPaste(e, codeEditor)));
+		}
+
+		return control;
+	}
+
+	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
+		if (!e.mode || e.mode === PLAINTEXT_MODE_ID) {
+			return; // require a specific mode
+		}
+
+		if (codeEditor.getOption(EditorOption.readOnly)) {
+			return; // not for readonly editors
+		}
+
+		const textModel = codeEditor.getModel();
+		if (!textModel) {
+			return; // require a live model
+		}
+
+		const currentMode = textModel.getModeId();
+		if (currentMode !== PLAINTEXT_MODE_ID) {
+			return; // require current mode to be unspecific
+		}
+
+		// Finally apply mode to model
+		this.modelService.setMode(textModel, this.modeService.create(e.mode));
 	}
 }

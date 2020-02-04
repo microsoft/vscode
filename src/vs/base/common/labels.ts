@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { sep, posix, normalize } from 'vs/base/common/path';
-import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { sep, posix, normalize, win32 } from 'vs/base/common/path';
+import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, relativePath } from 'vs/base/common/resources';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
@@ -36,15 +36,14 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 			let pathLabel: string;
-			if (isEqual(baseResource.uri, resource, !isLinux)) {
+			if (isEqual(baseResource.uri, resource)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
-				// TODO: isidor use resources.relative
-				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), posix.sep)!);
+				pathLabel = relativePath(baseResource.uri, resource)!;
 			}
 
 			if (hasMultipleRoots) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basename(baseResource.uri);
+				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
 				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 			}
 
@@ -283,7 +282,7 @@ interface ISegment {
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -356,10 +355,10 @@ export function template(template: string, values: { [key: string]: string | ISe
  */
 export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
 	if (isMacintosh || forceDisableMnemonics) {
-		return label.replace(/\(&&\w\)|&&/g, '');
+		return label.replace(/\(&&\w\)|&&/g, '').replace(/&/g, isMacintosh ? '&' : '&&');
 	}
 
-	return label.replace(/&&/g, '&');
+	return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
 }
 
 /**
@@ -368,8 +367,8 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
-export function mnemonicButtonLabel(label: string): string {
-	if (isMacintosh) {
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (isMacintosh || forceDisableMnemonics) {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
@@ -382,4 +381,18 @@ export function mnemonicButtonLabel(label: string): string {
 
 export function unmnemonicLabel(label: string): string {
 	return label.replace(/&/g, '&&');
+}
+
+/**
+ * Splits a path in name and parent path, supporting both '/' and '\'
+ */
+export function splitName(fullPath: string): { name: string, parentPath: string } {
+	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
+	const name = p.basename(fullPath);
+	const parentPath = p.dirname(fullPath);
+	if (name.length) {
+		return { name, parentPath };
+	}
+	// only the root segment
+	return { name: parentPath, parentPath: '' };
 }

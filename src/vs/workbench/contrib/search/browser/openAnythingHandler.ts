@@ -32,7 +32,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.anything';
 
-	private static readonly LINE_COLON_PATTERN = /[#:\(](\d*)([#:,](\d*))?\)?$/;
+	private static readonly LINE_COLON_PATTERN = /[#:\(](\d*)([#:,](\d*))?\)?\s*$/;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -40,10 +40,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
-	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
-	private isClosed: boolean;
+	private searchDelayer: ThrottledDelayer<QuickOpenModel | null>;
+	private isClosed: boolean | undefined;
 	private scorerCache: ScorerCache;
-	private includeSymbols: boolean;
+	private includeSymbols: boolean | undefined;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -68,7 +68,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {
-		this.includeSymbols = configuration && configuration.search && configuration.search.quickOpen && configuration.search.quickOpen.includeSymbols;
+		this.includeSymbols = configuration?.search?.quickOpen?.includeSymbols;
 
 		// Files
 		this.openFileHandler.setOptions({
@@ -83,7 +83,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
@@ -99,7 +99,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// The throttler needs a factory for its promises
-		const resultsPromise = () => {
+		const resultsPromise = (): Promise<QuickOpenModel | null> => {
 			const resultPromises: Promise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
