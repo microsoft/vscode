@@ -267,7 +267,7 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('should not de-prioritize this.member suggestion, #74164', async () => {
+	test('should not de-prioritize `this.member` suggestion, #74164', async () => {
 		await enumerateConfig(Config.insertMode, insertModes, async config => {
 			await createTestEditor(testDocumentUri,
 				`class A {`,
@@ -286,6 +286,32 @@ suite('TypeScript Completions', () => {
 					`  private detail = '';`,
 					`  foo() {`,
 					`    this.detail`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
+	});
+
+	test('Member completions for string properties should insert `this.` and use brackets', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  ['xyz 123'] = 1`,
+				`  foo() {`,
+				`    xyz$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  ['xyz 123'] = 1`,
+					`  foo() {`,
+					`    this["xyz 123"]`,
 					`  }`,
 					`}`,
 				),
@@ -324,6 +350,56 @@ suite('TypeScript Completions', () => {
 			joinLines(
 				`const abc = 123;`,
 				`abc`
+			));
+	});
+
+	test('Accepting a member completion in word using insert mode add `this.` and insert', async () => {
+		await updateConfig({ [Config.insertMode]: 'insert' });
+
+		await createTestEditor(testDocumentUri,
+			`class Foo {`,
+			`  abc = 1;`,
+			`  foo() {`,
+			`    ab$0c`,
+			`  }`,
+			`}`,
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`class Foo {`,
+				`  abc = 1;`,
+				`  foo() {`,
+				`    this.abcc`,
+				`  }`,
+				`}`,
+			));
+	});
+
+	test('Accepting a member completion in word using replace mode should add `this.` and replace', async () => {
+		await updateConfig({ [Config.insertMode]: 'replace' });
+
+		await createTestEditor(testDocumentUri,
+			`class Foo {`,
+			`  abc = 1;`,
+			`  foo() {`,
+			`    ab$0c`,
+			`  }`,
+			`}`,
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`class Foo {`,
+				`  abc = 1;`,
+				`  foo() {`,
+				`    this.abc`,
+				`  }`,
+				`}`,
 			));
 	});
 
