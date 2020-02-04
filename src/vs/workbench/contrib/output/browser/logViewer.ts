@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/path';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -66,5 +67,9 @@ export class LogViewer extends AbstractTextResourceEditor {
 		options.scrollBeyondLastLine = false;
 		options.renderValidationDecorations = 'editable';
 		return options;
+	}
+
+	protected getAriaLabel(): string {
+		return localize('logViewerAriaLabel', "Log viewer");
 	}
 }
