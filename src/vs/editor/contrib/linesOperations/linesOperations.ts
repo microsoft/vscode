@@ -37,24 +37,36 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections() || [];
-		selections = selections.reduce((accumulator, selection) => {
-			const isCurrentSelectionDuplicated = accumulator.some(value => (
-				value.startLineNumber === selection.startLineNumber &&
-				value.endLineNumber === selection.endLineNumber
-			));
+		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignore: false }));
+		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
-			if (isCurrentSelectionDuplicated) {
-				return accumulator;
+		// Remove selections that would result in copying the same line
+		let prev = selections[0];
+		for (let i = 1; i < selections.length; i++) {
+			const curr = selections[i];
+			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
+				// these two selections would copy the same line
+				if (prev.index < curr.index) {
+					// prev wins
+					curr.ignore = true;
+				} else {
+					// curr wins
+					prev.ignore = true;
+					prev = curr;
+				}
 			}
+		}
 
-			return [...accumulator, selection];
-		}, []);
-
+		const commands: ICommand[] = [];
 		for (const selection of selections) {
-			commands.push(new CopyLinesCommand(selection, this.down));
+			if (selection.ignore) {
+				continue;
+			}
+			commands.push(new CopyLinesCommand(selection.selection, this.down));
 		}
 
 		editor.pushUndoStop();
