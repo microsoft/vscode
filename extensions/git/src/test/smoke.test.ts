@@ -47,7 +47,7 @@ suite('git smoke test', function () {
 		}
 
 		assert.equal(git.repositories.length, 1);
-		assert.equal(git.repositories[0].rootUri.fsPath, cwd);
+		assert.equal(fs.realpathSync(git.repositories[0].rootUri.fsPath), cwd);
 
 		repository = git.repositories[0];
 	});
