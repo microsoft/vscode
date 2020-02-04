@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -35,6 +34,7 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -120,6 +120,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -859,6 +860,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return undefined;
 		}));
 
+		this.logService.trace(`[editor history] saving ${entries.length} entries`);
 		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
@@ -876,11 +878,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			try {
 				return this.safeLoadHistoryEntry(registry, entry);
 			} catch (error) {
-				onUnexpectedError(error);
+				this.logService.error(`[editor history] error loading one editor history entry: ${error.toString()}`);
 
 				return undefined; // https://github.com/Microsoft/vscode/issues/60960
 			}
 		}));
+
+		this.logService.trace(`[editor history] loading ${this.history.length} entries`);
 	}
 
 	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput | undefined {
