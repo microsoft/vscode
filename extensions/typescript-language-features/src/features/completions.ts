@@ -464,7 +464,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
 
 			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
-				return this.client.apiVersion.lt(API.v381) ? undefined : '#' as Proto.CompletionsTriggerCharacter;
+				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
 
 			case '.':
 			case '"':
