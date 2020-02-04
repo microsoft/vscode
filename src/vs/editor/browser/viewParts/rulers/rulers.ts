@@ -92,19 +92,11 @@ export class Rulers extends ViewPart {
 
 		for (let i = 0, len = this._rulers.length; i < len; i++) {
 			const node = this._renderedRulers[i];
-			const srcNode = this._rulers[i];
+			const ruler = this._rulers[i];
 
-			let rulerSize, rulerColor = '';
-			if (typeof srcNode === 'number') {
-				rulerSize = srcNode;
-			} else {
-				rulerSize = srcNode.size;
-				rulerColor = `1px 0 0 0 ${srcNode.color} inset`;
-			}
-
-			node.setBoxShadow(rulerColor);
+			node.setBoxShadow(ruler.color ? `1px 0 0 0 ${ruler.color} inset` : ``);
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
-			node.setLeft(rulerSize * this._typicalHalfwidthCharacterWidth);
+			node.setLeft(ruler.column * this._typicalHalfwidthCharacterWidth);
 		}
 	}
 }

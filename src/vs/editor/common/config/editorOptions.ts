@@ -58,7 +58,7 @@ export interface IEditorOptions {
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
-	rulers?: IRulerOption[];
+	rulers?: (number | IRulerOption)[];
 	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
@@ -2361,39 +2361,38 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
 
 //#region rulers
 
-export interface IRulerColorOption {
-	readonly size: number;
-	readonly color: string;
+export interface IRulerOption {
+	readonly column: number;
+	readonly color: string | null;
 }
 
-export type IRulerOption = number | IRulerColorOption;
-
-class EditorRulers extends SimpleEditorOption<EditorOption.rulers, IRulerOption[]> {
+class EditorRulers extends BaseEditorOption<EditorOption.rulers, IRulerOption[]> {
 
 	constructor() {
 		const defaults: IRulerOption[] = [];
-		const sizeSchema: IJSONSchema = { type: 'number', description: nls.localize('rulers.size', "Number of monospace characters at which this editor ruler will render.") };
-
+		const columnSchema: IJSONSchema = { type: 'number', description: nls.localize('rulers.size', "Number of monospace characters at which this editor ruler will render.") };
 		super(
 			EditorOption.rulers, 'rulers', defaults,
 			{
 				type: 'array',
-				items: [
-					sizeSchema,
-					{
-						type: [
-							'object'
-						],
-						properties: {
-							size: sizeSchema,
-							color: {
-								type: 'string',
-								description: nls.localize('rulers.color', "Color of this editor ruler."),
-								format: 'color-hex'
+				items: {
+					anyOf: [
+						columnSchema,
+						{
+							type: [
+								'object'
+							],
+							properties: {
+								column: columnSchema,
+								color: {
+									type: 'string',
+									description: nls.localize('rulers.color', "Color of this editor ruler."),
+									format: 'color-hex'
+								}
 							}
 						}
-					}
-				],
+					]
+				},
 				default: defaults,
 				description: nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty.")
 			}
@@ -2403,17 +2402,21 @@ class EditorRulers extends SimpleEditorOption<EditorOption.rulers, IRulerOption[
 	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
 			let rulers: IRulerOption[] = [];
-			for (let value of input) {
-				let clamped;
-				if (typeof value === 'number') {
-					clamped = EditorIntOption.clampedInt(value, 0, 0, 10000);
-				} else {
-					clamped = value;
-					clamped.size = EditorIntOption.clampedInt(value.size, 0, 0, 10000);
+			for (let _element of input) {
+				if (typeof _element === 'number') {
+					rulers.push({
+						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
+						color: null
+					});
+				} else if (typeof _element === 'object') {
+					const element = _element as IRulerOption;
+					rulers.push({
+						column: EditorIntOption.clampedInt(element.column, 0, 0, 10000),
+						color: element.color
+					});
 				}
-				rulers.push(clamped);
 			}
-			rulers.sort((a, b) => ((typeof a === 'number') ? a : a.size) - ((typeof b === 'number') ? b : b.size));
+			rulers.sort((a, b) => a.column - b.column);
 			return rulers;
 		}
 		return this.defaultValue;
