@@ -436,6 +436,17 @@ export class TitlebarPart extends Part implements ITitleService {
 				return this.electronService.maximizeWindow();
 			}));
 
+			this.electronService.getTitlebarButtonLayout().then(buttonLayout => {
+
+				if (!buttonLayout.includes('minimize')) {
+					minimizeIcon.remove();
+				}
+
+				if (!buttonLayout.includes('maximize')) {
+					this.maxRestoreControl?.remove();
+				}
+			});
+
 			// Close
 			const closeIcon = append(this.windowControls, $('div.window-icon.window-close.codicon.codicon-chrome-close'));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
