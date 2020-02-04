@@ -29,12 +29,14 @@ async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfi
 namespace Config {
 	export const suggestSelection = 'editor.suggestSelection';
 	export const completeFunctionCalls = 'typescript.suggest.completeFunctionCalls';
+	export const autoClosingBrackets = 'editor.autoClosingBrackets';
 }
 
 suite('TypeScript Completions', () => {
 	const configDefaults: VsCodeConfiguration = Object.freeze({
 		[Config.suggestSelection]: 'first',
 		[Config.completeFunctionCalls]: false,
+		[Config.autoClosingBrackets]: 'always',
 	});
 
 	const _disposables: vscode.Disposable[] = [];
@@ -165,7 +167,7 @@ suite('TypeScript Completions', () => {
 			`f('abc.abc$0')`
 		);
 
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables, { useLineRange: true });
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
 		assert.strictEqual(
 			document.getText(),
 			joinLines(

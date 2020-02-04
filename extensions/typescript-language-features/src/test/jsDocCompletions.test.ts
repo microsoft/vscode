@@ -29,14 +29,14 @@ suite('JSDoc Completions', () => {
 			`function abcdef(x, y) { }`,
 		);
 
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables, { useLineRange: true});
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
 		assert.strictEqual(
 			document.getText(),
 			joinLines(
 				`/**`,
-				` *`,
-				` * @param {*} x `,
-				` * @param {*} y `,
+				` * `,
+				` * @param x `,
+				` * @param y `,
 				` */`,
 				`function abcdef(x, y) { }`,
 			));
