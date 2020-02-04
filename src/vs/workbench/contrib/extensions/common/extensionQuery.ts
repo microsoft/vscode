@@ -35,7 +35,7 @@ export class Query {
 						.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
 				}
 				else {
-					return [`@${command} `];
+					return queryContains(`@${command}`) ? [] : [`@${command} `];
 				}
 			}));
 	}

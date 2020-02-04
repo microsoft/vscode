@@ -4,21 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const Mocha = require('mocha');
-const minimist = require('minimist');
+const testRunner = require('vscode/lib/testrunner');
 
-const suite = 'Smoke Tests';
+const suite = 'Integration Git Tests';
 
-const [, , ...args] = process.argv;
-const opts = minimist(args, {
-	string: ['f', 'g']
-});
-
-const options = {
-	color: true,
-	timeout: 60000,
-	slow: 30000,
-	grep: opts['f'] || opts['g']
+const options: any = {
+	ui: 'tdd',
+	useColors: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
+	timeout: 60000
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
@@ -32,6 +25,6 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	};
 }
 
-const mocha = new Mocha(options);
-mocha.addFile('out/main.js');
-mocha.run(failures => process.exit(failures ? -1 : 0));
+testRunner.configure(options);
+
+export = testRunner;

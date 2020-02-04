@@ -85,7 +85,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			return {
 				id: c.hash,
 				timestamp: c.authorDate?.getTime() ?? 0,
-				iconPath: new ThemeIcon('git-commit'),
+				iconPath: new (ThemeIcon as any)('git-commit'),
 				label: message,
 				description: `${dateFormatter.fromNow()}  \u2022  ${c.authorName}`,
 				detail: `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.fromNow()} (${dateFormatter.format('MMMM Do, YYYY h:mma')})\n\n${c.message}`,
@@ -129,7 +129,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				id: '~',
 				timestamp: date.getTime(),
 				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
-				iconPath: new ThemeIcon('git-commit'),
+				iconPath: new (ThemeIcon as any)('git-commit'),
 				label: 'Staged Changes',
 				description: `${dateFormatter.fromNow()}  \u2022  You`,
 				detail: `You  \u2014 Index\n${dateFormatter.fromNow()} (${dateFormatter.format('MMMM Do, YYYY h:mma')})\n${status}`,

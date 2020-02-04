@@ -885,7 +885,7 @@ for (let i = 1; i <= 7; i++) {
 	);
 }
 
-export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
+export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges."));
 export const editorFoldForeground = registerColor('editor.foldForeground', { dark: iconForeground, light: iconForeground, hc: iconForeground }, nls.localize('editor.foldForeground', 'Color of the editor folding icons.'));
 
 registerThemingParticipant((theme, collector) => {

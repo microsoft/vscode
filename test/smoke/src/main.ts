@@ -28,8 +28,6 @@ import { setup as setupDataPreferencesTests } from './areas/preferences/preferen
 import { setup as setupDataSearchTests } from './areas/search/search.test';
 import { setup as setupDataCSSTests } from './areas/css/css.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataDebugTests } from './areas/debug/debug.test';
-import { setup as setupDataGitTests } from './areas/git/git.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
@@ -49,6 +47,7 @@ process.once('exit', () => rimraf.sync(testDataPath));
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
 	string: [
+		'browser',
 		'build',
 		'stable-build',
 		'wait-time',
@@ -60,7 +59,8 @@ const opts = minimist(args, {
 		'verbose',
 		'remote',
 		'web',
-		'headless'
+		'headless',
+		'ci'
 	],
 	default: {
 		verbose: false
@@ -84,42 +84,46 @@ function fail(errorMessage): void {
 
 const repoPath = path.join(__dirname, '..', '..', '..');
 
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
-
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
 let quality: Quality;
 
+//
+// #### Electron Smoke Tests ####
+//
 if (!opts.web) {
+
+	function getDevElectronPath(): string {
+		const buildPath = path.join(repoPath, '.build');
+		const product = require(path.join(repoPath, 'product.json'));
+
+		switch (process.platform) {
+			case 'darwin':
+				return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+			case 'linux':
+				return path.join(buildPath, 'electron', `${product.applicationName}`);
+			case 'win32':
+				return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+			default:
+				throw new Error('Unsupported platform.');
+		}
+	}
+
+	function getBuildElectronPath(root: string): string {
+		switch (process.platform) {
+			case 'darwin':
+				return path.join(root, 'Contents', 'MacOS', 'Electron');
+			case 'linux': {
+				const product = require(path.join(root, 'resources', 'app', 'product.json'));
+				return path.join(root, product.applicationName);
+			}
+			case 'win32': {
+				const product = require(path.join(root, 'resources', 'app', 'product.json'));
+				return path.join(root, `${product.nameShort}.exe`);
+			}
+			default:
+				throw new Error('Unsupported platform.');
+		}
+	}
+
 	let testCodePath = opts.build;
 	let stableCodePath = opts['stable-build'];
 	let electronPath: string;
@@ -154,8 +158,13 @@ if (!opts.web) {
 	} else {
 		quality = Quality.Stable;
 	}
-} else {
-	let testCodeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH;
+}
+
+//
+// #### Web Smoke Tests ####
+//
+else {
+	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
 
 	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
 		fail(`Can't find Code server at ${testCodeServerPath}.`);
@@ -238,13 +247,13 @@ function createOptions(): ApplicationOptions {
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
+		browser: opts.browser,
 		headless: opts.headless
 	};
 }
 
 before(async function () {
-	// allow two minutes for setup
-	this.timeout(2 * 60 * 1000);
+	this.timeout(2 * 60 * 1000); // allow two minutes for setup
 	await setup();
 	this.defaultOptions = createOptions();
 });
@@ -261,11 +270,7 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-if (!opts.web) {
-	setupDataMigrationTests(opts['stable-build'], testDataPath);
-}
-
-describe('Running Code', () => {
+describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
 		await app!.start(opts.web ? false : undefined);
@@ -297,21 +302,25 @@ describe('Running Code', () => {
 		});
 	}
 
-	if (!opts.web) { setupDataLossTests(); }
-	setupDataExplorerTests();
-	if (!opts.web) { setupDataPreferencesTests(); }
-	setupDataSearchTests();
-	setupDataCSSTests();
-	setupDataEditorTests();
-	if (!opts.web) { setupDataDebugTests(); }
-	setupDataGitTests();
-	setupDataStatusbarTests(!!opts.web);
-	setupDataExtensionTests();
-	setupTerminalTests();
-	if (!opts.web) { setupDataMultirootTests(); }
-	setupDataLocalizationTests();
-});
+	// CI only tests (must be reliable)
+	if (opts.ci) {
+		// TODO@Ben figure out tests that can run continously and reliably
+	}
 
-if (!opts.web) {
-	setupLaunchTests();
-}
+	// Non-CI execution (all tests)
+	else {
+		if (!opts.web) { setupDataMigrationTests(opts['stable-build'], testDataPath); }
+		if (!opts.web) { setupDataLossTests(); }
+		setupDataExplorerTests();
+		if (!opts.web) { setupDataPreferencesTests(); }
+		setupDataSearchTests();
+		setupDataCSSTests();
+		setupDataEditorTests();
+		setupDataStatusbarTests(!!opts.web);
+		setupDataExtensionTests();
+		setupTerminalTests();
+		if (!opts.web) { setupDataMultirootTests(); }
+		setupDataLocalizationTests();
+		if (!opts.web) { setupLaunchTests(); }
+	}
+});

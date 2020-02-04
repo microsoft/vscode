@@ -18,14 +18,18 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
+import { createMemoizer } from 'vs/base/common/decorators';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -565,19 +569,121 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export abstract class TextEditorInput extends EditorInput {
+export abstract class TextResourceEditorInput extends EditorInput {
+
+	private static readonly MEMOIZER = createMemoizer();
 
 	constructor(
 		protected readonly resource: URI,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
-		@ITextFileService protected readonly textFileService: ITextFileService
+		@ITextFileService protected readonly textFileService: ITextFileService,
+		@ILabelService protected readonly labelService: ILabelService,
+		@IFileService protected readonly fileService: IFileService,
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
+
+		// Clear label memoizer on certain events that have impact
+		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
 	}
 
 	getResource(): URI {
 		return this.resource;
+	}
+
+	getName(): string {
+		return this.basename;
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get basename(): string {
+		return this.labelService.getUriBasenameLabel(this.resource);
+	}
+
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortDescription;
+			case Verbosity.LONG:
+				return this.longDescription;
+			case Verbosity.MEDIUM:
+			default:
+				return this.mediumDescription;
+		}
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get shortDescription(): string {
+		return this.labelService.getUriBasenameLabel(dirname(this.resource));
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get mediumDescription(): string {
+		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get longDescription(): string {
+		return this.labelService.getUriLabel(dirname(this.resource));
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get mediumTitle(): string {
+		return this.labelService.getUriLabel(this.resource, { relative: true });
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get longTitle(): string {
+		return this.labelService.getUriLabel(this.resource);
+	}
+
+	getTitle(verbosity: Verbosity): string {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortTitle;
+			case Verbosity.LONG:
+				return this.longTitle;
+			default:
+			case Verbosity.MEDIUM:
+				return this.mediumTitle;
+		}
+	}
+
+	isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
+	isReadonly(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never readonly
+		}
+
+		if (!this.fileService.canHandleResource(this.resource)) {
+			return true; // resources without file support are always readonly
+		}
+
+		const model = this.textFileService.files.get(this.resource);
+
+		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+	}
+
+	isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {

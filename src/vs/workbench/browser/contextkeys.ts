@@ -118,6 +118,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Working Copies
 		this.dirtyWorkingCopiesContext = DirtyWorkingCopiesContext.bindTo(this.contextKeyService);
+		this.dirtyWorkingCopiesContext.set(this.workingCopyService.hasDirty);
 
 		// Inputs
 		this.inputFocusedContext = InputFocusedContext.bindTo(this.contextKeyService);
@@ -187,7 +188,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.layoutService.onPartVisibilityChange(() => this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART))));
 
-		this._register(this.workingCopyService.onDidChangeDirty(w => this.dirtyWorkingCopiesContext.set(w.isDirty() || this.workingCopyService.hasDirty)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
 	}
 
 	private updateEditorContextKeys(): void {
