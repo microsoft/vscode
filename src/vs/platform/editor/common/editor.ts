@@ -106,6 +106,21 @@ export enum EditorActivation {
 	PRESERVE
 }
 
+export enum EditorOpenContext {
+
+	/**
+	 * Default: the editor is opening via a programmatic call
+	 * to the editor service API.
+	 */
+	API,
+
+	/**
+	 * Indicates that a user action triggered the opening, e.g.
+	 * via mouse or keyboard use.
+	 */
+	USER
+}
+
 export interface IEditorOptions {
 
 	/**
@@ -174,6 +189,23 @@ export interface IEditorOptions {
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
 	readonly ignoreError?: boolean;
+
+	/**
+	 * Does not use editor overrides while opening the editor
+	 */
+	readonly ignoreOverrides?: boolean;
+
+	/**
+	 * A optional hint to signal in which context the editor opens.
+	 *
+	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * used in various places to control the experience. For example,
+	 * if the editor to open fails with an error, a notification could
+	 * inform about this in a modal dialog. If the editor opened through
+	 * some background task, the notification would show in the background,
+	 * not as a modal dialog.
+	 */
+	readonly context?: EditorOpenContext;
 }
 
 export interface ITextEditorSelection {
@@ -188,15 +220,15 @@ export interface ITextEditorOptions extends IEditorOptions {
 	/**
 	 * Text editor selection.
 	 */
-	selection?: ITextEditorSelection;
+	readonly selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: object;
+	readonly viewState?: object;
 
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
-	revealInCenterIfOutsideViewport?: boolean;
+	readonly revealInCenterIfOutsideViewport?: boolean;
 }

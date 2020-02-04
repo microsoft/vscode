@@ -5,15 +5,14 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import { memoize } from '../utils/memoize';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
@@ -174,7 +173,6 @@ class SupportedCodeActionProvider {
 }
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
-	public static readonly minVersion = API.v213;
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -343,8 +341,7 @@ export function register(
 	diagnosticsManager: DiagnosticsManager,
 	telemetryReporter: TelemetryReporter
 ) {
-	return new VersionDependentRegistration(client, TypeScriptQuickFixProvider.minVersion, () =>
-		vscode.languages.registerCodeActionsProvider(selector,
-			new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter),
-			TypeScriptQuickFixProvider.metadata));
+	return vscode.languages.registerCodeActionsProvider(selector,
+		new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter),
+		TypeScriptQuickFixProvider.metadata);
 }

@@ -7,9 +7,9 @@ import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
@@ -45,7 +45,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		super();
 	}
 
-	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
+	async withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
 		if (typeof location === 'string') {
 			if (this.viewletService.getProgressIndicator(location)) {
@@ -56,14 +56,14 @@ export class ProgressService extends Disposable implements IProgressService {
 				return this.withPanelProgress(location, task, { ...options, location });
 			}
 
-			return Promise.reject(new Error(`Bad progress location: ${location}`));
+			throw new Error(`Bad progress location: ${location}`);
 		}
 
 		switch (location) {
 			case ProgressLocation.Notification:
 				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
 			case ProgressLocation.Window:
-				return this.withWindowProgress(options, task);
+				return this.withWindowProgress({ ...options, location }, task);
 			case ProgressLocation.Explorer:
 				return this.withViewletProgress('workbench.view.explorer', task, { ...options, location });
 			case ProgressLocation.Scm:
@@ -73,12 +73,12 @@ export class ProgressService extends Disposable implements IProgressService {
 			case ProgressLocation.Dialog:
 				return this.withDialogProgress(options, task, onDidCancel);
 			default:
-				return Promise.reject(new Error(`Bad progress location: ${location}`));
+				throw new Error(`Bad progress location: ${location}`);
 		}
 	}
 
-	private withWindowProgress<R = unknown>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
-		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this.updateWindowProgress())];
+	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
+		const task: [IProgressWindowOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this.updateWindowProgress())];
 
 		const promise = callback(task[1]);
 
@@ -110,6 +110,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			let progressTitle = options.title;
 			let progressMessage = progress.value && progress.value.message;
+			let progressCommand = (<IProgressWindowOptions>options).command;
 			let text: string;
 			let title: string;
 
@@ -136,7 +137,8 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			this.globalStatusEntry.value = this.statusbarService.addEntry({
 				text: `$(sync~spin) ${text}`,
-				tooltip: title
+				tooltip: title,
+				command: progressCommand
 			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
 		}
 	}
@@ -144,10 +146,7 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: (choice?: number) => void): P {
 		const toDispose = new DisposableStore();
 
-		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
-			if (!message) {
-				return undefined; // we need a message at least
-			}
+		const createNotification = (message: string, increment?: number): INotificationHandle => {
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
 			const secondaryActions = options.secondaryActions ? Array.from(options.secondaryActions) : [];
@@ -204,10 +203,6 @@ export class ProgressService extends Disposable implements IProgressService {
 			updateProgress(handle, increment);
 
 			Event.once(handle.onDidClose)(() => {
-				if (typeof onDidCancel === 'function') {
-					onDidCancel();
-				}
-
 				toDispose.dispose();
 			});
 
@@ -224,21 +219,34 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		let handle: INotificationHandle | undefined;
+		let handleSoon: any | undefined;
+
+		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
+
 		const updateNotification = (message?: string, increment?: number): void => {
-			if (!handle) {
-				handle = createNotification(message, increment);
+
+			// full message (inital or update)
+			if (message && options.title) {
+				titleAndMessage = `${options.title}: ${message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
 			} else {
-				if (typeof message === 'string') {
-					let newMessage: string;
-					if (typeof options.title === 'string') {
-						newMessage = `${options.title}: ${message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
-					} else {
-						newMessage = message;
+				titleAndMessage = options.title || message;
+			}
+
+			if (!handle && titleAndMessage) {
+				// create notification now or after a delay
+				if (typeof options.delay === 'number' && options.delay > 0) {
+					if (typeof handleSoon !== 'number') {
+						handleSoon = setTimeout(() => handle = createNotification(titleAndMessage!, increment), options.delay);
 					}
-
-					handle.updateMessage(newMessage);
+				} else {
+					handle = createNotification(titleAndMessage, increment);
 				}
+			}
 
+			if (handle) {
+				if (titleAndMessage) {
+					handle.updateMessage(titleAndMessage);
+				}
 				if (typeof increment === 'number') {
 					updateProgress(handle, increment);
 				}
@@ -246,7 +254,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		// Show initially
-		updateNotification(options.title);
+		updateNotification();
 
 		// Update based on progress
 		const promise = callback({
@@ -257,6 +265,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		// Show progress for at least 800ms and then hide once done or canceled
 		Promise.all([timeout(800), promise]).finally(() => {
+			clearTimeout(handleSoon);
 			if (handle) {
 				handle.close();
 			}
@@ -312,7 +321,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		return this.withCompositeProgress(this.panelService.getProgressIndicator(panelid), task, options);
 	}
 
-	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | null, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | undefined, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 		let progressRunner: IProgressRunner | undefined = undefined;
 
 		const promise = task({
@@ -368,7 +377,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					cancelId: buttons.length - 1,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved && resolved.commandId) {
+						if (resolved?.commandId) {
 							if (allowableCommands.indexOf(resolved.commandId) === -1) {
 								EventHelper.stop(event, true);
 							}

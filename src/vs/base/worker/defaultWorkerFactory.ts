@@ -27,6 +27,7 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
+// ESM-comment-begin
 export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
 	if (/^(http:)|(https:)|(file:)/.test(scriptPath)) {
 		const currentUrl = String(window.location);
@@ -43,6 +44,7 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 	}
 	return scriptPath + '#' + label;
 }
+// ESM-comment-end
 
 function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
 	if (typeof obj.then === 'function') {

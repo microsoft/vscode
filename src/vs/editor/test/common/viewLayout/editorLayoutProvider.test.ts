@@ -48,7 +48,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,
 			maxColumn: input.minimapMaxColumn,
-			showSlider: 'mouseover'
+			showSlider: 'mouseover',
+			scale: 1,
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -59,6 +60,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalHasArrows: input.verticalScrollbarHasArrows,
 			horizontalHasArrows: false,
 			handleMouseWheel: EditorOptions.scrollbar.defaultValue.handleMouseWheel,
+			alwaysConsumeMouseWheel: true,
 			horizontalScrollbarSize: input.horizontalScrollbarHeight,
 			horizontalSliderSize: EditorOptions.scrollbar.defaultValue.horizontalSliderSize,
 			verticalScrollbarSize: input.verticalScrollbarWidth,
@@ -110,19 +112,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
 			contentLeft: 10,
 			contentWidth: 990,
-			contentHeight: 800,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -168,19 +166,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
 			contentLeft: 10,
 			contentWidth: 990,
-			contentHeight: 800,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -226,19 +220,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
 			contentLeft: 10,
 			contentWidth: 890,
-			contentHeight: 800,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -284,19 +274,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 10,
 			contentWidth: 890,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -342,19 +328,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 10,
 			contentWidth: 890,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -400,19 +382,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 50,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 50,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 60,
 			contentWidth: 840,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -458,19 +436,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 50,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 50,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 60,
 			contentWidth: 840,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -516,19 +490,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 60,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 60,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 70,
 			contentWidth: 830,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -574,19 +544,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 30,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 30,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 40,
 			contentWidth: 860,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -632,19 +598,15 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 30,
-			lineNumbersHeight: 900,
 
 			decorationsLeft: 30,
 			decorationsWidth: 10,
-			decorationsHeight: 900,
 
 			contentLeft: 40,
 			contentWidth: 860,
-			contentHeight: 900,
 
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
@@ -690,23 +652,19 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
 			contentLeft: 10,
-			contentWidth: 901,
-			contentHeight: 800,
+			contentWidth: 893,
 
-			renderMinimap: RenderMinimap.Small,
-			minimapLeft: 911,
-			minimapWidth: 89,
+			renderMinimap: RenderMinimap.Text,
+			minimapLeft: 903,
+			minimapWidth: 97,
 			viewportColumn: 89,
 
 			verticalScrollbarWidth: 0,
@@ -748,23 +706,19 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
 			contentLeft: 10,
-			contentWidth: 901,
-			contentHeight: 800,
+			contentWidth: 893,
 
-			renderMinimap: RenderMinimap.Large,
-			minimapLeft: 911,
-			minimapWidth: 89,
+			renderMinimap: RenderMinimap.Text,
+			minimapLeft: 903,
+			minimapWidth: 97,
 			viewportColumn: 89,
 
 			verticalScrollbarWidth: 0,
@@ -806,24 +760,20 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
 			decorationsLeft: 0,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
 			contentLeft: 10,
-			contentWidth: 943,
-			contentHeight: 800,
+			contentWidth: 935,
 
-			renderMinimap: RenderMinimap.Large,
-			minimapLeft: 953,
-			minimapWidth: 47,
-			viewportColumn: 94,
+			renderMinimap: RenderMinimap.Text,
+			minimapLeft: 945,
+			minimapWidth: 55,
+			viewportColumn: 93,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -862,26 +812,22 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 47,
+			glyphMarginLeft: 55,
 			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
 
-			lineNumbersLeft: 47,
+			lineNumbersLeft: 55,
 			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
 
-			decorationsLeft: 47,
+			decorationsLeft: 55,
 			decorationsWidth: 10,
-			decorationsHeight: 800,
 
-			contentLeft: 57,
-			contentWidth: 943,
-			contentHeight: 800,
+			contentLeft: 65,
+			contentWidth: 935,
 
-			renderMinimap: RenderMinimap.Large,
+			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 0,
-			minimapWidth: 47,
-			viewportColumn: 94,
+			minimapWidth: 55,
+			viewportColumn: 93,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -922,23 +868,19 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 30,
-			glyphMarginHeight: 422,
 
 			lineNumbersLeft: 30,
 			lineNumbersWidth: 36,
-			lineNumbersHeight: 422,
 
 			decorationsLeft: 66,
 			decorationsWidth: 26,
-			decorationsHeight: 422,
 
 			contentLeft: 92,
-			contentWidth: 1026,
-			contentHeight: 422,
+			contentWidth: 1018,
 
-			renderMinimap: RenderMinimap.Large,
-			minimapLeft: 1104,
-			minimapWidth: 83,
+			renderMinimap: RenderMinimap.Text,
+			minimapLeft: 1096,
+			minimapWidth: 91,
 			viewportColumn: 83,
 
 			verticalScrollbarWidth: 14,

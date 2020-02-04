@@ -13,6 +13,6 @@ jobs:
 
 - job: macOS
   pool:
-    vmImage: macOS 10.13
+    vmImage: macOS-latest
   steps:
   - template: build/azure-pipelines/darwin/continuous-build-darwin.yml

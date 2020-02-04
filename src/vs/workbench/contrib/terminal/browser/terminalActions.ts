@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_PANEL_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -24,7 +24,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -35,6 +34,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -105,7 +105,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, 'terminal-action kill');
+		super(id, label, 'terminal-action codicon-trash');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -231,8 +231,8 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 		label: string,
 		@ITerminalService terminalService: ITerminalService
 	) {
-		// Send alt+D
-		super(id, label, '\x1bD', terminalService);
+		// Send alt+d
+		super(id, label, '\x1bd', terminalService);
 	}
 }
 
@@ -298,6 +298,22 @@ export class SendSequenceTerminalCommand extends Command {
 	}
 }
 
+export class CreateNewWithCwdTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
+	public static readonly CWD_ARG_LABEL = nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at");
+
+	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const instance = terminalService.createTerminal({ cwd: args?.cwd });
+		if (!instance) {
+			return Promise.resolve(undefined);
+		}
+		terminalService.setActiveInstance(instance);
+		return terminalService.showPanel(true);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
@@ -310,7 +326,7 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action new');
+		super(id, label, 'terminal-action codicon-add');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -386,7 +402,7 @@ export class SplitTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action split');
+		super(id, label, 'terminal-action codicon-split-horizontal');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -549,7 +565,7 @@ export class FocusActiveTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance(true);
+		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -696,7 +712,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title).then(path => {
+		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType).then(path => {
 			instance.sendText(path, true);
 			return this.terminalService.showPanel();
 		});
@@ -1039,6 +1055,31 @@ export class RenameTerminalAction extends Action {
 		});
 	}
 }
+export class RenameWithArgTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_WITH_ARG;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
+
+	public runCommand(
+		accessor: ServicesAccessor,
+		args?: { name?: string }
+	): void {
+		const notificationService = accessor.get(INotificationService);
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+
+		if (!terminalInstance) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
+			return;
+		}
+
+		if (!args || !args.name) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
+			return;
+		}
+
+		terminalInstance.setTitle(args.name, TitleEventSource.Api);
+	}
+}
 
 export class FocusTerminalFindWidgetAction extends Action {
 
@@ -1124,7 +1165,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, quickInputService, terminalService);
-		this.class = 'quick-open-terminal-configure';
+		this.class = 'codicon codicon-gear';
 	}
 
 	public run(): Promise<any> {
@@ -1302,7 +1343,6 @@ abstract class ToggleFindOptionCommand extends Action {
 
 export class ToggleRegexCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1312,7 +1352,6 @@ export class ToggleRegexCommand extends ToggleFindOptionCommand {
 
 export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1322,7 +1361,6 @@ export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 
 export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1332,7 +1370,6 @@ export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 
 export class FindNext extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
 
 	constructor(
@@ -1350,7 +1387,6 @@ export class FindNext extends Action {
 
 export class FindPrevious extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
 
 	constructor(

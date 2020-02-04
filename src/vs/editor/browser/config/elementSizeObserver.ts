@@ -14,14 +14,14 @@ export class ElementSizeObserver extends Disposable {
 	private width: number;
 	private height: number;
 
-	constructor(referenceDomElement: HTMLElement | null, changeCallback: () => void) {
+	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
 		super();
 		this.referenceDomElement = referenceDomElement;
 		this.changeCallback = changeCallback;
 		this.measureReferenceDomElementToken = -1;
 		this.width = -1;
 		this.height = -1;
-		this.measureReferenceDomElement(false);
+		this.measureReferenceDomElement(false, dimension);
 	}
 
 	public dispose(): void {

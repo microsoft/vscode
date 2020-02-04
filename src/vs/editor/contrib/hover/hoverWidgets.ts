@@ -19,7 +19,7 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
 	private readonly _containerDomNode: HTMLElement;
-	private readonly _domNode: HTMLElement;
+	protected readonly _domNode: HTMLElement;
 	protected _showAtPosition: Position | null;
 	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;

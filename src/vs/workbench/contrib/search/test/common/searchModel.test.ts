@@ -70,6 +70,10 @@ suite('SearchModel', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(ISearchService, {});
 		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true });
+		instantiationService.stub(IConfigurationService, config);
 	});
 
 	teardown(() => {

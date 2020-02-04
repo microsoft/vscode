@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyDto, ISuggestDataDto, ICodeActionDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -19,8 +19,9 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import * as callh from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
+import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -111,7 +112,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return <modes.ILink>data;
 	}
 
-	private static _reviveCallHierarchyItemDto(data: ICallHierarchyDto | undefined): callh.CallHierarchyItem {
+	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto | undefined): callh.CallHierarchyItem {
 		if (data) {
 			data.uri = URI.revive(data.uri);
 		}
@@ -315,7 +316,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportResolveLocation: boolean): void {
 		this._registrations.set(handle, modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
-			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Promise<modes.WorkspaceEdit> => {
+			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken) => {
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(reviveWorkspaceEditDto);
 			},
 			resolveRenameLocation: supportResolveLocation
@@ -324,24 +325,35 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- semantic tokens
+
+	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
+		this._registrations.set(handle, modes.DocumentSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend)));
+	}
+
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
+		this._registrations.set(handle, modes.DocumentRangeSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
+	}
+
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+
 		return {
-			label: data.a,
-			kind: data.b,
-			tags: data.n,
-			detail: data.c,
-			documentation: data.d,
-			sortText: data.e,
-			filterText: data.f,
-			preselect: data.g,
-			insertText: typeof data.h === 'undefined' ? data.a : data.h,
-			insertTextRules: data.i,
-			range: data.j || defaultRange,
-			commitCharacters: data.k,
-			additionalTextEdits: data.l,
-			command: data.m,
+			label: data[ISuggestDataDtoField.label2] || data[ISuggestDataDtoField.label],
+			kind: data[ISuggestDataDtoField.kind],
+			tags: data[ISuggestDataDtoField.kindModifier],
+			detail: data[ISuggestDataDtoField.detail],
+			documentation: data[ISuggestDataDtoField.documentation],
+			sortText: data[ISuggestDataDtoField.sortText],
+			filterText: data[ISuggestDataDtoField.filterText],
+			preselect: data[ISuggestDataDtoField.preselect],
+			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
+			range: data[ISuggestDataDtoField.range] || defaultRange,
+			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
+			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
+			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
+			command: data[ISuggestDataDtoField.command],
 			// not-standard
 			_id: data.x,
 		};
@@ -356,10 +368,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (!result) {
 						return result;
 					}
+
 					return {
-						suggestions: result.b.map(d => MainThreadLanguageFeatures._inflateSuggestDto(result.a, d)),
-						incomplete: result.c,
-						dispose: () => typeof result.x === 'number' && this._proxy.$releaseCompletionItems(handle, result.x)
+						suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
+						incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
+						dispose: () => {
+							if (typeof result.x === 'number') {
+								this._proxy.$releaseCompletionItems(handle, result.x);
+							}
+						}
 					};
 				});
 			}
@@ -370,6 +387,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (!result) {
 						return suggestion;
 					}
+
 					let newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
 					return mixin(suggestion, newSuggestion, true);
 				});
@@ -494,22 +512,41 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
-			provideCallHierarchyItem: (document, position, token) => {
-				return this._proxy.$provideCallHierarchyItem(handle, document.uri, position, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
-			},
-			resolveCallHierarchyItem: (item, direction, token) => {
-				return this._proxy.$resolveCallHierarchyItem(handle, item, direction, token).then(data => {
-					if (data) {
-						for (let i = 0; i < data.length; i++) {
-							const [item, locations] = data[i];
-							data[i] = [
-								MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-								MainThreadLanguageFeatures._reviveLocationDto(locations)
-							];
+
+			prepareCallHierarchy: async (document, position, token) => {
+				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!items) {
+					return undefined;
+				}
+				return {
+					dispose: () => {
+						for (const item of items) {
+							this._proxy.$releaseCallHierarchy(handle, item._sessionId);
 						}
-					}
-					return data as [callh.CallHierarchyItem, modes.Location[]][];
+					},
+					roots: items.map(MainThreadLanguageFeatures._reviveCallHierarchyItemDto)
+				};
+			},
+
+			provideOutgoingCalls: async (item, token) => {
+				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item._sessionId, item._itemId, token);
+				if (!outgoing) {
+					return outgoing;
+				}
+				outgoing.forEach(value => {
+					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
+				return <any>outgoing;
+			},
+			provideIncomingCalls: async (item, token) => {
+				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item._sessionId, item._itemId, token);
+				if (!incoming) {
+					return incoming;
+				}
+				incoming.forEach(value => {
+					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
+				});
+				return <any>incoming;
 			}
 		}));
 	}
@@ -576,4 +613,78 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
+}
+
+export class MainThreadDocumentSemanticTokensProvider implements modes.DocumentSemanticTokensProvider {
+
+	constructor(
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		private readonly _handle: number,
+		private readonly _legend: modes.SemanticTokensLegend,
+	) {
+	}
+
+	public releaseDocumentSemanticTokens(resultId: string | undefined): void {
+		if (resultId) {
+			this._proxy.$releaseDocumentSemanticTokens(this._handle, parseInt(resultId, 10));
+		}
+	}
+
+	public getLegend(): modes.SemanticTokensLegend {
+		return this._legend;
+	}
+
+	async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<modes.SemanticTokens | modes.SemanticTokensEdits | null> {
+		const nLastResultId = lastResultId ? parseInt(lastResultId, 10) : 0;
+		const encodedDto = await this._proxy.$provideDocumentSemanticTokens(this._handle, model.uri, nLastResultId, token);
+		if (!encodedDto) {
+			return null;
+		}
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		const dto = decodeSemanticTokensDto(encodedDto);
+		if (dto.type === 'full') {
+			return {
+				resultId: String(dto.id),
+				data: dto.data
+			};
+		}
+		return {
+			resultId: String(dto.id),
+			edits: dto.deltas
+		};
+	}
+}
+
+export class MainThreadDocumentRangeSemanticTokensProvider implements modes.DocumentRangeSemanticTokensProvider {
+
+	constructor(
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		private readonly _handle: number,
+		private readonly _legend: modes.SemanticTokensLegend,
+	) {
+	}
+
+	public getLegend(): modes.SemanticTokensLegend {
+		return this._legend;
+	}
+
+	async provideDocumentRangeSemanticTokens(model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.SemanticTokens | null> {
+		const encodedDto = await this._proxy.$provideDocumentRangeSemanticTokens(this._handle, model.uri, range, token);
+		if (!encodedDto) {
+			return null;
+		}
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		const dto = decodeSemanticTokensDto(encodedDto);
+		if (dto.type === 'full') {
+			return {
+				resultId: String(dto.id),
+				data: dto.data
+			};
+		}
+		throw new Error(`Unexpected`);
+	}
 }

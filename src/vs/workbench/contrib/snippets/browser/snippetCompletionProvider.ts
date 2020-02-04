@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare } from 'vs/base/common/strings';
+import { compare, startsWith } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -18,21 +18,24 @@ import { isPatternInWord } from 'vs/base/common/filters';
 
 export class SnippetCompletion implements CompletionItem {
 
-	label: string;
+	label: CompletionItemLabel;
 	detail: string;
 	insertText: string;
 	documentation?: MarkdownString;
-	range: IRange;
+	range: IRange | { insert: IRange, replace: IRange };
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
 
 	constructor(
 		readonly snippet: Snippet,
-		range: IRange
+		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = snippet.prefix;
-		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
+		this.label = {
+			name: snippet.prefix,
+			type: localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source)
+		};
+		this.detail = this.label.type!;
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
@@ -46,7 +49,7 @@ export class SnippetCompletion implements CompletionItem {
 	}
 
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label, b.label);
+		return compare(a.label.name, b.label.name);
 	}
 }
 
@@ -80,7 +83,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			let suggestions: SnippetCompletion[];
 			let pos = { lineNumber: position.lineNumber, column: 1 };
 			let lineOffsets: number[] = [];
-			let linePrefixLow = model.getLineContent(position.lineNumber).substr(0, position.column - 1).toLowerCase();
+			const lineContent = model.getLineContent(position.lineNumber);
+			const linePrefixLow = lineContent.substr(0, position.column - 1).toLowerCase();
 			let endsInWhitespace = linePrefixLow.match(/\s$/);
 
 			while (pos.column < position.column) {
@@ -104,13 +108,19 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				}
 			}
 
+			const lineSuffixLow = lineContent.substr(position.column - 1).toLowerCase();
 			let availableSnippets = new Set<Snippet>();
 			snippets.forEach(availableSnippets.add, availableSnippets);
 			suggestions = [];
 			for (let start of lineOffsets) {
 				availableSnippets.forEach(snippet => {
 					if (isPatternInWord(linePrefixLow, start, linePrefixLow.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-						suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
+						const snippetPrefixSubstr = snippet.prefixLow.substr(linePrefixLow.length - start);
+						const endColumn = startsWith(lineSuffixLow, snippetPrefixSubstr) ? position.column + snippetPrefixSubstr.length : position.column;
+						const replace = Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), { lineNumber: position.lineNumber, column: endColumn });
+						const insert = replace.setEndPosition(position.lineNumber, position.column);
+
+						suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
 						availableSnippets.delete(snippet);
 					}
 				});
@@ -119,7 +129,9 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				// add remaing snippets when the current prefix ends in whitespace or when no
 				// interesting positions have been found
 				availableSnippets.forEach(snippet => {
-					suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position)));
+					let insert = Range.fromPositions(position);
+					let replace = startsWith(lineSuffixLow, snippet.prefixLow) ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
 				});
 			}
 
@@ -130,13 +142,14 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				let item = suggestions[i];
 				let to = i + 1;
 				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
+					suggestions[to].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.name, suggestions[to].snippet.name);
 				}
 				if (to > i + 1) {
-					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
+					suggestions[i].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.name, suggestions[i].snippet.name);
 					i = to;
 				}
 			}
+
 			return { suggestions };
 		});
 	}

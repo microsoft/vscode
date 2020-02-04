@@ -6,7 +6,6 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -15,12 +14,13 @@ import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
-import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { RunOnceWorker } from 'vs/base/common/async';
 
 export const enum ExperimentState {
 	Evaluating,
@@ -120,13 +120,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService
 	) {
 		super();
 
@@ -169,18 +168,22 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
-	protected getExperiments(): Promise<IRawExperiment[] | null> {
+	protected async getExperiments(): Promise<IRawExperiment[] | null> {
 		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
-			return Promise.resolve([]);
+			return [];
 		}
-		return this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None).then(context => {
+
+		try {
+			const context = await this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None);
 			if (context.res.statusCode !== 200) {
-				return Promise.resolve(null);
+				return null;
 			}
-			return asJson(context).then((result: any) => {
-				return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
-			});
-		}, () => Promise.resolve(null));
+			const result: any = await asJson(context);
+			return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
+		} catch (_e) {
+			// Bad request or invalid JSON
+			return null;
+		}
 	}
 
 	private loadExperiments(): Promise<any> {
@@ -333,7 +336,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
-		if (this.environmentService.appQuality === 'stable' && condition.insidersOnly === true) {
+		if (this.productService.quality === 'stable' && condition.insidersOnly === true) {
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
@@ -400,16 +403,17 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				return ExperimentState.Run;
 			}
 
-			const onSaveHandler = this.textFileService.models.onModelsSaved(e => {
+			// Process model-save event every 250ms to reduce load
+			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
 				const date = new Date().toDateString();
 				const latestExperimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
 				if (latestExperimentState.state !== ExperimentState.Evaluating) {
 					onSaveHandler.dispose();
+					onModelsSavedWorker.dispose();
 					return;
 				}
-				e.forEach(async event => {
-					if (event.kind !== StateChange.SAVED
-						|| latestExperimentState.state !== ExperimentState.Evaluating
+				models.forEach(async model => {
+					if (latestExperimentState.state !== ExperimentState.Evaluating
 						|| date === latestExperimentState.lastEditedDate
 						|| (typeof latestExperimentState.editCount === 'number' && latestExperimentState.editCount >= fileEdits.minEditCount)
 					) {
@@ -419,14 +423,14 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					let workspaceCheck = true;
 
 					if (typeof fileEdits.filePathPattern === 'string') {
-						filePathCheck = match(fileEdits.filePathPattern, event.resource.fsPath);
+						filePathCheck = match(fileEdits.filePathPattern, model.resource.fsPath);
 					}
 					if (Array.isArray(fileEdits.workspaceIncludes) && fileEdits.workspaceIncludes.length) {
-						const tags = await this.workspaceStatsService.getTags();
+						const tags = await this.workspaceTagsService.getTags();
 						workspaceCheck = !!tags && fileEdits.workspaceIncludes.some(x => !!tags[x]);
 					}
 					if (workspaceCheck && Array.isArray(fileEdits.workspaceExcludes) && fileEdits.workspaceExcludes.length) {
-						const tags = await this.workspaceStatsService.getTags();
+						const tags = await this.workspaceTagsService.getTags();
 						workspaceCheck = !!tags && !fileEdits.workspaceExcludes.some(x => !!tags[x]);
 					}
 					if (filePathCheck && workspaceCheck) {
@@ -442,8 +446,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						this.fireRunExperiment(processedExperiment);
 					}
 				}
-			});
-			this._register(onSaveHandler);
+			}, 250));
+
+			const onSaveHandler = this._register(this.textFileService.files.onDidSave(e => onModelsSavedWorker.work(e.model)));
 			return ExperimentState.Evaluating;
 		});
 	}

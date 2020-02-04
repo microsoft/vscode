@@ -11,10 +11,10 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorConstructionOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 class CSSBasedConfigurationCache {
 
@@ -79,6 +79,7 @@ export interface ISerializedFontInfo {
 	readonly fontFamily: string;
 	readonly fontWeight: string;
 	readonly fontSize: number;
+	fontFeatureSettings: string;
 	readonly lineHeight: number;
 	readonly letterSpacing: number;
 	readonly isMonospace: boolean;
@@ -86,6 +87,7 @@ export interface ISerializedFontInfo {
 	readonly typicalFullwidthCharacterWidth: number;
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
+	middotWidth: number;
 	readonly maxDigitWidth: number;
 }
 
@@ -151,11 +153,15 @@ class CSSBasedConfiguration extends Disposable {
 		return this._cache.getValues().filter(item => item.isTrusted);
 	}
 
-	public restoreFontInfo(savedFontInfo: ISerializedFontInfo[]): void {
+	public restoreFontInfo(savedFontInfos: ISerializedFontInfo[]): void {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
-		for (let i = 0, len = savedFontInfo.length; i < len; i++) {
-			const fontInfo = new FontInfo(savedFontInfo[i], false);
+		for (let i = 0, len = savedFontInfos.length; i < len; i++) {
+			const savedFontInfo = savedFontInfos[i];
+			// compatibility with older versions of VS Code which did not store this...
+			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
+			savedFontInfo.middotWidth = savedFontInfo.middotWidth || savedFontInfo.spaceWidth;
+			const fontInfo = new FontInfo(savedFontInfo, false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
 	}
@@ -171,6 +177,7 @@ class CSSBasedConfiguration extends Disposable {
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
+					fontFeatureSettings: readConfig.fontFeatureSettings,
 					lineHeight: readConfig.lineHeight,
 					letterSpacing: readConfig.letterSpacing,
 					isMonospace: readConfig.isMonospace,
@@ -178,6 +185,7 @@ class CSSBasedConfiguration extends Disposable {
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
+					middotWidth: Math.max(readConfig.middotWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
 				}, false);
 			}
@@ -218,7 +226,8 @@ class CSSBasedConfiguration extends Disposable {
 		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
 		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
 
-		this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
+		// middle dot character
+		const middot = this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
 
 		// monospace test: some characters
 		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
@@ -249,9 +258,9 @@ class CSSBasedConfiguration extends Disposable {
 
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
-		let isMonospace = true;
+		let isMonospace = (bareFontInfo.fontFeatureSettings === EditorFontLigatures.OFF);
 		const referenceWidth = monospace[0].width;
-		for (let i = 1, len = monospace.length; i < len; i++) {
+		for (let i = 1, len = monospace.length; isMonospace && i < len; i++) {
 			const diff = referenceWidth - monospace[i].width;
 			if (diff < -0.001 || diff > 0.001) {
 				isMonospace = false;
@@ -276,6 +285,7 @@ class CSSBasedConfiguration extends Disposable {
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
+			fontFeatureSettings: bareFontInfo.fontFeatureSettings,
 			lineHeight: bareFontInfo.lineHeight,
 			letterSpacing: bareFontInfo.letterSpacing,
 			isMonospace: isMonospace,
@@ -283,6 +293,7 @@ class CSSBasedConfiguration extends Disposable {
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
 			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
 			spaceWidth: space.width,
+			middotWidth: middot.width,
 			maxDigitWidth: maxDigitWidth
 		}, canTrustBrowserZoomLevel);
 	}
@@ -294,6 +305,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
+		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
 		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
 	}
@@ -302,6 +314,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
+		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
 		domNode.setLineHeight(fontInfo.lineHeight);
 		domNode.setLetterSpacing(fontInfo.letterSpacing);
 	}
@@ -310,13 +323,13 @@ export class Configuration extends CommonEditorConfiguration {
 
 	constructor(
 		isSimpleWidget: boolean,
-		options: IEditorOptions,
+		options: IEditorConstructionOptions,
 		referenceDomElement: HTMLElement | null = null,
 		private readonly accessibilityService: IAccessibilityService
 	) {
 		super(isSimpleWidget, options);
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
@@ -325,7 +338,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 
 		this._recomputeOptions();
 	}
@@ -366,7 +379,7 @@ export class Configuration extends CommonEditorConfiguration {
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: this.accessibilityService.getAccessibilitySupport()
+			accessibilitySupport: this.accessibilityService.isScreenReaderOptimized() ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled
 		};
 	}
 

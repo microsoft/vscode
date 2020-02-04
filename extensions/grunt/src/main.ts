@@ -67,6 +67,7 @@ function showError() {
 }
 interface GruntTaskDefinition extends vscode.TaskDefinition {
 	task: string;
+	args?: string[];
 	file?: string;
 }
 
@@ -121,14 +122,14 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const gruntTask = (<any>_task.definition).task;
+		const taskDefinition = <any>_task.definition;
+		const gruntTask = taskDefinition.task;
 		if (gruntTask) {
-			let kind: GruntTaskDefinition = (<any>_task.definition);
 			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			let source = 'grunt';
 			let task = gruntTask.indexOf(' ') === -1
-				? new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} ${gruntTask.name}`, options))
-				: new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} "${gruntTask.name}"`, options));
+				? new vscode.Task(taskDefinition, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand}`, [gruntTask, ...taskDefinition.args], options))
+				: new vscode.Task(taskDefinition, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand}`, [`"${gruntTask}"`, ...taskDefinition.args], options));
 			return task;
 		}
 		return undefined;

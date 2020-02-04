@@ -6,7 +6,7 @@
 import { Event } from 'vscode';
 import { dirname, sep } from 'path';
 import { Readable } from 'stream';
-import * as fs from 'fs';
+import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
 
 export function log(...args: any[]): void {
@@ -140,27 +140,16 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
-export function denodeify<A, B, C, R>(fn: Function): (a: A, b: B, c: C) => Promise<R>;
-export function denodeify<A, B, R>(fn: Function): (a: A, b: B) => Promise<R>;
-export function denodeify<A, R>(fn: Function): (a: A) => Promise<R>;
-export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R>;
-export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
-	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
-}
-
-export function nfcall<R>(fn: Function, ...args: any[]): Promise<R> {
-	return new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
-}
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 	const mkdir = async () => {
 		try {
-			await nfcall(fs.mkdir, path, mode);
+			await fs.mkdir(path, mode);
 		} catch (err) {
 			if (err.code === 'EEXIST') {
-				const stat = await nfcall<fs.Stats>(fs.stat, path);
+				const stat = await fs.stat(path);
 
-				if (stat.isDirectory) {
+				if (stat.isDirectory()) {
 					return;
 				}
 
@@ -232,7 +221,7 @@ export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
 
 export async function grep(filename: string, pattern: RegExp): Promise<boolean> {
 	return new Promise<boolean>((c, e) => {
-		const fileStream = fs.createReadStream(filename, { encoding: 'utf8' });
+		const fileStream = createReadStream(filename, { encoding: 'utf8' });
 		const stream = byline(fileStream);
 		stream.on('data', (line: string) => {
 			if (pattern.test(line)) {

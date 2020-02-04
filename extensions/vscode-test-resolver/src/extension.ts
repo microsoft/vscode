@@ -102,8 +102,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
-			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
+			extHostProcess.stdout!.on('data', (data: Buffer) => processOutput(data.toString()));
+			extHostProcess.stderr!.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.on('error', (error: Error) => {
 				processError(`server failed with error:\n${error.message}`);
 				extHostProcess = undefined;
@@ -210,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
-				title: 'Open TestResolver Remote ([details](command:remote-testresolver.showLog))',
+				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
 				cancellable: false
 			}, (progress) => doResolve(_authority, progress));
 		}

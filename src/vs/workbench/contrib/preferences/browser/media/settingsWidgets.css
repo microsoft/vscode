@@ -70,26 +70,13 @@
 	height: 20px;
 	padding: 2px;
 	margin-right: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
 	margin-right: 4px;
-}
-
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
-	background: url("edit-light.svg") center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
-	background: url("edit-dark.svg") center center no-repeat;
-}
-
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-remove {
-	background: url("remove-light.svg") center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-remove {
-	background: url("remove-dark.svg") center center no-repeat;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button {

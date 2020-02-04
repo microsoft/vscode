@@ -42,7 +42,7 @@ suite('Files', () => {
 		assert.strictEqual(true, r1.gotDeleted());
 	});
 
-	function testIsEqual(testMethod: (pA: string | undefined, pB: string, ignoreCase: boolean) => boolean): void {
+	function testIsEqual(testMethod: (pA: string, pB: string, ignoreCase: boolean) => boolean): void {
 
 		// corner cases
 		assert(testMethod('', '', true));
@@ -136,7 +136,7 @@ suite('Files', () => {
 	test('isEqualOrParent (ignorecase)', function () {
 
 		// same assertions apply as with isEqual()
-		testIsEqual(isEqualOrParent);
+		testIsEqual(isEqualOrParent); //
 
 		if (isWindows) {
 			assert(isEqualOrParent('c:\\some\\path', 'c:\\', true));

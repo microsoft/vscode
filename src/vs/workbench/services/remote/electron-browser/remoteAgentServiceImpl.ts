@@ -7,7 +7,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { ISignService } from 'vs/platform/sign/common/sign';

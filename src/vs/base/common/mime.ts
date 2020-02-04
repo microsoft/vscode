@@ -262,7 +262,14 @@ export function suggestFilename(mode: string | undefined, prefix: string): strin
 		.filter(assoc => startsWith(assoc, '.'));
 
 	if (extensionsWithDotFirst.length > 0) {
-		return prefix + extensionsWithDotFirst[0];
+		const candidateExtension = extensionsWithDotFirst[0];
+		if (endsWith(prefix, candidateExtension)) {
+			// do not add the prefix if it already exists
+			// https://github.com/microsoft/vscode/issues/83603
+			return prefix;
+		}
+
+		return prefix + candidateExtension;
 	}
 
 	return extensions[0] || prefix;

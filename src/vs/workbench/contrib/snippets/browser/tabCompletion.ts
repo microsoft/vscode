@@ -10,7 +10,7 @@ import { ISnippetsService } from './snippets.contribution';
 import { getNonWhitespacePrefix } from './snippetsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -21,10 +21,10 @@ import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export class TabCompletionController implements editorCommon.IEditorContribution {
+export class TabCompletionController implements IEditorContribution {
 
-	private static readonly ID = 'editor.tabCompletionController';
-	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
+	public static readonly ID = 'editor.tabCompletionController';
+	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
 	public static get(editor: ICodeEditor): TabCompletionController {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
@@ -48,10 +48,6 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			}
 		});
 		this._update();
-	}
-
-	getId(): string {
-		return TabCompletionController.ID;
 	}
 
 	dispose(): void {
@@ -143,7 +139,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 }
 
-registerEditorContribution(TabCompletionController);
+registerEditorContribution(TabCompletionController.ID, TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 

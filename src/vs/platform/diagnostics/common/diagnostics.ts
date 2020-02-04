@@ -63,6 +63,7 @@ export interface PerformanceInfo {
 
 export interface IWorkspaceInformation extends IWorkspace {
 	telemetryId: string | undefined;
+	rendererSessionId: string;
 }
 
 export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {

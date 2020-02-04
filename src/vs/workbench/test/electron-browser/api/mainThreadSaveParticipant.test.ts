@@ -13,7 +13,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, SaveReason, IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 class ServiceAccessor {
@@ -32,8 +33,7 @@ suite('MainThreadSaveParticipant', function () {
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('insert final new line', async function () {

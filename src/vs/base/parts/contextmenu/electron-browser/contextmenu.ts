@@ -28,7 +28,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions): void 
 
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
 
-		if (options && options.onHide) {
+		if (options?.onHide) {
 			options.onHide();
 		}
 	});

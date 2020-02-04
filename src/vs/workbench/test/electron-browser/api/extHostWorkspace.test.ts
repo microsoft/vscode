@@ -11,13 +11,15 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
-import { IMainContext, IWorkspaceData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from 'vs/workbench/api/common/extHost.protocol';
 import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -673,5 +675,107 @@ suite('ExtHostWorkspace', function () {
 		return ws.findFiles('', new RelativePattern(root, 'glob/**'), 10, new ExtensionIdentifier('test')).then(() => {
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
+	});
+
+	test('findTextInFiles - no include', async () => {
+		const root = '/project/foo';
+		const rpcProtocol = new TestRPCProtocol();
+
+		let mainThreadCalled = false;
+		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+				mainThreadCalled = true;
+				assert.equal(query.pattern, 'foo');
+				assert.equal(folder, null);
+				assert.equal(options.includePattern, null);
+				assert.equal(options.excludePattern, null);
+				return null;
+			}
+		});
+
+		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+		await ws.findTextInFiles({ pattern: 'foo' }, {}, () => { }, new ExtensionIdentifier('test'));
+		assert(mainThreadCalled, 'mainThreadCalled');
+	});
+
+	test('findTextInFiles - string include', async () => {
+		const root = '/project/foo';
+		const rpcProtocol = new TestRPCProtocol();
+
+		let mainThreadCalled = false;
+		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+				mainThreadCalled = true;
+				assert.equal(query.pattern, 'foo');
+				assert.equal(folder, null);
+				assert.equal(options.includePattern, '**/files');
+				assert.equal(options.excludePattern, null);
+				return null;
+			}
+		});
+
+		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+		await ws.findTextInFiles({ pattern: 'foo' }, { include: '**/files' }, () => { }, new ExtensionIdentifier('test'));
+		assert(mainThreadCalled, 'mainThreadCalled');
+	});
+
+	test('findTextInFiles - RelativePattern include', async () => {
+		const root = '/project/foo';
+		const rpcProtocol = new TestRPCProtocol();
+
+		let mainThreadCalled = false;
+		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+				mainThreadCalled = true;
+				assert.equal(query.pattern, 'foo');
+				assert.deepEqual(folder, URI.file('/other/folder').toJSON());
+				assert.equal(options.includePattern, 'glob/**');
+				assert.equal(options.excludePattern, null);
+				return null;
+			}
+		});
+
+		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+		await ws.findTextInFiles({ pattern: 'foo' }, { include: new RelativePattern('/other/folder', 'glob/**') }, () => { }, new ExtensionIdentifier('test'));
+		assert(mainThreadCalled, 'mainThreadCalled');
+	});
+
+	test('findTextInFiles - with cancelled token', async () => {
+		const root = '/project/foo';
+		const rpcProtocol = new TestRPCProtocol();
+
+		let mainThreadCalled = false;
+		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+				mainThreadCalled = true;
+				return null;
+			}
+		});
+
+		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+		const token = CancellationToken.Cancelled;
+		await ws.findTextInFiles({ pattern: 'foo' }, {}, () => { }, new ExtensionIdentifier('test'), token);
+		assert(!mainThreadCalled, '!mainThreadCalled');
+	});
+
+	test('findTextInFiles - RelativePattern exclude', async () => {
+		const root = '/project/foo';
+		const rpcProtocol = new TestRPCProtocol();
+
+		let mainThreadCalled = false;
+		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+				mainThreadCalled = true;
+				assert.equal(query.pattern, 'foo');
+				assert.deepEqual(folder, null);
+				assert.equal(options.includePattern, null);
+				assert.equal(options.excludePattern, 'glob/**'); // exclude folder is ignored...
+				return null;
+			}
+		});
+
+		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+		await ws.findTextInFiles({ pattern: 'foo' }, { exclude: new RelativePattern('/other/folder', 'glob/**') }, () => { }, new ExtensionIdentifier('test'));
+		assert(mainThreadCalled, 'mainThreadCalled');
 	});
 });

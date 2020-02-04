@@ -343,12 +343,8 @@ export namespace CoreNavigationCommands {
 			const validatedPosition = context.model.validatePosition(args.position);
 			const validatedViewPosition = context.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
 
-			let fromViewLineNumber = prevColumnSelectData.fromViewLineNumber;
-			let fromViewVisualColumn = prevColumnSelectData.fromViewVisualColumn;
-			if (!prevColumnSelectData.isReal && args.setAnchorIfNotSet) {
-				fromViewLineNumber = validatedViewPosition.lineNumber;
-				fromViewVisualColumn = args.mouseColumn - 1;
-			}
+			let fromViewLineNumber = args.doColumnSelect ? prevColumnSelectData.fromViewLineNumber : validatedViewPosition.lineNumber;
+			let fromViewVisualColumn = args.doColumnSelect ? prevColumnSelectData.fromViewVisualColumn : args.mouseColumn - 1;
 			return ColumnSelection.columnSelect(context.config, context.viewModel, fromViewLineNumber, fromViewVisualColumn, validatedViewPosition.lineNumber, args.mouseColumn - 1);
 		}
 	});
@@ -1757,7 +1753,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		kbExpr: null,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 	},
-	menubarOpts: {
+	menuOpts: {
 		menuId: MenuId.MenubarSelectionMenu,
 		group: '1_basic',
 		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
@@ -1775,7 +1771,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
 	},
-	menubarOpts: {
+	menuOpts: {
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
 		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
@@ -1796,7 +1792,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
 	},
-	menubarOpts: {
+	menuOpts: {
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
 		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),

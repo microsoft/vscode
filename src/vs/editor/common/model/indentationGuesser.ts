@@ -72,11 +72,12 @@ function spacesDiff(a: string, aLength: number, b: string, bLength: number, resu
 
 		if (spacesDiff > 0 && 0 <= bSpacesCnt - 1 && bSpacesCnt - 1 < a.length && bSpacesCnt < b.length) {
 			if (b.charCodeAt(bSpacesCnt) !== CharCode.Space && a.charCodeAt(bSpacesCnt - 1) === CharCode.Space) {
-				// This looks like an alignment desire: e.g.
-				// const a = b + c,
-				//       d = b - c;
-
-				result.looksLikeAlignment = true;
+				if (a.charCodeAt(a.length - 1) === CharCode.Comma) {
+					// This looks like an alignment desire: e.g.
+					// const a = b + c,
+					//       d = b - c;
+					result.looksLikeAlignment = true;
+				}
 			}
 		}
 		return;

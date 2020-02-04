@@ -29,14 +29,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string | undefined {
-		if (!this.taskService.needsFolderQualification()) {
-			return undefined;
-		}
-		let workspaceFolder = this.task.getWorkspaceFolder();
-		if (!workspaceFolder) {
-			return undefined;
-		}
-		return `${workspaceFolder.name}`;
+		return this.taskService.getTaskDescription(this.task);
 	}
 
 	public getAriaLabel(): string {
@@ -173,7 +166,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public updateClass(): void {
-		this.class = 'quick-open-task-configure';
+		this.class = 'codicon-gear';
 	}
 
 	public run(element: any): Promise<any> {

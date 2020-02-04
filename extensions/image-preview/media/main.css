@@ -1,0 +1,116 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html, body {
+	width: 100%;
+	height: 100%;
+	text-align: center;
+}
+
+body img {
+	max-width: none;
+	max-height: none;
+}
+
+.container:focus {
+	outline: none !important;
+}
+
+.container {
+	padding: 5px 0 0 10px;
+	box-sizing: border-box;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.container.image {
+	padding: 0;
+	display: flex;
+	box-sizing: border-box;
+}
+
+.container.image img {
+	padding: 0;
+	background-position: 0 0, 8px 8px;
+	background-size: 16px 16px;
+	border: 1px solid var(--vscode-imagePreview-border);
+}
+
+.container.image img {
+	background-image:
+		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230)),
+		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230));
+}
+
+.vscode-dark.container.image img {
+	background-image:
+		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20)),
+		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
+}
+
+.container img.pixelated {
+	image-rendering: pixelated;
+}
+
+.container img.scale-to-fit {
+	max-width: calc(100% - 20px);
+	max-height: calc(100% - 20px);
+	object-fit: contain;
+}
+
+.container img {
+	margin: auto;
+}
+
+.container.ready.zoom-in {
+	cursor: zoom-in;
+}
+
+.container.ready.zoom-out {
+	cursor: zoom-out;
+}
+
+.container .embedded-link,
+.container .embedded-link:hover {
+	cursor: pointer;
+	text-decoration: underline;
+	margin-left: 5px;
+}
+
+.container.loading,
+.container.error {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.loading-indicator {
+	width: 30px;
+	height: 30px;
+	background-image: url('./loading.svg');
+	background-size: cover;
+}
+
+.loading-indicator,
+.image-load-error {
+	display: none;
+}
+
+.loading .loading-indicator,
+.error .image-load-error {
+	display: block;
+}
+
+.image-load-error {
+	margin: 1em;
+}
+
+.vscode-dark .loading-indicator {
+	background-image: url('./loading-dark.svg');
+}
+
+.vscode-high-contrast .loading-indicator {
+	background-image: url('./loading-hc.svg');
+}

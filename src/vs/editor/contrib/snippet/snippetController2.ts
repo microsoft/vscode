@@ -40,13 +40,15 @@ const _defaultOptions: ISnippetInsertOptions = {
 
 export class SnippetController2 implements IEditorContribution {
 
+	public static ID = 'snippetController2';
+
 	static get(editor: ICodeEditor): SnippetController2 {
-		return editor.getContribution<SnippetController2>('snippetController2');
+		return editor.getContribution<SnippetController2>(SnippetController2.ID);
 	}
 
-	static InSnippetMode = new RawContextKey('inSnippetMode', false);
-	static HasNextTabstop = new RawContextKey('hasNextTabstop', false);
-	static HasPrevTabstop = new RawContextKey('hasPrevTabstop', false);
+	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false);
+	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false);
+	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false);
 
 	private readonly _inSnippet: IContextKey<boolean>;
 	private readonly _hasNextTabstop: IContextKey<boolean>;
@@ -73,10 +75,6 @@ export class SnippetController2 implements IEditorContribution {
 		this._hasNextTabstop.reset();
 		dispose(this._session);
 		this._snippetListener.dispose();
-	}
-
-	getId(): string {
-		return 'snippetController2';
 	}
 
 	insert(
@@ -249,7 +247,7 @@ export class SnippetController2 implements IEditorContribution {
 }
 
 
-registerEditorContribution(SnippetController2);
+registerEditorContribution(SnippetController2.ID, SnippetController2);
 
 const CommandCtor = EditorCommand.bindToContribution<SnippetController2>(SnippetController2.get);
 

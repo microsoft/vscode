@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { toSlashes } from 'vs/base/common/extpath';
 import { startsWith } from 'vs/base/common/strings';
-import { isAbsolute } from 'vs/base/common/path';
+import { win32, posix } from 'vs/base/common/path';
 
 
 suite('Resources', () => {
@@ -294,7 +294,8 @@ suite('Resources', () => {
 		const actual = resolvePath(u1, path);
 		assertEqualURI(actual, expected, `from ${u1.toString()} and ${path}`);
 
-		if (!isAbsolute(path)) {
+		const p = path.indexOf('/') !== -1 ? posix : win32;
+		if (!p.isAbsolute(path)) {
 			let expectedPath = isWindows ? toSlashes(path) : path;
 			expectedPath = startsWith(expectedPath, './') ? expectedPath.substr(2) : expectedPath;
 			assert.equal(relativePath(u1, actual), expectedPath, `relativePath (${u1.toString()}) on actual (${actual.toString()}) should be to path (${expectedPath})`);
@@ -335,6 +336,10 @@ suite('Resources', () => {
 		assertResolve(URI.parse('foo://server/foo/bar'), 'file.js', URI.parse('foo://server/foo/bar/file.js'));
 		assertResolve(URI.parse('foo://server/foo/bar'), './file.js', URI.parse('foo://server/foo/bar/file.js'));
 		assertResolve(URI.parse('foo://server/foo/bar'), './file.js', URI.parse('foo://server/foo/bar/file.js'));
+		assertResolve(URI.parse('foo://server/foo/bar'), 'c:\\a1\\b1', URI.parse('foo://server/c:/a1/b1'));
+		assertResolve(URI.parse('foo://server/foo/bar'), 'c:\\', URI.parse('foo://server/c:'));
+
+
 	});
 
 	test('isEqual', () => {

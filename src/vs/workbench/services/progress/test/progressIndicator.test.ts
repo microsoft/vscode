@@ -11,10 +11,15 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { TestViewletService, TestPanelService } from 'vs/workbench/test/workbenchTestServices';
+import { Event } from 'vs/base/common/event';
+import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 
 class TestViewlet implements IViewlet {
 
 	constructor(private id: string) { }
+
+	readonly onDidBlur = Event.None;
+	readonly onDidFocus = Event.None;
 
 	getId(): string { return this.id; }
 	getTitle(): string { return this.id; }
@@ -25,6 +30,9 @@ class TestViewlet implements IViewlet {
 	getControl(): IEditorControl { return null!; }
 	focus(): void { }
 	getOptimalWidth(): number { return 10; }
+	openView(id: string, focus?: boolean): IView { return null!; }
+	getViewPaneContainer(): IViewPaneContainer { return null!; }
+	saveState(): void { }
 }
 
 class TestCompositeScope extends CompositeScope {
@@ -43,8 +51,6 @@ class TestProgressBar {
 	fWorked: number = 0;
 	fInfinite: boolean = false;
 	fDone: boolean = false;
-
-	constructor() { }
 
 	infinite() {
 		this.fDone = null!;

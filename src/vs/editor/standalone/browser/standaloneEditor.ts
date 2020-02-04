@@ -9,11 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import { EditorOptions, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor, EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
@@ -24,7 +24,7 @@ import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebW
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
-import { IDiffEditorConstructionOptions, IEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -38,15 +38,16 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
+function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
-		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
 		services.set(ITextModelService, simpleEditorModelResolverService);
 	}
 
@@ -68,7 +69,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
+export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
 	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneEditor(
 			domElement,
@@ -120,16 +121,10 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(INotificationService),
 			services.get(IConfigurationService),
 			services.get(IContextMenuService),
+			services.get(IEditorProgressService),
 			null
 		);
 	});
-}
-
-export interface IDiffNavigator {
-	canNavigate(): boolean;
-	next(): void;
-	previous(): void;
-	dispose(): void;
 }
 
 export interface IDiffNavigatorOptions {
@@ -352,23 +347,25 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
-		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
-		WrappingIndent: standaloneEnums.WrappingIndent,
-		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
-		MinimapPosition: standaloneEnums.MinimapPosition,
-		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
-		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
-		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
-		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
-		CursorChangeReason: standaloneEnums.CursorChangeReason,
-		MouseTargetType: standaloneEnums.MouseTargetType,
-		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
+		CursorChangeReason: standaloneEnums.CursorChangeReason,
+		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
+		EditorAutoIndentStrategy: standaloneEnums.EditorAutoIndentStrategy,
+		EditorOption: standaloneEnums.EditorOption,
+		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
+		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
+		MinimapPosition: standaloneEnums.MinimapPosition,
+		MouseTargetType: standaloneEnums.MouseTargetType,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
-		RenderMinimap: standaloneEnums.RenderMinimap,
-		ScrollType: standaloneEnums.ScrollType,
+		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
+		RenderMinimap: standaloneEnums.RenderMinimap,
+		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
+		ScrollType: standaloneEnums.ScrollType,
+		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
+		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
+		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
+		WrappingIndent: standaloneEnums.WrappingIndent,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
@@ -378,7 +375,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType,
+		EditorType: EditorType,
+		EditorOptions: <any>EditorOptions
 
 	};
 }

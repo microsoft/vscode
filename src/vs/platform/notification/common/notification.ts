@@ -64,7 +64,7 @@ export interface INeverShowAgainOptions {
 	isSecondary?: boolean;
 
 	/**
-	 * Wether to persist the choice in the current workspace or for all workspaces. By
+	 * Whether to persist the choice in the current workspace or for all workspaces. By
 	 * default it will be persisted for all workspaces.
 	 */
 	scope?: NeverShowAgainScope;
@@ -192,7 +192,7 @@ export interface IPromptChoice {
 	isSecondary?: boolean;
 
 	/**
-	 * Wether to keep the notification open after the choice was selected
+	 * Whether to keep the notification open after the choice was selected
 	 * by the user. By default, will close the notification upon click.
 	 */
 	keepOpen?: boolean;
@@ -225,6 +225,25 @@ export interface IStatusMessageOptions {
 	 * the status message will not hide until another status message is displayed.
 	 */
 	hideAfter?: number;
+}
+
+export enum NotificationsFilter {
+
+	/**
+	 * No filter is enabled.
+	 */
+	OFF,
+
+	/**
+	 * All notifications are configured as silent. See
+	 * `INotificationProperties.silent` for more info.
+	 */
+	SILENT,
+
+	/**
+	 * All notifications are silent except error notifications.
+	*/
+	ERROR
 }
 
 /**
@@ -286,6 +305,13 @@ export interface INotificationService {
 	 * @returns a disposable to hide the status message
 	 */
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+
+	/**
+	 * Allows to configure a filter for notifications.
+	 *
+	 * @param filter the filter to use
+	 */
+	setFilter(filter: NotificationsFilter): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

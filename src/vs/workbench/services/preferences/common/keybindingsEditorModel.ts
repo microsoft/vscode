@@ -80,6 +80,8 @@ export class KeybindingsEditorModel extends EditorModel {
 		@IKeybindingService private readonly keybindingsService: IKeybindingService
 	) {
 		super();
+		this._keybindingItems = [];
+		this._keybindingItemsSortedByPrecedence = [];
 		this.modifierLabels = {
 			ui: UILabelProvider.modifierLabels[os],
 			aria: AriaLabelProvider.modifierLabels[os],

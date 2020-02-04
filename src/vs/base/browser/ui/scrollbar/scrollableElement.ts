@@ -64,7 +64,7 @@ export class MouseWheelClassifier {
 			return false;
 		}
 
-		// 0.5 * last + 0.25 * before last + 0.125 * before before last + ...
+		// 0.5 * last + 0.25 * 2nd last + 0.125 * 3rd last + ...
 		let remainingInfluence = 1;
 		let score = 0;
 		let iteration = 1;
@@ -317,7 +317,7 @@ export abstract class AbstractScrollableElement extends Widget {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, { passive: false }));
 		}
 	}
 

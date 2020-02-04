@@ -64,7 +64,15 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		let markerIndex;
-		if (this._currentMarker === Boundary.Bottom) {
+		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.baseY);
+		const viewportY = this._terminal.buffer.viewportY;
+		if (!retainSelection && currentLineY !== viewportY) {
+			// The user has scrolled, find the line based on the current scroll position. This only
+			// works when not retaining selection
+			const markersBelowViewport = this._terminal.markers.filter(e => e.line >= viewportY).length;
+			// -1 will scroll to the top
+			markerIndex = this._terminal.markers.length - markersBelowViewport - 1;
+		} else if (this._currentMarker === Boundary.Bottom) {
 			markerIndex = this._terminal.markers.length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
@@ -95,7 +103,15 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		let markerIndex;
-		if (this._currentMarker === Boundary.Bottom) {
+		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.baseY);
+		const viewportY = this._terminal.buffer.viewportY;
+		if (!retainSelection && currentLineY !== viewportY) {
+			// The user has scrolled, find the line based on the current scroll position. This only
+			// works when not retaining selection
+			const markersAboveViewport = this._terminal.markers.filter(e => e.line <= viewportY).length;
+			// markers.length will scroll to the bottom
+			markerIndex = markersAboveViewport;
+		} else if (this._currentMarker === Boundary.Bottom) {
 			markerIndex = this._terminal.markers.length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;

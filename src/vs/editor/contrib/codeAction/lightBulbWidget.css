@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .lightbulb-glyph {
+.monaco-editor .lightbulb-glyph,
+.monaco-editor .codicon-lightbulb {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -12,25 +13,8 @@
 	padding-left: 2px;
 }
 
-.monaco-editor .lightbulb-glyph:hover {
+.monaco-editor .lightbulb-glyph:hover,
+.monaco-editor .codicon-lightbulb:hover {
 	cursor: pointer;
 	/* transform: scale(1.3, 1.3); */
-}
-
-.monaco-editor.vs .lightbulb-glyph {
-	background: url('lightbulb-light.svg') center center no-repeat;
-}
-
-.monaco-editor.vs .lightbulb-glyph.autofixable {
-	background: url('lightbulb-autofix-light.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .lightbulb-glyph,
-.monaco-editor.hc-black .lightbulb-glyph {
-	background: url('lightbulb-dark.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .lightbulb-glyph.autofixable,
-.monaco-editor.hc-black .lightbulb-glyph.autofixable {
-	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
 }

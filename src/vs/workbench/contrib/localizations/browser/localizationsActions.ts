@@ -9,13 +9,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -26,10 +27,11 @@ export class ConfigureLocaleAction extends Action {
 		@ILocalizationsService private readonly localizationService: ILocalizationsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHostService private readonly hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
@@ -58,23 +60,24 @@ export class ConfigureLocaleAction extends Action {
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
 				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-					.then((viewlet: IExtensionsViewlet) => {
+					.then(viewlet => viewlet?.getViewPaneContainer())
+					.then((viewlet: IExtensionsViewPaneContainer) => {
 						viewlet.search('@category:"language packs"');
 						viewlet.focus();
 					});
 			}
 
 			if (selectedLanguage) {
-				await this.jsonEditingService.write(this.environmentService.localeResource, { key: 'locale', value: selectedLanguage.label }, true);
+				await this.jsonEditingService.write(this.environmentService.argvResource, [{ key: 'locale', value: selectedLanguage.label }], true);
 				const restart = await this.dialogService.confirm({
 					type: 'info',
 					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", this.environmentService.appNameLong),
+					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", this.productService.nameLong),
 					primaryButton: localize('restart', "&&Restart")
 				});
 
 				if (restart.confirmed) {
-					this.windowsService.relaunch({});
+					this.hostService.restart();
 				}
 			}
 		} catch (e) {

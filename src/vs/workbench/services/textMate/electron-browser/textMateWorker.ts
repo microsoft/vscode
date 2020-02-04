@@ -185,9 +185,9 @@ export class TextMateWorker {
 		return this._grammarCache[languageId];
 	}
 
-	public acceptTheme(theme: IRawTheme): void {
+	public acceptTheme(theme: IRawTheme, colorMap: string[]): void {
 		if (this._grammarFactory) {
-			this._grammarFactory.setTheme(theme);
+			this._grammarFactory.setTheme(theme, colorMap);
 		}
 	}
 

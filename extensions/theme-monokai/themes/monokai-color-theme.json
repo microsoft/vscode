@@ -23,6 +23,7 @@
 		"selection.background": "#ccccc7",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.selectionBackground": "#878b9180",
+		"minimap.selectionHighlight": "#878b9180",
 		"editor.wordHighlightBackground": "#4a4a7680",
 		"editor.wordHighlightStrongBackground": "#6a6a9680",
 		"editor.lineHighlightBackground": "#3e3d32",
@@ -35,7 +36,6 @@
 		"editorGroup.dropBackground": "#41433980",
 		"tab.inactiveBackground": "#34352f",
 		"tab.border": "#1e1f1c",
-		"tab.modifiedBorder": "#007acc",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"widget.shadow": "#000000",
 		"progressBar.background": "#75715E",
@@ -64,8 +64,8 @@
 		"focusBorder": "#75715E",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
-		"diffEditor.insertedTextBackground": "#66852880", // middle of #272822 and #a6e22e
-		"diffEditor.removedTextBackground": "#90274A80", // middle of #272822 and #f92672
+		"diffEditor.insertedTextBackground": "#4b661680", // middle of #272822 and #a6e22e
+		"diffEditor.removedTextBackground": "#90274A70", // middle of #272822 and #f92672
 		"inputValidation.errorBackground": "#90274A", // middle of #272822 and #f92672
 		"inputValidation.errorBorder": "#f92672",
 		"inputValidation.warningBackground": "#848528", // middle of #272822 and #e2e22e
@@ -104,7 +104,6 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#272822",
 				"foreground": "#F8F8F2"
 			}
 		},
@@ -114,7 +113,6 @@
 				"source.groovy.embedded"
 			],
 			"settings": {
-				"background": "#272822",
 				"foreground": "#F8F8F2"
 			}
 		},
@@ -122,7 +120,7 @@
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"foreground": "#75715E"
+				"foreground": "#88846f"
 			}
 		},
 		{
@@ -286,7 +284,6 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"background": "#F92672",
 				"fontStyle": "",
 				"foreground": "#F8F8F0"
 			}
@@ -295,7 +292,6 @@
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"background": "#AE81FF",
 				"foreground": "#F8F8F0"
 			}
 		},
@@ -386,7 +382,66 @@
 			"name": "Markup Setext Header",
 			"scope": "markup.heading.setext",
 			"settings": {
-				"fontStyle": "",
+				"foreground": "#A6E22E",
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup Headings",
+			"scope": "markup.heading.markdown",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markdown Quote",
+			"scope": "markup.quote.markdown",
+			"settings": {
+				"fontStyle": "italic",
+				"foreground": "#75715E"
+			}
+		},
+		{
+			"name": "Markdown Bold",
+			"scope": "markup.bold.markdown",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markdown Link Title/Description",
+			"scope": "string.other.link.title.markdown,string.other.link.description.markdown",
+			"settings": {
+				"foreground": "#AE81FF"
+			}
+		},
+		{
+			"name": "Markdown Underline Link/Image",
+			"scope": "markup.underline.link.markdown,markup.underline.link.image.markdown",
+			"settings": {
+				"foreground": "#E6DB74"
+			}
+		},
+		{
+			"name": "Markdown Emphasis",
+			"scope": "markup.italic.markdown",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
+			"name": "Markdown Punctuation Definition Link",
+			"scope": "markup.list.unnumbered.markdown, markup.list.numbered.markdown",
+			"settings": {
+				"foreground": "#f8f8f2"
+			}
+		},
+		{
+			"name": "Markdown List Punctuation",
+			"scope": [
+				"punctuation.definition.list.begin.markdown"
+			],
+			"settings": {
 				"foreground": "#A6E22E"
 			}
 		},

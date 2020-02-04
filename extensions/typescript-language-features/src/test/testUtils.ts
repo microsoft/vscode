@@ -66,3 +66,18 @@ export function withRandomFileEditor(
 		});
 	});
 }
+
+export const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const joinLines = (...args: string[]) => args.join('\n');
+
+export async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
+	const document = await vscode.workspace.openTextDocument(uri);
+	await vscode.window.showTextDocument(document);
+	const activeEditor = vscode.window.activeTextEditor;
+	if (!activeEditor) {
+		throw new Error('no active editor');
+	}
+
+	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
+}

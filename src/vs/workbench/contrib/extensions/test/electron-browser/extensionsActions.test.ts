@@ -13,7 +13,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
@@ -27,10 +27,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -41,7 +40,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -67,7 +66,6 @@ suite('ExtensionsActions Test', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
-		instantiationService.stub(IWindowService, TestWindowService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -92,7 +90,7 @@ suite('ExtensionsActions Test', () => {
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
 		}());
 
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ILabelService, { onDidChangeFormatters: new Emitter<void>().event });
 
 		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
@@ -102,7 +100,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ getExtensions: () => Promise.resolve([]), onDidChangeExtensions: new Emitter<void>().event, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false });
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
+		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 	});
@@ -499,7 +497,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -514,7 +512,7 @@ suite('ExtensionsActions Test', () => {
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage hide', testObject.class);
+				assert.equal('extension-action manage codicon-gear hide', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -531,7 +529,7 @@ suite('ExtensionsActions Test', () => {
 
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage hide', testObject.class);
+				assert.equal('extension-action manage codicon-gear hide', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -549,7 +547,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -564,7 +562,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -581,7 +579,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('Uninstalling', testObject.tooltip);
 			});
 	});
@@ -606,7 +604,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableForWorkspaceAction when the extension is disabled globally', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -621,7 +619,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableForWorkspaceAction when extension is disabled for workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -636,8 +634,8 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableForWorkspaceAction when the extension is disabled globally and workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace))
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -670,7 +668,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableGloballyAction when the extension is disabled for workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -685,7 +683,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableGloballyAction when the extension is disabled globally', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -700,8 +698,8 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableGloballyAction when the extension is disabled in both', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace))
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -734,7 +732,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableDropDownAction when extension is installed and disabled globally', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -749,7 +747,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test EnableDropDownAction when extension is installed and disabled for workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -810,7 +808,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test DisableForWorkspaceAction when the extension is disabled globally', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -825,7 +823,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test DisableForWorkspaceAction when the extension is disabled workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -858,7 +856,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test DisableGloballyAction when the extension is disabled globally', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -873,7 +871,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test DisableGloballyAction when the extension is disabled for workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -918,7 +916,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test DisableDropDownAction when extension is installed and disabled globally', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -933,7 +931,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test DisableDropDownAction when extension is installed and disabled for workspace', () => {
 		const local = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -1233,7 +1231,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension is updated when not running', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
-		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1281,7 +1279,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension is enabled when not running', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a');
-		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1297,7 +1295,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension enablement is toggled when not running', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a');
-		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1312,7 +1310,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension is updated when not running and enabled', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
-		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1364,11 +1362,11 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension is not installed but extension from different server is installed and running', async () => {
 		// multi server setup
 		const gallery = aGalleryExtension('a');
-		const localExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file('pub.a') });
-		const remoteExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
+		const localExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a') });
+		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1393,8 +1391,8 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension is uninstalled but extension from different server is installed and running', async () => {
 		// multi server setup
 		const gallery = aGalleryExtension('a');
-		const localExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file('pub.a') });
-		const remoteExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
+		const localExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a') });
+		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const localExtensionManagementService = createExtensionManagementService([localExtension]);
 		const uninstallEvent = new Emitter<IExtensionIdentifier>();
 		const onDidUninstallEvent = new Emitter<{ identifier: IExtensionIdentifier }>();
@@ -1402,7 +1400,7 @@ suite('ExtensionsActions Test', () => {
 		localExtensionManagementService.onDidUninstallExtension = onDidUninstallEvent.event;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1435,10 +1433,10 @@ suite('ExtensionsActions Test', () => {
 		const remoteExtensionManagementService = createExtensionManagementService([]);
 		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
 		remoteExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
-		const localExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file('pub.a') });
+		const localExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a') });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1458,7 +1456,7 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(testObject.extension);
 		assert.ok(!testObject.enabled);
 
-		const remoteExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
+		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		onDidInstallEvent.fire({ identifier: remoteExtension.identifier, local: remoteExtension, operation: InstallOperation.Install });
 
 		assert.ok(testObject.enabled);
@@ -1471,10 +1469,10 @@ suite('ExtensionsActions Test', () => {
 		const localExtensionManagementService = createExtensionManagementService([]);
 		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
 		localExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
-		const remoteExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
+		const remoteExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1494,19 +1492,50 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(testObject.extension);
 		assert.ok(!testObject.enabled);
 
-		const localExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file('pub.a') });
+		const localExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a') });
 		onDidInstallEvent.fire({ identifier: localExtension.identifier, local: localExtension, operation: InstallOperation.Install });
 
 		assert.ok(testObject.enabled);
 		assert.equal(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
 	});
 
+	test('Test ReloadAction for remote ui extension is disabled when it is installed and enabled in local server', async () => {
+		// multi server setup
+		const gallery = aGalleryExtension('a');
+		const localExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a') });
+		const localExtensionManagementService = createExtensionManagementService([localExtension]);
+		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
+		localExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
+		const remoteExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
+		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
+		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+
+		const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			getExtensions: () => Promise.resolve([ExtensionsActions.toExtensionDescription(localExtension)]),
+			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
+			canAddExtension: (extension) => false
+		});
+		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
+		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+
+		await workbenchService.queryGallery(CancellationToken.None);
+		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
+		testObject.extension = extensions[0];
+		assert.ok(testObject.extension);
+		assert.ok(!testObject.enabled);
+	});
+
 	test('Test remote install action is enabled for local workspace extension', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1527,10 +1556,10 @@ suite('ExtensionsActions Test', () => {
 		const remoteExtensionManagementService: IExtensionManagementService = createExtensionManagementService();
 		const onInstallExtension = new Emitter<InstallExtensionEvent>();
 		remoteExtensionManagementService.onInstallExtension = onInstallExtension.event;
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
@@ -1560,10 +1589,10 @@ suite('ExtensionsActions Test', () => {
 		remoteExtensionManagementService.onInstallExtension = onInstallExtension.event;
 		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
 		remoteExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
@@ -1585,21 +1614,21 @@ suite('ExtensionsActions Test', () => {
 		assert.equal('Installing', testObject.label);
 		assert.equal('extension-action install installing', testObject.class);
 
-		const installedExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const installedExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		onDidInstallEvent.fire({ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install });
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test remote install action is enabled for disabled local workspace extension', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		await instantiationService.get(IExtensionEnablementService).setEnablement([localWorkspaceExtension], EnablementState.DisabledGlobally);
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localWorkspaceExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
 		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
@@ -1614,9 +1643,9 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is disabled when extension is not set', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1633,7 +1662,7 @@ suite('ExtensionsActions Test', () => {
 		// multi server setup
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1649,11 +1678,11 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is disabled for local workspace extension which is disabled in env', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1672,7 +1701,7 @@ suite('ExtensionsActions Test', () => {
 		// single server setup
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const extensionManagementServerService = instantiationService.get(IExtensionManagementServerService);
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localWorkspaceExtension]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
 		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction);
@@ -1690,8 +1719,8 @@ suite('ExtensionsActions Test', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localWorkspaceExtension]);
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
@@ -1712,11 +1741,11 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is disabled for local workspace extension if it is installed in remote', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
-		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
+		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), createExtensionManagementService([remoteWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1733,10 +1762,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is enabled for local workspace extension if it has not gallery', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1752,10 +1781,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is disabled for local workspace system extension', async () => {
 		// multi server setup
-		const localWorkspaceSystemExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`), type: ExtensionType.System });
+		const localWorkspaceSystemExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`), type: ExtensionType.System });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceSystemExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1771,10 +1800,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is disabled for local ui extension if it is not installed in remote', async () => {
 		// multi server setup
-		const localUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
+		const localUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1790,11 +1819,11 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test remote install action is disabled for local ui extension if it is also installed in remote', async () => {
 		// multi server setup
-		const localUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localUIExtension]), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1813,7 +1842,7 @@ suite('ExtensionsActions Test', () => {
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([languagePackExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1834,7 +1863,7 @@ suite('ExtensionsActions Test', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [languagePackExtension]);
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
@@ -1856,10 +1885,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is enabled for remote ui extension', async () => {
 		// multi server setup
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1880,10 +1909,10 @@ suite('ExtensionsActions Test', () => {
 		const localExtensionManagementService: IExtensionManagementService = createExtensionManagementService();
 		const onInstallExtension = new Emitter<InstallExtensionEvent>();
 		localExtensionManagementService.onInstallExtension = onInstallExtension.event;
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
@@ -1913,10 +1942,10 @@ suite('ExtensionsActions Test', () => {
 		localExtensionManagementService.onInstallExtension = onInstallExtension.event;
 		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
 		localExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
@@ -1938,21 +1967,21 @@ suite('ExtensionsActions Test', () => {
 		assert.equal('Installing', testObject.label);
 		assert.equal('extension-action install installing', testObject.class);
 
-		const installedExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
+		const installedExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		onDidInstallEvent.fire({ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install });
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test local install action is enabled for disabled remote ui extension', async () => {
 		// multi server setup
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		await instantiationService.get(IExtensionEnablementService).setEnablement([remoteUIExtension], EnablementState.DisabledGlobally);
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([remoteUIExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
 		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
@@ -1967,9 +1996,9 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled when extension is not set', async () => {
 		// multi server setup
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -1986,7 +2015,7 @@ suite('ExtensionsActions Test', () => {
 		// multi server setup
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2002,11 +2031,11 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled for remote ui extension which is disabled in env', async () => {
 		// multi server setup
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2023,10 +2052,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled when local server is not available', async () => {
 		// single server setup
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aSingleRemoteExtensionManagementServerService(instantiationService, createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2043,11 +2072,11 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled for remote ui extension if it is installed in local', async () => {
 		// multi server setup
-		const localUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localUIExtension]), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2067,8 +2096,8 @@ suite('ExtensionsActions Test', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [remoteUIExtension]);
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
@@ -2089,10 +2118,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is enabled for remote UI extension if it has gallery', async () => {
 		// multi server setup
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2108,10 +2137,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled for remote UI system extension', async () => {
 		// multi server setup
-		const remoteUISystemExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }), type: ExtensionType.System });
+		const remoteUISystemExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }), type: ExtensionType.System });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUISystemExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2127,10 +2156,10 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled for remote workspace extension if it is not installed in local', async () => {
 		// multi server setup
-		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2146,11 +2175,11 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test local install action is disabled for remote workspace extension if it is also installed in local', async () => {
 		// multi server setup
-		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspae' }, { location: URI.file(`pub.a`) });
-		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspae'] }, { location: URI.file(`pub.a`) });
+		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), createExtensionManagementService([remoteWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2169,7 +2198,7 @@ suite('ExtensionsActions Test', () => {
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([languagePackExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
@@ -2190,7 +2219,7 @@ suite('ExtensionsActions Test', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [languagePackExtension]);
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);

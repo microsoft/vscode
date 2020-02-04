@@ -12,84 +12,93 @@ export namespace Schemas {
 	 * A schema that is used for models that exist in memory
 	 * only and that have no correspondence on a server or such.
 	 */
-	export const inMemory: string = 'inmemory';
+	export const inMemory = 'inmemory';
 
 	/**
 	 * A schema that is used for setting files
 	 */
-	export const vscode: string = 'vscode';
+	export const vscode = 'vscode';
 
 	/**
 	 * A schema that is used for internal private files
 	 */
-	export const internal: string = 'private';
+	export const internal = 'private';
 
 	/**
 	 * A walk-through document.
 	 */
-	export const walkThrough: string = 'walkThrough';
+	export const walkThrough = 'walkThrough';
 
 	/**
 	 * An embedded code snippet.
 	 */
-	export const walkThroughSnippet: string = 'walkThroughSnippet';
+	export const walkThroughSnippet = 'walkThroughSnippet';
 
-	export const http: string = 'http';
+	export const http = 'http';
 
-	export const https: string = 'https';
+	export const https = 'https';
 
-	export const file: string = 'file';
+	export const file = 'file';
 
-	export const mailto: string = 'mailto';
+	export const mailto = 'mailto';
 
-	export const untitled: string = 'untitled';
+	export const untitled = 'untitled';
 
-	export const data: string = 'data';
+	export const data = 'data';
 
-	export const command: string = 'command';
+	export const command = 'command';
 
-	export const vscodeRemote: string = 'vscode-remote';
+	export const vscodeRemote = 'vscode-remote';
 
-	export const vscodeRemoteResource: string = 'vscode-remote-resource';
+	export const vscodeRemoteResource = 'vscode-remote-resource';
 
-	export const userData: string = 'vscode-userdata';
+	export const userData = 'vscode-userdata';
 }
 
 class RemoteAuthoritiesImpl {
-	private readonly _hosts: { [authority: string]: string; };
-	private readonly _ports: { [authority: string]: number; };
-	private readonly _connectionTokens: { [authority: string]: string; };
-	private _preferredWebSchema: 'http' | 'https';
+	private readonly _hosts: { [authority: string]: string | undefined; } = Object.create(null);
+	private readonly _ports: { [authority: string]: number | undefined; } = Object.create(null);
+	private readonly _connectionTokens: { [authority: string]: string | undefined; } = Object.create(null);
+	private _preferredWebSchema: 'http' | 'https' = 'http';
+	private _delegate: ((uri: URI) => URI) | null = null;
 
-	constructor() {
-		this._hosts = Object.create(null);
-		this._ports = Object.create(null);
-		this._connectionTokens = Object.create(null);
-		this._preferredWebSchema = 'http';
-	}
-
-	public setPreferredWebSchema(schema: 'http' | 'https') {
+	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
 	}
 
-	public set(authority: string, host: string, port: number): void {
+	setDelegate(delegate: (uri: URI) => URI): void {
+		this._delegate = delegate;
+	}
+
+	set(authority: string, host: string, port: number): void {
 		this._hosts[authority] = host;
 		this._ports[authority] = port;
 	}
 
-	public setConnectionToken(authority: string, connectionToken: string): void {
+	setConnectionToken(authority: string, connectionToken: string): void {
 		this._connectionTokens[authority] = connectionToken;
 	}
 
-	public rewrite(authority: string, path: string): URI {
-		const host = this._hosts[authority];
+	rewrite(uri: URI): URI {
+		if (this._delegate) {
+			return this._delegate(uri);
+		}
+		const authority = uri.authority;
+		let host = this._hosts[authority];
+		if (host && host.indexOf(':') !== -1) {
+			host = `[${host}]`;
+		}
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
+		let query = `path=${encodeURIComponent(uri.path)}`;
+		if (typeof connectionToken === 'string') {
+			query += `&tkn=${encodeURIComponent(connectionToken)}`;
+		}
 		return URI.from({
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
 			path: `/vscode-remote-resource`,
-			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
+			query
 		});
 	}
 }

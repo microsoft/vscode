@@ -26,6 +26,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._domNode.setClassName(cssClassName);
 		this._domNode.setPosition('absolute');
 		this._domNode.setLayerHinting(true);
+		this._domNode.setContain('strict');
 
 		this._zoneManager = new OverviewZoneManager((lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber));
 		this._zoneManager.setDOMWidth(0);
