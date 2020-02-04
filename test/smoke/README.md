@@ -60,7 +60,7 @@ the web server folder which includes the web client bits (e.g. `vscode-server-da
 ### Debug
 
 - `--verbose` logs all the low level driver calls made to Code;
-- `-f PATTERN` filters the tests to be run. You can also use pretty much any mocha argument;
+- `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
 - `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
 
 ### Develop
