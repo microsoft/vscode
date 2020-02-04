@@ -18,7 +18,7 @@ import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCop
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
@@ -51,7 +51,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Otherwise fallback to resource
-		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
+		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
 	private dirty = false;
@@ -69,7 +69,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(modelService, modeService);
 
