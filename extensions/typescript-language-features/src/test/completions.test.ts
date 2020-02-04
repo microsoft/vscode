@@ -30,6 +30,7 @@ namespace Config {
 	export const suggestSelection = 'editor.suggestSelection';
 	export const completeFunctionCalls = 'typescript.suggest.completeFunctionCalls';
 	export const autoClosingBrackets = 'editor.autoClosingBrackets';
+	export const insertMode = 'editor.suggest.insertMode';
 }
 
 suite('TypeScript Completions', () => {
@@ -37,6 +38,7 @@ suite('TypeScript Completions', () => {
 		[Config.suggestSelection]: 'first',
 		[Config.completeFunctionCalls]: false,
 		[Config.autoClosingBrackets]: 'always',
+		[Config.insertMode]: 'insert',
 	});
 
 	const _disposables: vscode.Disposable[] = [];
@@ -180,21 +182,6 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test.skip('Accepting a member completion should result in valid code. #58597', async () => {
-		await createTestEditor(testDocumentUri,
-			`const abc = 123;`,
-			`ab$0c`
-		);
-
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
-				`const abc = 123;`,
-				`abc`
-			));
-	});
-
 	test('completeFunctionCalls should complete function parameters when at end of word', async () => {
 		await updateConfig({
 			[Config.completeFunctionCalls]: true,
@@ -292,6 +279,44 @@ suite('TypeScript Completions', () => {
 				`    this.detail`,
 				`  }`,
 				`}`,
+			));
+	});
+
+	test('Accepting a completion in word using insert mode should insert', async () => {
+		await updateConfig({
+			[Config.insertMode]: 'insert',
+		});
+
+		await createTestEditor(testDocumentUri,
+			`const abc = 123;`,
+			`ab$0c`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abc = 123;`,
+				`abcc`
+			));
+	});
+
+	test('Accepting a completion in word using replace mode should replace', async () => {
+		await updateConfig({
+			[Config.insertMode]: 'replace',
+		});
+
+		await createTestEditor(testDocumentUri,
+			`const abc = 123;`,
+			`ab$0c`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abc = 123;`,
+				`abc`
 			));
 	});
 });
