@@ -197,7 +197,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 });
 
 function toExternalDTS(contents) {
-	let lines = contents.split('\n');
+	let lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
 	for (let i = 0; i < lines.length; i++) {
 		let line = lines[i];
@@ -352,6 +352,13 @@ gulp.task('editor-distro',
 		finalEditorResourcesTask
 	)
 );
+
+gulp.task('monacodts', task.define('monacodts', () => {
+	const result = monacoapi.execute();
+	fs.writeFileSync(result.filePath, result.content);
+	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	return Promise.resolve(true);
+}));
 
 //#region monaco type checking
 

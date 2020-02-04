@@ -27,6 +27,7 @@ const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+const product = require('../../product.json');
 function fromLocal(extensionPath) {
     const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
     const input = fs.existsSync(webpackFilename)
@@ -184,8 +185,10 @@ const excludedExtensions = [
     'vscode-test-resolver',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
+    'ms.vscode.js-debug-nightly'
 ];
-const builtInExtensions = require('../builtInExtensions.json');
+const builtInExtensions = require('../builtInExtensions.json')
+    .filter(({ forQualities }) => { var _a; return !product.quality || ((_a = forQualities === null || forQualities === void 0 ? void 0 : forQualities.includes) === null || _a === void 0 ? void 0 : _a.call(forQualities, product.quality)) !== false; });
 function packageLocalExtensionsStream() {
     const localExtensionDescriptions = glob.sync('extensions/*/package.json')
         .map(manifestPath => {

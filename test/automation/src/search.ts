@@ -109,11 +109,12 @@ export class Search extends Viewlet {
 	}
 
 	async waitForResultText(text: string): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages .message>p`, text);
+		// The label can end with " - " depending on whether the search editor is enabled
+		await this.code.waitForTextContent(`${VIEWLET} .messages .message>span`, undefined, result => result.startsWith(text));
 	}
 
 	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="true"] .message>p`);
+		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="true"] .message>span`);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

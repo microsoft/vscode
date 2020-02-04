@@ -4,59 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { suggestFilename } from 'vs/base/common/mime';
-import { createMemoizer } from 'vs/base/common/decorators';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { basenameOrAuthority, dirname, toLocalResource } from 'vs/base/common/resources';
-import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextEditorInput, GroupIdentifier, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextResourceEditorInput } from 'vs/workbench/common/editor';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
-import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledTextEditorInput extends TextEditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledTextEditorInput extends TextResourceEditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
-
-	private static readonly MEMOIZER = createMemoizer();
-
-	private cachedModel: UntitledTextEditorModel | null = null;
-	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
-
-	private readonly _onDidModelChangeContent = this._register(new Emitter<void>());
-	readonly onDidModelChangeContent = this._onDidModelChangeContent.event;
 
 	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
 
+	private cachedModel: UntitledTextEditorModel | undefined = undefined;
+
+	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | undefined = undefined;
+
+	private preferredMode: string | undefined;
+
 	constructor(
 		resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private preferredMode: string | undefined,
+		preferredMode: string | undefined,
 		private readonly initialValue: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService textFileService: ITextFileService,
-		@ILabelService private readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IFileService fileService: IFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, editorService, editorGroupService, textFileService);
+		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.labelService.onDidChangeFormatters(() => UntitledTextEditorInput.MEMOIZER.clear()));
+		if (preferredMode) {
+			this.setMode(preferredMode);
+		}
 	}
 
 	get hasAssociatedFilePath(): boolean {
@@ -68,79 +62,50 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	getName(): string {
-		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
-	}
+		if (this.cachedModel) {
+			return this.cachedModel.name;
+		}
 
-	@UntitledTextEditorInput.MEMOIZER
-	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this.resource));
-	}
-
-	@UntitledTextEditorInput.MEMOIZER
-	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
-	}
-
-	@UntitledTextEditorInput.MEMOIZER
-	private get longDescription(): string {
-		return this.labelService.getUriLabel(dirname(this.resource));
+		return super.getName();
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+
+		// Without associated path: only use if name and description differ
 		if (!this.hasAssociatedFilePath) {
+			const descriptionCandidate = this.resource.path;
+			if (descriptionCandidate !== this.getName()) {
+				return descriptionCandidate;
+			}
+
 			return undefined;
 		}
 
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
-		}
-	}
-
-	@UntitledTextEditorInput.MEMOIZER
-	private get shortTitle(): string {
-		return this.getName();
-	}
-
-	@UntitledTextEditorInput.MEMOIZER
-	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.resource, { relative: true });
-	}
-
-	@UntitledTextEditorInput.MEMOIZER
-	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.resource);
+		// With associated path: delegate to parent
+		return super.getDescription(verbosity);
 	}
 
 	getTitle(verbosity: Verbosity): string {
+
+		// Without associated path: check if name and description differ to decide
+		// if description should appear besides the name to distinguish better
 		if (!this.hasAssociatedFilePath) {
-			return this.getName();
+			const name = this.getName();
+			const description = this.getDescription();
+			if (description && description !== name) {
+				return `${name} • ${description}`;
+			}
+
+			return name;
 		}
 
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortTitle;
-			case Verbosity.MEDIUM:
-				return this.mediumTitle;
-			case Verbosity.LONG:
-				return this.longTitle;
-		}
-	}
-
-	isReadonly(): boolean {
-		return false;
-	}
-
-	isUntitled(): boolean {
-		return true;
+		// With associated path: delegate to parent
+		return super.getTitle(verbosity);
 	}
 
 	isDirty(): boolean {
+
+		// Always trust the model first if existing
 		if (this.cachedModel) {
 			return this.cachedModel.isDirty();
 		}
@@ -150,62 +115,14 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 			return false;
 		}
 
-		// untitled files with an associated path or associated resource
+		// A input with initial value is always dirty
+		if (this.initialValue && this.initialValue.length > 0) {
+			return true;
+		}
+
+		// A input with associated path is always dirty because it is the intent
+		// of the user to create a new file at that location through saving
 		return this.hasAssociatedFilePath;
-	}
-
-	hasBackup(): boolean {
-		if (this.cachedModel) {
-			return this.cachedModel.hasBackup();
-		}
-
-		return false;
-	}
-
-	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, options, async () => {
-
-			// With associated file path, save to the path that is
-			// associated. Make sure to convert the result using
-			// remote authority properly.
-			if (this.hasAssociatedFilePath) {
-				if (await this.textFileService.save(this.resource, options)) {
-					return toLocalResource(this.resource, this.environmentService.configuration.remoteAuthority);
-				}
-
-				return;
-			}
-
-			// Without associated file path, do a normal "Save As"
-			return this.textFileService.saveAs(this.resource, undefined, options);
-		}, true /* replace editor across all groups */);
-	}
-
-	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
-	}
-
-	async revert(options?: IRevertOptions): Promise<boolean> {
-		if (this.cachedModel) {
-			this.cachedModel.revert();
-		}
-
-		this.dispose(); // a reverted untitled text editor is no longer valid, so we dispose it
-
-		return true;
-	}
-
-	suggestFileName(): string {
-		if (!this.hasAssociatedFilePath) {
-			if (this.cachedModel) {
-				const mode = this.cachedModel.getMode();
-				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					return suggestFilename(mode, this.getName());
-				}
-			}
-		}
-
-		return this.getName();
 	}
 
 	getEncoding(): string | undefined {
@@ -225,10 +142,20 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	setMode(mode: string): void {
-		this.preferredMode = mode;
+		let actualMode: string | undefined = undefined;
+		if (mode === '${activeEditorLanguage}') {
+			// support the special '${activeEditorLanguage}' mode by
+			// looking up the language mode from the currently
+			// active text editor if any
+			actualMode = this.editorService.activeTextEditorMode;
+		} else {
+			actualMode = mode;
+		}
 
-		if (this.cachedModel) {
-			this.cachedModel.setMode(mode);
+		this.preferredMode = actualMode;
+
+		if (this.preferredMode && this.cachedModel) {
+			this.cachedModel.setMode(this.preferredMode);
 		}
 	}
 
@@ -257,12 +184,20 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	private createModel(): UntitledTextEditorModel {
 		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
-		// re-emit some events from the model
-		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
+		this.registerModelListeners(model);
 
 		return model;
+	}
+
+	private registerModelListeners(model: UntitledTextEditorModel): void {
+
+		// re-emit some events from the model
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
+		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
+
+		// a disposed untitled text editor model renders this input disposed
+		this._register(model.onDispose(() => this.dispose()));
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -279,8 +214,8 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	dispose(): void {
-		this.cachedModel = null;
-		this.modelResolve = null;
+		this.cachedModel = undefined;
+		this.modelResolve = undefined;
 
 		super.dispose();
 	}

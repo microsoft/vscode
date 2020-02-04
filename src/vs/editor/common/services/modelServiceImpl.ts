@@ -8,13 +8,13 @@ import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecyc
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_MODEL_DEFAULTS, IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, SemanticTokensProviderRegistry, SemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata } from 'vs/editor/common/modes';
+import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -133,7 +133,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 
-		this._register(new SemanticColoringFeature(this, themeService, logService));
+		this._register(new SemanticColoringFeature(this, themeService, configurationService, logService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -442,42 +442,79 @@ export interface ILineSequence {
 }
 
 class SemanticColoringFeature extends Disposable {
+
+	private static readonly SETTING_ID = 'editor.semanticHighlighting';
+
 	private _watchers: Record<string, ModelSemanticColoring>;
 	private _semanticStyling: SemanticStyling;
+	private _configurationService: IConfigurationService;
 
-	constructor(modelService: IModelService, themeService: IThemeService, logService: ILogService) {
+	constructor(modelService: IModelService, themeService: IThemeService, configurationService: IConfigurationService, logService: ILogService) {
 		super();
+		this._configurationService = configurationService;
 		this._watchers = Object.create(null);
 		this._semanticStyling = this._register(new SemanticStyling(themeService, logService));
-		this._register(modelService.onModelAdded((model) => {
+
+		const isSemanticColoringEnabled = (model: ITextModel) => {
+			const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
+			return options && options.enabled;
+		};
+		const register = (model: ITextModel) => {
 			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
+		};
+		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
+			modelSemanticColoring.dispose();
+			delete this._watchers[model.uri.toString()];
+		};
+		this._register(modelService.onModelAdded((model) => {
+			if (isSemanticColoringEnabled(model)) {
+				register(model);
+			}
 		}));
 		this._register(modelService.onModelRemoved((model) => {
-			this._watchers[model.uri.toString()].dispose();
-			delete this._watchers[model.uri.toString()];
+			const curr = this._watchers[model.uri.toString()];
+			if (curr) {
+				deregister(model, curr);
+			}
 		}));
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SemanticColoringFeature.SETTING_ID)) {
+				for (let model of modelService.getModels()) {
+					const curr = this._watchers[model.uri.toString()];
+					if (isSemanticColoringEnabled(model)) {
+						if (!curr) {
+							register(model);
+						}
+					} else {
+						if (curr) {
+							deregister(model, curr);
+						}
+					}
+				}
+			}
+		});
 	}
 }
 
 class SemanticStyling extends Disposable {
 
-	private _caches: WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>;
+	private _caches: WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>;
 
 	constructor(
 		private readonly _themeService: IThemeService,
 		private readonly _logService: ILogService
 	) {
 		super();
-		this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
+		this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 		if (this._themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(this._themeService.onThemeChange(() => {
-				this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
+				this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 			}));
 		}
 	}
 
-	public get(provider: SemanticTokensProvider): SemanticColoringProviderStyling {
+	public get(provider: DocumentSemanticTokensProvider): SemanticColoringProviderStyling {
 		if (!this._caches.has(provider)) {
 			this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService, this._logService));
 		}
@@ -592,22 +629,45 @@ class SemanticColoringProviderStyling {
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
 		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
-		let metadata: number | undefined;
+		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
 		} else {
 			const tokenType = this._legend.tokenTypes[tokenTypeIndex];
 			const tokenModifiers: string[] = [];
-			for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
-				if (tokenModifierSet & 1) {
+			let modifierSet = tokenModifierSet;
+			for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
+				if (modifierSet & 1) {
 					tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
 				}
-				tokenModifierSet = tokenModifierSet >> 1;
+				modifierSet = modifierSet >> 1;
 			}
 
-			metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
-			if (typeof metadata === 'undefined') {
+			const tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			if (typeof tokenStyle === 'undefined') {
 				metadata = Constants.NO_STYLING;
+			} else {
+				metadata = 0;
+				if (typeof tokenStyle.italic !== 'undefined') {
+					const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= italicBit | MetadataConsts.SEMANTIC_USE_ITALIC;
+				}
+				if (typeof tokenStyle.bold !== 'undefined') {
+					const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= boldBit | MetadataConsts.SEMANTIC_USE_BOLD;
+				}
+				if (typeof tokenStyle.underline !== 'undefined') {
+					const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
+				}
+				if (tokenStyle.foreground) {
+					const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
+					metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+				}
+				if (metadata === 0) {
+					// Nothing!
+					metadata = Constants.NO_STYLING;
+				}
 			}
 			this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		}
@@ -638,13 +698,13 @@ const enum SemanticColoringConstants {
 
 class SemanticTokensResponse {
 	constructor(
-		private readonly _provider: SemanticTokensProvider,
+		private readonly _provider: DocumentSemanticTokensProvider,
 		public readonly resultId: string | undefined,
 		public readonly data: Uint32Array
 	) { }
 
 	public dispose(): void {
-		this._provider.releaseSemanticTokens(this.resultId);
+		this._provider.releaseDocumentSemanticTokens(this.resultId);
 	}
 }
 
@@ -672,7 +732,7 @@ class ModelSemanticColoring extends Disposable {
 				this._fetchSemanticTokens.schedule();
 			}
 		}));
-		this._register(SemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
 		if (themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(themeService.onThemeChange(_ => {
@@ -685,7 +745,6 @@ class ModelSemanticColoring extends Disposable {
 	}
 
 	public dispose(): void {
-		this._isDisposed = true;
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -694,6 +753,9 @@ class ModelSemanticColoring extends Disposable {
 			this._currentRequestCancellationTokenSource.cancel();
 			this._currentRequestCancellationTokenSource = null;
 		}
+		this._setSemanticTokens(null, null, null, []);
+		this._isDisposed = true;
+
 		super.dispose();
 	}
 
@@ -716,17 +778,28 @@ class ModelSemanticColoring extends Disposable {
 		const styling = this._semanticStyling.get(provider);
 
 		const lastResultId = this._currentResponse ? this._currentResponse.resultId || null : null;
-		const request = Promise.resolve(provider.provideSemanticTokens(this._model, lastResultId, null, this._currentRequestCancellationTokenSource.token));
+		const request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
 			this._setSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {
-			errors.onUnexpectedError(err);
+			if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
+				errors.onUnexpectedError(err);
+			}
+
+			// Semantic tokens eats up all errors and considers errors to mean that the result is temporarily not available
+			// The API does not have a special error kind to express this...
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(provider, null, styling, pendingChanges);
+
+			if (pendingChanges.length > 0) {
+				// More changes occurred while the request was running
+				if (!this._fetchSemanticTokens.isScheduled()) {
+					this._fetchSemanticTokens.schedule();
+				}
+			}
 		});
 	}
 
@@ -744,7 +817,7 @@ class ModelSemanticColoring extends Disposable {
 		}
 	}
 
-	private _setSemanticTokens(provider: SemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
+	private _setSemanticTokens(provider: DocumentSemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
 		const currentResponse = this._currentResponse;
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
@@ -753,7 +826,7 @@ class ModelSemanticColoring extends Disposable {
 		if (this._isDisposed) {
 			// disposed!
 			if (provider && tokens) {
-				provider.releaseSemanticTokens(tokens.resultId);
+				provider.releaseDocumentSemanticTokens(tokens.resultId);
 			}
 			return;
 		}
@@ -914,8 +987,8 @@ class ModelSemanticColoring extends Disposable {
 		this._model.setSemanticTokens(null);
 	}
 
-	private _getSemanticColoringProvider(): SemanticTokensProvider | null {
-		const result = SemanticTokensProviderRegistry.ordered(this._model);
+	private _getSemanticColoringProvider(): DocumentSemanticTokensProvider | null {
+		const result = DocumentSemanticTokensProviderRegistry.ordered(this._model);
 		return (result.length > 0 ? result[0] : null);
 	}
 }

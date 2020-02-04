@@ -13,7 +13,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView, getMarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
-import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersViewActions';
@@ -32,6 +32,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -110,7 +112,7 @@ class ToggleMarkersPanelAction extends TogglePanelAction {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_PANEL_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	ctorDescriptor: { ctor: ViewPaneContainer, arguments: [Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }] },
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	focusCommand: {
 		id: ToggleMarkersPanelAction.ID, keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
@@ -122,7 +124,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Constants.MARKERS_VIEW_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
-	ctorDescriptor: { ctor: MarkersView },
+	ctorDescriptor: new SyncDescriptor(MarkersView),
 }], VIEW_CONTAINER);
 
 // workbench
@@ -135,103 +137,127 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMarkersPanelA
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
 }), 'View: Toggle Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowProblemsPanelAction, ShowProblemsPanelAction.ID, ShowProblemsPanelAction.LABEL), 'View: Focus Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
-registerAction({
-	id: Constants.MARKER_COPY_ACTION_ID,
-	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
-	async handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKER_COPY_ACTION_ID,
+			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
+			menu: {
+				id: MenuId.ProblemsPanelContext,
+				when: Constants.MarkerFocusContextKey,
+				group: 'navigation'
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+				when: Constants.MarkerFocusContextKey
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor) {
 		await copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
-	},
-	menu: {
-		menuId: MenuId.ProblemsPanelContext,
-		when: Constants.MarkerFocusContextKey,
-		group: 'navigation'
-	},
-	keybinding: {
-		weight: KeybindingWeight.WorkbenchContrib,
-		keys: {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_C
-		},
-		when: Constants.MarkerFocusContextKey
 	}
 });
-registerAction({
-	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
-	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	async handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
+			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			menu: {
+				id: MenuId.ProblemsPanelContext,
+				when: Constants.MarkerFocusContextKey,
+				group: 'navigation'
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor) {
 		await copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
-	},
-	menu: {
-		menuId: MenuId.ProblemsPanelContext,
-		when: Constants.MarkerFocusContextKey,
-		group: 'navigation'
 	}
 });
-registerAction({
-	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	async handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
+			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			menu: {
+				id: MenuId.ProblemsPanelContext,
+				when: Constants.RelatedInformationFocusContextKey,
+				group: 'navigation'
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor) {
 		await copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
-	},
-	menu: {
-		menuId: MenuId.ProblemsPanelContext,
-		when: Constants.RelatedInformationFocusContextKey,
-		group: 'navigation'
 	}
 });
-registerAction({
-	id: Constants.FOCUS_PROBLEMS_FROM_FILTER,
-	handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.FOCUS_PROBLEMS_FROM_FILTER,
+			title: localize('focusProblemsList', "Focus problems view"),
+			keybinding: {
+				when: Constants.MarkerPanelFilterFocusContextKey,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
 		focusProblemsView(accessor.get(IPanelService));
-	},
-	keybinding: {
-		when: Constants.MarkerPanelFilterFocusContextKey,
-		weight: KeybindingWeight.WorkbenchContrib,
-		keys: {
-			primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-		},
 	}
 });
-registerAction({
-	id: Constants.MARKERS_PANEL_FOCUS_FILTER,
-	handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKERS_PANEL_FOCUS_FILTER,
+			title: localize('focusProblemsFilter', "Focus problems filter"),
+			keybinding: {
+				when: Constants.MarkerPanelFocusContextKey,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
 		focusProblemsFilter(accessor.get(IPanelService));
-	},
-	keybinding: {
-		when: Constants.MarkerPanelFocusContextKey,
-		weight: KeybindingWeight.WorkbenchContrib,
-		keys: {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-		},
 	}
 });
-registerAction({
-	id: Constants.MARKERS_PANEL_SHOW_MULTILINE_MESSAGE,
-	handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKERS_PANEL_SHOW_MULTILINE_MESSAGE,
+			title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
+			category: localize('problems', "Problems"),
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
 		const markersView = getMarkersView(accessor.get(IPanelService));
 		if (markersView) {
 			markersView.markersViewModel.multiline = true;
 		}
-	},
-	title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
-	category: localize('problems', "Problems"),
-	menu: {
-		menuId: MenuId.CommandPalette,
-		when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
 	}
 });
-registerAction({
-	id: Constants.MARKERS_PANEL_SHOW_SINGLELINE_MESSAGE,
-	handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKERS_PANEL_SHOW_SINGLELINE_MESSAGE,
+			title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
+			category: localize('problems', "Problems"),
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
 		const markersView = getMarkersView(accessor.get(IPanelService));
 		if (markersView) {
 			markersView.markersViewModel.multiline = false;
 		}
-	},
-	title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
-	category: localize('problems', "Problems"),
-	menu: {
-		menuId: MenuId.CommandPalette,
-		when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
 	}
 });
 

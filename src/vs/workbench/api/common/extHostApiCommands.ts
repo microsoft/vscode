@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
@@ -142,7 +142,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- go to symbol (definition, type definition, declaration, impl, references)
 	new ApiCommand(
-		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition provider.',
+		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
 	),
@@ -168,7 +168,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- hover
 	new ApiCommand(
-		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover provider.',
+		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<modes.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
 	),
@@ -188,7 +188,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- symbol search
 	new ApiCommand(
-		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol provider.',
+		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
 		[new ApiCommandArgument('query', 'Search string', v => typeof v === 'string', v => v)],
 		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
 			const result: types.SymbolInformation[] = [];

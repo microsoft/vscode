@@ -5,7 +5,7 @@
 
 import { MainThreadTunnelServiceShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { URI } from 'vs/base/common/uri';
@@ -37,7 +37,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
+	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, vscode.Tunnel>> = new Map();
+	private _onDidTunnelsChange: Emitter<void> = new Emitter<void>();
+	onDidTunnelsChange: vscode.Event<void> = this._onDidTunnelsChange.event;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -61,14 +64,30 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
+	async getTunnels(): Promise<vscode.TunnelDescription[]> {
+		return this._proxy.$getTunnels();
+	}
+
 	registerCandidateFinder(): Promise<void> {
 		return this._proxy.$registerCandidateFinder();
 	}
 
-	async setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		if (provider && provider.tunnelFactory) {
-			this._forwardPortProvider = provider.tunnelFactory;
-			await this._proxy.$setTunnelProvider();
+	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
+		return Promise.all(candidates.map(candidate => {
+			return this._showCandidatePort(candidate.host, candidate.port, candidate.detail);
+		}));
+	}
+
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+		if (provider) {
+			if (provider.showCandidatePort) {
+				this._showCandidatePort = provider.showCandidatePort;
+				await this._proxy.$setCandidateFilter();
+			}
+			if (provider.tunnelFactory) {
+				this._forwardPortProvider = provider.tunnelFactory;
+				await this._proxy.$setTunnelProvider();
+			}
 		} else {
 			this._forwardPortProvider = undefined;
 		}
@@ -85,6 +104,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				hostMap.delete(remote.port);
 			}
 		}
+	}
+
+	async $onDidTunnelsChange(): Promise<void> {
+		this._onDidTunnelsChange.fire();
 	}
 
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined {
@@ -128,7 +151,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childStat = fs.statSync(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8').replace(/\0/g, ' ');
+					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
@@ -181,17 +204,26 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 							ip: this.parseIpAddress(address[0]),
 							port: parseInt(address[1], 16)
 						};
-					}).map(port => [port.port, port])
+					}).map(port => [port.ip + ':' + port.port, port])
 			).values()
 		];
 	}
 
 	private parseIpAddress(hex: string): string {
 		let result = '';
-		for (let i = hex.length - 2; (i >= 0); i -= 2) {
-			result += parseInt(hex.substr(i, 2), 16);
-			if (i !== 0) {
-				result += '.';
+		if (hex.length === 8) {
+			for (let i = hex.length - 2; i >= 0; i -= 2) {
+				result += parseInt(hex.substr(i, 2), 16);
+				if (i !== 0) {
+					result += '.';
+				}
+			}
+		} else {
+			for (let i = hex.length - 4; i >= 0; i -= 4) {
+				result += parseInt(hex.substr(i, 4), 16).toString(16);
+				if (i !== 0) {
+					result += ':';
+				}
 			}
 		}
 		return result;

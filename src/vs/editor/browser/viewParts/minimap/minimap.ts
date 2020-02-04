@@ -126,8 +126,8 @@ class MinimapOptions {
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
-		this.canvasInnerWidth = Math.max(1, Math.floor(pixelRatio * this.minimapWidth));
-		this.canvasInnerHeight = Math.max(1, Math.floor(pixelRatio * this.minimapHeight));
+		this.canvasInnerWidth = Math.floor(pixelRatio * this.minimapWidth);
+		this.canvasInnerHeight = Math.floor(pixelRatio * this.minimapHeight);
 
 		this.canvasOuterWidth = this.canvasInnerWidth / pixelRatio;
 		this.canvasOuterHeight = this.canvasInnerHeight / pixelRatio;
@@ -555,6 +555,8 @@ export class Minimap extends ViewPart {
 				this._slider.toggleClassName('active', true);
 
 				this._sliderMouseMoveMonitor.startMonitoring(
+					e.target,
+					e.buttons,
 					standardMouseMoveMerger,
 					(mouseMoveData: IStandardMouseMoveEventData) => {
 						const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
@@ -655,16 +657,18 @@ export class Minimap extends ViewPart {
 		this._slider.setWidth(this._options.minimapWidth);
 	}
 
-	private _getBuffer(): ImageData {
+	private _getBuffer(): ImageData | null {
 		if (!this._buffers) {
-			this._buffers = new MinimapBuffers(
-				this._canvas.domNode.getContext('2d')!,
-				this._options.canvasInnerWidth,
-				this._options.canvasInnerHeight,
-				this._tokensColorTracker.getColor(ColorId.DefaultBackground)
-			);
+			if (this._options.canvasInnerWidth > 0 && this._options.canvasInnerHeight > 0) {
+				this._buffers = new MinimapBuffers(
+					this._canvas.domNode.getContext('2d')!,
+					this._options.canvasInnerWidth,
+					this._options.canvasInnerHeight,
+					this._tokensColorTracker.getColor(ColorId.DefaultBackground)
+				);
+			}
 		}
-		return this._buffers!.getBuffer();
+		return this._buffers ? this._buffers.getBuffer() : null;
 	}
 
 	private _onOptionsMaybeChanged(): boolean {
@@ -852,7 +856,7 @@ export class Minimap extends ViewPart {
 		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
 		// Skip rendering the line if it's vertically outside our viewport
-		if (y + height < 0 || y > this._options.canvasOuterHeight) {
+		if (y + height < 0 || y > this._options.canvasInnerHeight) {
 			return;
 		}
 
@@ -904,7 +908,7 @@ export class Minimap extends ViewPart {
 		canvasContext.fillRect(x, y, width, height);
 	}
 
-	private renderLines(layout: MinimapLayout): RenderData {
+	private renderLines(layout: MinimapLayout): RenderData | null {
 		const renderMinimap = this._options.renderMinimap;
 		const charRenderer = this._options.charRenderer();
 		const startLineNumber = layout.startLineNumber;
@@ -921,6 +925,10 @@ export class Minimap extends ViewPart {
 		// Oh well!! We need to repaint some lines...
 
 		const imageData = this._getBuffer();
+		if (!imageData) {
+			// 0 width or 0 height canvas, nothing to do
+			return null;
+		}
 
 		// Render untouched lines by using last rendered data.
 		let [_dirtyY1, _dirtyY2, needed] = Minimap._renderUntouchedLines(

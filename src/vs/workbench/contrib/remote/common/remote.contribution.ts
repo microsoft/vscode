@@ -16,6 +16,8 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/s
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
+import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -56,12 +58,15 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 	) {
 		super();
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const loggerClient = new LoggerChannelClient(connection.getChannel('logger'));
-			loggerClient.setLevel(logService.getLevel());
-			this._register(logService.onDidChangeLogLevel(level => loggerClient.setLevel(level)));
-		}
+		const updateRemoteLogLevel = () => {
+			const connection = remoteAgentService.getConnection();
+			if (!connection) {
+				return;
+			}
+			connection.withChannel('logger', (channel) => LoggerChannelClient.setLevel(channel, logService.getLevel()));
+		};
+		updateRemoteLogLevel();
+		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 	}
 }
 
@@ -83,3 +88,5 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);

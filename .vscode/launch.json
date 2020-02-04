@@ -19,10 +19,7 @@
 			"restart": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"hidden": true,
-			}
+			]
 		},
 		{
 			"type": "chrome",
@@ -76,6 +73,24 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Git Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"/tmp/my4g9l",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/git",
+				"--extensionTestsPath=${workspaceFolder}/extensions/git/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/git/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -141,10 +156,7 @@
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222,
-			"presentation": {
-				"hidden": true
-			}
+			"port": 9222
 		},
 		{
 			"type": "chrome",
@@ -168,12 +180,14 @@
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
-				"--no-cached-data"
+				"--no-cached-data",
 			],
 			"webRoot": "${workspaceFolder}",
-			"presentation": {
-				"hidden": true
-			}
+			// Settings for js-debug:
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 		},
 		{
 			"type": "node",
@@ -227,6 +241,21 @@
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
 				"${workspaceFolder}/extensions/git/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "HTML Unit Tests",
+			"program": "${workspaceFolder}/extensions/html-language-features/server/test/index.js",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/html-language-features/server/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",

@@ -83,7 +83,7 @@
                     "type": [
                         "string",
                         "null"
-                      ],
+                    ],
                     "default": null,
                     "description": "%emmetExtensionsPath%"
                 },
@@ -453,7 +453,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/math-expression": "^0.1.1",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper": "^1.2.16",
+        "vscode-emmet-helper": "^1.2.17",
         "vscode-html-languageservice": "^3.0.3"
     }
 }

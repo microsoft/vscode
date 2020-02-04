@@ -643,7 +643,7 @@ export class SearchWidget extends Widget {
 				this.countElement.style.borderColor = border;
 
 				const color = this.themeService.getTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : null;
+				this.countElement.style.color = color ? color.toString() : '';
 			}));
 		}
 

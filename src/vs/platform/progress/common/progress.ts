@@ -57,6 +57,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Notification;
 	readonly primaryActions?: ReadonlyArray<IAction>;
 	readonly secondaryActions?: ReadonlyArray<IAction>;
+	delay?: number;
 }
 
 export interface IProgressWindowOptions extends IProgressOptions {

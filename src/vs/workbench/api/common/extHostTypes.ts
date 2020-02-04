@@ -11,7 +11,7 @@ import { values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { escapeCodicons } from 'vs/base/common/codicons';
@@ -564,7 +564,6 @@ export class TextEdit {
 	}
 }
 
-
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -577,12 +576,14 @@ export interface IFileOperation {
 	from?: URI;
 	to?: URI;
 	options?: IFileOperationOptions;
+	metadata?: vscode.WorkspaceEditMetadata;
 }
 
 export interface IFileTextEdit {
 	_type: 2;
 	uri: URI;
 	edit: TextEdit;
+	metadata?: vscode.WorkspaceEditMetadata;
 }
 
 @es5ClassCompat
@@ -590,28 +591,28 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }): void {
-		this._edits.push({ _type: 1, from, to, options });
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+		this._edits.push({ _type: 1, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }): void {
-		this._edits.push({ _type: 1, from: undefined, to: uri, options });
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+		this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }): void {
-		this._edits.push({ _type: 1, from: uri, to: undefined, options });
+	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+		this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
 	}
 
-	replace(uri: URI, range: Range, newText: string): void {
-		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText) });
+	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditMetadata): void {
+		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
-	insert(resource: URI, position: Position, newText: string): void {
-		this.replace(resource, new Range(position, position), newText);
+	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditMetadata): void {
+		this.replace(resource, new Range(position, position), newText, metadata);
 	}
 
-	delete(resource: URI, range: Range): void {
-		this.replace(resource, range, '');
+	delete(resource: URI, range: Range, metadata?: vscode.WorkspaceEditMetadata): void {
+		this.replace(resource, range, '', metadata);
 	}
 
 	has(uri: URI): boolean {
@@ -663,17 +664,21 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	_allEntries(): ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] {
-		const res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
-		for (let edit of this._edits) {
-			if (edit._type === 1) {
-				res.push([edit.from, edit.to, edit.options]);
-			} else {
-				res.push([edit.uri, [edit.edit]]);
-			}
-		}
-		return res;
+	allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation> {
+		return this._edits;
 	}
+
+	// _allEntries(): ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] {
+	// 	const res: ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] = [];
+	// 	for (let edit of this._edits) {
+	// 		if (edit._type === 1) {
+	// 			res.push([edit.from, edit.to, edit.options]);
+	// 		} else {
+	// 			res.push([edit.uri, edit.edit]);
+	// 		}
+	// 	}
+	// 	return res;
+	// }
 
 	get size(): number {
 		return this.entries().length;
@@ -1351,10 +1356,19 @@ export enum CompletionItemTag {
 	Deprecated = 1,
 }
 
+export interface CompletionItemLabel {
+	name: string;
+	signature?: string;
+	qualifier?: string;
+	type?: string;
+}
+
+
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
+	label2?: CompletionItemLabel;
 	kind?: CompletionItemKind;
 	tags?: CompletionItemTag[];
 	detail?: string;
@@ -1364,8 +1378,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	preselect?: boolean;
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range?: Range;
-	range2?: Range | { inserting: Range; replacing: Range; };
+	range?: Range | { inserting: Range; replacing: Range; };
 	commitCharacters?: string[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
@@ -1379,6 +1392,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	toJSON(): any {
 		return {
 			label: this.label,
+			label2: this.label2,
 			kind: this.kind && CompletionItemKind[this.kind],
 			detail: this.detail,
 			documentation: this.documentation,
@@ -1395,7 +1409,6 @@ export class CompletionItem implements vscode.CompletionItem {
 export class CompletionList {
 
 	isIncomplete?: boolean;
-
 	items: vscode.CompletionItem[];
 
 	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {
@@ -1825,6 +1838,7 @@ export class Task implements vscode.Task2 {
 	private static EmptyType: string = '$empty';
 
 	private __id: string | undefined;
+	private __deprecated: boolean = false;
 
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
@@ -1849,6 +1863,7 @@ export class Task implements vscode.Task2 {
 			this._source = this.source = arg3;
 			this.execution = arg4;
 			problemMatchers = arg5;
+			this.__deprecated = true;
 		} else if (arg2 === TaskScope.Global || arg2 === TaskScope.Workspace) {
 			this.target = arg2;
 			this._name = this.name = arg3;
@@ -1883,6 +1898,10 @@ export class Task implements vscode.Task2 {
 
 	set _id(value: string | undefined) {
 		this.__id = value;
+	}
+
+	get _deprecated(): boolean {
+		return this.__deprecated;
 	}
 
 	private clear(): void {
@@ -2525,3 +2544,12 @@ export enum ColorThemeKind {
 }
 
 //#endregion Theming
+
+//#region Timeline
+
+@es5ClassCompat
+export class TimelineItem implements vscode.TimelineItem {
+	constructor(public label: string, public timestamp: number) { }
+}
+
+//#endregion Timeline

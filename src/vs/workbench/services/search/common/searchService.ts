@@ -19,7 +19,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -32,7 +31,6 @@ export class SearchService extends Disposable implements ISearchService {
 
 	constructor(
 		private readonly modelService: IModelService,
-		private readonly untitledTextEditorService: IUntitledTextEditorService,
 		private readonly editorService: IEditorService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly logService: ILogService,
@@ -391,7 +389,8 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				if (!this.editorService.isOpen({ resource })) {
+				// Skip files that are not opened as text file
+				if (!this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: resource.scheme !== Schemas.untitled, forceUntitled: resource.scheme === Schemas.untitled }))) {
 					return;
 				}
 
@@ -401,20 +400,13 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				// Support untitled files
-				if (resource.scheme === Schemas.untitled) {
-					if (!this.untitledTextEditorService.exists(resource)) {
-						return;
-					}
-				}
-
 				// Block walkthrough, webview, etc.
-				else if (!this.fileService.canHandleResource(resource)) {
+				if (resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(resource)) {
 					return;
 				}
 
 				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
-				if (resource.scheme === 'gitfs') {
+				if (resource.scheme === 'git') {
 					return;
 				}
 
@@ -457,14 +449,13 @@ export class SearchService extends Disposable implements ISearchService {
 export class RemoteSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService
 	) {
-		super(modelService, untitledTextEditorService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
 	}
 }
 

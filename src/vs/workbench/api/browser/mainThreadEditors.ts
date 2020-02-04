@@ -216,8 +216,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto): Promise<boolean> {
-		const { edits } = reviveWorkspaceEditDto(dto);
-		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
+		const { edits } = reviveWorkspaceEditDto(dto)!;
+		return this._bulkEditService.apply({ edits }).then(() => true, _err => false);
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {

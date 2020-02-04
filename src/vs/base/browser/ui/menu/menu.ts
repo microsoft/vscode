@@ -597,12 +597,12 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
 
 		if (this.item) {
-			this.item.style.color = fgColor ? `${fgColor}` : null;
-			this.item.style.backgroundColor = bgColor ? `${bgColor}` : '';
+			this.item.style.color = fgColor ? fgColor.toString() : '';
+			this.item.style.backgroundColor = bgColor ? bgColor.toString() : '';
 		}
 
 		if (this.check) {
-			this.check.style.color = fgColor ? `${fgColor}` : '';
+			this.check.style.color = fgColor ? fgColor.toString() : '';
 		}
 
 		if (this.container) {

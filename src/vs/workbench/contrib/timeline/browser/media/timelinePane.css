@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .timeline-tree-view {
+	position: relative;
+}
+
+.monaco-workbench .timeline-tree-view .message.timeline-subtle {
+	padding: 10px 22px 0 22px;
+	opacity: 0.5;
+	position: absolute;
+	pointer-events: none;
+}

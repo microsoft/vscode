@@ -73,6 +73,7 @@ export class ViewLineOptions {
 	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
+	public readonly middotWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
@@ -86,6 +87,7 @@ export class ViewLineOptions {
 		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
+		this.middotWidth = fontInfo.middotWidth;
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
@@ -102,6 +104,7 @@ export class ViewLineOptions {
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
+			&& this.middotWidth === other.middotWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
@@ -213,7 +216,9 @@ export class ViewLine implements IVisibleLine {
 			lineData.tokens,
 			actualInlineDecorations,
 			lineData.tabSize,
+			lineData.startVisibleColumn,
 			options.spaceWidth,
+			options.middotWidth,
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
 			options.renderControlCharacters,
@@ -513,8 +518,15 @@ class RenderedViewLine implements IRenderedViewLine {
 				return 0;
 			}
 			if (this._containsForeignElements === ForeignElementType.Before) {
-				// We have foreign element before the (empty) line
+				// We have foreign elements before the (empty) line
 				return this.getWidth();
+			}
+			// We have foreign elements before & after the (empty) line
+			const readingTarget = this._getReadingTarget(domNode);
+			if (readingTarget.firstChild) {
+				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth;
+			} else {
+				return 0;
 			}
 		}
 

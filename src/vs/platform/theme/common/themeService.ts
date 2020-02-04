@@ -79,6 +79,13 @@ export function getThemeTypeSelector(type: ThemeType): string {
 	}
 }
 
+export interface ITokenStyle {
+	readonly foreground?: number;
+	readonly bold?: boolean;
+	readonly underline?: boolean;
+	readonly italic?: boolean;
+}
+
 export interface ITheme {
 	readonly type: ThemeType;
 
@@ -99,7 +106,7 @@ export interface ITheme {
 	/**
 	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
 	 */
-	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined;
+	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined;
 
 	/**
 	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.

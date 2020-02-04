@@ -55,7 +55,7 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 export interface IBaseSaveRevertAllEditorOptions {
 
 	/**
-	 * Wether to include untitled editors as well.
+	 * Whether to include untitled editors as well.
 	 */
 	includeUntitled?: boolean;
 }
@@ -104,6 +104,13 @@ export interface IEditorService {
 	 * @see `IEditorService.activeEditor`
 	 */
 	readonly activeTextEditorWidget: ICodeEditor | IDiffEditor | undefined;
+
+	/**
+	 * The currently active text editor mode or `undefined` if there is currently no active
+	 * editor or the active editor widget is neither a text nor a diff editor. If the active
+	 * editor is a diff editor, the modified side's mode will be taken.
+	 */
+	readonly activeTextEditorMode: string | undefined;
 
 	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
@@ -186,19 +193,11 @@ export interface IEditorService {
 	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
-	 * Find out if the provided editor (or resource of an editor) is opened in any or
-	 * a specific editor group.
+	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
 	 */
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): boolean;
-
-	/**
-	 * Get the actual opened editor input in any or a specific editor group based on the resource.
-	 *
-	 * Note: An editor can be opened but not actively visible.
-	 */
-	getOpened(editor: IResourceInput | IUntitledTextResourceInput): IEditorInput | undefined;
+	isOpen(editor: IEditorInput): boolean;
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will

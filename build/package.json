@@ -30,6 +30,7 @@
     "@types/underscore": "^1.8.9",
     "@types/xml2js": "0.0.33",
     "@typescript-eslint/experimental-utils": "~2.13.0",
+    "@typescript-eslint/parser": "^2.12.0",
     "applicationinsights": "1.0.8",
     "azure-storage": "^2.1.0",
     "github-releases": "^0.4.1",
@@ -42,7 +43,7 @@
     "minimist": "^1.2.0",
     "request": "^2.85.0",
     "terser": "4.3.8",
-    "typescript": "3.7.3",
+    "typescript": "3.8.0-dev.20200128",
     "vsce": "1.48.0",
     "vscode-telemetry-extractor": "^1.5.4",
     "xml2js": "^0.4.17"

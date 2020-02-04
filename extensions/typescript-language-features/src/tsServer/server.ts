@@ -6,10 +6,10 @@
 import * as fs from 'fs';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ServerResponse, TypeScriptRequests } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
@@ -140,10 +140,10 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					const event = message as Proto.Event;
 					if (event.event === 'requestCompleted') {
 						const seq = (event as Proto.RequestCompletedEvent).body.request_seq;
-						const p = this._callbacks.fetch(seq);
-						if (p) {
-							this._tracer.traceRequestCompleted(this._serverId, 'requestCompleted', seq, p.startTime);
-							p.onSuccess(undefined);
+						const callback = this._callbacks.fetch(seq);
+						if (callback) {
+							this._tracer.traceRequestCompleted(this._serverId, 'requestCompleted', seq, callback);
+							callback.onSuccess(undefined);
 						}
 					} else {
 						this._tracer.traceEvent(this._serverId, event);
@@ -186,7 +186,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			return;
 		}
 
-		this._tracer.traceResponse(this._serverId, response, callback.startTime);
+		this._tracer.traceResponse(this._serverId, response, callback);
 		if (response.success) {
 			callback.onSuccess(response);
 		} else if (response.message === 'No content available.') {
@@ -210,7 +210,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
 			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
-				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, startTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
+				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {

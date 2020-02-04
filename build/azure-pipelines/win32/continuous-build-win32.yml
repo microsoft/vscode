@@ -35,8 +35,8 @@ steps:
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
-    yarn valid-globals-check
-  displayName: Run Valid Globals Checks
+    yarn valid-layers-check
+  displayName: Run Valid Layers Checks
 - powershell: |
     yarn compile
   displayName: Compile Sources

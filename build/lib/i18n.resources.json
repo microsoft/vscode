@@ -31,6 +31,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/backup",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/cli",
 			"project": "vscode-workbench"
 		},
@@ -308,6 +316,14 @@
 		},
 		{
 			"name": "vs/workbench/services/userData",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/timeline",
 			"project": "vscode-workbench"
 		}
 	]
