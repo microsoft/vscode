@@ -22,6 +22,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp compile-extension:css-language-features-server
 	call yarn gulp compile-extension:html-language-features-server
 	call yarn gulp compile-extension:json-language-features-server
+	call yarn gulp compile-extension:git
 
 	:: Configuration for more verbose output
 	set VSCODE_CLI=1
