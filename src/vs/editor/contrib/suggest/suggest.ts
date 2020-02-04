@@ -30,11 +30,15 @@ export class CompletionItem {
 	_brand!: 'ISuggestionItem';
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
+	isResolved: boolean = false;
 
 	//
 	readonly editStart: IPosition;
 	readonly editInsertEnd: IPosition;
 	readonly editReplaceEnd: IPosition;
+
+	//
+	readonly textLabel: string;
 
 	// perf
 	readonly labelLow: string;
@@ -54,8 +58,13 @@ export class CompletionItem {
 		readonly provider: modes.CompletionItemProvider,
 		model: ITextModel
 	) {
+		this.textLabel = typeof completion.label === 'string'
+			? completion.label
+			: completion.label.name;
+
 		// ensure lower-variants (perf)
-		this.labelLow = completion.label.toLowerCase();
+		this.labelLow = this.textLabel.toLowerCase();
+
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
 
@@ -74,14 +83,14 @@ export class CompletionItem {
 		const { resolveCompletionItem } = provider;
 		if (typeof resolveCompletionItem !== 'function') {
 			this.resolve = () => Promise.resolve();
+			this.isResolved = true;
 		} else {
 			let cached: Promise<void> | undefined;
 			this.resolve = (token) => {
 				if (!cached) {
-					let isDone = false;
 					cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, completion, token)).then(value => {
 						assign(completion, value);
-						isDone = true;
+						this.isResolved = true;
 					}, err => {
 						if (isPromiseCanceledError(err)) {
 							// the IPC queue will reject the request with the
@@ -90,7 +99,7 @@ export class CompletionItem {
 						}
 					});
 					token.onCancellationRequested(() => {
-						if (!isDone) {
+						if (!this.isResolved) {
 							// cancellation after the request has been
 							// dispatched -> reset cache
 							cached = undefined;
@@ -183,7 +192,7 @@ export function provideSuggestionItems(
 							}
 							// fill in default sortText when missing
 							if (!suggestion.sortText) {
-								suggestion.sortText = suggestion.label;
+								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));

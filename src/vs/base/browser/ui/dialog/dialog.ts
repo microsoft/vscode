@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, addClasses, removeNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -46,6 +46,7 @@ interface ButtonMapEntry {
 
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
+	private shadowElement: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
 	private buttonsContainer: HTMLElement | undefined;
 	private messageDetailElement: HTMLElement | undefined;
@@ -60,8 +61,9 @@ export class Dialog extends Disposable {
 
 	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
-		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
-		this.element = this.modal.appendChild($('.dialog-box'));
+		this.modal = this.container.appendChild($(`.monaco-dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
+		this.shadowElement = this.modal.appendChild($('.dialog-shadow'));
+		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		hide(this.element);
 
 		// If no button is provided, default to OK
@@ -75,7 +77,8 @@ export class Dialog extends Disposable {
 
 		if (this.options.detail) {
 			const messageElement = messageContainer.appendChild($('.dialog-message'));
-			messageElement.innerText = this.message;
+			const messageTextElement = messageElement.appendChild($('.dialog-message-text'));
+			messageTextElement.innerText = this.message;
 		}
 
 		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
@@ -199,29 +202,30 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			removeClasses(this.iconElement, 'icon-error', 'icon-warning', 'icon-info');
+			addClass(this.iconElement, 'codicon');
+			removeClasses(this.iconElement, 'codicon-alert', 'codicon-warning', 'codicon-info');
 
 			switch (this.options.type) {
 				case 'error':
-					addClass(this.iconElement, 'icon-error');
+					addClass(this.iconElement, 'codicon-error');
 					break;
 				case 'warning':
-					addClass(this.iconElement, 'icon-warning');
+					addClass(this.iconElement, 'codicon-warning');
 					break;
 				case 'pending':
-					addClass(this.iconElement, 'icon-pending');
+					addClasses(this.iconElement, 'codicon-loading', 'codicon-animation-spin');
 					break;
 				case 'none':
 				case 'info':
 				case 'question':
 				default:
-					addClass(this.iconElement, 'icon-info');
+					addClass(this.iconElement, 'codicon-info');
 					break;
 			}
 
 			const actionBar = new ActionBar(this.toolbarContainer, {});
 
-			const action = new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), 'dialog-close-action', true, () => {
+			const action = new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), 'codicon codicon-close', true, () => {
 				resolve({ button: this.options.cancelId || 0, checkboxChecked: this.checkbox ? this.checkbox.checked : undefined });
 				return Promise.resolve();
 			});
@@ -247,10 +251,13 @@ export class Dialog extends Disposable {
 			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
 			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
+			if (this.shadowElement) {
+				this.shadowElement.style.boxShadow = shadowColor;
+			}
+
 			if (this.element) {
 				this.element.style.color = fgColor;
 				this.element.style.backgroundColor = bgColor;
-				this.element.style.boxShadow = shadowColor;
 				this.element.style.border = border;
 
 				if (this.buttonGroup) {

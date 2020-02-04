@@ -34,12 +34,17 @@ class CommandOpener implements IOpener {
 		// execute as command
 		let args: any = [];
 		try {
-			args = parse(target.query);
-			if (!Array.isArray(args)) {
-				args = [args];
+			args = parse(decodeURIComponent(target.query));
+		} catch {
+			// ignore and retry
+			try {
+				args = parse(target.query);
+			} catch {
+				// ignore error
 			}
-		} catch (e) {
-			// ignore error
+		}
+		if (!Array.isArray(args)) {
+			args = [args];
 		}
 		await this._commandService.executeCommand(target.path, ...args);
 		return true;

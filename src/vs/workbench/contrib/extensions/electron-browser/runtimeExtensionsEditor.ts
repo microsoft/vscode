@@ -38,13 +38,15 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { escape } from 'vs/base/common/strings';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -364,31 +366,31 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span');
-					el.innerHTML = renderCodicons(` $(alert) Unresponsive`);
+					el.innerHTML = renderCodicons(escape(` $(alert) Unresponsive`));
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
 					data.msgContainer.appendChild(el);
 				}
 
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					const el = $('span');
-					el.innerHTML = renderCodicons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`);
+					el.innerHTML = renderCodicons(escape(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
 					const el = $('span');
-					el.innerHTML = renderCodicons(`$(alert) ${element.status.messages[0].message}`);
+					el.innerHTML = renderCodicons(escape(`$(alert) ${element.status.messages[0].message}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.description.extensionLocation.scheme !== 'file') {
 					const el = $('span');
-					el.innerHTML = renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`);
+					el.innerHTML = renderCodicons(escape(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
 					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
-						el.innerHTML = renderCodicons(`$(remote) ${hostLabel}`);
+						el.innerHTML = renderCodicons(escape(`$(remote) ${hostLabel}`));
 					}
 				}
 
@@ -410,7 +412,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			parent, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: editorBackground
+			}
 		});
 
 		this._list.splice(0, this._list.length, this._elements || undefined);

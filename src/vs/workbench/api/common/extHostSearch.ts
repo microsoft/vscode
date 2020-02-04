@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostSearchShape, MainThreadSearchShape, MainContext } from '../common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { FileSearchManager } from 'vs/workbench/services/search/common/fileSearchManager';

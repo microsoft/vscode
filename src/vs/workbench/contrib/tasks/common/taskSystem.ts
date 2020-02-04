@@ -139,4 +139,5 @@ export interface ITaskSystem {
 	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
+	isTaskVisible(task: Task): boolean;
 }

@@ -1055,6 +1055,31 @@ export class RenameTerminalAction extends Action {
 		});
 	}
 }
+export class RenameWithArgTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_WITH_ARG;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
+
+	public runCommand(
+		accessor: ServicesAccessor,
+		args?: { name?: string }
+	): void {
+		const notificationService = accessor.get(INotificationService);
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+
+		if (!terminalInstance) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
+			return;
+		}
+
+		if (!args || !args.name) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
+			return;
+		}
+
+		terminalInstance.setTitle(args.name, TitleEventSource.Api);
+	}
+}
 
 export class FocusTerminalFindWidgetAction extends Action {
 
@@ -1140,7 +1165,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, quickInputService, terminalService);
-		this.class = 'quick-open-terminal-configure';
+		this.class = 'codicon codicon-gear';
 	}
 
 	public run(): Promise<any> {

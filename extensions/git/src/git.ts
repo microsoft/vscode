@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { promises as fs, exists } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -11,18 +11,16 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
-import { CancellationToken, Progress } from 'vscode';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
+import { CancellationToken, Progress, Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
-
-const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
@@ -45,6 +43,15 @@ interface MutableRemote extends Remote {
 	fetchUrl?: string;
 	pushUrl?: string;
 	isReadOnly: boolean;
+}
+
+// TODO[ECA]: Move to git.d.ts once we are good with the api
+/**
+ * Log file options.
+ */
+export interface LogFileOptions {
+	/** Max number of log entries to retrieve. If not specified, the default is 32. */
+	readonly maxEntries?: number;
 }
 
 function parseVersion(raw: string): string {
@@ -320,7 +327,13 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
-const COMMIT_FORMAT = '%H\n%ae\n%P\n%B';
+// https://github.com/microsoft/vscode/issues/89373
+// https://github.com/git-for-windows/git/issues/2478
+function sanitizePath(path: string): string {
+	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
+}
+
+const COMMIT_FORMAT = '%H\n%aN\n%aE\n%at\n%P\n%B';
 
 export class Git {
 
@@ -350,7 +363,7 @@ export class Git {
 		let folderPath = path.join(parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => fs.exists(folderPath, c))) {
+		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
 			folderName = `${baseFolderName}-${count++}`;
 			folderPath = path.join(parentPath, folderName);
 		}
@@ -489,6 +502,10 @@ export class Git {
 			LANG: 'en_US.UTF-8'
 		});
 
+		if (options.cwd) {
+			options.cwd = sanitizePath(options.cwd);
+		}
+
 		if (options.log !== false) {
 			this.log(`> git ${args.join(' ')}\n`);
 		}
@@ -505,7 +522,9 @@ export interface Commit {
 	hash: string;
 	message: string;
 	parents: string[];
-	authorEmail?: string | undefined;
+	authorDate?: Date;
+	authorName?: string;
+	authorEmail?: string;
 }
 
 export class GitStatusParser {
@@ -636,14 +655,43 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-export function parseGitCommit(raw: string): Commit | null {
-	const match = /^([0-9a-f]{40})\n(.*)\n(.*)(\n([^]*))?$/m.exec(raw.trim());
-	if (!match) {
-		return null;
-	}
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
-	const parents = match[3] ? match[3].split(' ') : [];
-	return { hash: match[1], message: match[5], parents, authorEmail: match[2] };
+export function parseGitCommits(data: string): Commit[] {
+	let commits: Commit[] = [];
+
+	let ref;
+	let name;
+	let email;
+	let date;
+	let parents;
+	let message;
+	let match;
+
+	do {
+		match = commitRegex.exec(data);
+		if (match === null) {
+			break;
+		}
+
+		[, ref, name, email, date, parents, message] = match;
+
+		if (message[message.length - 1] === '\n') {
+			message = message.substr(0, message.length - 1);
+		}
+
+		// Stop excessive memory usage by using substr -- https://bugs.chromium.org/p/v8/issues/detail?id=2869
+		commits.push({
+			hash: ` ${ref}`.substr(1),
+			message: ` ${message}`.substr(1),
+			parents: parents ? parents.split(' ') : [],
+			authorDate: new Date(Number(date) * 1000),
+			authorName: ` ${name}`.substr(1),
+			authorEmail: ` ${email}`.substr(1)
+		});
+	} while (true);
+
+	return commits;
 }
 
 interface LsTreeElement {
@@ -675,14 +723,6 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
-}
-
-export interface CommitOptions {
-	all?: boolean | 'tracked';
-	amend?: boolean;
-	signoff?: boolean;
-	signCommit?: boolean;
-	empty?: boolean;
 }
 
 export interface PullOptions {
@@ -762,37 +802,28 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
-		const args = ['log', '-' + maxEntries, `--pretty=format:${COMMIT_FORMAT}%x00%x00`];
-		const gitResult = await this.run(args);
-		if (gitResult.exitCode) {
-			// An empty repo.
+		const args = ['log', '-' + maxEntries, `--format:${COMMIT_FORMAT}`, '-z'];
+
+		const result = await this.run(args);
+		if (result.exitCode) {
+			// An empty repo
 			return [];
 		}
 
-		const s = gitResult.stdout;
-		const result: Commit[] = [];
-		let index = 0;
-		while (index < s.length) {
-			let nextIndex = s.indexOf('\x00\x00', index);
-			if (nextIndex === -1) {
-				nextIndex = s.length;
-			}
+		return parseGitCommits(result.stdout);
+	}
 
-			let entry = s.substr(index, nextIndex - index);
-			if (entry.startsWith('\n')) {
-				entry = entry.substring(1);
-			}
+	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+		const maxEntries = options?.maxEntries ?? 32;
+		const args = ['log', `-${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
 
-			const commit = parseGitCommit(entry);
-			if (!commit) {
-				break;
-			}
-
-			result.push(commit);
-			index = nextIndex + 2;
+		const result = await this.run(args);
+		if (result.exitCode) {
+			// No file history, e.g. a new file or untracked
+			return [];
 		}
 
-		return result;
+		return parseGitCommits(result.stdout);
 	}
 
 	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
@@ -858,12 +889,12 @@ export class Repository {
 	}
 
 	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
 		return parseLsTree(stdout);
 	}
 
 	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+		const { stdout } = await this.run(['ls-files', '--stage', '--', sanitizePath(path)]);
 		return parseLsFiles(stdout);
 	}
 
@@ -957,7 +988,7 @@ export class Repository {
 			return await this.diffFiles(false);
 		}
 
-		const args = ['diff', '--', path];
+		const args = ['diff', '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -970,7 +1001,7 @@ export class Repository {
 			return await this.diffFiles(false, ref);
 		}
 
-		const args = ['diff', ref, '--', path];
+		const args = ['diff', ref, '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -983,7 +1014,7 @@ export class Repository {
 			return await this.diffFiles(true);
 		}
 
-		const args = ['diff', '--cached', '--', path];
+		const args = ['diff', '--cached', '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -996,7 +1027,7 @@ export class Repository {
 			return await this.diffFiles(true, ref);
 		}
 
-		const args = ['diff', '--cached', ref, '--', path];
+		const args = ['diff', '--cached', ref, '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1016,7 +1047,7 @@ export class Repository {
 			return await this.diffFiles(false, range);
 		}
 
-		const args = ['diff', range, '--', path];
+		const args = ['diff', range, '--', sanitizePath(path)];
 		const result = await this.run(args);
 
 		return result.stdout.trim();
@@ -1129,7 +1160,7 @@ export class Repository {
 		args.push('--');
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths);
+			args.push.apply(args, paths.map(sanitizePath));
 		} else {
 			args.push('.');
 		}
@@ -1144,13 +1175,13 @@ export class Repository {
 			return;
 		}
 
-		args.push(...paths);
+		args.push(...paths.map(sanitizePath));
 
 		await this.run(args);
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
 		child.stdin!.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -1163,11 +1194,12 @@ export class Repository {
 			});
 		}
 
+		const treeish = await this.getCommit('HEAD').then(() => 'HEAD', () => '');
 		let mode: string;
 		let add: string = '';
 
 		try {
-			const details = await this.getObjectDetails('HEAD', path);
+			const details = await this.getObjectDetails(treeish, path);
 			mode = details.mode;
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
@@ -1194,7 +1226,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 					await this.run([...args, '--', ...chunk]);
 				}
 			} else {
@@ -1333,7 +1365,7 @@ export class Repository {
 	}
 
 	async clean(paths: string[]): Promise<void> {
-		const pathsByGroup = groupBy(paths, p => path.dirname(p));
+		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
 		const limiter = new Limiter(5);
@@ -1379,7 +1411,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths);
+			args.push.apply(args, paths.map(sanitizePath));
 		} else {
 			args.push('.');
 		}
@@ -1530,11 +1562,8 @@ export class Repository {
 
 	async blame(path: string): Promise<string> {
 		try {
-			const args = ['blame'];
-			args.push(path);
-
-			let result = await this.run(args);
-
+			const args = ['blame', sanitizePath(path)];
+			const result = await this.run(args);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: no such path/.test(err.stderr || '')) {
@@ -1812,26 +1841,17 @@ export class Repository {
 		}
 	}
 
-	cleanupCommitEditMessage(message: string): string {
-		// If the message is a single line starting with whitespace followed by `#`, just allow it.
-		if (/^\s*#[^\n]*$/.test(message)) {
-			return message;
-		}
-
-		// Else, remove all lines starting with whitespace followed by `#`.
-		// TODO: Support core.commentChar
-		return message.replace(/^(\s*#)(.*)$(\n?)/gm, (_, prefix, content, suffix) => {
-			// https://github.com/microsoft/vscode/issues/84201#issuecomment-552834814
-			return /^\d/.test(content) ? `${prefix}${content}${suffix}` : '';
-		}).trim();
+	// TODO: Support core.commentChar
+	stripCommitMessageComments(message: string): string {
+		return message.replace(/^\s*#.*$\n?/gm, '').trim();
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {
 		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
 
 		try {
-			const raw = await readfile(mergeMsgPath, 'utf8');
-			return raw.trim();
+			const raw = await fs.readFile(mergeMsgPath, 'utf8');
+			return this.stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -1854,23 +1874,26 @@ export class Repository {
 				templatePath = path.join(this.repositoryRoot, templatePath);
 			}
 
-			const raw = await readfile(templatePath, 'utf8');
-			return raw.trim();
-
+			const raw = await fs.readFile(templatePath, 'utf8');
+			return this.stripCommitMessageComments(raw);
 		} catch (err) {
 			return '';
 		}
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.run(['show', '-s', `--format=${COMMIT_FORMAT}`, ref]);
-		return parseGitCommit(result.stdout) || Promise.reject<Commit>('bad commit format');
+		const result = await this.run(['show', '-s', `--format=${COMMIT_FORMAT}`, '-z', ref]);
+		const commits = parseGitCommits(result.stdout);
+		if (commits.length === 0) {
+			return Promise.reject<Commit>('bad commit format');
+		}
+		return commits[0];
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
 		const args = ['submodule', 'update', '--'];
 
-		for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 			await this.run([...args, ...chunk]);
 		}
 	}
@@ -1879,7 +1902,7 @@ export class Repository {
 		const gitmodulesPath = path.join(this.root, '.gitmodules');
 
 		try {
-			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			const gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
 			return parseGitmodules(gitmodulesRaw);
 		} catch (err) {
 			if (/ENOENT/.test(err.message)) {

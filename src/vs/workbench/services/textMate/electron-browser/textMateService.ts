@@ -206,18 +206,18 @@ export class TextMateService extends AbstractTextMateService {
 					return;
 				}
 				this._workerProxy = proxy;
-				if (this._currentTheme) {
-					this._workerProxy.acceptTheme(this._currentTheme);
+				if (this._currentTheme && this._currentTokenColorMap) {
+					this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
 				}
 				this._modelService.getModels().forEach((model) => this._onModelAdded(model));
 			});
 		}
 	}
 
-	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
-		super._doUpdateTheme(grammarFactory, theme);
-		if (this._currentTheme && this._workerProxy) {
-			this._workerProxy.acceptTheme(this._currentTheme);
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, colorMap: string[]): void {
+		super._doUpdateTheme(grammarFactory, theme, colorMap);
+		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
+			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
 	}
 

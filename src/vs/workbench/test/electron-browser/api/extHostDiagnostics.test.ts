@@ -33,8 +33,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => collection.name);
 		assert.throws(() => collection.clear());
 		assert.throws(() => collection.delete(URI.parse('aa:bb')));
-		// tslint:disable-next-line:semicolon
-		assert.throws(() => collection.forEach(() => { ; }));
+		assert.throws(() => collection.forEach(() => { }));
 		assert.throws(() => collection.get(URI.parse('aa:bb')));
 		assert.throws(() => collection.has(URI.parse('aa:bb')));
 		assert.throws(() => collection.set(URI.parse('aa:bb'), []));
@@ -97,10 +96,10 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => array.pop());
 		assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 
-		collection.forEach((uri, array: Diagnostic[]) => {
-			assert.throws(() => array.length = 0);
-			assert.throws(() => array.pop());
-			assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
+		collection.forEach((uri, array: readonly Diagnostic[]) => {
+			assert.throws(() => (array as Diagnostic[]).length = 0);
+			assert.throws(() => (array as Diagnostic[]).pop());
+			assert.throws(() => (array as Diagnostic[])[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 		});
 
 		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];

@@ -844,7 +844,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		// sanitize feedback list
-		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort();
+		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort((a, b) => a - b);
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
 		if (equalsDragFeedback(this.currentDragFeedback, feedback)) {
@@ -856,7 +856,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (feedback[0] === -1) { // entire list feedback
 			DOM.addClass(this.domNode, 'drop-target');
-			this.currentDragFeedbackDisposable = toDisposable(() => DOM.removeClass(this.domNode, 'drop-target'));
+			DOM.addClass(this.rowsContainer, 'drop-target');
+			this.currentDragFeedbackDisposable = toDisposable(() => {
+				DOM.removeClass(this.domNode, 'drop-target');
+				DOM.removeClass(this.rowsContainer, 'drop-target');
+			});
 		} else {
 			for (const index of feedback) {
 				const item = this.items[index]!;

@@ -19,7 +19,7 @@ export const BrowserFeatures = {
 	clipboard: {
 		writeText: (
 			platform.isNative
-			|| document.queryCommandSupported('copy')
+			|| (document.queryCommandSupported && document.queryCommandSupported('copy'))
 			|| !!(navigator && navigator.clipboard && navigator.clipboard.writeText)
 		),
 		readText: (

@@ -85,7 +85,7 @@ export class ReleaseNotesManager {
 				},
 				undefined);
 
-			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(uri));
+			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
 			this._currentReleaseNotes.onDispose(() => { this._currentReleaseNotes = undefined; });
 
 			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));

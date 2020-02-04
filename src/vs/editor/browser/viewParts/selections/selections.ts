@@ -369,7 +369,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	private _previousFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
 	public prepareRender(ctx: RenderingContext): void {
 
-		// Build HTML for inner corners separate from HTML for the the rest of selections,
+		// Build HTML for inner corners separate from HTML for the rest of selections,
 		// as the inner corner HTML can interfere with that of other selections.
 		// In final render, make sure to place the inner corner HTML before the rest of selection HTML. See issue #77777.
 		const output: [string, string][] = [];

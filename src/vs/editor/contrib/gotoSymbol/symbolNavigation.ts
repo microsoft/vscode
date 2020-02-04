@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ReferencesModel, OneReference } from 'vs/editor/contrib/gotoSymbol/referencesModel';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -155,10 +155,7 @@ registerEditorCommand(new class extends EditorCommand {
 	constructor() {
 		super({
 			id: 'editor.gotoNextSymbolFromResult',
-			precondition: ContextKeyExpr.and(
-				ctxHasSymbols,
-				ContextKeyExpr.equals('config.editor.gotoLocation.multiple', 'goto')
-			),
+			precondition: ctxHasSymbols,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.F12

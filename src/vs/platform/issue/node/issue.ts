@@ -32,6 +32,8 @@ export interface IssueReporterStyles extends WindowStyles {
 	inputForeground?: string;
 	inputBorder?: string;
 	inputErrorBorder?: string;
+	inputErrorBackground?: string;
+	inputErrorForeground?: string;
 	inputActiveBorder?: string;
 	buttonBackground?: string;
 	buttonForeground?: string;

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from './dispose';
 import * as nls from 'vscode-nls';
+import { PreviewStatusBarEntry } from './ownedStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
@@ -36,35 +36,22 @@ class BinarySize {
 	}
 }
 
-export class BinarySizeStatusBarEntry extends Disposable {
-	private readonly _entry: vscode.StatusBarItem;
-
-	private _showingOwner: string | undefined;
+export class BinarySizeStatusBarEntry extends PreviewStatusBarEntry {
 
 	constructor() {
-		super();
-		this._entry = this._register(vscode.window.createStatusBarItem({
+		super({
 			id: 'imagePreview.binarySize',
 			name: localize('sizeStatusBar.name', "Image Binary Size"),
 			alignment: vscode.StatusBarAlignment.Right,
 			priority: 100,
-		}));
+		});
 	}
 
 	public show(owner: string, size: number | undefined) {
-		this._showingOwner = owner;
 		if (typeof size === 'number') {
-			this._entry.text = BinarySize.formatSize(size);
-			this._entry.show();
+			super.showItem(owner, BinarySize.formatSize(size));
 		} else {
 			this.hide(owner);
-		}
-	}
-
-	public hide(owner: string) {
-		if (owner === this._showingOwner) {
-			this._entry.hide();
-			this._showingOwner = undefined;
 		}
 	}
 }

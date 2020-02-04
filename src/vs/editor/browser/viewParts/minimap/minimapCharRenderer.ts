@@ -32,6 +32,7 @@ export class MinimapCharRenderer {
 		chCode: number,
 		color: RGBA8,
 		backgroundColor: RGBA8,
+		fontScale: number,
 		useLighterFont: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
@@ -42,7 +43,7 @@ export class MinimapCharRenderer {
 		}
 
 		const charData = useLighterFont ? this.charDataLight : this.charDataNormal;
-		const charIndex = getCharIndex(chCode);
+		const charIndex = getCharIndex(chCode, fontScale);
 
 		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { merge, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
+import { mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 
 suite('Configuration', () => {
 
@@ -102,6 +103,45 @@ suite('Configuration', () => {
 		removeFromValueTree(target, 'a.b.c');
 
 		assert.deepEqual(target, { 'a': { 'b': { 'd': 1 } } });
+	});
+
+});
+
+suite('Configuration Changes: Merge', () => {
+
+	test('merge only keys', () => {
+		const actual = mergeChanges({ keys: ['a', 'b'], overrides: [] }, { keys: ['c', 'd'], overrides: [] });
+		assert.deepEqual(actual, { keys: ['a', 'b', 'c', 'd'], overrides: [] });
+	});
+
+	test('merge only keys with duplicates', () => {
+		const actual = mergeChanges({ keys: ['a', 'b'], overrides: [] }, { keys: ['c', 'd'], overrides: [] }, { keys: ['a', 'd', 'e'], overrides: [] });
+		assert.deepEqual(actual, { keys: ['a', 'b', 'c', 'd', 'e'], overrides: [] });
+	});
+
+	test('merge only overrides', () => {
+		const actual = mergeChanges({ keys: [], overrides: [['a', ['1', '2']]] }, { keys: [], overrides: [['b', ['3', '4']]] });
+		assert.deepEqual(actual, { keys: [], overrides: [['a', ['1', '2']], ['b', ['3', '4']]] });
+	});
+
+	test('merge only overrides with duplicates', () => {
+		const actual = mergeChanges({ keys: [], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] }, { keys: [], overrides: [['b', ['3', '4']]] }, { keys: [], overrides: [['c', ['1', '4']], ['a', ['2', '3']]] });
+		assert.deepEqual(actual, { keys: [], overrides: [['a', ['1', '2', '3']], ['b', ['5', '4', '3']], ['c', ['1', '4']]] });
+	});
+
+	test('merge', () => {
+		const actual = mergeChanges({ keys: ['b', 'b'], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] }, { keys: ['b'], overrides: [['b', ['3', '4']]] }, { keys: ['c', 'a'], overrides: [['c', ['1', '4']], ['a', ['2', '3']]] });
+		assert.deepEqual(actual, { keys: ['b', 'c', 'a'], overrides: [['a', ['1', '2', '3']], ['b', ['5', '4', '3']], ['c', ['1', '4']]] });
+	});
+
+	test('merge single change', () => {
+		const actual = mergeChanges({ keys: ['b', 'b'], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] });
+		assert.deepEqual(actual, { keys: ['b', 'b'], overrides: [['a', ['1', '2']], ['b', ['5', '4']]] });
+	});
+
+	test('merge no changes', () => {
+		const actual = mergeChanges();
+		assert.deepEqual(actual, { keys: [], overrides: [] });
 	});
 
 });

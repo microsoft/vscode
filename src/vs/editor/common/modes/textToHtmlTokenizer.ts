@@ -46,7 +46,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
-						partContent += useNbsp ? '&nbsp;' : ' ';
+						partContent += useNbsp ? '&#160;' : ' ';
 						insertSpacesCount--;
 					}
 					break;
@@ -78,7 +78,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.Space:
-					partContent += useNbsp ? '&nbsp;' : ' ';
+					partContent += useNbsp ? '&#160;' : ' ';
 					break;
 
 				default:

@@ -19,6 +19,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -34,9 +35,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IFileService fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@IModeService modeService: IModeService
 	) {
-		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService, dialogService);
+		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService, dialogService, modeService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
@@ -107,8 +109,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.electronService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
+		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
@@ -184,14 +187,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
-	async showSaveConfirm(fileNameOrResources: string | URI[]): Promise<ConfirmResult> {
+	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			if (!this.environmentService.args['extension-development-confirm-save']) {
 				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 			}
 		}
 
-		return super.showSaveConfirm(fileNameOrResources);
+		return super.showSaveConfirm(fileNamesOrResources);
 	}
 }
 

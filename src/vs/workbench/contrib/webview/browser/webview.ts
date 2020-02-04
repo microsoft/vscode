@@ -24,6 +24,11 @@ export const webviewHasOwnEditFunctionsContext = new RawContextKey<boolean>(webv
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
+export interface WebviewIcons {
+	readonly light: URI;
+	readonly dark: URI;
+}
+
 /**
  * Handles the creation of webview elements.
  */
@@ -41,6 +46,8 @@ export interface IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 	): WebviewEditorOverlay;
+
+	setIcons(id: string, value: WebviewIcons | undefined): void;
 }
 
 export interface WebviewOptions {
@@ -71,7 +78,7 @@ export interface Webview extends IDisposable {
 	state: string | undefined;
 
 	readonly onDidFocus: Event<void>;
-	readonly onDidClickLink: Event<URI>;
+	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onMessage: Event<any>;

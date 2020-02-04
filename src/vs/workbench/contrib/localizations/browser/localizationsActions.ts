@@ -13,7 +13,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -60,7 +60,8 @@ export class ConfigureLocaleAction extends Action {
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
 				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-					.then((viewlet: IExtensionsViewlet) => {
+					.then(viewlet => viewlet?.getViewPaneContainer())
+					.then((viewlet: IExtensionsViewPaneContainer) => {
 						viewlet.search('@category:"language packs"');
 						viewlet.focus();
 					});

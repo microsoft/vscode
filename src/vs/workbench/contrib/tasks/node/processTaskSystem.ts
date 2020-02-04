@@ -82,6 +82,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return !!this.childProcess;
 	}
 
+	public isTaskVisible(): boolean {
+		return true;
+	}
+
 	public getActiveTasks(): Task[] {
 		let result: Task[] = [];
 		if (this.activeTask) {
@@ -91,7 +95,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	public getBusyTasks(): Task[] {
-		return this.getActiveTasks();
+		return [];
 	}
 
 	public run(task: Task): ITaskExecuteResult {

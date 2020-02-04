@@ -11,7 +11,7 @@ import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel } from 'vs/b
 
 // Exported only for test reasons, do not use directly
 export interface ICompressedTreeElement<T> extends ITreeElement<T> {
-	readonly children?: Iterator<ICompressedTreeElement<T>> | ICompressedTreeElement<T>[];
+	readonly children?: ISequence<ICompressedTreeElement<T>>;
 	readonly incompressible?: boolean;
 }
 
@@ -138,7 +138,6 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		element: T | null,
 		children: ISequence<ICompressedTreeElement<T>> | undefined
 	): void {
-
 		if (element === null) {
 			const compressedChildren = Iterator.map(Iterator.from(children), this.enabled ? compress : noCompress);
 			this._setChildren(null, compressedChildren);
@@ -204,6 +203,10 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		};
 
 		this.model.setChildren(node, children, _onDidCreateNode, _onDidDeleteNode);
+	}
+
+	has(element: T | null): boolean {
+		return this.nodes.has(element);
 	}
 
 	getListIndex(location: T | null): number {
@@ -420,6 +423,10 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	setCompressionEnabled(enabled: boolean): void {
 		this.model.setCompressionEnabled(enabled);
+	}
+
+	has(location: T | null): boolean {
+		return this.model.has(location);
 	}
 
 	getListIndex(location: T | null): number {

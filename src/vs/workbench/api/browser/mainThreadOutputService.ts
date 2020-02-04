@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID } from 'vs/workbench/contrib/output/common/output';
+import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';

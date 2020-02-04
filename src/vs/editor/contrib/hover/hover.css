@@ -29,6 +29,10 @@
 	word-wrap: break-word;
 }
 
+.monaco-editor-hover .markdown-hover > .hover-contents:not(.code-hover-contents) hr {
+	min-width: 100vw;
+}
+
 .monaco-editor-hover p,
 .monaco-editor-hover ul {
 	margin: 8px 0;
@@ -99,4 +103,27 @@
 
 .monaco-editor-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
+}
+
+.monaco-editor-hover .markdown-hover .hover-contents .codicon {
+	color: inherit;
+	font-size: inherit;
+	vertical-align: middle;
+}
+
+.monaco-editor-hover .hover-contents a.code-link:before {
+	content: '(';
+}
+.monaco-editor-hover .hover-contents a.code-link:after {
+	content: ')';
+}
+
+.monaco-editor-hover .hover-contents a.code-link {
+	color: inherit;
+}
+.monaco-editor-hover .hover-contents a.code-link > span {
+	text-decoration: underline;
+	/** Hack to force underline to show **/
+	border-bottom: 1px solid transparent;
+	text-underline-position: under;
 }

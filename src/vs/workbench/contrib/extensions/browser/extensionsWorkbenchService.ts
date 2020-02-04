@@ -16,7 +16,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -319,7 +319,7 @@ class Extensions extends Disposable {
 		private readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -496,7 +496,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IURLService urlService: IURLService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IHostService private readonly hostService: IHostService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -508,12 +508,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(Event.filter(this.localExtensions.onChange, e => !!e && e.operation === InstallOperation.Install)(e => this.onDidInstallExtension(e!.extension)));
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(Event.filter(this.remoteExtensions.onChange, e => !!e && e.operation === InstallOperation.Install)(e => this.onDidInstallExtension(e!.extension)));
 		}
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
@@ -886,10 +884,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.installing = this.installing.filter(e => e !== extension);
 			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
 		}
-	}
-
-	private onDidInstallExtension(extension: IExtension): void {
-		this.setEnablement(extension, EnablementState.EnabledGlobally);
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {

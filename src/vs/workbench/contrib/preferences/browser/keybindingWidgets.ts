@@ -188,7 +188,7 @@ export class DefineKeybindingWidget extends Widget {
 			if (colors.editorWidgetForeground) {
 				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
 			} else {
-				this._domNode.domNode.style.color = null;
+				this._domNode.domNode.style.color = '';
 			}
 
 			if (colors.widgetShadow) {

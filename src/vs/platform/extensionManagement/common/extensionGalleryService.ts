@@ -580,7 +580,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (extension.assets.manifest) {
 			return this.getAsset(extension.assets.manifest, {}, token)
 				.then(asText)
-				.then(JSON.parse);
+				.then(text => text ? JSON.parse(text) : null);
 		}
 		return Promise.resolve(null);
 	}
@@ -590,7 +590,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (asset) {
 			return this.getAsset(asset[1])
 				.then(asText)
-				.then(JSON.parse);
+				.then(text => text ? JSON.parse(text) : null);
 		}
 		return Promise.resolve(null);
 	}

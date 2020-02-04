@@ -49,7 +49,7 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 					loader: 'ts-loader',
 					options: {
 						compilerOptions: {
-							"sourceMap": true,
+							'sourceMap': true,
 						}
 					}
 				}]
@@ -63,7 +63,7 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 			// packaging depends on that and this must always be like it
 			filename: '[name].js',
 			path: path.join(extConfig.context, 'dist'),
-			libraryTarget: "commonjs",
+			libraryTarget: 'commonjs',
 		},
 		// yes, really source maps
 		devtool: 'source-map',

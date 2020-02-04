@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -134,19 +134,6 @@ export const enum GroupsOrder {
 	GRID_APPEARANCE
 }
 
-export const enum EditorsOrder {
-
-	/**
-	 * Editors sorted by most recent activity (most recent active first)
-	 */
-	MOST_RECENTLY_ACTIVE,
-
-	/**
-	 * Editors sorted by sequential order
-	 */
-	SEQUENTIAL
-}
-
 export interface IEditorGroupsService {
 
 	_serviceBrand: undefined;
@@ -224,11 +211,11 @@ export interface IEditorGroupsService {
 	readonly willRestoreEditors: boolean;
 
 	/**
-	 * Get all groups that are currently visible in the editor area optionally
-	 * sorted by being most recent active or grid order. Will sort by creation
-	 * time by default (oldest group first).
+	 * Get all groups that are currently visible in the editor area.
+	 *
+	 * @param order the order of the editors to use
 	 */
-	getGroups(order?: GroupsOrder): ReadonlyArray<IEditorGroup>;
+	getGroups(order: GroupsOrder): ReadonlyArray<IEditorGroup>;
 
 	/**
 	 * Allows to convert a group identifier to a group.
@@ -345,6 +332,11 @@ export interface IEditorGroupsService {
 	readonly partOptions: IEditorPartOptions;
 
 	/**
+	 * An event that notifies when editor part options change.
+	 */
+	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+
+	/**
 	 * Enforce editor part options temporarily.
 	 */
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
@@ -380,6 +372,11 @@ export interface IEditorGroup {
 	readonly onDidGroupChange: Event<IGroupChangeEvent>;
 
 	/**
+	 * An event that is fired when the group gets disposed.
+	 */
+	readonly onWillDispose: Event<void>;
+
+	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
@@ -399,6 +396,11 @@ export interface IEditorGroup {
 	 * `onDidGroupChange` event to react to that.
 	 */
 	readonly label: string;
+
+	/**
+	 * A human readable label for the group to be used by screen readers.
+	 */
+	readonly ariaLabel: string;
 
 	/**
 	 * The active control is the currently visible control of the group.
@@ -423,16 +425,16 @@ export interface IEditorGroup {
 	readonly count: number;
 
 	/**
-	 * All opened editors in the group. There can only be one editor active.
+	 * All opened editors in the group in sequential order of their appearance.
 	 */
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
-	 * Get all editors that are currently opened in the group optionally
-	 * sorted by being most recent active. Will sort by sequential appearance
-	 * by default (from left to right).
+	 * Get all editors that are currently opened in the group.
+	 *
+	 * @param order the order of the editors to use
 	 */
-	getEditors(order?: EditorsOrder): ReadonlyArray<IEditorInput>;
+	getEditors(order: EditorsOrder): ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

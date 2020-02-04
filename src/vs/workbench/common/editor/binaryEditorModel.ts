@@ -6,8 +6,6 @@
 import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { DataUri } from 'vs/base/common/resources';
 import { MIME_BINARY } from 'vs/base/common/mime';
 
 /**
@@ -28,18 +26,6 @@ export class BinaryEditorModel extends EditorModel {
 		this.resource = resource;
 		this.name = name;
 		this.mime = MIME_BINARY;
-
-		if (resource.scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(resource);
-			if (metadata.has(DataUri.META_DATA_SIZE)) {
-				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
-			}
-
-			const metadataMime = metadata.get(DataUri.META_DATA_MIME);
-			if (metadataMime) {
-				this.mime = metadataMime;
-			}
-		}
 	}
 
 	/**

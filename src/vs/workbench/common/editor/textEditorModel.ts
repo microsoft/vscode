@@ -16,7 +16,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
 
 	protected textEditorModelHandle: URI | null = null;
 
@@ -61,7 +61,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
-	abstract isReadonly(): boolean;
+	isReadonly(): boolean {
+		return true;
+	}
 
 	setMode(mode: string): void {
 		if (!this.isResolved()) {
@@ -79,14 +81,14 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 * Creates the text editor model with the provided value, optional preferred mode
 	 * (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): EditorModel {
+	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): ITextModel {
 		const firstLineText = this.getFirstLineText(value);
 		const languageSelection = this.getOrCreateMode(resource, this.modeService, preferredMode, firstLineText);
 
 		return this.doCreateTextEditorModel(value, languageSelection, resource);
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): ITextModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, languageSelection, resource);
@@ -100,7 +102,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		this.textEditorModelHandle = model.uri;
 
-		return this;
+		return model;
 	}
 
 	protected getFirstLineText(value: ITextBufferFactory | ITextModel): string {

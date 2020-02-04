@@ -5,7 +5,7 @@
 
 .monaco-workbench .debug-toolbar {
 	position: absolute;
-	z-index: 200;
+	z-index: 1000;
 	height: 32px;
 	display: flex;
 	padding-left: 7px;
@@ -28,8 +28,10 @@
 	cursor: grab;
 	height: 32px;
 	width: 16px;
-	background: url('drag.svg') center center no-repeat;
-	background-size: 16px 16px;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-workbench .debug-toolbar .drag-area.dragged {

@@ -9,21 +9,22 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, false), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced), expectedLines, expectedSelection);
 }
 
 function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false, false), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced), expectedLines, expectedSelection);
 }
 
 function testMoveLinesDownWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, true, true), expectedLines, expectedSelection);
+	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full), expectedLines, expectedSelection);
 }
 
 function testMoveLinesUpWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, false, true), expectedLines, expectedSelection);
+	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Move Lines Command', () => {

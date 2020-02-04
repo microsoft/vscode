@@ -14,6 +14,7 @@ import { getEditOperation, testCommand } from 'vs/editor/test/browser/testComman
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Create single edit operation
@@ -21,7 +22,8 @@ import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/jav
 export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text
+		text: text,
+		forceMoveMarkers: false
 	};
 }
 
@@ -50,6 +52,7 @@ function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifie
 		indentSize: 4,
 		insertSpaces: false,
 		useTabStops: useTabStops,
+		autoIndent: EditorAutoIndentStrategy.Full,
 	}), expectedLines, expectedSelection);
 }
 
@@ -60,6 +63,7 @@ function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentif
 		indentSize: 4,
 		insertSpaces: false,
 		useTabStops: useTabStops,
+		autoIndent: EditorAutoIndentStrategy.Full,
 	}), expectedLines, expectedSelection);
 }
 
@@ -672,7 +676,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: true,
-				useTabStops: false
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
 			}),
 			[
 				'       Written | Numeric',
@@ -717,7 +722,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: true,
-				useTabStops: false
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
 			}),
 			[
 				'   Written | Numeric',
@@ -762,7 +768,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: false,
-				useTabStops: false
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
 			}),
 			[
 				'   Written | Numeric',
@@ -807,7 +814,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: true,
-				useTabStops: false
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
 			}),
 			[
 				'   Written | Numeric',
@@ -841,7 +849,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: false,
-				useTabStops: true
+				useTabStops: true,
+				autoIndent: EditorAutoIndentStrategy.Full,
 			}),
 			[
 				'\tHello world!',
@@ -951,7 +960,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					tabSize: tabSize,
 					indentSize: indentSize,
 					insertSpaces: insertSpaces,
-					useTabStops: true
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
 				});
 				let actual = getEditOperation(model, op);
 				assert.deepEqual(actual, expected);
@@ -965,7 +975,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					tabSize: tabSize,
 					indentSize: indentSize,
 					insertSpaces: insertSpaces,
-					useTabStops: true
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
 				});
 				let actual = getEditOperation(model, op);
 				assert.deepEqual(actual, expected);

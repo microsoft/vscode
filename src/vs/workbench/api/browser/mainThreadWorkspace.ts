@@ -155,13 +155,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			if (!isPromiseCanceledError(err)) {
 				return Promise.reject(err);
 			}
-			return undefined;
+			return null;
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+		const folder = URI.revive(_folder);
 		const workspace = this._contextService.getWorkspace();
-		const folders = workspace.folders.map(folder => folder.uri);
+		const folders = folder ? [folder] : workspace.folders.map(folder => folder.uri);
 
 		const query = this._queryBuilder.text(pattern, folders, options);
 		query._reason = 'startTextSearch';
@@ -181,7 +182,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 					return Promise.reject(err);
 				}
 
-				return undefined;
+				return null;
 			});
 
 		return search;
@@ -198,14 +199,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		return this._searchService.fileSearch(query, token).then(
 			result => {
-				return result.limitHit;
+				return !!result.limitHit;
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
 					return Promise.reject(err);
 				}
 
-				return undefined;
+				return false;
 			});
 	}
 

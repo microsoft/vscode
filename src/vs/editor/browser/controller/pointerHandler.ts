@@ -202,7 +202,7 @@ export class PointerEventHandler extends MouseHandler {
 
 		this._lastPointerType = 'mouse';
 
-		this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: any) => {
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
 			const pointerType = <any>e.pointerType;
 			if (pointerType === 'mouse') {
 				this._lastPointerType = 'mouse';
@@ -212,7 +212,7 @@ export class PointerEventHandler extends MouseHandler {
 			} else {
 				this._lastPointerType = 'pen';
 			}
-		});
+		}));
 
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
@@ -226,12 +226,30 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private onTap(event: GestureEvent): void {
+		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(<any>event.initialTarget)) {
+			return;
+		}
+
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
-			this.viewController.moveTo(target.position);
+			// this.viewController.moveTo(target.position);
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: target.position.column,
+				startedOnLineNumbers: false,
+				mouseDownCount: event.tapCount,
+				inSelectionMode: false,
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				shiftKey: false,
+
+				leftButton: false,
+				middleButton: false,
+			});
 		}
 	}
 
@@ -242,9 +260,11 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	public _onMouseDown(e: EditorMouseEvent): void {
-		if (this._lastPointerType !== 'touch') {
-			super._onMouseDown(e);
+		if (e.target && this.viewHelper.linesContentDomNode.contains(e.target) && this._lastPointerType === 'touch') {
+			return;
 		}
+
+		super._onMouseDown(e);
 	}
 }
 

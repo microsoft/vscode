@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
@@ -16,7 +16,7 @@ import { ConfigurationDependentRegistration } from '../utils/dependentRegistrati
 import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
@@ -150,17 +150,18 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 				return vscode.CompletionItemKind.Keyword;
 			case PConst.Kind.const:
-				return vscode.CompletionItemKind.Constant;
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 			case PConst.Kind.alias:
+			case PConst.Kind.parameter:
 				return vscode.CompletionItemKind.Variable;
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
 			case PConst.Kind.function:
+			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.constructSignature:
@@ -169,6 +170,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.Method;
 			case PConst.Kind.enum:
 				return vscode.CompletionItemKind.Enum;
+			case PConst.Kind.enumMember:
+				return vscode.CompletionItemKind.EnumMember;
 			case PConst.Kind.module:
 			case PConst.Kind.externalModuleName:
 				return vscode.CompletionItemKind.Module;
@@ -328,7 +331,7 @@ namespace CompletionConfiguration {
 
 class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -402,15 +405,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
 				this.telemetryReporter.logTelemetry('completions.execute', {
-					duration: duration + '',
-					type: response ? response.type : 'unknown',
-					count: (response && response.type === 'response' && response.body ? response.body.entries.length : 0) + ''
+					duration: duration,
+					type: response?.type ?? 'unknown',
+					count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
+					updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
 				});
 			}
 
@@ -454,14 +459,23 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
-		if (context.triggerCharacter === '@'
-			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
-		) {
-			return undefined;
+		switch (context.triggerCharacter) {
+			case '@': // Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
+
+			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
+				return this.client.apiVersion.lt(API.v381) ? undefined : '#' as Proto.CompletionsTriggerCharacter;
+
+			case '.':
+			case '"':
+			case '\'':
+			case '`':
+			case '/':
+			case '<':
+				return context.triggerCharacter;
 		}
 
-		return context.triggerCharacter as Proto.CompletionsTriggerCharacter;
+		return undefined;
 	}
 
 	public async resolveCompletionItem(
@@ -507,7 +521,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 		item.additionalTextEdits = codeAction.additionalTextEdits;
 
-		if (detail && item.useCodeSnippet) {
+		if (item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
 			if (shouldCompleteFunction) {
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
@@ -589,7 +603,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	): boolean {
 		if (this.client.apiVersion.lt(API.v320)) {
 			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
-			// Only enable dot completions when previous character not a dot preceeded by whitespace.
+			// Only enable dot completions when previous character not a dot preceded by whitespace.
 			// Prevents incorrectly completing while typing spread operators.
 			if (position.character > 1) {
 				const preText = document.getText(new vscode.Range(

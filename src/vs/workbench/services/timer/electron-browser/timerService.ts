@@ -17,7 +17,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -414,7 +414,7 @@ class TimerService implements ITimerService {
 			loadavg,
 			initialStartup,
 			isVMLikelyhood,
-			hasAccessibilitySupport: this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled,
+			hasAccessibilitySupport: this._accessibilityService.isScreenReaderOptimized(),
 			emptyWorkbench: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
 		};
 	}

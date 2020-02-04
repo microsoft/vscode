@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Severity from 'vs/base/common/severity';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';

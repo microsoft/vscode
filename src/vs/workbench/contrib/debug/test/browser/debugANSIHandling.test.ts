@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { generateUuid } from 'vs/base/common/uuid';
 import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -30,7 +30,7 @@ suite('Debug - ANSI Handling', () => {
 	 */
 	setup(() => {
 		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
-		session = new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+		session = new DebugSession({ resolved: { name: 'test', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
 
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);

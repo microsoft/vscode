@@ -20,6 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -200,6 +201,9 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				},
 				collapseByDefault: () => {
 					return false;
+				},
+				overrideStyles: {
+					listBackground: PANEL_BACKGROUND
 				}
 			},
 			contextKeyService,
