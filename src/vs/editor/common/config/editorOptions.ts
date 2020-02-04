@@ -551,10 +551,6 @@ export interface IEditorOptions {
 	 */
 	showUnused?: boolean;
 	/**
-	 * Controls whether editors should be focused on hover.
-	 */
-	focusOnHover?: boolean;
-	/**
 	 * Controls whether to focus the inline editor in the peek widget by default.
 	 * Defaults to false.
 	 */
@@ -3160,7 +3156,6 @@ export const enum EditorOption {
 	fastScrollSensitivity,
 	find,
 	fixedOverflowWidgets,
-	focusOnHover,
 	folding,
 	foldingStrategy,
 	foldingHighlight,
@@ -3436,10 +3431,6 @@ export const EditorOptions = {
 	find: register(new EditorFind()),
 	fixedOverflowWidgets: register(new EditorBooleanOption(
 		EditorOption.fixedOverflowWidgets, 'fixedOverflowWidgets', false,
-	)),
-	focusOnHover: register(new EditorBooleanOption(
-		EditorOption.focusOnHover, 'focusOnHover', false,
-		{ description: nls.localize('focusOnHover', "Controls whether editors should be focused when hovered.") }
 	)),
 	folding: register(new EditorBooleanOption(
 		EditorOption.folding, 'folding', true,
