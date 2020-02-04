@@ -5,13 +5,12 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextResourceEditorInput } from 'vs/workbench/common/editor';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, ModelState, LoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IReference } from 'vs/base/common/lifecycle';
+import { IReference, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -35,7 +34,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
-	private textModelReference: Promise<IReference<ITextEditorModel>> | null = null;
+	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
 
 	constructor(
 		resource: URI,
@@ -58,28 +57,6 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 
 		if (preferredMode) {
 			this.setPreferredMode(preferredMode);
-		}
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.textFileService.files.onDidChangeDirty(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.files.onDidSave(e => this.onDirtyStateChange(e.model)));
-		this._register(this.textFileService.files.onDidSaveError(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.files.onDidRevert(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.files.onDidChangeOrphaned(model => this.onModelOrphanedChanged(model)));
-	}
-
-	private onDirtyStateChange(model: ITextFileEditorModel): void {
-		if (model.resource.toString() === this.resource.toString()) {
-			this._onDidChangeDirty.fire();
-		}
-	}
-
-	private onModelOrphanedChanged(model: ITextFileEditorModel): void {
-		if (model.resource.toString() === this.resource.toString()) {
-			this._onDidChangeLabel.fire();
 		}
 	}
 
@@ -198,7 +175,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		return this.forceOpenAs === ForceOpenAs.Binary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	resolve(): Promise<TextFileEditorModel | BinaryEditorModel> {
+	resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
@@ -209,7 +186,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		return this.doResolveAsText();
 	}
 
-	private async doResolveAsText(): Promise<TextFileEditorModel | BinaryEditorModel> {
+	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as text
 		try {
@@ -225,13 +202,11 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
 			// resolve() ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
-			if (!this.textModelReference) {
-				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
+			if (!this.cachedTextFileModelReference) {
+				this.cachedTextFileModelReference = await this.createTextModelReference();
 			}
 
-			const ref = await this.textModelReference;
-
-			return ref.object as TextFileEditorModel;
+			return this.cachedTextFileModelReference.object;
 		} catch (error) {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
@@ -247,23 +222,36 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		}
 	}
 
+	private async createTextModelReference(): Promise<IReference<ITextFileEditorModel>> {
+		const reference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
+
+		// Fire an initial dirty change if the model is already dirty
+		const model = reference.object;
+		if (model.isDirty()) {
+			this._onDidChangeDirty.fire();
+		}
+
+		this.registerModelListeners(model);
+
+		return reference;
+	}
+
+	private registerModelListeners(model: ITextFileEditorModel): void {
+
+		// re-emit some events from the model
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidSave(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidRevert(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
+	}
+
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 	}
 
 	isResolved(): boolean {
 		return !!this.textFileService.files.get(this.resource);
-	}
-
-	dispose(): void {
-
-		// Model reference
-		if (this.textModelReference) {
-			this.textModelReference.then(ref => ref.dispose());
-			this.textModelReference = null;
-		}
-
-		super.dispose();
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -276,5 +264,13 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		}
 
 		return false;
+	}
+
+	dispose(): void {
+
+		// Model reference
+		this.cachedTextFileModelReference = dispose(this.cachedTextFileModelReference);
+
+		super.dispose();
 	}
 }
