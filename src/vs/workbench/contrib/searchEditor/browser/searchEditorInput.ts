@@ -3,32 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import * as network from 'vs/base/common/network';
-import { endsWith } from 'vs/base/common/strings';
+import { basename } from 'vs/base/common/path';
+import { isEqual, joinPath, toLocalResource } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { ITextModel, ITextBufferFactory, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInputFactory, GroupIdentifier, EditorInput, IRevertOptions, ISaveOptions, IEditorInput } from 'vs/workbench/common/editor';
+import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { joinPath, isEqual, toLocalResource } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { basename } from 'vs/base/common/path';
-import { IWorkingCopyService, WorkingCopyCapabilities, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
-import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { Emitter, Event } from 'vs/base/common/event';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 
 export type SearchConfiguration = {
 	query: string,
@@ -45,8 +43,6 @@ export type SearchConfiguration = {
 type SearchEditorViewState =
 	| { focused: 'input' }
 	| { focused: 'editor', state: ICodeEditorViewState };
-
-const searchEditorScheme = 'search-editor';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
@@ -202,7 +198,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	isUntitled() {
-		return this.resource.scheme === searchEditorScheme;
+		return this.resource.scheme === SearchEditorScheme;
 	}
 
 	dispose() {
@@ -266,68 +262,6 @@ export class SearchEditorInput extends EditorInput {
 	}
 }
 
-
-
-export class SearchEditorContribution implements IWorkbenchContribution {
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextFileService protected readonly textFileService: ITextFileService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IModelService protected readonly modelService: IModelService,
-		@ITelemetryService protected readonly telemetryService: ITelemetryService,
-	) {
-
-		this.editorService.overrideOpenEditor((editor, options, group) => {
-			const resource = editor.getResource();
-			if (!resource ||
-				!(endsWith(resource.path, '.code-search') || resource.scheme === searchEditorScheme) ||
-				!(editor instanceof FileEditorInput || (resource.scheme === searchEditorScheme))) {
-				return undefined;
-			}
-
-			if (group.isOpened(editor)) {
-				return undefined;
-			}
-
-			this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: resource });
-			const opened = editorService.openEditor(input, { ...options, pinned: resource.scheme === searchEditorScheme, ignoreOverrides: true }, group);
-			return { override: Promise.resolve(opened) };
-		});
-	}
-}
-
-export class SearchEditorInputFactory implements IEditorInputFactory {
-
-	canSerialize() { return true; }
-
-	serialize(input: SearchEditorInput) {
-		let resource = undefined;
-		if (input.resource.path || input.resource.fragment) {
-			resource = input.resource.toString();
-		}
-
-		const config = input.getConfigSync();
-		const dirty = input.isDirty();
-		const highlights = input.highlights;
-
-		return JSON.stringify({ resource, dirty, config, viewState: input.viewState, name: input.getName(), highlights });
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, viewState, highlights } = JSON.parse(serializedEditorInput);
-		if (config && (config.query !== undefined)) {
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
-			input.viewState = viewState;
-			input.setDirty(dirty);
-			input.setHighlights(highlights);
-			return input;
-		}
-		return undefined;
-	}
-}
-
-
 const inputs = new Map<string, SearchEditorInput>();
 export const getOrMakeSearchEditorInput = (
 	accessor: ServicesAccessor,
@@ -337,7 +271,7 @@ export const getOrMakeSearchEditorInput = (
 		{ config: Partial<SearchConfiguration>, text?: never, uri?: never }
 ): SearchEditorInput => {
 
-	const uri = existingData.uri ?? URI.from({ scheme: searchEditorScheme, fragment: `${Math.random()}` });
+	const uri = existingData.uri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
 
 	const instantiationService = accessor.get(IInstantiationService);
 	const modelService = accessor.get(IModelService);
@@ -363,7 +297,7 @@ export const getOrMakeSearchEditorInput = (
 
 		if (backup) {
 			contents = backup.value;
-		} else if (uri.scheme !== searchEditorScheme) {
+		} else if (uri.scheme !== SearchEditorScheme) {
 			contents = (await textFileService.read(uri)).value;
 		} else if (existingData.text) {
 			contents = existingData.text;

@@ -34,14 +34,15 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Delayer } from 'vs/base/common/async';
-import { serializeSearchResultForEditor } from 'vs/workbench/contrib/search/browser/searchEditorSerialization';
+import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InSearchEditor, InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
+import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import type { SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorInput';
+import type { SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { searchEditorFindMatchBorder, searchEditorFindMatch, registerColor, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
+import { InSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/constants';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -189,8 +190,7 @@ export class SearchEditor extends BaseEditor {
 
 		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
 
-		this._register(this.searchResultEditor.onDidChangeModel(() => this.hideHeader()));
-		this._register(this.searchResultEditor.onDidChangeModelContent(() => (this._input as SearchEditorInput)?.setDirty(true)));
+		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
 
 		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
 			.map(tracker => {
@@ -338,29 +338,11 @@ export class SearchEditor extends BaseEditor {
 		const textModel = assertIsDefined(this.searchResultEditor.getModel());
 		this.modelService.updateModel(textModel, results.text);
 		this.getInput()?.setDirty(this.getInput()?.resource.scheme !== 'search-editor');
-		this.hideHeader();
 		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 
 		(assertIsDefined(this._input) as SearchEditorInput).reloadModel();
 
 		searchModel.dispose();
-	}
-
-	private hideHeader() {
-		const headerLines =
-			(this.searchResultEditor
-				.getModel()
-				?.getValueInRange(new Range(1, 1, 6, 1))
-				.split('\n')
-				.filter(line => line.startsWith('#'))
-				.length
-				?? 0) + 1;
-
-		if (headerLines !== this.searchResultEditor.getModel()?.getLineCount()) {
-			this.searchResultEditor.setHiddenAreas([new Range(1, 1, headerLines, 1)]);
-		} else {
-			this.searchResultEditor.setHiddenAreas([new Range(1, 1, headerLines - 1, 1)]);
-		}
 	}
 
 	layout(dimension: DOM.Dimension) {

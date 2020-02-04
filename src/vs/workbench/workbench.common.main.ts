@@ -161,6 +161,9 @@ import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
+// Search Editor
+import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
