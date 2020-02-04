@@ -3,34 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
-export class FocusOnHoverController implements IEditorContribution {
+export class FocusOnHoverController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.focusOnHover';
+	public static readonly ID = 'editor.contrib.focusOnHover';
 
 	private _editorMouseMoveHandler: IDisposable | null;
-	private _didChangeConfigurationHandler: IDisposable;
-
-	static get(editor: ICodeEditor): FocusOnHoverController {
-		return editor.getContribution<FocusOnHoverController>(FocusOnHoverController.ID);
-	}
 
 	constructor(private readonly _editor: ICodeEditor) {
-		this._hookEvents();
+		super();
+		this._editorMouseMoveHandler = null;
 
-		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._hookEvents();
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.focusOnHover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
-		});
+		}));
 	}
 
 	private _hookEvents(): void {
@@ -52,14 +47,10 @@ export class FocusOnHoverController implements IEditorContribution {
 		}
 	}
 
-	public getId(): string {
-		return FocusOnHoverController.ID;
-	}
-
 	public dispose(): void {
+		super.dispose();
 		this._unhookEvents();
-		this._didChangeConfigurationHandler.dispose();
 	}
 }
 
-registerEditorContribution(FocusOnHoverController);
+registerEditorContribution(FocusOnHoverController.ID, FocusOnHoverController);
