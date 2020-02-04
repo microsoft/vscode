@@ -49,6 +49,9 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %TMP%\git-%RANDOM%-%TIME:~6,5% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 :: Tests in commonJS (HTML, CSS, JSON language server tests...)
 call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\*\server\out\test\**\*.test.js
 if %errorlevel% neq 0 exit /b %errorlevel%
