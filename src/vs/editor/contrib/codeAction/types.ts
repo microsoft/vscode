@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { startsWith } from 'vs/base/common/strings';
-import { CodeAction } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 
 export class CodeActionKind {
@@ -14,7 +14,6 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
-	public static readonly RefactorDocumentation = new CodeActionKind('refactor.documentation');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
@@ -59,6 +58,12 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 		return false;
 	}
 
+	if (filter.excludes) {
+		if (filter.excludes.some(exclude => excludesAction(providedKind, exclude, filter.include))) {
+			return false;
+		}
+	}
+
 	// Don't return source actions unless they are explicitly requested
 	if (!filter.includeSourceActions && CodeActionKind.Source.contains(providedKind)) {
 		return false;
@@ -78,10 +83,7 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	}
 
 	if (filter.excludes) {
-		if (actionKind && filter.excludes.some(exclude => {
-			// Excludes are overwritten by includes
-			return exclude.contains(actionKind) && (!filter.include || !filter.include.contains(actionKind));
-		})) {
+		if (actionKind && filter.excludes.some(exclude => excludesAction(actionKind, exclude, filter.include))) {
 			return false;
 		}
 	}
@@ -102,8 +104,19 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	return true;
 }
 
+function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, include: CodeActionKind | undefined): boolean {
+	if (!exclude.contains(providedKind)) {
+		return false;
+	}
+	if (include && exclude.contains(include)) {
+		// The include is more specific, don't filter out
+		return false;
+	}
+	return true;
+}
+
 export interface CodeActionTrigger {
-	readonly type: 'auto' | 'manual';
+	readonly type: CodeActionTriggerType;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {

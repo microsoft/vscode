@@ -1,0 +1,30 @@
+{
+	"name": "vscode-account",
+	"publisher": "vscode",
+	"displayName": "Account",
+	"description": "",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.42.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"enableProposedApi": true,
+	"activationEvents": [
+		"*"
+	],
+	"main": "./out/extension.js",
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./"
+	},
+	"devDependencies": {
+		"typescript": "^3.7.4",
+		"tslint": "^5.12.1",
+		"@types/node": "^10.12.21",
+		"@types/keytar": "^4.0.1",
+		"@types/vscode": "^1.41.0"
+	}
+}

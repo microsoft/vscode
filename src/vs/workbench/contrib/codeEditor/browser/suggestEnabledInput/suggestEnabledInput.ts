@@ -187,11 +187,15 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
-				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
-				let alreadyTypedCount = position.column - wordStart - 1;
+				const zeroIndexedColumn = position.column - 1;
+
+				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && (validatedSuggestProvider.triggerCharacters).indexOf(query[wordStart]) === -1) { return { suggestions: [] }; }
+				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
+					return { suggestions: [] };
+				}
 
 				return {
 					suggestions: suggestionProvider.provideResults(query).map(result => {

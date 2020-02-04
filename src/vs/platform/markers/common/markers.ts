@@ -87,7 +87,7 @@ export namespace MarkerSeverity {
  * A structure defining a problem/warning/etc.
  */
 export interface IMarkerData {
-	code?: string;
+	code?: string | { value: string; link: URI };
 	severity: MarkerSeverity;
 	message: string;
 	source?: string;
@@ -108,7 +108,7 @@ export interface IMarker {
 	owner: string;
 	resource: URI;
 	severity: MarkerSeverity;
-	code?: string;
+	code?: string | { value: string; link: URI };
 	message: string;
 	source?: string;
 	startLineNumber: number;
@@ -140,7 +140,11 @@ export namespace IMarkerData {
 			result.push(emptyString);
 		}
 		if (markerData.code) {
-			result.push(markerData.code.replace('¦', '\¦'));
+			if (typeof markerData.code === 'string') {
+				result.push(markerData.code.replace('¦', '\¦'));
+			} else {
+				result.push(markerData.code.value.replace('¦', '\¦'));
+			}
 		} else {
 			result.push(emptyString);
 		}

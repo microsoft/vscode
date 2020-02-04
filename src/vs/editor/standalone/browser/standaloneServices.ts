@@ -45,9 +45,9 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -192,7 +192,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
-		ensure(IAccessibilityService, () => new BrowserAccessibilityService(contextKeyService, configurationService));
+		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
 
 		ensure(IListService, () => new ListService(themeService));
 

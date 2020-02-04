@@ -26,7 +26,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
@@ -88,7 +88,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IViewsService private readonly viewsService: IViewsService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -125,6 +125,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 				return actions;
 			},
+			getContextMenuActionsForComposite: () => [],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			compositeSize: 50,
@@ -189,8 +190,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (viewletDescriptor) {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				if (viewDescriptors?.activeViewDescriptors.length === 0) {
+				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+				if (viewDescriptors.activeViewDescriptors.length === 0) {
 					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -410,11 +411,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				if (viewDescriptors) {
-					this.onDidChangeActiveViews(viewlet, viewDescriptors);
-					this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
-				}
+				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+				this.onDidChangeActiveViews(viewlet, viewDescriptors);
+				this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
 			}
 		}
 	}
@@ -551,11 +550,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewlet) {
 				const views: { when: string | undefined }[] = [];
 				if (viewContainer) {
-					const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-					if (viewDescriptors) {
-						for (const { when } of viewDescriptors.allViewDescriptors) {
-							views.push({ when: when ? when.serialize() : undefined });
-						}
+					const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+					for (const { when } of viewDescriptors.allViewDescriptors) {
+						views.push({ when: when ? when.serialize() : undefined });
 					}
 				}
 				state.push({ id: compositeItem.id, name: viewlet.name, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });

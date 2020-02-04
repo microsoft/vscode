@@ -33,7 +33,9 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 
 interface ICachedPanel {
 	id: string;
@@ -98,9 +100,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(
 			notificationService,
@@ -137,6 +139,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 					.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
 				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 			] as Action[],
+			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			compositeSize: 0,
@@ -158,6 +161,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPanels()]);
+	}
+
+	private getContextMenuActionsForComposite(compositeId: string): readonly IAction[] {
+		const result: IAction[] = [];
+		const container = this.getViewContainer(compositeId);
+		if (container) {
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(container);
+			if (viewDescriptors.allViewDescriptors.length === 1) {
+				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewDescriptors.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
+				result.push(...viewMenuActions.getContextMenuActions());
+				viewMenuActions.dispose();
+			}
+		}
+		return result;
 	}
 
 	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
@@ -184,11 +201,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			this.enableCompositeActions(panel);
 			const viewContainer = this.getViewContainer(panel.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				if (viewDescriptors) {
-					this.onDidChangeActiveViews(panel, viewDescriptors);
-					this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
-				}
+				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+				this.onDidChangeActiveViews(panel, viewDescriptors);
+				this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
 			}
 		}
 	}
@@ -295,8 +310,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				if (viewDescriptors?.activeViewDescriptors.length === 0) {
+				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+				if (viewDescriptors.activeViewDescriptors.length === 0) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -356,6 +371,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		return this.openComposite(id, focus);
+	}
+
+	async	openPanelAsync(id?: string, focus?: boolean): Promise<Panel | undefined> {
+		if (typeof id === 'string' && this.getPanel(id)) {
+			return this.openPanel(id, focus);
+		}
+
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		if (typeof id === 'string' && this.getPanel(id)) {
+			return this.openPanel(id, focus);
+		}
+
+		return undefined;
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {

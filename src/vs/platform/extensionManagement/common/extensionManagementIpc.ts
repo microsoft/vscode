@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
@@ -130,3 +130,53 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('getExtensionsReport'));
 	}
 }
+
+export class GlobalExtensionEnablementServiceChannel implements IServerChannel {
+
+	constructor(private readonly service: IGlobalExtensionEnablementService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeEnablement': return this.service.onDidChangeEnablement;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getDisabledExtensionsAsync': return Promise.resolve(this.service.getDisabledExtensions());
+			case 'enableExtension': return this.service.enableExtension(args[0]);
+			case 'disableExtension': return this.service.disableExtension(args[0]);
+		}
+		throw new Error('Invalid call');
+	}
+}
+
+export class GlobalExtensionEnablementServiceClient implements IGlobalExtensionEnablementService {
+
+	_serviceBrand: undefined;
+
+	get onDidChangeEnablement(): Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }> { return this.channel.listen('onDidChangeEnablement'); }
+
+	constructor(private readonly channel: IChannel) {
+	}
+
+	getDisabledExtensionsAsync(): Promise<IExtensionIdentifier[]> {
+		return this.channel.call('getDisabledExtensionsAsync');
+	}
+
+	enableExtension(extension: IExtensionIdentifier): Promise<boolean> {
+		return this.channel.call('enableExtension', [extension]);
+	}
+
+	disableExtension(extension: IExtensionIdentifier): Promise<boolean> {
+		return this.channel.call('disableExtension', [extension]);
+	}
+
+	getDisabledExtensions(): IExtensionIdentifier[] {
+		throw new Error('not supported');
+	}
+
+}
+
+

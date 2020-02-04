@@ -227,8 +227,13 @@ function toExternalDTS(contents) {
 		if (line.indexOf('declare namespace monaco.') === 0) {
 			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
 		}
+
+		if (line.indexOf('declare let MonacoEnvironment') === 0) {
+			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
+			// lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
 	}
-	return lines.join('\n');
+	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
 }
 
 function filterStream(testFunc) {
@@ -352,6 +357,13 @@ gulp.task('editor-distro',
 		finalEditorResourcesTask
 	)
 );
+
+gulp.task('monacodts', task.define('monacodts', () => {
+	const result = monacoapi.execute();
+	fs.writeFileSync(result.filePath, result.content);
+	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	return Promise.resolve(true);
+}));
 
 //#region monaco type checking
 

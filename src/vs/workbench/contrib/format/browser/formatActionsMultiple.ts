@@ -27,7 +27,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
@@ -41,7 +41,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,

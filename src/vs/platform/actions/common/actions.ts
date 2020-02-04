@@ -5,11 +5,11 @@
 
 import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, createDecorator, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -56,58 +56,73 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
-export const enum MenuId {
-	CommandPalette,
-	DebugBreakpointsContext,
-	DebugCallStackContext,
-	DebugConsoleContext,
-	DebugVariablesContext,
-	DebugWatchContext,
-	DebugToolBar,
-	EditorContext,
-	EditorContextPeek,
-	EditorTitle,
-	EditorTitleContext,
-	EmptyEditorGroupContext,
-	ExplorerContext,
-	ExtensionContext,
-	GlobalActivity,
-	MenubarAppearanceMenu,
-	MenubarDebugMenu,
-	MenubarEditMenu,
-	MenubarFileMenu,
-	MenubarGoMenu,
-	MenubarHelpMenu,
-	MenubarLayoutMenu,
-	MenubarNewBreakpointMenu,
-	MenubarPreferencesMenu,
-	MenubarRecentMenu,
-	MenubarSelectionMenu,
-	MenubarSwitchEditorMenu,
-	MenubarSwitchGroupMenu,
-	MenubarTerminalMenu,
-	MenubarViewMenu,
-	OpenEditorsContext,
-	ProblemsPanelContext,
-	SCMChangeContext,
-	SCMResourceContext,
-	SCMResourceFolderContext,
-	SCMResourceGroupContext,
-	SCMSourceControl,
-	SCMTitle,
-	SearchContext,
-	StatusBarWindowIndicatorMenu,
-	TouchBarContext,
-	TitleBarContext,
-	TunnelContext,
-	TunnelInline,
-	TunnelTitle,
-	ViewItemContext,
-	ViewTitle,
-	CommentThreadTitle,
-	CommentThreadActions,
-	CommentTitle,
-	CommentActions,
+export class MenuId {
+
+	private static _idPool = 0;
+
+	static readonly CommandPalette = new MenuId('CommandPalette');
+	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
+	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
+	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
+	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
+	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
+	static readonly DebugToolBar = new MenuId('DebugToolBar');
+	static readonly EditorContext = new MenuId('EditorContext');
+	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
+	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
+	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
+	static readonly ExplorerContext = new MenuId('ExplorerContext');
+	static readonly ExtensionContext = new MenuId('ExtensionContext');
+	static readonly GlobalActivity = new MenuId('GlobalActivity');
+	static readonly MenubarAppearanceMenu = new MenuId('MenubarAppearanceMenu');
+	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
+	static readonly MenubarEditMenu = new MenuId('MenubarEditMenu');
+	static readonly MenubarFileMenu = new MenuId('MenubarFileMenu');
+	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
+	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
+	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
+	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
+	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
+	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
+	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
+	static readonly MenubarSwitchEditorMenu = new MenuId('MenubarSwitchEditorMenu');
+	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
+	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
+	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
+	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
+	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
+	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
+	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
+	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
+	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
+	static readonly SCMTitle = new MenuId('SCMTitle');
+	static readonly SearchContext = new MenuId('SearchContext');
+	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
+	static readonly TouchBarContext = new MenuId('TouchBarContext');
+	static readonly TitleBarContext = new MenuId('TitleBarContext');
+	static readonly TunnelContext = new MenuId('TunnelContext');
+	static readonly TunnelInline = new MenuId('TunnelInline');
+	static readonly TunnelTitle = new MenuId('TunnelTitle');
+	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewTitle = new MenuId('ViewTitle');
+	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
+	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
+	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentTitle = new MenuId('CommentTitle');
+	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
+	static readonly BulkEditContext = new MenuId('BulkEditContext');
+
+
+	readonly id: number;
+	readonly _debugName: string;
+
+	constructor(debugName: string) {
+		this.id = MenuId._idPool++;
+		this._debugName = debugName;
+	}
 }
 
 export interface IMenuActionOptions {
@@ -143,7 +158,7 @@ export interface IMenuRegistry {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
-	private readonly _menuItems = new Map<number, Array<IMenuItem | ISubmenuItem>>();
+	private readonly _menuItems = new Map<MenuId, Array<IMenuItem | ISubmenuItem>>();
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
@@ -343,62 +358,79 @@ export class SyncActionDescriptor {
 	}
 }
 
+//#region --- IAction2
 
-export interface IActionDescriptor {
-	id: string;
-	handler: ICommandHandler;
+type OneOrN<T> = T | T[];
 
-	// ICommandUI
-	title?: ILocalizedString;
-	category?: string;
+export interface IAction2Options extends ICommandAction {
+
+	/**
+	 * Shorthand to add this command to the command palette
+	 */
 	f1?: boolean;
 
-	//
-	menu?: {
-		menuId: MenuId,
-		when?: ContextKeyExpr;
-		group?: string;
-	};
+	/**
+	 * One or many menu items.
+	 */
+	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
 
-	//
-	keybinding?: {
-		when?: ContextKeyExpr;
-		weight?: number;
-		keys: IKeybindings;
-	};
+	/**
+	 * One keybinding.
+	 */
+	keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
+
+	/**
+	 * Metadata about this command, used for API commands or when
+	 * showing keybindings that have no other UX.
+	 */
+	description?: ICommandHandlerDescription;
 }
 
+export abstract class Action2 {
+	constructor(readonly desc: Readonly<IAction2Options>) { }
+	abstract run(accessor: ServicesAccessor, ...args: any[]): any;
+}
 
-export function registerAction(desc: IActionDescriptor) {
+export function registerAction2(ctor: { new(): Action2 }): IDisposable {
+	const disposables = new DisposableStore();
+	const action = new ctor();
 
-	const { id, handler, title, category, menu, keybinding } = desc;
+	// command
+	disposables.add(CommandsRegistry.registerCommand({
+		id: action.desc.id,
+		handler: (accessor, ...args) => action.run(accessor, ...args),
+		description: action.desc.description,
+	}));
 
-	// 1) register as command
-	CommandsRegistry.registerCommand(id, handler);
-
-	// 2) menus
-	if (menu && title) {
-		let command = { id, title, category };
-		let { menuId, when, group } = menu;
-		MenuRegistry.appendMenuItem(menuId, {
-			command,
-			when,
-			group
-		});
+	// menu
+	if (Array.isArray(action.desc.menu)) {
+		for (let item of action.desc.menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
+		}
+	} else if (action.desc.menu) {
+		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
+	}
+	if (action.desc.f1) {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
 	}
 
-	// 3) keybindings
-	if (keybinding) {
-		let { when, weight, keys } = keybinding;
+	// keybinding
+	if (Array.isArray(action.desc.keybinding)) {
+		for (let item of action.desc.keybinding) {
+			KeybindingsRegistry.registerKeybindingRule({
+				...item,
+				id: action.desc.id,
+				when: ContextKeyExpr.and(action.desc.precondition, item.when)
+			});
+		}
+	} else if (action.desc.keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
-			id,
-			when,
-			weight: weight || 0,
-			primary: keys.primary,
-			secondary: keys.secondary,
-			linux: keys.linux,
-			mac: keys.mac,
-			win: keys.win
+			...action.desc.keybinding,
+			id: action.desc.id,
+			when: ContextKeyExpr.and(action.desc.precondition, action.desc.keybinding.when)
 		});
 	}
+
+	return disposables;
 }
+//#endregion

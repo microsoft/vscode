@@ -16,7 +16,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
-import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -30,7 +30,7 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -64,7 +64,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	//#endregion
 
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onMenubarVisibilityChange: Event<boolean> = this._onMenubarVisibilityChange.event;
+	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
 	_serviceBrand: undefined;
 
@@ -195,7 +195,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor instanceof EditorInput) {
+		if (activeEditor) {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}

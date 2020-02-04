@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService, TestFileService, TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService, TestFilesConfigurationService, TestEnvironmentService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITextFileService, IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -21,7 +21,6 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -33,9 +32,8 @@ class ServiceAccessor {
 	constructor(
 		@IEditorService public editorService: IEditorService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
-		@ITextFileService public textFileService: TestTextFileService,
+		@ITextFileService public textFileService: ITextFileService,
 		@IFileService public fileService: TestFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IConfigurationService public configurationService: TestConfigurationService
 	) {
 	}
@@ -89,7 +87,7 @@ suite('EditorAutoSave', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.models.loadOrCreate(resource) as IResolvedTextFileEditorModel;
+		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
@@ -101,8 +99,7 @@ suite('EditorAutoSave', () => {
 
 		part.dispose();
 		editorAutoSave.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {

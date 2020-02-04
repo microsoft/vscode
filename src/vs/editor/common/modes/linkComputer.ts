@@ -268,6 +268,10 @@ export class LinkComputer {
 							// `*` terminates a link if the link began with `*`
 							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
 							break;
+						case CharCode.Pipe:
+							// `|` terminates a link if the link began with `|`
+							chClass = (linkBeginChCode === CharCode.Pipe) ? CharacterClass.ForceTermination : CharacterClass.None;
+							break;
 						default:
 							chClass = classifier.get(chCode);
 					}

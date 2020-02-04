@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
@@ -60,12 +60,9 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
-		const edits = response.body;
+
 		const result: vscode.TextEdit[] = [];
-		if (!edits) {
-			return result;
-		}
-		for (const edit of edits) {
+		for (const edit of response.body) {
 			const textEdit = typeConverters.TextEdit.fromCodeEdit(edit);
 			const range = textEdit.range;
 			// Work around for https://github.com/Microsoft/TypeScript/issues/6700.

@@ -103,15 +103,34 @@ suite('Debug - Utils', () => {
 				order: 500
 			}
 		});
+		configs.push({
+			type: 'node',
+			request: 'launch',
+			name: 'h',
+			presentation: {
+				order: 700
+			}
+		});
+		configs.push({
+			type: 'node',
+			request: 'launch',
+			name: 'i',
+			presentation: {
+				order: 1000
+			}
+		});
 
 		const sorted = getVisibleAndSorted(configs);
-		assert.equal(sorted.length, 7);
+		assert.equal(sorted.length, 9);
 		assert.equal(sorted[0].name, 'f');
 		assert.equal(sorted[1].name, 'd');
 		assert.equal(sorted[2].name, 'e');
 		assert.equal(sorted[3].name, 'g');
-		assert.equal(sorted[4].name, 'b');
-		assert.equal(sorted[5].name, 'p');
-		assert.equal(sorted[6].name, 'a');
+		assert.equal(sorted[4].name, 'h');
+		assert.equal(sorted[5].name, 'i');
+		assert.equal(sorted[6].name, 'b');
+		assert.equal(sorted[7].name, 'p');
+		assert.equal(sorted[8].name, 'a');
+
 	});
 });

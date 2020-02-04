@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -12,6 +13,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -107,6 +109,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -304,10 +307,12 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		provider.dispose();
 		this._editorProviders.delete(viewType);
+
+		this._customEditorService.models.disposeAllModelsForView(viewType);
 	}
 
 	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
-		const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
+		const model = await this._customEditorService.models.resolve(webviewInput.getResource(), webviewInput.viewType);
 
 		const existingEntry = this._customEditorModels.get(model);
 		if (existingEntry) {
@@ -319,26 +324,44 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._customEditorModels.set(model, { referenceCount: 1 });
 
 		const capabilitiesSet = new Set(capabilities);
-		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
-			model.onUndo(edits => {
-				this._proxy.$undoEdits(resource, viewType, edits.map(x => x.data));
+		const isEditable = capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable);
+		if (isEditable) {
+			model.onUndo(e => {
+				this._proxy.$undoEdits(resource, viewType, e.edits);
 			});
 
-			model.onApplyEdit(edits => {
-				const editsToApply = edits.filter(x => x.source !== model).map(x => x.data);
-				if (editsToApply.length) {
-					this._proxy.$applyEdits(resource, viewType, editsToApply);
+			model.onDisposeEdits(e => {
+				this._proxy.$disposeEdits(e.edits);
+			});
+
+			model.onApplyEdit(e => {
+				if (e.trigger !== model) {
+					this._proxy.$applyEdits(resource, viewType, e.edits);
 				}
 			});
 
 			model.onWillSave(e => {
 				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
 			});
+		}
 
-			model.onWillSaveAs(e => {
+		// Save as should always be implemented even if the model is readonly
+		model.onWillSaveAs(e => {
+			if (isEditable) {
 				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
+			} else {
+				// Since the editor is readonly, just copy the file over
+				e.waitUntil(this._fileService.copy(e.resource, e.targetResource, false /* overwrite */));
+			}
+		});
+
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SupportsHotExit)) {
+			model.onBackup(() => {
+				return createCancelablePromise(token =>
+					this._proxy.$backup(model.resource.toJSON(), viewType, token));
 			});
 		}
+
 		return model;
 	}
 
@@ -355,13 +378,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}
 	}
 
-	public $onEdit(resource: UriComponents, viewType: string, editData: any): void {
+	public $onEdit(resource: UriComponents, viewType: string, editId: number): void {
 		const model = this._customEditorService.models.get(URI.revive(resource), viewType);
 		if (!model) {
 			throw new Error('Could not find model for webview editor');
 		}
 
-		model.pushEdit({ source: model, data: editData });
+		model.pushEdit(editId, model);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {

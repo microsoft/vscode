@@ -1,0 +1,9 @@
+# Query: \\w+\\?\\..+![(.[]
+# Flags: RegExp
+# ContextLines: 2
+src/vs/base/browser/ui/tree/asyncDataTree.ts:
+  270  			} : undefined,
+  271  			isChecked: options.ariaProvider!.isChecked ? (e) => {
+  272: 				return options.ariaProvider?.isChecked!(e.element as T);
+  273  			} : undefined
+  274  		},

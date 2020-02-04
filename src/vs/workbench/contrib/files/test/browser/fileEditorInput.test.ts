@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode, Verbosity } from 'vs/workbench/common/editor';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -17,6 +17,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class ServiceAccessor {
 	constructor(
@@ -66,23 +67,29 @@ suite('Files - FileEditorInput', () => {
 		resolved = await inputToResolve.resolve();
 		assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
 
-		const otherResolved = await sameOtherInput.resolve();
-		assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
-		inputToResolve.dispose();
+		try {
+			DisposableStore.DISABLE_DISPOSED_WARNING = true; // prevent unwanted warning output from occuring
 
-		resolved = await inputToResolve.resolve();
-		assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
-		inputToResolve.dispose();
-		sameOtherInput.dispose();
-		resolvedModelA.dispose();
+			const otherResolved = await sameOtherInput.resolve();
+			assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
+			inputToResolve.dispose();
 
-		resolved = await inputToResolve.resolve();
-		assert(resolvedModelA !== resolved); // Different instance, because input got disposed
+			resolved = await inputToResolve.resolve();
+			assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
+			inputToResolve.dispose();
+			sameOtherInput.dispose();
+			resolvedModelA.dispose();
 
-		const stat = (resolved as TextFileEditorModel).getStat();
-		resolved = await inputToResolve.resolve();
-		await timeout(0);
-		assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
+			resolved = await inputToResolve.resolve();
+			assert(resolvedModelA !== resolved); // Different instance, because input got disposed
+
+			const stat = (resolved as TextFileEditorModel).getStat();
+			resolved = await inputToResolve.resolve();
+			await timeout(0);
+			assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
+		} finally {
+			DisposableStore.DISABLE_DISPOSED_WARNING = false;
+		}
 	});
 
 	test('preferred mode', async function () {
@@ -152,7 +159,7 @@ suite('Files - FileEditorInput', () => {
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 
-		assert.ok(await input.revert());
+		assert.ok(await input.revert(0));
 		assert.ok(!input.isDirty());
 
 		input.dispose();

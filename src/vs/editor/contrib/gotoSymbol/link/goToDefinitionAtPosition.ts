@@ -11,7 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -27,8 +27,9 @@ import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } fro
 import { Position } from 'vs/editor/common/core/position';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export class GotoDefinitionAtPositionEditorContribution implements editorCommon.IEditorContribution {
+export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.gotodefinitionatposition';
 	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
@@ -334,7 +335,8 @@ export class GotoDefinitionAtPositionEditorContribution implements editorCommon.
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {
 		this.editor.setPosition(position);
-		const action = new DefinitionAction({ openToSide, openInPeek: false, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
+		const openInPeek = this.editor.getOption(EditorOption.definitionLinkOpensInPeek);
+		const action = new DefinitionAction({ openToSide, openInPeek: openInPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 

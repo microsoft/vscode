@@ -224,38 +224,46 @@ export class ConsoleLogInMainService extends AbstractLogService implements ILogS
 
 	trace(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Trace) {
-			this.client.consoleLog('trace', [message, ...args]);
+			this.client.consoleLog('trace', [this.extractMessage(message), ...args]);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Debug) {
-			this.client.consoleLog('debug', [message, ...args]);
+			this.client.consoleLog('debug', [this.extractMessage(message), ...args]);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Info) {
-			this.client.consoleLog('info', [message, ...args]);
+			this.client.consoleLog('info', [this.extractMessage(message), ...args]);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Warning) {
-			this.client.consoleLog('warn', [message, ...args]);
+			this.client.consoleLog('warn', [this.extractMessage(message), ...args]);
 		}
 	}
 
 	error(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
-			this.client.consoleLog('error', [toErrorMessage(message, this.getLevel() <= LogLevel.Trace), ...args]);
+			this.client.consoleLog('error', [this.extractMessage(message), ...args]);
 		}
 	}
 
 	critical(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
-			this.client.consoleLog('critical', [toErrorMessage(message, this.getLevel() <= LogLevel.Trace), ...args]);
+			this.client.consoleLog('critical', [this.extractMessage(message), ...args]);
 		}
+	}
+
+	private extractMessage(msg: string | Error): string {
+		if (typeof msg === 'string') {
+			return msg;
+		}
+
+		return toErrorMessage(msg, this.getLevel() <= LogLevel.Trace);
 	}
 
 	dispose(): void {

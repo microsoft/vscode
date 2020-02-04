@@ -304,7 +304,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
+				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -414,7 +414,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 			}
 
 			const menu = schema.parseMenuId(entry.key);
-			if (typeof menu !== 'number') {
+			if (typeof menu === 'undefined') {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
 			}

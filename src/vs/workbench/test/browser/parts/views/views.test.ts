@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ContributableViewsModel, ViewsService, IViewState } from 'vs/workbench/browser/parts/views/views';
-import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ContributableViewsModel, IViewState } from 'vs/workbench/browser/parts/views/views';
+import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import sinon = require('sinon');
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
+import { assertIsDefined } from 'vs/base/common/types';
 
-const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: { ctor: <any>{} } }, ViewContainerLocation.Sidebar);
+const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 class ViewDescriptorSequence {
@@ -37,14 +40,14 @@ class ViewDescriptorSequence {
 
 suite('ContributableViewsModel', () => {
 
-	let viewsService: IViewsService;
+	let viewDescriptorService: IViewDescriptorService;
 	let contextKeyService: IContextKeyService;
 
 	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		contextKeyService = instantiationService.createInstance(ContextKeyService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		viewsService = instantiationService.createInstance(ViewsService);
+		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 	});
 
 	teardown(() => {
@@ -52,12 +55,12 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('empty model', function () {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		assert.equal(model.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -83,7 +86,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('when contexts', async function () {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -127,7 +130,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('when contexts - multiple', async function () {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
@@ -150,7 +153,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('when contexts - multiple 2', async function () {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
@@ -173,7 +176,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('setVisible', () => {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
@@ -218,7 +221,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('move', () => {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
@@ -249,7 +252,7 @@ suite('ContributableViewsModel', () => {
 	test('view states', async function () {
 		const viewStates = new Map<string, IViewState>();
 		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
-		const model = new ContributableViewsModel(container, viewsService, viewStates);
+		const model = new ContributableViewsModel(container, viewDescriptorService, viewStates);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -269,7 +272,7 @@ suite('ContributableViewsModel', () => {
 	test('view states and when contexts', async function () {
 		const viewStates = new Map<string, IViewState>();
 		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
-		const model = new ContributableViewsModel(container, viewsService, viewStates);
+		const model = new ContributableViewsModel(container, viewDescriptorService, viewStates);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -299,7 +302,7 @@ suite('ContributableViewsModel', () => {
 	test('view states and when contexts multiple views', async function () {
 		const viewStates = new Map<string, IViewState>();
 		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
-		const model = new ContributableViewsModel(container, viewsService, viewStates);
+		const model = new ContributableViewsModel(container, viewDescriptorService, viewStates);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -343,7 +346,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('remove event is not triggered if view was hidden and removed', async function () {
-		const model = new ContributableViewsModel(container, viewsService);
+		const model = new ContributableViewsModel(container, viewDescriptorService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const viewDescriptor: IViewDescriptor = {
@@ -369,6 +372,174 @@ suite('ContributableViewsModel', () => {
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
 		assert.ok(!target.called, 'remove event should not be called since it is already hidden');
+	});
+
+});
+
+const sidebarContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'testSidebar', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+const panelContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'testPanel', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
+
+suite('ViewDescriptorService', () => {
+
+	let viewDescriptorService: IViewDescriptorService;
+
+	setup(() => {
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
+	});
+
+	teardown(() => {
+		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(sidebarContainer), sidebarContainer);
+		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(panelContainer), panelContainer);
+	});
+
+	test('Empty Containers', function () {
+		const sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
+		const panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		assert.equal(sidebarViews.allViewDescriptors.length, 0, 'The sidebar container should have no views yet.');
+		assert.equal(panelViews.allViewDescriptors.length, 0, 'The panel container should have no views yet.');
+	});
+
+	test('Register/Deregister', () => {
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			},
+			{
+				id: 'view3',
+				ctorDescriptor: null!,
+				name: 'Test View 3',
+				canMoveView: true
+			}
+		];
+
+
+		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
+		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+
+
+		let sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
+		let panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+
+		assert.equal(sidebarViews.activeViewDescriptors.length, 2, 'Sidebar should have 2 views');
+		assert.equal(panelViews.activeViewDescriptors.length, 1, 'Panel should have 1 view');
+
+		ViewsRegistry.deregisterViews(viewDescriptors.slice(0, 2), sidebarContainer);
+		ViewsRegistry.deregisterViews(viewDescriptors.slice(2), panelContainer);
+
+
+		sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
+		panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+
+		assert.equal(sidebarViews.activeViewDescriptors.length, 0, 'Sidebar should have no views');
+		assert.equal(panelViews.activeViewDescriptors.length, 0, 'Panel should have no views');
+	});
+
+	test('move views to existing containers', async function () {
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			},
+			{
+				id: 'view3',
+				ctorDescriptor: null!,
+				name: 'Test View 3',
+				canMoveView: true
+			}
+		];
+
+		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
+		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+
+		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(2), sidebarContainer);
+		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(0, 2), panelContainer);
+
+		let sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
+		let panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+
+		assert.equal(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
+		assert.equal(panelViews.activeViewDescriptors.length, 2, 'Panel should have 1 view');
+
+		assert.notEqual(sidebarViews.activeViewDescriptors.indexOf(viewDescriptors[2]), -1, `Sidebar should have ${viewDescriptors[2].name}`);
+		assert.notEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[0]), -1, `Panel should have ${viewDescriptors[0].name}`);
+		assert.notEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[1]), -1, `Panel should have ${viewDescriptors[1].name}`);
+	});
+
+	test('move views to generated containers', async function () {
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			},
+			{
+				id: 'view3',
+				ctorDescriptor: null!,
+				name: 'Test View 3',
+				canMoveView: true
+			}
+		];
+
+		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
+		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+
+		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Panel);
+		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Sidebar);
+
+		let sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
+		let panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+
+		assert.equal(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar container should have 1 view');
+		assert.equal(panelViews.activeViewDescriptors.length, 0, 'Panel container should have no views');
+
+		const generatedPanel = assertIsDefined(viewDescriptorService.getViewContainer(viewDescriptors[0].id));
+		const generatedSidebar = assertIsDefined(viewDescriptorService.getViewContainer(viewDescriptors[2].id));
+
+		assert.equal(viewDescriptorService.getViewContainerLocation(generatedPanel), ViewContainerLocation.Panel, 'Generated Panel should be in located in the panel');
+		assert.equal(viewDescriptorService.getViewContainerLocation(generatedSidebar), ViewContainerLocation.Sidebar, 'Generated Sidebar should be in located in the sidebar');
+
+		assert.equal(viewDescriptorService.getViewContainerLocation(generatedPanel), viewDescriptorService.getViewLocation(viewDescriptors[0].id), 'Panel view location and container location should match');
+		assert.equal(viewDescriptorService.getViewContainerLocation(generatedSidebar), viewDescriptorService.getViewLocation(viewDescriptors[2].id), 'Sidebar view location and container location should match');
+
+		assert.equal(viewDescriptorService.getDefaultContainer(viewDescriptors[2].id), panelContainer, `${viewDescriptors[2].name} has wrong default container`);
+		assert.equal(viewDescriptorService.getDefaultContainer(viewDescriptors[0].id), sidebarContainer, `${viewDescriptors[0].name} has wrong default container`);
+
+		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Sidebar);
+		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Panel);
+
+		sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
+		panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+
+		assert.equal(sidebarViews.activeViewDescriptors.length, 2, 'Sidebar should have 2 views');
+		assert.equal(panelViews.activeViewDescriptors.length, 1, 'Panel should have 1 view');
+
+		assert.equal(viewDescriptorService.getViewLocation(viewDescriptors[0].id), ViewContainerLocation.Sidebar, 'View should be located in the sidebar');
+		assert.equal(viewDescriptorService.getViewLocation(viewDescriptors[2].id), ViewContainerLocation.Panel, 'View should be located in the panel');
 	});
 
 });

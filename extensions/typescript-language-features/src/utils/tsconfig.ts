@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from './configuration';
 
 export function isImplicitProjectConfigFile(configFileName: string) {

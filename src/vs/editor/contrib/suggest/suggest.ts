@@ -30,11 +30,15 @@ export class CompletionItem {
 	_brand!: 'ISuggestionItem';
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
+	isResolved: boolean = false;
 
 	//
 	readonly editStart: IPosition;
 	readonly editInsertEnd: IPosition;
 	readonly editReplaceEnd: IPosition;
+
+	//
+	readonly textLabel: string;
 
 	// perf
 	readonly labelLow: string;
@@ -44,12 +48,8 @@ export class CompletionItem {
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
 	distance: number = 0;
-	isResolved: boolean = false;
 	idx?: number;
 	word?: string;
-
-	//
-	readonly isDetailsResolved: boolean;
 
 	constructor(
 		readonly position: IPosition,
@@ -58,8 +58,13 @@ export class CompletionItem {
 		readonly provider: modes.CompletionItemProvider,
 		model: ITextModel
 	) {
+		this.textLabel = typeof completion.label === 'string'
+			? completion.label
+			: completion.label.name;
+
 		// ensure lower-variants (perf)
-		this.labelLow = completion.label.toLowerCase();
+		this.labelLow = this.textLabel.toLowerCase();
+
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
 
@@ -73,8 +78,6 @@ export class CompletionItem {
 			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
 			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
 		}
-
-		this.isDetailsResolved = container.isDetailsResolved || typeof provider.resolveCompletionItem === 'undefined';
 
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
@@ -189,7 +192,7 @@ export function provideSuggestionItems(
 							}
 							// fill in default sortText when missing
 							if (!suggestion.sortText) {
-								suggestion.sortText = suggestion.label;
+								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));

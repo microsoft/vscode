@@ -12,11 +12,10 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
 	const EDITOR_ID = 1;
 
-	let configuration = new TestConfiguration(options);
-
-	let model = TextModel.createFromString(text.join('\n'));
-
-	let viewModel = new ViewModel(EDITOR_ID, configuration, model, MonospaceLineBreaksComputerFactory.create(configuration.options), null!);
+	const configuration = new TestConfiguration(options);
+	const model = TextModel.createFromString(text.join('\n'));
+	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
+	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
 
 	callback(viewModel, model);
 

@@ -10,7 +10,7 @@ import { ISnippetsService } from './snippets.contribution';
 import { getNonWhitespacePrefix } from './snippetsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -21,7 +21,7 @@ import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export class TabCompletionController implements editorCommon.IEditorContribution {
+export class TabCompletionController implements IEditorContribution {
 
 	public static readonly ID = 'editor.tabCompletionController';
 	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
@@ -447,8 +447,6 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.isActive(inputInactive), false);
 		assert.equal(group.isOpened(input), true);
 		assert.equal(group.isOpened(inputInactive), true);
-		assert.equal(group.isOpened({ resource: input.getResource() }), true);
-		assert.equal(group.isOpened({ resource: inputInactive.getResource() }), true);
 		assert.equal(group.isEmpty, false);
 		assert.equal(group.count, 2);
 		assert.equal(editorWillOpenCounter, 2);

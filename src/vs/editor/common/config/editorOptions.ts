@@ -33,7 +33,6 @@ export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
 
 /**
  * Configuration options for auto indentation in the editor
- * @internal
  */
 export const enum EditorAutoIndentStrategy {
 	None = 0,
@@ -59,7 +58,7 @@ export interface IEditorOptions {
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
-	rulers?: number[];
+	rulers?: (number | IRulerOption)[];
 	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
@@ -75,7 +74,7 @@ export interface IEditorOptions {
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
 	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
 	 * Otherwise, line numbers will not be rendered.
-	 * Defaults to true.
+	 * Defaults to `on`.
 	 */
 	lineNumbers?: LineNumbersType;
 	/**
@@ -136,6 +135,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the editor render validation decorations.
+	 * Defaults to editable.
+	 */
+	renderValidationDecorations?: 'editable' | 'on' | 'off';
 	/**
 	 * Control the behavior and rendering of the scrollbars.
 	 */
@@ -263,6 +267,11 @@ export interface IEditorOptions {
 	 */
 	wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 	/**
+	 * Controls the wrapping strategy to use.
+	 * Defaults to 'simple'.
+	 */
+	wrappingStrategy?: 'simple' | 'advanced';
+	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
 	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 	 */
@@ -291,6 +300,10 @@ export interface IEditorOptions {
 	 * Enable inline color decorators and color picker rendering.
 	 */
 	colorDecorators?: boolean;
+	/**
+	 * Control the behaviour of comments in the editor.
+	 */
+	comments?: IEditorCommentsOptions;
 	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
@@ -372,8 +385,8 @@ export interface IEditorOptions {
 	 */
 	autoSurround?: EditorAutoSurroundStrategy;
 	/**
-	 * Enable auto indentation adjustment.
-	 * Defaults to false.
+	 * Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.
+	 * Defaults to advanced.
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
@@ -537,6 +550,16 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Controls whether to focus the inline editor in the peek widget by default.
+	 * Defaults to false.
+	 */
+	peekWidgetDefaultFocus?: 'tree' | 'editor';
+	/**
+	 * Controls whether the definition link opens element in the peek widget.
+	 * Defaults to false.
+	 */
+	definitionLinkOpensInPeek?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -601,9 +624,6 @@ export class ConfigurationChangedEvent {
 	constructor(values: boolean[]) {
 		this._values = values;
 	}
-	/**
-	 * @internal
-	 */
 	public hasChanged(id: EditorOption): boolean {
 		return this._values[id];
 	}
@@ -626,7 +646,7 @@ export class ValidatedEditorOptions {
 }
 
 /**
- * @internal
+ * All computed editor options.
  */
 export interface IComputedEditorOptions {
 	get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
@@ -650,9 +670,6 @@ export interface IEnvironmentalOptions {
 	readonly accessibilitySupport: AccessibilitySupport;
 }
 
-/**
- * @internal
- */
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
 	readonly name: string;
@@ -986,11 +1003,56 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 
 //#endregion
 
+//#region comments
+
+/**
+ * Configuration options for editor comments
+ */
+export interface IEditorCommentsOptions {
+	/**
+	 * Insert a space after the line comment token and inside the block comments tokens.
+	 * Defaults to true.
+	 */
+	insertSpace?: boolean;
+}
+
+export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
+
+class EditorComments extends BaseEditorOption<EditorOption.comments, EditorCommentsOptions> {
+
+	constructor() {
+		const defaults: EditorCommentsOptions = {
+			insertSpace: true,
+		};
+		super(
+			EditorOption.comments, 'comments', defaults,
+			{
+				'editor.comments.insertSpace': {
+					type: 'boolean',
+					default: defaults.insertSpace,
+					description: nls.localize('comments.insertSpace', "Controls whether a space character is inserted when commenting.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorCommentsOptions {
+		if (typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorCommentsOptions;
+		return {
+			insertSpace: EditorBooleanOption.boolean(input.insertSpace, this.defaultValue.insertSpace),
+		};
+	}
+}
+
+//#endregion
+
 //#region cursorBlinking
 
 /**
  * The kind of animation in which the editor's cursor should be rendered.
- * @internal
  */
 export const enum TextEditorCursorBlinkingStyle {
 	/**
@@ -1035,7 +1097,6 @@ function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' 
 
 /**
  * The style in which the editor's cursor should be rendered.
- * @internal
  */
 export enum TextEditorCursorStyle {
 	/**
@@ -1164,9 +1225,6 @@ export interface IEditorFindOptions {
 	globalFindClipboard?: boolean;
 }
 
-/**
- * @internal
- */
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
 class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> {
@@ -1354,9 +1412,6 @@ export interface IGotoLocationOptions {
 	alternativeReferenceCommand?: string;
 }
 
-/**
- * @internal
- */
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
 class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoToLocationOptions> {
@@ -1486,9 +1541,6 @@ export interface IEditorHoverOptions {
 	sticky?: boolean;
 }
 
-/**
- * @internal
- */
 export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
 class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOptions> {
@@ -1588,10 +1640,6 @@ export interface EditorLayoutInfo {
 	 * The width of the glyph margin.
 	 */
 	readonly glyphMarginWidth: number;
-	/**
-	 * The height of the glyph margin.
-	 */
-	readonly glyphMarginHeight: number;
 
 	/**
 	 * Left position for the line numbers.
@@ -1601,10 +1649,6 @@ export interface EditorLayoutInfo {
 	 * The width of the line numbers.
 	 */
 	readonly lineNumbersWidth: number;
-	/**
-	 * The height of the line numbers.
-	 */
-	readonly lineNumbersHeight: number;
 
 	/**
 	 * Left position for the line decorations.
@@ -1614,10 +1658,6 @@ export interface EditorLayoutInfo {
 	 * The width of the line decorations.
 	 */
 	readonly decorationsWidth: number;
-	/**
-	 * The height of the line decorations.
-	 */
-	readonly decorationsHeight: number;
 
 	/**
 	 * Left position for the content (actual text)
@@ -1627,10 +1667,6 @@ export interface EditorLayoutInfo {
 	 * The width of the content (actual text)
 	 */
 	readonly contentWidth: number;
-	/**
-	 * The height of the content (actual height)
-	 */
-	readonly contentHeight: number;
 
 	/**
 	 * The position for the minimap
@@ -1817,19 +1853,15 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			glyphMarginLeft: glyphMarginLeft,
 			glyphMarginWidth: glyphMarginWidth,
-			glyphMarginHeight: outerHeight,
 
 			lineNumbersLeft: lineNumbersLeft,
 			lineNumbersWidth: lineNumbersWidth,
-			lineNumbersHeight: outerHeight,
 
 			decorationsLeft: decorationsLeft,
 			decorationsWidth: lineDecorationsWidth,
-			decorationsHeight: outerHeight,
 
 			contentLeft: contentLeft,
 			contentWidth: contentWidth,
-			contentHeight: outerHeight,
 
 			renderMinimap: renderMinimap,
 			minimapLeft: minimapLeft,
@@ -1865,9 +1897,6 @@ export interface IEditorLightbulbOptions {
 	enabled?: boolean;
 }
 
-/**
- * @internal
- */
 export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLightbulbOptions> {
@@ -1959,9 +1988,6 @@ export interface IEditorMinimapOptions {
 	scale?: number;
 }
 
-/**
- * @internal
- */
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
 class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimapOptions> {
@@ -2063,9 +2089,6 @@ export interface IEditorParameterHintOptions {
 	cycle?: boolean;
 }
 
-/**
- * @internal
- */
 export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
 class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints, InternalParameterHintOptions> {
@@ -2132,9 +2155,6 @@ export interface IQuickSuggestionsOptions {
 	strings: boolean;
 }
 
-/**
- * @internal
- */
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
@@ -2211,9 +2231,6 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 
-/**
- * @internal
- */
 export const enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
@@ -2222,9 +2239,6 @@ export const enum RenderLineNumbersType {
 	Custom = 4
 }
 
-/**
- * @internal
- */
 export interface InternalEditorRenderLineNumbersOptions {
 	readonly renderType: RenderLineNumbersType;
 	readonly renderFn: ((lineNumber: number) => string) | null;
@@ -2278,18 +2292,54 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 
 //#endregion
 
+//#region renderValidationDecorations
+
+/**
+ * @internal
+ */
+export function filterValidationDecorations(options: IComputedEditorOptions): boolean {
+	const renderValidationDecorations = options.get(EditorOption.renderValidationDecorations);
+	if (renderValidationDecorations === 'editable') {
+		return options.get(EditorOption.readOnly);
+	}
+	return renderValidationDecorations === 'on' ? false : true;
+}
+
+//#endregion
+
 //#region rulers
 
-class EditorRulers extends SimpleEditorOption<EditorOption.rulers, number[]> {
+export interface IRulerOption {
+	readonly column: number;
+	readonly color: string | null;
+}
+
+class EditorRulers extends BaseEditorOption<EditorOption.rulers, IRulerOption[]> {
 
 	constructor() {
-		const defaults: number[] = [];
+		const defaults: IRulerOption[] = [];
+		const columnSchema: IJSONSchema = { type: 'number', description: nls.localize('rulers.size', "Number of monospace characters at which this editor ruler will render.") };
 		super(
 			EditorOption.rulers, 'rulers', defaults,
 			{
 				type: 'array',
 				items: {
-					type: 'number'
+					anyOf: [
+						columnSchema,
+						{
+							type: [
+								'object'
+							],
+							properties: {
+								column: columnSchema,
+								color: {
+									type: 'string',
+									description: nls.localize('rulers.color', "Color of this editor ruler."),
+									format: 'color-hex'
+								}
+							}
+						}
+					]
 				},
 				default: defaults,
 				description: nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty.")
@@ -2297,13 +2347,24 @@ class EditorRulers extends SimpleEditorOption<EditorOption.rulers, number[]> {
 		);
 	}
 
-	public validate(input: any): number[] {
+	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
-			let rulers: number[] = [];
-			for (let value of input) {
-				rulers.push(EditorIntOption.clampedInt(value, 0, 0, 10000));
+			let rulers: IRulerOption[] = [];
+			for (let _element of input) {
+				if (typeof _element === 'number') {
+					rulers.push({
+						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
+						color: null
+					});
+				} else if (typeof _element === 'object') {
+					const element = _element as IRulerOption;
+					rulers.push({
+						column: EditorIntOption.clampedInt(element.column, 0, 0, 10000),
+						color: element.color
+					});
+				}
 			}
-			rulers.sort((a, b) => a - b);
+			rulers.sort((a, b) => a.column - b.column);
 			return rulers;
 		}
 		return this.defaultValue;
@@ -2380,9 +2441,6 @@ export interface IEditorScrollbarOptions {
 	horizontalSliderSize?: number;
 }
 
-/**
- * @internal
- */
 export interface InternalEditorScrollbarOptions {
 	readonly arrowSize: number;
 	readonly vertical: ScrollbarVisibility;
@@ -2595,11 +2653,12 @@ export interface ISuggestOptions {
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
+	/**
+	 * Controls the visibility of the status bar at the bottom of the suggest widget.
+	 */
+	hideStatusBar?: boolean;
 }
 
-/**
- * @internal
- */
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
 class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
@@ -2639,6 +2698,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
+			hideStatusBar: true
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -2676,7 +2736,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
-					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
+					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Controls whether an active snippet prevents quick suggestions.")
 				},
 				'editor.suggest.showIcons': {
 					type: 'boolean',
@@ -2824,6 +2884,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
 				},
+				'editor.suggest.hideStatusBar': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.hideStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+				}
 			}
 		);
 	}
@@ -2867,6 +2932,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
 			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
+			hideStatusBar: EditorBooleanOption.boolean(input.hideStatusBar, this.defaultValue.hideStatusBar),
 		};
 	}
 }
@@ -2893,7 +2959,6 @@ class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode,
 
 /**
  * Describes how to indent wrapped lines.
- * @internal
  */
 export const enum WrappingIndent {
 	/**
@@ -2927,9 +2992,6 @@ function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 
 
 //#region wrappingInfo
 
-/**
- * @internal
- */
 export interface EditorWrappingInfo {
 	readonly isDominatedByLongLines: boolean;
 	readonly isWordWrapMinified: boolean;
@@ -3048,9 +3110,6 @@ function register<K1 extends EditorOption, V>(option: IEditorOption<K1, V>): IEd
 	return option;
 }
 
-/**
- * @internal
- */
 export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
@@ -3065,6 +3124,7 @@ export const enum EditorOption {
 	autoSurround,
 	codeLens,
 	colorDecorators,
+	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
 	cursorBlinking,
@@ -3116,6 +3176,8 @@ export const enum EditorOption {
 	overviewRulerBorder,
 	overviewRulerLanes,
 	parameterHints,
+	peekWidgetDefaultFocus,
+	definitionLinkOpensInPeek,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3123,6 +3185,7 @@ export const enum EditorOption {
 	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
+	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
 	roundedSelection,
@@ -3152,6 +3215,7 @@ export const enum EditorOption {
 	wordWrapColumn,
 	wordWrapMinified,
 	wrappingIndent,
+	wrappingStrategy,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -3162,7 +3226,19 @@ export const enum EditorOption {
 }
 
 /**
- * @internal
+ * WORKAROUND: TS emits "any" for complex editor options values (anything except string, bool, enum, etc. ends up being "any")
+ * @monacodtsreplace
+ * /accessibilitySupport, any/accessibilitySupport, AccessibilitySupport/
+ * /comments, any/comments, EditorCommentsOptions/
+ * /find, any/find, EditorFindOptions/
+ * /fontInfo, any/fontInfo, FontInfo/
+ * /gotoLocation, any/gotoLocation, GoToLocationOptions/
+ * /hover, any/hover, EditorHoverOptions/
+ * /lightbulb, any/lightbulb, EditorLightbulbOptions/
+ * /minimap, any/minimap, EditorMinimapOptions/
+ * /parameterHints, any/parameterHints, InternalParameterHintOptions/
+ * /quickSuggestions, any/quickSuggestions, ValidQuickSuggestionsOptions/
+ * /suggest, any/suggest, InternalSuggestOptions/
  */
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
@@ -3270,6 +3346,7 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
 		EditorOption.contextmenu, 'contextmenu', true,
 	)),
@@ -3348,7 +3425,13 @@ export const EditorOptions = {
 		EditorOption.foldingStrategy, 'foldingStrategy',
 		'auto' as 'auto' | 'indentation',
 		['auto', 'indentation'] as const,
-		{ markdownDescription: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges. `auto` uses a language specific folding strategy, if available. `indentation` uses the indentation based folding strategy.") }
+		{
+			enumDescriptions: [
+				nls.localize('foldingStrategy.auto', "Use a language-specific folding strategy if available, else the indentation-based one."),
+				nls.localize('foldingStrategy.indentation', "Use the indentation-based folding strategy."),
+			],
+			description: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges.")
+		}
 	)),
 	foldingHighlight: register(new EditorBooleanOption(
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
@@ -3479,6 +3562,22 @@ export const EditorOptions = {
 		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
+	peekWidgetDefaultFocus: register(new EditorStringEnumOption(
+		EditorOption.peekWidgetDefaultFocus, 'peekWidgetDefaultFocus',
+		'tree' as 'tree' | 'editor',
+		['tree', 'editor'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('peekWidgetDefaultFocus.tree', "Focus the tree when opening peek"),
+				nls.localize('peekWidgetDefaultFocus.editor', "Focus the editor when opening peek")
+			],
+			description: nls.localize('peekWidgetDefaultFocus', "Controls whether to focus the inline editor or the tree in the peek widget.")
+		}
+	)),
+	definitionLinkOpensInPeek: register(new EditorBooleanOption(
+		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
+		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the definition link opens element in the peek widget.") }
+	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
@@ -3513,6 +3612,11 @@ export const EditorOptions = {
 			],
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		}
+	)),
+	renderValidationDecorations: register(new EditorStringEnumOption(
+		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
+		'editable' as 'editable' | 'on' | 'off',
+		['editable', 'on', 'off'] as const
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
@@ -3565,7 +3669,13 @@ export const EditorOptions = {
 		EditorOption.showFoldingControls, 'showFoldingControls',
 		'mouseover' as 'always' | 'mouseover',
 		['always', 'mouseover'] as const,
-		{ description: nls.localize('showFoldingControls', "Controls whether the fold controls on the gutter are automatically hidden.") }
+		{
+			enumDescriptions: [
+				nls.localize('showFoldingControls.always', "Always show the folding controls."),
+				nls.localize('showFoldingControls.mouseover', "Only show the folding controls when the mouse is over the gutter."),
+			],
+			description: nls.localize('showFoldingControls', "Controls when the folding controls on the gutter are shown.")
+		}
 	)),
 	showUnused: register(new EditorBooleanOption(
 		EditorOption.showUnused, 'showUnused', true,
@@ -3712,28 +3822,28 @@ export const EditorOptions = {
 			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
 		}
 	)),
+	wrappingStrategy: register(new EditorStringEnumOption(
+		EditorOption.wrappingStrategy, 'wrappingStrategy',
+		'simple' as 'simple' | 'advanced',
+		['simple', 'advanced'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
+				nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
+			],
+			description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points.")
+		}
+	)),
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
-	wrappingInfo: register(new EditorWrappingInfoComputer()),
+	wrappingInfo: register(new EditorWrappingInfoComputer())
 };
 
-/**
- * @internal
- */
 type EditorOptionsType = typeof EditorOptions;
-/**
- * @internal
- */
 type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
-/**
- * @internal
- */
 type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
-/**
- * @internal
- */
 export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;

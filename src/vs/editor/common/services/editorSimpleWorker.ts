@@ -13,7 +13,7 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IChange } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
 import { IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
@@ -419,7 +419,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return true;
 	}
 
-	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
+	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {

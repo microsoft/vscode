@@ -14,6 +14,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
+import { isWeb } from 'vs/base/common/platform';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false);
 
@@ -41,9 +42,9 @@ export interface IFilesConfigurationService {
 
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 
-	getAutoSaveMode(): AutoSaveMode;
-
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	getAutoSaveMode(): AutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
 
@@ -55,12 +56,14 @@ export interface IFilesConfigurationService {
 
 	readonly hotExitConfiguration: string | undefined;
 
-	preventSaveConflicts(resource: URI): boolean;
+	preventSaveConflicts(resource: URI, language: string): boolean;
 }
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
 
 	_serviceBrand: undefined;
+
+	private static DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
 
 	private readonly _onAutoSaveConfigurationChange = this._register(new Emitter<IAutoSaveConfiguration>());
 	readonly onAutoSaveConfigurationChange = this._onAutoSaveConfigurationChange.event;
@@ -110,7 +113,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 
 		// Auto Save
-		const autoSaveMode = configuration?.files?.autoSave || AutoSaveConfiguration.OFF;
+		const autoSaveMode = configuration?.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
@@ -207,8 +210,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentHotExitConfig;
 	}
 
-	preventSaveConflicts(resource: URI): boolean {
-		return this.configurationService.getValue('files.preventSaveConflicts', { resource });
+	preventSaveConflicts(resource: URI, language: string): boolean {
+		return this.configurationService.getValue('files.saveConflictResolution', { resource, overrideIdentifier: language }) !== 'overwriteFileOnDisk';
 	}
 }
 

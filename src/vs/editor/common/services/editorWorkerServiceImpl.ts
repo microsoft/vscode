@@ -10,7 +10,7 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/b
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IChange } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -90,7 +90,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
+	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
@@ -437,7 +437,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
+	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
