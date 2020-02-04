@@ -104,10 +104,9 @@
 
 		window.loadAndRun = async function (modules) {
 			// load
-
 			// await Promise.all(modules.map(module => new Promise((resolve, reject) =>{
 			// 	require([module], resolve, err => {
-			// 		console.log("BAD " + module);
+			// 		console.log("BAD " + module + JSON.stringify(err, undefined, '\t'));
 			// 		// console.log(module);
 			// 		resolve({});
 			// 	});
