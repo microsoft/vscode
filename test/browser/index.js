@@ -82,49 +82,42 @@ const testModules = (async function () {
 })();
 
 
-async function runTestsInBrowser(testModules, browserTypes = ['chromium', 'firefox', 'webkit']) {
+async function runTestsInBrowser(testModules, browserType) {
 
-	for (const browserType of browserTypes) {
+	const browser = await playwright[browserType].launch();
+	const context = await browser.newContext();
 
-		console.group(`running tests in ${browserType.toUpperCase()}`);
+	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	const page = await context.newPage(target.href);
 
-		const browser = await playwright[browserType].launch();
-		const context = await browser.newContext();
+	const emitter = new events.EventEmitter();
+	await page.exposeFunction('mocha_report', (type, data1, data2) => {
+		emitter.emit(type, data1, data2)
+	});
 
-		const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-		const page = await context.newPage(target.href);
+	page.on('console', async msg => {
+		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+	});
 
-		const emitter = new events.EventEmitter();
-		await page.exposeFunction('mocha_report', (type, data1, data2) => {
-			emitter.emit(type, data1, data2)
-		});
+	new Reporter(new EchoRunner(emitter, browserType.toUpperCase()));
 
-		page.on('console', async msg => {
-			console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
-		});
-
-		new Reporter(new EchoRunner(emitter));
-
-		try {
-			// @ts-ignore
-			await page.evaluate(modules => loadAndRun(modules), testModules);
-		} catch (err) {
-			console.error(err);
-		}
-		await browser.close();
-
-		console.groupEnd();
+	try {
+		// @ts-ignore
+		await page.evaluate(modules => loadAndRun(modules), testModules);
+	} catch (err) {
+		console.error(err);
 	}
+	await browser.close();
 }
 
 class EchoRunner extends events.EventEmitter {
 
-	constructor(event) {
+	constructor(event, title = '') {
 		super();
 		event.on('start', () => this.emit('start'));
 		event.on('end', () => this.emit('end'));
-		event.on('suite', (suite) => this.emit('suite', EchoRunner.deserializeSuite(suite)));
-		event.on('suite end', (suite) => this.emit('suite end', EchoRunner.deserializeSuite(suite)));
+		event.on('suite', (suite) => this.emit('suite', EchoRunner.deserializeSuite(suite, title)));
+		event.on('suite end', (suite) => this.emit('suite end', EchoRunner.deserializeSuite(suite, title)));
 		event.on('test', (test) => this.emit('test', EchoRunner.deserializeRunnable(test)));
 		event.on('test end', (test) => this.emit('test end', EchoRunner.deserializeRunnable(test)));
 		event.on('hook', (hook) => this.emit('hook', EchoRunner.deserializeRunnable(hook)));
@@ -134,12 +127,12 @@ class EchoRunner extends events.EventEmitter {
 		event.on('pending', (test) => this.emit('pending', EchoRunner.deserializeRunnable(test)));
 	}
 
-	static deserializeSuite(suite) {
+	static deserializeSuite(suite, titleExtra) {
 		return {
 			root: suite.root,
 			suites: suite.suites,
 			tests: suite.tests,
-			title: suite.title,
+			title: titleExtra && suite.title ? `${suite.title} - /${titleExtra}/` : suite.title,
 			fullTitle: () => suite.fullTitle,
 			timeout: () => suite.timeout,
 			retries: () => suite.retries,
@@ -168,7 +161,11 @@ class EchoRunner extends events.EventEmitter {
 }
 
 testModules.then(async modules => {
-	await runTestsInBrowser(modules, ['chromium', 'webkit']);
+	await Promise.all([
+		runTestsInBrowser(modules, 'chromium'),
+		runTestsInBrowser(modules, 'webkit'),
+		// runTestsInBrowser(modules, 'firefox'),
+	]);
 }).catch(err => {
 	console.error(err);
 });
