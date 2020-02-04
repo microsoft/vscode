@@ -606,8 +606,8 @@ export class LoadedScriptsView extends ViewPane {
 	}
 
 	dispose(): void {
-		this.tree = dispose(this.tree);
-		this.treeLabels = dispose(this.treeLabels);
+		dispose(this.tree);
+		dispose(this.treeLabels);
 		super.dispose();
 	}
 }

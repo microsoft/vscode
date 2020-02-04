@@ -47,6 +47,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -152,7 +153,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
 		@IThemeService private readonly themeService: IThemeService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
 	}
@@ -176,7 +178,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (resourceMarkers.resource.scheme === network.Schemas.file || resourceMarkers.resource.scheme === network.Schemas.untitled) {
+		if (this.fileService.canHandleResource(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
 			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });

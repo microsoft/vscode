@@ -1087,8 +1087,14 @@ export class TestFileService implements IFileService {
 		});
 	}
 
+	writeShouldThrowError: Error | undefined = undefined;
+
 	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
 		await timeout(0);
+
+		if (this.writeShouldThrowError) {
+			throw this.writeShouldThrowError;
+		}
 
 		return ({
 			resource,

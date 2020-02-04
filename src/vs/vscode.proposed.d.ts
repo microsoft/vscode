@@ -18,7 +18,7 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface Session {
+	export interface AuthenticationSession {
 		id: string;
 		accessToken: string;
 		accountName: string;
@@ -58,12 +58,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Promise<ReadonlyArray<Session>>;
+		getSessions(): Promise<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Promise<Session>;
+		login(scopes: string[]): Promise<AuthenticationSession>;
 		logout(sessionId: string): Promise<void>;
 	}
 

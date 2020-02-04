@@ -29,7 +29,7 @@ import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { Session } from 'vs/editor/common/modes';
+import { AuthenticationSession } from 'vs/editor/common/modes';
 import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -82,7 +82,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
-	private _activeAccount: Session | undefined;
+	private _activeAccount: AuthenticationSession | undefined;
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -159,11 +159,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	get activeAccount(): Session | undefined {
+	get activeAccount(): AuthenticationSession | undefined {
 		return this._activeAccount;
 	}
 
-	set activeAccount(account: Session | undefined) {
+	set activeAccount(account: AuthenticationSession | undefined) {
 		this._activeAccount = account;
 
 		if (account) {

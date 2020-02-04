@@ -88,7 +88,7 @@ export class MenuBar extends Disposable {
 
 	private numMenusShown: number = 0;
 	private menuStyle: IMenuStyles | undefined;
-	private overflowLayoutScheduled: IDisposable | null = null;
+	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
@@ -419,9 +419,8 @@ export class MenuBar extends Disposable {
 		DOM.removeNode(this.overflowMenu.titleElement);
 		DOM.removeNode(this.overflowMenu.buttonElement);
 
-		if (this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = dispose(this.overflowLayoutScheduled);
-		}
+		dispose(this.overflowLayoutScheduled);
+		this.overflowLayoutScheduled = undefined;
 	}
 
 	blur(): void {
@@ -561,7 +560,7 @@ export class MenuBar extends Disposable {
 		if (!this.overflowLayoutScheduled) {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
-				this.overflowLayoutScheduled = null;
+				this.overflowLayoutScheduled = undefined;
 			});
 		}
 

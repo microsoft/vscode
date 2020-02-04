@@ -711,7 +711,7 @@ export interface SCMGroupFeatures {
 export type SCMRawResource = [
 	number /*handle*/,
 	UriComponents /*resourceUri*/,
-	string[] /*icons: light, dark*/,
+	UriComponents[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/
@@ -918,8 +918,8 @@ export interface ExtHostLabelServiceShape {
 }
 
 export interface ExtHostAuthenticationShape {
-	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
-	$login(id: string, scopes: string[]): Promise<modes.Session>;
+	$getSessions(id: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
+	$login(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$logout(id: string, sessionId: string): Promise<void>;
 }
 

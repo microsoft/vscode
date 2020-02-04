@@ -272,13 +272,10 @@ export class ElectronWindow extends Disposable {
 					return; // do not indicate dirty of working copies that are auto saved after short delay
 				}
 
-				if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
-					const hasDirtyFiles = this.workingCopyService.hasDirty;
-					this.isDocumentedEdited = hasDirtyFiles;
-
-					this.electronService.setDocumentEdited(hasDirtyFiles);
-				}
+				this.updateDocumentEdited(gotDirty);
 			}));
+
+			this.updateDocumentEdited();
 		}
 
 		// Detect minimize / maximize
@@ -288,6 +285,15 @@ export class ElectronWindow extends Disposable {
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+	}
+
+	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
+		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
+			const hasDirtyFiles = this.workingCopyService.hasDirty;
+			this.isDocumentedEdited = hasDirtyFiles;
+
+			this.electronService.setDocumentEdited(hasDirtyFiles);
+		}
 	}
 
 	private onDidChangeMaximized(maximized: boolean): void {
@@ -650,8 +656,8 @@ export class ElectronWindow extends Disposable {
 			}
 
 			// Otherwise resolve promise when resource is saved
-			const listener = this.workingCopyService.onDidChangeDirty(e => {
-				if (!e.isDirty() && isEqual(resource, e.resource)) {
+			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
+				if (!workingCopy.isDirty() && isEqual(resource, workingCopy.resource)) {
 					listener.dispose();
 
 					resolve();
