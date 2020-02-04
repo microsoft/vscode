@@ -266,14 +266,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
 
 			if (this.isResolved()) {
-				return this; // Make sure meanwhile someone else did not suceed in loading
+				return this; // Make sure meanwhile someone else did not succeed in loading
 			}
 
 			if (backup) {
 				try {
 					return await this.loadFromBackup(backup, options);
 				} catch (error) {
-					this.logService.error('[text file model] load()', error); // ignore error and continue to load as file below
+					this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
 				}
 			}
 		}
@@ -344,12 +344,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// NotModified status is expected and can be handled gracefully
 			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-
-				// Guard against the model having changed in the meantime
-				if (currentVersionId === this.versionId) {
-					this.doSetDirty(false); // Ensure we are not tracking a stale state
-				}
-
 				return this;
 			}
 
@@ -419,20 +413,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setDirty(true);
 		}
 
-		// Ensure we are not tracking a stale state
-		else {
-			this.doSetDirty(false);
-		}
-
 		// Model Listeners
 		this.installModelListeners(textModel);
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
 		this.logService.trace('[text file model] load() - updated text editor model', this.resource.toString());
-
-		// Ensure we are not tracking a stale state
-		this.doSetDirty(false);
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
