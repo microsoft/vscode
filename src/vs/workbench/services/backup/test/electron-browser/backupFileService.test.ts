@@ -26,7 +26,7 @@ import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/b
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TestWindowConfiguration } from 'vs/workbench/test/workbenchTestServices';
+import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const appSettingsHome = path.join(userdataDir, 'User');

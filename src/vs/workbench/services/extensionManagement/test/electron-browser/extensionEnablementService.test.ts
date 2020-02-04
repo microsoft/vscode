@@ -21,7 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { productService } from 'vs/workbench/test/workbenchTestServices';
+import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
