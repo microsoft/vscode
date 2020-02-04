@@ -1604,6 +1604,29 @@ export class Repository {
 		}
 	}
 
+	async createStashFromStaged(message?: string): Promise<void> {
+		try {
+			await this.run(['stash', '--keep-index']);
+
+			const args = ['stash', 'push', '--keep-index'];
+
+			if (message) {
+				args.push('-m', message);
+			}
+
+			await this.run(args);
+
+			await this.run(['reset', '--hard']);
+			await this.run(['stash', 'pop', 'stash@{1}']);
+		} catch (err) {
+			if (/No local changes to save/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
+			}
+
+			throw err;
+		}
+	}
+
 	async popStash(index?: number): Promise<void> {
 		const args = ['stash', 'pop'];
 		await this.popOrApplyStash(args, index);

@@ -1269,6 +1269,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
 	}
 
+	async createStashFromStaged(message?: string): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStashFromStaged(message));
+	}
+
 	async popStash(index?: number): Promise<void> {
 		return await this.run(Operation.Stash, () => this.repository.popStash(index));
 	}

@@ -419,6 +419,11 @@
         "category": "Git"
       },
       {
+        "command": "git.stashFromStaged",
+        "title": "%command.stashFromStaged%",
+        "category": "Git"
+      },
+      {
         "command": "git.stash",
         "title": "%command.stash%",
         "category": "Git"
@@ -843,6 +848,11 @@
         },
         {
           "command": "git.stashIncludeUntracked",
+          "group": "6_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashFromStaged",
           "group": "6_stash",
           "when": "scmProvider == git"
         },

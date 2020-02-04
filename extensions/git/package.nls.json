@@ -64,6 +64,7 @@
 	"command.ignore": "Add to .gitignore",
 	"command.revealInExplorer": "Reveal in Side Bar",
 	"command.stashIncludeUntracked": "Stash (Include Untracked)",
+	"command.stashFromStaged": "Stash Staged",
 	"command.stash": "Stash",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
