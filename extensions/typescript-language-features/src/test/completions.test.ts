@@ -199,9 +199,7 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('completeFunctionCalls should complete function parameters when at end of word', async () => {
-		await updateConfig({
-			[Config.completeFunctionCalls]: true,
-		});
+		await updateConfig({ [Config.completeFunctionCalls]: true });
 
 		// Complete with-in word
 		await createTestEditor(testDocumentUri,
@@ -219,9 +217,7 @@ suite('TypeScript Completions', () => {
 	});
 
 	test.skip('completeFunctionCalls should complete function parameters when within word', async () => {
-		await updateConfig({
-			[Config.completeFunctionCalls]: true,
-		});
+		await updateConfig({ [Config.completeFunctionCalls]: true });
 
 		await createTestEditor(testDocumentUri,
 			`function abcdef(x, y, z) { }`,
@@ -238,9 +234,7 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('completeFunctionCalls should not complete function parameters at end of word if we are already in something that looks like a function call, #18131', async () => {
-		await updateConfig({
-			[Config.completeFunctionCalls]: true,
-		});
+		await updateConfig({ [Config.completeFunctionCalls]: true });
 
 		await createTestEditor(testDocumentUri,
 			`function abcdef(x, y, z) { }`,
@@ -257,9 +251,7 @@ suite('TypeScript Completions', () => {
 	});
 
 	test.skip('completeFunctionCalls should not complete function parameters within word if we are already in something that looks like a function call, #18131', async () => {
-		await updateConfig({
-			[Config.completeFunctionCalls]: true,
-		});
+		await updateConfig({ [Config.completeFunctionCalls]: true });
 
 		await createTestEditor(testDocumentUri,
 			`function abcdef(x, y, z) { }`,
@@ -275,33 +267,34 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('should not de-prioritized this.member suggestion, #74164', async () => {
-		await createTestEditor(testDocumentUri,
-			`class A {`,
-			`  private detail = '';`,
-			`  foo() {`,
-			`    det$0`,
-			`  }`,
-			`}`,
-		);
-
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+	test('should not de-prioritize this.member suggestion, #74164', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
 				`class A {`,
 				`  private detail = '';`,
 				`  foo() {`,
-				`    this.detail`,
+				`    det$0`,
 				`  }`,
 				`}`,
-			));
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  private detail = '';`,
+					`  foo() {`,
+					`    this.detail`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
 	});
 
 	test('Accepting a completion in word using insert mode should insert', async () => {
-		await updateConfig({
-			[Config.insertMode]: 'insert',
-		});
+		await updateConfig({ [Config.insertMode]: 'insert' });
 
 		await createTestEditor(testDocumentUri,
 			`const abc = 123;`,
@@ -318,9 +311,7 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Accepting a completion in word using replace mode should replace', async () => {
-		await updateConfig({
-			[Config.insertMode]: 'replace',
-		});
+		await updateConfig({ [Config.insertMode]: 'replace' });
 
 		await createTestEditor(testDocumentUri,
 			`const abc = 123;`,
@@ -333,6 +324,41 @@ suite('TypeScript Completions', () => {
 			joinLines(
 				`const abc = 123;`,
 				`abc`
+			));
+	});
+
+	test('Accepting string completion inside string using insert mode should insert', async () => {
+		await updateConfig({ [Config.insertMode]: 'insert' });
+
+		await createTestEditor(testDocumentUri,
+			`const abc = { 'xy z': 123 }`,
+			`abc["x$0y w"]`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abc = { 'xy z': 123 }`,
+				`abc["xy zy w"]`
+			));
+	});
+
+	// Waiting on https://github.com/microsoft/TypeScript/issues/35602
+	test.skip('Accepting string completion inside string using insert mode should insert', async () => {
+		await updateConfig({ [Config.insertMode]: 'replace' });
+
+		await createTestEditor(testDocumentUri,
+			`const abc = { 'xy z': 123 }`,
+			`abc["x$0y w"]`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abc = { 'xy z': 123 }`,
+				`abc["xy w"]`
 			));
 	});
 });

@@ -124,23 +124,26 @@ class MyCompletionItem extends vscode.CompletionItem {
 			return;
 		}
 
-
 		const wordRange = this.document.getWordRangeAtPosition(this.position);
-		if (wordRange) {
-			// TODO: Reverted next line due to https://github.com/Microsoft/vscode/issues/66187
-			// this.range = wordRange;
-		}
+		let replaceRange = wordRange;
 
 		// Try getting longer, prefix based range for completions that span words
 		const text = line.slice(Math.max(0, this.position.character - this.label.length), this.position.character).toLowerCase();
 		const entryName = this.label.toLowerCase();
 		for (let i = entryName.length; i >= 0; --i) {
 			if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
-				this.range = new vscode.Range(
+				replaceRange = new vscode.Range(
 					new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
 					this.position);
 				break;
 			}
+		}
+
+		if (replaceRange) {
+			this.range = {
+				inserting: new vscode.Range(replaceRange.start, this.position),
+				replacing: replaceRange
+			};
 		}
 	}
 
