@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -22,12 +22,13 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
 	}
 
-	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
+	async read(key: string, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
@@ -40,7 +41,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-None-Match'] = oldValue.ref;
 		}
 
-		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
+		const context = await this.request({ type: 'GET', url, headers }, source, CancellationToken.None);
 
 		if (context.res.statusCode === 304) {
 			// There is no new value. Hence return the old value.
@@ -59,7 +60,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return { ref, content };
 	}
 
-	async write(key: string, data: string, ref: string | null): Promise<string> {
+	async write(key: string, data: string, ref: string | null, source?: SyncSource): Promise<string> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
@@ -70,12 +71,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-Match'] = ref;
 		}
 
-		const context = await this.request({ type: 'POST', url, data, headers }, CancellationToken.None);
-
-		if (context.res.statusCode === 412) {
-			// There is a new value. Throw Rejected Error
-			throw new UserDataSyncStoreError('New data exists', UserDataSyncStoreErrorCode.Rejected);
-		}
+		const context = await this.request({ type: 'POST', url, data, headers }, source, CancellationToken.None);
 
 		if (!isSuccess(context)) {
 			throw new Error('Server returned ' + context.res.statusCode);
@@ -88,7 +84,22 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return newRef;
 	}
 
-	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	async clear(): Promise<void> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource').toString();
+		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+
+		const context = await this.request({ type: 'DELETE', url, headers }, undefined, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
+		}
+	}
+
+	private async request(options: IRequestOptions, source: SyncSource | undefined, token: CancellationToken): Promise<IRequestContext> {
 		const authToken = await this.authTokenService.getToken();
 		if (!authToken) {
 			throw new Error('No Auth Token Available.');
@@ -96,15 +107,33 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		options.headers = options.headers || {};
 		options.headers['authorization'] = `Bearer ${authToken}`;
 
-		const context = await this.requestService.request(options, token);
+		this.logService.trace('Sending request to server', { url: options.url, headers: { ...options.headers, ...{ authorization: undefined } } });
+
+		let context;
+		try {
+			context = await this.requestService.request(options, token);
+			this.logService.trace('Request finished', { url: options.url, status: context.res.statusCode });
+		} catch (e) {
+			throw new UserDataSyncStoreError(`Connection refused for the request '${options.url?.toString()}'.`, UserDataSyncErrorCode.ConnectionRefused, source);
+		}
 
 		if (context.res.statusCode === 401) {
-			// Throw Unauthorized Error
-			throw new UserDataSyncStoreError('Unauthorized', UserDataSyncStoreErrorCode.Unauthroized);
+			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthroized, source);
+		}
+
+		if (context.res.statusCode === 403) {
+			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' is Forbidden (403).`, UserDataSyncErrorCode.Forbidden, source);
+		}
+
+		if (context.res.statusCode === 412) {
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Rejected, source);
+		}
+
+		if (context.res.statusCode === 413) {
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge, source);
 		}
 
 		return context;
-
 	}
 
 }

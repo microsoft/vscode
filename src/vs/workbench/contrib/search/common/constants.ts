@@ -17,8 +17,6 @@ export const CopyMatchCommandId = 'search.action.copyMatch';
 export const CopyAllCommandId = 'search.action.copyAll';
 export const OpenInEditorCommandId = 'search.action.openInEditor';
 export const OpenNewEditorCommandId = 'search.action.openNewEditor';
-export const RerunEditorSearchCommandId = 'search.action.rerunEditorSearch';
-export const RerunEditorSearchWithContextCommandId = 'search.action.rerunEditorSearchWithContext';
 export const ClearSearchHistoryCommandId = 'search.action.clearHistory';
 export const FocusSearchListCommandID = 'search.action.focusSearchList';
 export const ReplaceActionId = 'search.action.replace';
@@ -28,10 +26,13 @@ export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
 export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
 export const ToggleRegexCommandId = 'toggleSearchRegex';
+export const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
+export const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
+export const ToggleSearchEditorRegexCommandId = 'toggleSearchEditorRegex';
+export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
+export const RerunSearchEditorSearchCommandId = 'rerunSearchEditorSearch';
 export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
 export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
-
-export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
 
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);
@@ -43,6 +44,7 @@ export const PatternExcludesFocusedKey = new RawContextKey<boolean>('patternExcl
 export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
 export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', false);
 export const EnableSearchEditorPreview = new RawContextKey<boolean>('previewSearchEditor', false);
+export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
 
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false); // This is actually, Match or File or Folder

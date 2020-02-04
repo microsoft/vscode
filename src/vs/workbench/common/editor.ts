@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
@@ -17,14 +18,18 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
+import { createMemoizer } from 'vs/base/common/decorators';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -200,7 +205,7 @@ export interface IEditorInputFactoryRegistry {
 export interface IEditorInputFactory {
 
 	/**
-	 * Determines wether the given editor input can be serialized by the factory.
+	 * Determines whether the given editor input can be serialized by the factory.
 	 */
 	canSerialize(editorInput: IEditorInput): boolean;
 
@@ -221,7 +226,9 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * Otherwise the untitled text editor will have an associated path and use that when saving.
+	 * If the used scheme for the resource is not `untitled://`, `forceUntitled: true` must be configured to
+	 * force use the provided resource as associated path. As such, the resource will be used when saving
+	 * the untitled editor.
 	 */
 	resource?: URI;
 
@@ -296,26 +303,12 @@ export const enum SaveReason {
 	WINDOW_CHANGE = 4
 }
 
-export const enum SaveContext {
-
-	/**
-	 * Indicates that the editor is saved because it
-	 * is being closed by the user.
-	 */
-	EDITOR_CLOSE = 1,
-}
-
 export interface ISaveOptions {
 
 	/**
 	 * An indicator how the save operation was triggered.
 	 */
 	reason?: SaveReason;
-
-	/**
-	 * Additional information about the context of the save.
-	 */
-	context?: SaveContext;
 
 	/**
 	 * Forces to save the contents of the working copy
@@ -358,6 +351,16 @@ export interface IEditorInput extends IDisposable {
 	 * Triggered when this input is disposed.
 	 */
 	readonly onDispose: Event<void>;
+
+	/**
+	 * Triggered when this input changes its dirty state.
+	 */
+	readonly onDidChangeDirty: Event<void>;
+
+	/**
+	 * Triggered when this input changes its label
+	 */
+	readonly onDidChangeLabel: Event<void>;
 
 	/**
 	 * Returns the associated resource of this input.
@@ -413,23 +416,31 @@ export interface IEditorInput extends IDisposable {
 	isSaving(): boolean;
 
 	/**
-	 * Saves the editor. The provided groupId helps
-	 * implementors to e.g. preserve view state of the editor
-	 * and re-open it in the correct group after saving.
+	 * Saves the editor. The provided groupId helps implementors
+	 * to e.g. preserve view state of the editor and re-open it
+	 * in the correct group after saving.
+	 *
+	 * @returns the resulting editor input (typically the same) of
+	 * this operation or `undefined` to indicate that the operation
+	 * failed or was canceled.
 	 */
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
-	 * Saves the editor to a different location. The provided groupId
+	 * Saves the editor to a different location. The provided `group`
 	 * helps implementors to e.g. preserve view state of the editor
 	 * and re-open it in the correct group after saving.
+	 *
+	 * @returns the resulting editor input (typically a different one)
+	 * of this operation or `undefined` to indicate that the operation
+	 * failed or was canceled.
 	 */
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
-	 * Reverts this input.
+	 * Reverts this input from the provided group.
 	 */
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -521,15 +532,15 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return false;
 	}
 
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return true;
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
 	}
 
-	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return true;
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
 	}
 
-	async revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		return true;
 	}
 
@@ -549,65 +560,163 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	dispose(): void {
-		this.disposed = true;
-		this._onDispose.fire();
+		if (!this.disposed) {
+			this.disposed = true;
+			this._onDispose.fire();
+		}
 
 		super.dispose();
 	}
 }
 
-export abstract class TextEditorInput extends EditorInput {
+export abstract class TextResourceEditorInput extends EditorInput {
+
+	private static readonly MEMOIZER = createMemoizer();
 
 	constructor(
 		protected readonly resource: URI,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
-		@ITextFileService protected readonly textFileService: ITextFileService
+		@ITextFileService protected readonly textFileService: ITextFileService,
+		@ILabelService protected readonly labelService: ILabelService,
+		@IFileService protected readonly fileService: IFileService,
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
+
+		// Clear label memoizer on certain events that have impact
+		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
 	}
 
 	getResource(): URI {
 		return this.resource;
 	}
 
-	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	getName(): string {
+		return this.basename;
 	}
 
-	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options));
+	@TextResourceEditorInput.MEMOIZER
+	private get basename(): string {
+		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
-	protected async doSaveAs(group: GroupIdentifier, options: ISaveOptions | undefined, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortDescription;
+			case Verbosity.LONG:
+				return this.longDescription;
+			case Verbosity.MEDIUM:
+			default:
+				return this.mediumDescription;
+		}
+	}
 
-		// Preserve view state by opening the editor first. In addition
-		// this allows the user to review the contents of the editor.
-		let viewState: IEditorViewState | undefined = undefined;
-		const editor = await this.editorService.openEditor(this, undefined, group);
-		if (isTextEditor(editor)) {
-			viewState = editor.getViewState();
+	@TextResourceEditorInput.MEMOIZER
+	private get shortDescription(): string {
+		return this.labelService.getUriBasenameLabel(dirname(this.resource));
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get mediumDescription(): string {
+		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get longDescription(): string {
+		return this.labelService.getUriLabel(dirname(this.resource));
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get mediumTitle(): string {
+		return this.labelService.getUriLabel(this.resource, { relative: true });
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get longTitle(): string {
+		return this.labelService.getUriLabel(this.resource);
+	}
+
+	getTitle(verbosity: Verbosity): string {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortTitle;
+			case Verbosity.LONG:
+				return this.longTitle;
+			default:
+			case Verbosity.MEDIUM:
+				return this.mediumTitle;
+		}
+	}
+
+	isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
+	isReadonly(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never readonly
 		}
 
-		// Save as
-		const target = await saveRunnable();
+		if (!this.fileService.canHandleResource(this.resource)) {
+			return true; // resources without file support are always readonly
+		}
+
+		const model = this.textFileService.files.get(this.resource);
+
+		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+	}
+
+	isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
+	}
+
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		return this.doSave(group, options, false);
+	}
+
+	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		return this.doSave(group, options, true);
+	}
+
+	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+
+		// Save / Save As
+		let target: URI | undefined;
+		if (saveAs) {
+			target = await this.textFileService.saveAs(this.resource, undefined, options);
+		} else {
+			target = await this.textFileService.save(this.resource, options);
+		}
+
 		if (!target) {
-			return false; // save cancelled
+			return undefined; // save cancelled
 		}
 
-		// Replace editor preserving viewstate (either across all groups or
-		// only selected group) if the target is different from the current resource
-		// and if the editor is not being saved because it is being closed
-		// (because in that case we do not want to open a different editor anyway)
-		if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(target, this.resource)) {
-			const replacement = this.editorService.createInput({ resource: target });
-			const targetGroups = replaceAllEditors ? this.editorGroupService.groups.map(group => group.id) : [group];
-			for (const group of targetGroups) {
-				await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true, viewState } }], group);
-			}
+		if (!isEqual(target, this.resource)) {
+			return this.editorService.createInput({ resource: target });
 		}
 
-		return true;
+		return this;
+	}
+
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+		return this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -680,7 +789,7 @@ export class SideBySideEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
 	constructor(
-		private readonly name: string,
+		protected readonly name: string | undefined,
 		private readonly description: string | undefined,
 		private readonly _details: EditorInput,
 		private readonly _master: EditorInput
@@ -696,6 +805,22 @@ export class SideBySideEditorInput extends EditorInput {
 
 	get details(): EditorInput {
 		return this._details;
+	}
+
+	getTypeId(): string {
+		return SideBySideEditorInput.ID;
+	}
+
+	getName(): string {
+		if (!this.name) {
+			return localize('sideBySideLabels', "{0} - {1}", this._details.getName(), this._master.getName());
+		}
+
+		return this.name;
+	}
+
+	getDescription(): string | undefined {
+		return this.description;
 	}
 
 	isReadonly(): boolean {
@@ -714,16 +839,16 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isSaving();
 	}
 
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return this.master.save(groupId, options);
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this.master.save(group, options);
 	}
 
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return this.master.saveAs(groupId, options);
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this.master.saveAs(group, options);
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
-		return this.master.revert(options);
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+		return this.master.revert(group, options);
 	}
 
 	getTelemetryDescriptor(): { [key: string]: unknown } {
@@ -756,18 +881,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	async resolve(): Promise<EditorModel | null> {
 		return null;
-	}
-
-	getTypeId(): string {
-		return SideBySideEditorInput.ID;
-	}
-
-	getName(): string {
-		return this.name;
-	}
-
-	getDescription(): string | undefined {
-		return this.description;
 	}
 
 	matches(otherInput: unknown): boolean {

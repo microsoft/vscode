@@ -50,58 +50,58 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.ok(!manager.get(fileUpper));
 
-		let result = manager.getAll();
-		assert.strictEqual(3, result.length);
+		let results = manager.getAll();
+		assert.strictEqual(3, results.length);
 
-		result = manager.getAll(URI.file('/yes'));
-		assert.strictEqual(0, result.length);
+		let result = manager.get(URI.file('/yes'));
+		assert.ok(!result);
 
-		result = manager.getAll(URI.file('/some/other.txt'));
-		assert.strictEqual(0, result.length);
+		result = manager.get(URI.file('/some/other.txt'));
+		assert.ok(!result);
 
-		result = manager.getAll(URI.file('/some/other.html'));
-		assert.strictEqual(1, result.length);
+		result = manager.get(URI.file('/some/other.html'));
+		assert.ok(result);
 
-		result = manager.getAll(fileUpper);
-		assert.strictEqual(0, result.length);
+		result = manager.get(fileUpper);
+		assert.ok(!result);
 
 		manager.remove(URI.file(''));
 
-		result = manager.getAll();
-		assert.strictEqual(3, result.length);
+		results = manager.getAll();
+		assert.strictEqual(3, results.length);
 
 		manager.remove(URI.file('/some/other.html'));
-		result = manager.getAll();
-		assert.strictEqual(2, result.length);
+		results = manager.getAll();
+		assert.strictEqual(2, results.length);
 
 		manager.remove(fileUpper);
-		result = manager.getAll();
-		assert.strictEqual(2, result.length);
+		results = manager.getAll();
+		assert.strictEqual(2, results.length);
 
 		manager.clear();
-		result = manager.getAll();
-		assert.strictEqual(0, result.length);
+		results = manager.getAll();
+		assert.strictEqual(0, results.length);
 
 		model1.dispose();
 		model2.dispose();
 		model3.dispose();
 	});
 
-	test('loadOrCreate', async () => {
+	test('resolve', async () => {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
-		const model = await manager.loadOrCreate(resource, { encoding });
+		const model = await manager.resolve(resource, { encoding });
 		assert.ok(model);
 		assert.equal(model.getEncoding(), encoding);
 		assert.equal(manager.get(resource), model);
 
-		const model2 = await manager.loadOrCreate(resource, { encoding });
+		const model2 = await manager.resolve(resource, { encoding });
 		assert.equal(model2, model);
 		model.dispose();
 
-		const model3 = await manager.loadOrCreate(resource, { encoding });
+		const model3 = await manager.resolve(resource, { encoding });
 		assert.notEqual(model3, model2);
 		assert.equal(manager.get(resource), model3);
 		model3.dispose();
@@ -127,7 +127,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('pasero events', async function () {
+	test('events', async function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource1 = toResource.call(this, '/path/index.txt');
@@ -174,13 +174,13 @@ suite('Files - TextFileEditorModelManager', () => {
 			}
 		});
 
-		const model1 = await manager.loadOrCreate(resource1, { encoding: 'utf8' });
+		const model1 = await manager.resolve(resource1, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 1);
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
 
-		const model2 = await manager.loadOrCreate(resource2, { encoding: 'utf8' });
+		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 2);
 
 		model1.textEditorModel!.setValue('changed');
@@ -211,7 +211,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		const model = await manager.loadOrCreate(resource, { encoding: 'utf8' });
+		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.dispose();
 		assert.ok(!manager.get(resource));
 		assert.ok(!accessor.modelService.getModel(model.resource));
@@ -223,7 +223,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		const model = await manager.loadOrCreate(resource, { encoding: 'utf8' });
+		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.textEditorModel!.setValue('make dirty');
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(!model.isDisposed());
@@ -243,10 +243,10 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		let model = await manager.loadOrCreate(resource, { mode });
+		let model = await manager.resolve(resource, { mode });
 		assert.equal(model.textEditorModel!.getModeId(), mode);
 
-		model = await manager.loadOrCreate(resource, { mode: 'text' });
+		model = await manager.resolve(resource, { mode: 'text' });
 		assert.equal(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
 
 		manager.disposeModel((model as TextFileEditorModel));

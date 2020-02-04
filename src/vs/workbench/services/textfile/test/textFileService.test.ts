@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as sinon from 'sinon';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService, TestFileDialogService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -27,7 +24,6 @@ class ServiceAccessor {
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
@@ -52,172 +48,155 @@ suite('Files - TextFileService', () => {
 		if (model) {
 			model.dispose();
 		}
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const service = accessor.textFileService;
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 
-		assert.ok(!service.isDirty(model.resource));
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
 		model.textEditorModel!.setValue('foo');
 
-		assert.ok(service.isDirty(model.resource));
-		assert.equal(service.getDirty().length, 1);
-		assert.equal(service.getDirty([model.resource])[0].toString(), model.resource.toString());
+		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const untitled = accessor.untitledTextEditorService.createOrGet();
-		const untitledModel = await untitled.resolve();
+		const untitled = await accessor.textFileService.untitled.resolve();
 
-		assert.ok(!service.isDirty(untitled.getResource()));
-		assert.equal(service.getDirty().length, 1);
-		untitledModel.textEditorModel!.setValue('changed');
+		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
+		untitled.textEditorModel.setValue('changed');
 
-		assert.ok(service.isDirty(untitled.getResource()));
-		assert.equal(service.getDirty().length, 2);
-		assert.equal(service.getDirty([untitled.getResource()])[0].toString(), untitled.getResource().toString());
+		assert.ok(accessor.textFileService.isDirty(untitled.resource));
+
+		untitled.dispose();
 	});
 
 	test('save - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const service = accessor.textFileService;
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.ok(service.isDirty(model.resource));
+		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const res = await service.save(model.resource);
-		assert.ok(res);
-		assert.ok(!service.isDirty(model.resource));
-	});
-
-	test('save - UNC path', async function () {
-		const untitledUncUri = URI.from({ scheme: 'untitled', authority: 'server', path: '/share/path/file.txt' });
-		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
-		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
-		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
-
-		sinon.stub(accessor.untitledTextEditorService, 'exists', () => true);
-		sinon.stub(accessor.untitledTextEditorService, 'hasAssociatedFilePath', () => true);
-		sinon.stub(accessor.modelService, 'updateModel', () => { });
-
-		await model.load();
-		model.textEditorModel!.setValue('foo');
-
-		const res = await accessor.textFileService.saveAll(true);
-		assert.ok(loadOrCreateStub.calledOnce);
-		assert.equal(res.results.length, 1);
-		assert.ok(!res.results[0].error);
-		assert.equal(res.results[0].target!.scheme, Schemas.file);
-		assert.equal(res.results[0].target!.authority, untitledUncUri.authority);
-		assert.equal(res.results[0].target!.path, untitledUncUri.path);
+		const res = await accessor.textFileService.save(model.resource);
+		assert.equal(res?.toString(), model.resource.toString());
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
 	test('saveAll - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const service = accessor.textFileService;
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.ok(service.isDirty(model.resource));
+		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const res = await service.saveAll([model.resource]);
-		assert.ok(res);
-		assert.ok(!service.isDirty(model.resource));
-		assert.equal(res.results.length, 1);
-		assert.equal(res.results[0].source.toString(), model.resource.toString());
+		const res = await accessor.textFileService.save(model.resource);
+		assert.equal(res?.toString(), model.resource.toString());
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
 	test('saveAs - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const service = accessor.textFileService;
-		service.setPromptPath(model.resource);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.ok(service.isDirty(model.resource));
+		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const res = await service.saveAs(model.resource);
+		const res = await accessor.textFileService.saveAs(model.resource);
 		assert.equal(res!.toString(), model.resource.toString());
-		assert.ok(!service.isDirty(model.resource));
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
 	test('revert - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const service = accessor.textFileService;
-		service.setPromptPath(model.resource);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
 		model!.textEditorModel!.setValue('foo');
-		assert.ok(service.isDirty(model.resource));
+		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const res = await service.revert(model.resource);
+		const res = await accessor.textFileService.revert(model.resource);
 		assert.ok(res);
-		assert.ok(!service.isDirty(model.resource));
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
+	});
+
+	test('create', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+		await model.load();
+		model!.textEditorModel!.setValue('foo');
+		assert.ok(accessor.textFileService.isDirty(model.resource));
+
+
+		await accessor.textFileService.create(model.resource, 'Foo');
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
 	test('delete - dirty file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
-
-		const service = accessor.textFileService;
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model!.textEditorModel!.setValue('foo');
-		assert.ok(service.isDirty(model.resource));
+		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		await service.delete(model.resource);
-		assert.ok(!service.isDirty(model.resource));
+		await accessor.textFileService.delete(model.resource);
+		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
 	test('move - dirty file', async function () {
-		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'));
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
 	});
 
 	test('move - dirty file (target exists and is dirty)', async function () {
-		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true, true);
 	});
 
-	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
+	test('copy - dirty file', async function () {
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), false);
+	});
+
+	test('copy - dirty file (target exists and is dirty)', async function () {
+		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), false, true);
+	});
+
+	async function testMoveOrCopy(source: URI, target: URI, move: boolean, targetDirty?: boolean): Promise<void> {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
 		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.resource, sourceModel);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.resource, targetModel);
-
-		const service = accessor.textFileService;
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
 
 		await sourceModel.load();
 		sourceModel.textEditorModel!.setValue('foo');
-		assert.ok(service.isDirty(sourceModel.resource));
+		assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
 
 		if (targetDirty) {
 			await targetModel.load();
 			targetModel.textEditorModel!.setValue('bar');
-			assert.ok(service.isDirty(targetModel.resource));
+			assert.ok(accessor.textFileService.isDirty(targetModel.resource));
 		}
 
-		await service.move(sourceModel.resource, targetModel.resource, true);
+		if (move) {
+			await accessor.textFileService.move(sourceModel.resource, targetModel.resource, true);
+		} else {
+			await accessor.textFileService.copy(sourceModel.resource, targetModel.resource, true);
+		}
 
 		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
 
-		assert.ok(!service.isDirty(sourceModel.resource));
-		assert.ok(service.isDirty(targetModel.resource));
+		if (move) {
+			assert.ok(!accessor.textFileService.isDirty(sourceModel.resource));
+		} else {
+			assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
+		}
+		assert.ok(accessor.textFileService.isDirty(targetModel.resource));
 
 		sourceModel.dispose();
 		targetModel.dispose();

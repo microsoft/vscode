@@ -239,5 +239,10 @@ export class ApiImpl implements API {
 		return toGitUri(uri, ref);
 	}
 
+	getRepository(uri: Uri): Repository | null {
+		const result = this._model.getRepository(uri);
+		return result ? new ApiRepository(result) : null;
+	}
+
 	constructor(private _model: Model) { }
 }

@@ -42,7 +42,10 @@ suite('TokensStore', () => {
 				lineText += line.substring(startOffset, firstPipeOffset);
 				const tokenStartCharacter = lineText.length;
 				const tokenLength = secondPipeOffset - firstPipeOffset - 1;
-				const metadata = (SEMANTIC_COLOR << MetadataConsts.FOREGROUND_OFFSET);
+				const metadata = (
+					SEMANTIC_COLOR << MetadataConsts.FOREGROUND_OFFSET
+					| MetadataConsts.SEMANTIC_USE_FOREGROUND
+				);
 
 				if (tokens.length === 0) {
 					baseLine = i + 1;

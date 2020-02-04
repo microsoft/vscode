@@ -5,31 +5,27 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Account } from 'vs/editor/common/modes';
+import { AuthenticationSession } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
-export interface ChangeAccountEventData {
-	providerId: string;
-	accounts: ReadonlyArray<Account>;
-}
-
 export interface IAuthenticationService {
 	_serviceBrand: undefined;
 
 	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
-	accountsUpdate(providerId: string, accounts: ReadonlyArray<Account>): void;
+	sessionsUpdate(providerId: string): void;
 
 	readonly onDidRegisterAuthenticationProvider: Event<string>;
 	readonly onDidUnregisterAuthenticationProvider: Event<string>;
 
-	readonly onDidChangeAccounts: Event<ChangeAccountEventData>;
-	getAccounts(providerId: string): Promise<ReadonlyArray<Account> | undefined>;
-	login(providerId: string): Promise<Account>;
+	readonly onDidChangeSessions: Event<string>;
+	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession> | undefined>;
+	getDisplayName(providerId: string): string;
+	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
 	logout(providerId: string, accountId: string): Promise<void>;
 }
 
@@ -44,8 +40,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _onDidUnregisterAuthenticationProvider: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidUnregisterAuthenticationProvider: Event<string> = this._onDidUnregisterAuthenticationProvider.event;
 
-	private _onDidChangeAccounts: Emitter<ChangeAccountEventData> = this._register(new Emitter<ChangeAccountEventData>());
-	readonly onDidChangeAccounts: Event<ChangeAccountEventData> = this._onDidChangeAccounts.event;
+	private _onDidChangeSessions: Emitter<string> = this._register(new Emitter<string>());
+	readonly onDidChangeSessions: Event<string> = this._onDidChangeSessions.event;
 
 	constructor() {
 		super();
@@ -61,23 +57,32 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._onDidUnregisterAuthenticationProvider.fire(id);
 	}
 
-	accountsUpdate(providerId: string, accounts: ReadonlyArray<Account>): void {
-		this._onDidChangeAccounts.fire({ providerId, accounts });
+	sessionsUpdate(id: string): void {
+		this._onDidChangeSessions.fire(id);
 	}
 
-	async getAccounts(id: string): Promise<ReadonlyArray<Account> | undefined> {
+	getDisplayName(id: string): string {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return await authProvider.accounts();
+			return authProvider.displayName;
+		} else {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+	}
+
+	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession> | undefined> {
+		const authProvider = this._authenticationProviders.get(id);
+		if (authProvider) {
+			return await authProvider.getSessions();
 		}
 
 		return undefined;
 	}
 
-	async login(id: string): Promise<Account> {
+	async login(id: string, scopes: string[]): Promise<AuthenticationSession> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.login();
+			return authProvider.login(scopes);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

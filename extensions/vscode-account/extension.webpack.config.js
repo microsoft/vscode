@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+//@ts-check
 
-export interface IViewPaneContainer {
-	setVisible(visible: boolean): void;
-	isVisible(): boolean;
-	focus(): void;
-	getActions(): IAction[];
-	getSecondaryActions(): IAction[];
-	getActionViewItem(action: IAction): IActionViewItem | undefined;
-	saveState(): void;
-}
+'use strict';
+
+const withDefaults = require('../shared.webpack.config');
+
+module.exports = withDefaults({
+	context: __dirname,
+	entry: {
+		extension: './src/extension.ts',
+	},
+	externals: {
+		'keytar': 'commonjs keytar'
+	}
+});

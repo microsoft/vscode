@@ -12,8 +12,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementChannel, GlobalExtensionEnablementServiceClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -53,13 +53,13 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel, UserDataAuthTokenServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel, UserDataAuthTokenServiceChannel, UserDataAutoSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-browser/userDataAutoSyncService';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
 
@@ -113,6 +113,9 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.add(logService);
 	logService.info('main', JSON.stringify(configuration));
 
+	const mainProcessService = new MainProcessService(server, mainRouter);
+	services.set(IMainProcessService, mainProcessService);
+
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	disposables.add(configurationService);
 	await configurationService.initialize();
@@ -124,8 +127,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
-	const mainProcessService = new MainProcessService(server, mainRouter);
-	services.set(IMainProcessService, mainProcessService);
 
 	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
 	services.set(IElectronService, electronService);
@@ -184,6 +185,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IUserDataAuthTokenService, new SyncDescriptor(UserDataAuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', activeWindowRouter)));
+		services.set(IGlobalExtensionEnablementService, new GlobalExtensionEnablementServiceClient(server.getChannel('globalExtensionEnablement', activeWindowRouter)));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
 		services.set(ISettingsSyncService, new SyncDescriptor(SettingsSynchroniser));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
@@ -217,6 +219,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
 			server.registerChannel('userDataSync', userDataSyncChannel);
 
+			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSyncService);
+			const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
+			server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 			// update localizations cache
@@ -227,7 +233,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
 				instantiationService2.createInstance(LogsDataCleaner),
-				instantiationService2.createInstance(UserDataAutoSync)
+				userDataAutoSync
 			));
 			disposables.add(extensionManagementService as ExtensionManagementService);
 		});

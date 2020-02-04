@@ -7,77 +7,113 @@ import * as vscode from 'vscode';
 import * as modes from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-export class ExtHostAuthenticationProvider implements IDisposable {
-	constructor(private _provider: vscode.AuthenticationProvider,
-		private readonly _handle: number,
+export class AuthenticationProviderWrapper implements vscode.AuthenticationProvider {
+	onDidChangeSessions: Event<void>;
+
+	constructor(private _requestingExtension: IExtensionDescription,
+		private _provider: vscode.AuthenticationProvider,
 		private _proxy: MainThreadAuthenticationShape) {
-		this._provider.onDidChangeAccounts(x => this._proxy.$onDidChangeAccounts(this._handle, this._provider.accounts));
+
+		this.onDidChangeSessions = this._provider.onDidChangeSessions;
 	}
 
-	get accounts(): ReadonlyArray<vscode.Account> {
-		return this._provider.accounts;
+	get id(): string {
+		return this._provider.id;
 	}
 
-	login(): Promise<vscode.Account> {
-		return this._provider.login();
+	get displayName(): string {
+		return this._provider.displayName;
 	}
 
-	logout(accountId: string): Promise<void> {
-		return this._provider.logout(accountId);
+	async getSessions(): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+		const isAllowed = await this._proxy.$getSessionsPrompt(this._provider.id, this.displayName, ExtensionIdentifier.toKey(this._requestingExtension.identifier), this._requestingExtension.displayName || this._requestingExtension.name);
+		if (!isAllowed) {
+			throw new Error('User did not consent to session access.');
+		}
+
+		return this._provider.getSessions();
 	}
 
-	dispose(): void {
-		this._proxy.$unregisterAuthenticationProvider(this._handle);
+	async login(scopes: string[]): Promise<vscode.AuthenticationSession> {
+		const isAllowed = await this._proxy.$loginPrompt(this._provider.id, this.displayName, ExtensionIdentifier.toKey(this._requestingExtension.identifier), this._requestingExtension.displayName || this._requestingExtension.name);
+		if (!isAllowed) {
+			throw new Error('User did not consent to login.');
+		}
+
+		return this._provider.login(scopes);
+	}
+
+	logout(sessionId: string): Promise<void> {
+		return this._provider.logout(sessionId);
 	}
 }
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
-	public static _handlePool: number = 0;
 	private _proxy: MainThreadAuthenticationShape;
-	private _authenticationProviders: Map<number, ExtHostAuthenticationProvider> = new Map<number, ExtHostAuthenticationProvider>();
+	private _authenticationProviders: Map<string, vscode.AuthenticationProvider> = new Map<string, vscode.AuthenticationProvider>();
+
+	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
+	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
-	private readonly _onDidRefreshToken = new Emitter<any>();
-	readonly onDidRefreshToken: Event<any> = this._onDidRefreshToken.event;
-
-	registerAuthenticationProvider(provider: vscode.AuthenticationProvider) {
-		const handle = ExtHostAuthentication._handlePool++;
-		const authenticationProvider = new ExtHostAuthenticationProvider(provider, handle, this._proxy);
-		this._authenticationProviders.set(handle, authenticationProvider);
-
-		this._proxy.$registerAuthenticationProvider(handle, provider.id);
-		return authenticationProvider;
+	providers(requestingExtension: IExtensionDescription): vscode.AuthenticationProvider[] {
+		let providers: vscode.AuthenticationProvider[] = [];
+		this._authenticationProviders.forEach(provider => providers.push(new AuthenticationProviderWrapper(requestingExtension, provider, this._proxy)));
+		return providers;
 	}
 
-	$accounts(handle: number): Promise<ReadonlyArray<modes.Account>> {
-		const authProvider = this._authenticationProviders.get(handle);
-		if (authProvider) {
-			return Promise.resolve(authProvider.accounts);
+	registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
+		if (this._authenticationProviders.get(provider.id)) {
+			throw new Error(`An authentication provider with id '${provider.id}' is already registered.`);
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${handle}`);
+		this._authenticationProviders.set(provider.id, provider);
+
+		const listener = provider.onDidChangeSessions(_ => {
+			this._proxy.$onDidChangeSessions(provider.id);
+		});
+
+		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);
+		this._onDidChangeAuthenticationProviders.fire({ added: [provider.id], removed: [] });
+
+		return new Disposable(() => {
+			listener.dispose();
+			this._authenticationProviders.delete(provider.id);
+			this._proxy.$unregisterAuthenticationProvider(provider.id);
+			this._onDidChangeAuthenticationProviders.fire({ added: [], removed: [provider.id] });
+		});
 	}
 
-	$login(handle: number): Promise<modes.Account> {
-		const authProvider = this._authenticationProviders.get(handle);
+	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
+		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
-			return authProvider.login();
+			return Promise.resolve(authProvider.login(scopes));
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${handle}`);
+		throw new Error(`Unable to find authentication provider with handle: ${0}`);
 	}
 
-	$logout(handle: number, accountId: string): Promise<void> {
-		const authProvider = this._authenticationProviders.get(handle);
+	$logout(providerId: string, sessionId: string): Promise<void> {
+		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
-			return authProvider.logout(accountId);
+			return Promise.resolve(authProvider.logout(sessionId));
 		}
 
-		throw new Error(`Unable to find authentication provider with handle: ${handle}`);
+		throw new Error(`Unable to find authentication provider with handle: ${0}`);
+	}
+
+	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>> {
+		const authProvider = this._authenticationProviders.get(providerId);
+		if (authProvider) {
+			return Promise.resolve(authProvider.getSessions());
+		}
+
+		throw new Error(`Unable to find authentication provider with handle: ${0}`);
 	}
 }

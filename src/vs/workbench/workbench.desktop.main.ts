@@ -51,6 +51,7 @@ import 'vs/workbench/services/workspaces/electron-browser/workspacesService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/settingsSyncService';
+import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAuthTokenService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/host/electron-browser/desktopHostService';

@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -476,6 +476,76 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(actual2.workspaceFolderValue, undefined);
 	});
 
+	test('inspect with language overrides', function () {
+		const firstRoot = URI.file('foo1');
+		const secondRoot = URI.file('foo2');
+		const folders: [UriComponents, IConfigurationModel][] = [];
+		folders.push([firstRoot, toConfigurationModel({
+			'editor.wordWrap': 'bounded',
+			'[typescript]': {
+				'editor.wordWrap': 'unbounded',
+			}
+		})]);
+		folders.push([secondRoot, toConfigurationModel({})]);
+
+		const extHostWorkspace = createExtHostWorkspace();
+		extHostWorkspace.$initializeWorkspace({
+			'id': 'foo',
+			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
+			'name': 'foo'
+		});
+		const testObject = new ExtHostConfigProvider(
+			new class extends mock<MainThreadConfigurationShape>() { },
+			extHostWorkspace,
+			{
+				defaults: toConfigurationModel({
+					'editor.wordWrap': 'off',
+					'[markdown]': {
+						'editor.wordWrap': 'bounded',
+					}
+				}),
+				user: toConfigurationModel({
+					'editor.wordWrap': 'bounded',
+					'[typescript]': {
+						'editor.lineNumbers': 'off',
+					}
+				}),
+				workspace: toConfigurationModel({
+					'[typescript]': {
+						'editor.wordWrap': 'unbounded',
+						'editor.lineNumbers': 'off',
+					}
+				}),
+				folders,
+				configurationScopes: []
+			},
+			new NullLogService()
+		);
+
+		let actual = testObject.getConfiguration(undefined, { uri: firstRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
+		assert.equal(actual.defaultValue, 'off');
+		assert.equal(actual.globalValue, 'bounded');
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, 'bounded');
+		assert.equal(actual.defaultLanguageValue, undefined);
+		assert.equal(actual.globalLanguageValue, undefined);
+		assert.equal(actual.workspaceLanguageValue, 'unbounded');
+		assert.equal(actual.workspaceFolderLanguageValue, 'unbounded');
+		assert.deepEqual(actual.languageIds, ['markdown', 'typescript']);
+
+		actual = testObject.getConfiguration(undefined, { uri: secondRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
+		assert.equal(actual.defaultValue, 'off');
+		assert.equal(actual.globalValue, 'bounded');
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
+		assert.equal(actual.defaultLanguageValue, undefined);
+		assert.equal(actual.globalLanguageValue, undefined);
+		assert.equal(actual.workspaceLanguageValue, 'unbounded');
+		assert.equal(actual.workspaceFolderLanguageValue, undefined);
+		assert.deepEqual(actual.languageIds, ['markdown', 'typescript']);
+	});
+
+
 	test('getConfiguration vs get', function () {
 
 		const all = createExtHostConfiguration({
@@ -654,4 +724,11 @@ suite('ExtHostConfiguration', function () {
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
 		return new WorkspaceFolder({ uri, name, index });
 	}
+
+	function toConfigurationModel(obj: any): ConfigurationModel {
+		const parser = new ConfigurationModelParser('test');
+		parser.parseContent(JSON.stringify(obj));
+		return parser.configurationModel;
+	}
+
 });

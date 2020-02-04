@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { basename } from 'vs/base/common/resources';
 
 suite('WorkingCopyService', () => {
 
@@ -25,6 +26,8 @@ suite('WorkingCopyService', () => {
 		readonly onDispose = this._onDispose.event;
 
 		readonly capabilities = 0;
+
+		readonly name = basename(this.resource);
 
 		private dirty = false;
 
@@ -59,9 +62,9 @@ suite('WorkingCopyService', () => {
 			return true;
 		}
 
-		async backup(): Promise<void> { }
-
-		hasBackup(): boolean { return false; }
+		async backup(): Promise<IWorkingCopyBackup> {
+			return {};
+		}
 
 		dispose(): void {
 			this._onDispose.fire();
@@ -109,6 +112,8 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(service.dirtyWorkingCopies.length, 1);
 		assert.equal(service.dirtyWorkingCopies[0], copy1);
+		assert.equal(service.getWorkingCopies(copy1.resource).length, 1);
+		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
 		assert.equal(service.isDirty(resource1), true);
 		assert.equal(service.hasDirty, true);
 		assert.equal(onDidChangeDirty.length, 1);
@@ -175,6 +180,10 @@ suite('WorkingCopyService', () => {
 
 		const copy2 = new TestWorkingCopy(resource);
 		const unregister2 = service.registerWorkingCopy(copy2);
+
+		assert.equal(service.getWorkingCopies(copy1.resource).length, 2);
+		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
+		assert.equal(service.getWorkingCopies(copy1.resource)[1], copy2);
 
 		copy1.setDirty(true);
 

@@ -1585,7 +1585,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	open(elements: TRef[], browserEvent?: UIEvent): void {
-		const indexes = elements.map(e => this.model.getListIndex(e));
+		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i >= 0);
 		this.view.open(indexes, browserEvent);
 	}
 

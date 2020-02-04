@@ -21,7 +21,6 @@ import { SearchChannelClient } from './searchIpc';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -31,7 +30,6 @@ import { parseSearchPort } from 'vs/platform/environment/node/environmentService
 export class LocalSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
@@ -40,7 +38,7 @@ export class LocalSearchService extends SearchService {
 		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService readonly instantiationService: IInstantiationService
 	) {
-		super(modelService, untitledTextEditorService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
 
 
 		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));

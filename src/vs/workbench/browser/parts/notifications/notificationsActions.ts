@@ -121,13 +121,9 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private readonly _configurationActions: ReadonlyArray<IAction>
+		public readonly configurationActions: ReadonlyArray<IAction>
 	) {
 		super(id, label, 'codicon-gear');
-	}
-
-	get configurationActions(): ReadonlyArray<IAction> {
-		return this._configurationActions;
 	}
 }
 

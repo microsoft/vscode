@@ -100,14 +100,8 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 
 	// Remotely updated extensions
 	for (const key of values(baseToRemote.updated)) {
-		// If updated in local
-		if (baseToLocal.updated.has(key)) {
-			// Is different from local to remote
-			if (localToRemote.updated.has(key)) {
-				// update it in local
-				updated.push(massageSyncExtension(remoteExtensionsMap.get(key)!, key));
-			}
-		}
+		// Update in local always
+		updated.push(massageSyncExtension(remoteExtensionsMap.get(key)!, key));
 	}
 
 	// Locally added extensions
