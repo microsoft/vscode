@@ -345,6 +345,8 @@ export interface IView {
 
 	isBodyVisible(): boolean;
 
+	setExpanded(expanded: boolean): boolean;
+
 }
 
 export interface IViewsViewlet extends IViewlet {
@@ -360,9 +362,13 @@ export interface IViewsService {
 
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
 
+	isViewVisible(id: string): boolean;
+
 	getActiveViewWithId<T extends IView>(id: string): T | null;
 
-	openView(id: string, focus?: boolean): Promise<IView | null>;
+	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
+
+	closeView(id: string): void;
 
 }
 
@@ -522,6 +528,8 @@ export interface IViewPaneContainer {
 	onDidAddViews: Event<IView[]>;
 	onDidRemoveViews: Event<IView[]>;
 	onDidChangeViewVisibility: Event<IView>;
+
+	readonly length: number;
 
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;

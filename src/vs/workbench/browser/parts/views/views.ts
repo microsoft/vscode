@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -590,28 +590,23 @@ export class ViewsService extends Disposable implements IViewsService {
 		return undefined;
 	}
 
+	isViewVisible(id: string): boolean {
+		const activeView = this.getActiveViewWithId(id);
+		return activeView?.isBodyVisible() || false;
+	}
+
 	getActiveViewWithId<T extends IView>(id: string): T | null {
 		const viewContainer = this.viewDescriptorService.getViewContainer(id);
 		if (viewContainer) {
-			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
-
-			if (location === ViewContainerLocation.Sidebar) {
-				const activeViewlet = this.viewletService.getActiveViewlet();
-				if (activeViewlet?.getId() === viewContainer.id) {
-					return activeViewlet.getViewPaneContainer().getView(id) as T ?? null;
-				}
-			} else if (location === ViewContainerLocation.Panel) {
-				const activePanel = this.panelService.getActivePanel();
-				if (activePanel?.getId() === viewContainer.id) {
-					return (activePanel as IPaneComposite).getViewPaneContainer().getView(id) as T ?? null;
-				}
+			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
+			if (activeViewPaneContainer) {
+				return activeViewPaneContainer.getView(id) as T;
 			}
 		}
-
 		return null;
 	}
 
-	async openView(id: string, focus: boolean): Promise<IView | null> {
+	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainer(id);
 		if (viewContainer) {
 			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
@@ -619,8 +614,48 @@ export class ViewsService extends Disposable implements IViewsService {
 			if (compositeDescriptor) {
 				const paneComposite = await this.openComposite(compositeDescriptor.id, location!, focus) as IPaneComposite | undefined;
 				if (paneComposite && paneComposite.openView) {
-					return paneComposite.openView(id, focus);
+					return paneComposite.openView(id, focus) as T;
 				}
+			}
+		}
+
+		return null;
+	}
+
+	closeView(id: string): void {
+		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		if (viewContainer) {
+			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
+			if (activeViewPaneContainer) {
+				const view = activeViewPaneContainer.getView(id);
+				if (view) {
+					if (activeViewPaneContainer.length === 1) {
+						const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+						if (location === ViewContainerLocation.Sidebar) {
+							this.viewletService.hideActiveViewlet();
+						} else if (location === ViewContainerLocation.Panel) {
+							this.panelService.hideActivePanel();
+						}
+					} else {
+						view.setExpanded(false);
+					}
+				}
+			}
+		}
+	}
+
+	private getActiveViewPaneContainer(viewContainer: ViewContainer): IViewPaneContainer | null {
+		const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+
+		if (location === ViewContainerLocation.Sidebar) {
+			const activeViewlet = this.viewletService.getActiveViewlet();
+			if (activeViewlet?.getId() === viewContainer.id) {
+				return activeViewlet.getViewPaneContainer() || null;
+			}
+		} else if (location === ViewContainerLocation.Panel) {
+			const activePanel = this.panelService.getActivePanel();
+			if (activePanel?.getId() === viewContainer.id) {
+				return (activePanel as IPaneComposite).getViewPaneContainer() || null;
 			}
 		}
 
