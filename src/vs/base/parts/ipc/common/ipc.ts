@@ -700,14 +700,32 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		});
 	}
 
+	/**
+	 * Get a channel from a remote client. When passed a router,
+	 * one can specify which client it wants to call and listen to/from.
+	 * Otherwise, when calling without a router, a random client will
+	 * be selected and when listening without a router, every client
+	 * will be listened to.
+	 */
 	getChannel<T extends IChannel>(channelName: string, router?: IClientRouter<TContext>): T {
 		const that = this;
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				const connectionPromise = router
-					? router.routeCall(that, command, arg)
-					: Promise.resolve(getRandomElement(that.connections));
+				let connectionPromise: Promise<Client<TContext>>;
+
+				if (router) {
+					connectionPromise = router.routeCall(that, command, arg);
+				} else {
+					// when no router is provided, we go random client picking
+					let connection = getRandomElement(that.connections);
+
+					connectionPromise = connection
+						// if we found a client, let's call on it
+						? Promise.resolve(connection)
+						// else, let's wait for a client to come along
+						: Event.toPromise(that.onDidAddConnection);
+				}
 
 				const channelPromise = connectionPromise
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
