@@ -377,6 +377,8 @@ class StatefullMarkdownCell extends Disposable {
 	private menuContainer?: HTMLElement;
 	private editingContainer?: HTMLElement;
 
+	private localDisposables: DisposableStore;
+
 	constructor(
 		handler: NotebookHandler,
 		viewCell: ViewCell,
@@ -389,6 +391,7 @@ class StatefullMarkdownCell extends Disposable {
 		this.cellContainer = templateData.cellContainer;
 		this.menuContainer = templateData.menuContainer;
 		this.editingContainer = templateData.editingContainer;
+		this.localDisposables = new DisposableStore();
 
 		const viewUpdate = () => {
 			if (viewCell.isEditing) {
@@ -418,59 +421,59 @@ class StatefullMarkdownCell extends Disposable {
 							height: totalHeight
 						}
 					}, {});
+
 					const model = viewCell.getTextModel();
 					this.editor.setModel(model);
-					let scrollHeight = this.editor!.getLinesTotalHeight();
+					let realContentHeight = this.editor!.getContentHeight();
 
-					if (scrollHeight !== totalHeight) {
+					if (realContentHeight !== totalHeight) {
 						this.editor!.layout(
 							{
 								width: width,
-								height: scrollHeight
+								height: realContentHeight
 							}
 						);
 					}
+
+					this.localDisposables.add(model.onDidChangeContent(() => {
+						viewCell.setText(model.getLinesContent());
+						const clientHeight = this.cellContainer.clientHeight;
+						handler.layoutElement(viewCell, realContentHeight + 32 + clientHeight);
+					}));
+
+					this.localDisposables.add(this.editor.onDidContentSizeChange(e => {
+						let viewLayout = this.editor!.getLayoutInfo();
+
+						if (e.contentHeightChanged) {
+							this.editor!.layout(
+								{
+									width: viewLayout.width,
+									height: e.contentHeight
+								}
+							);
+							const clientHeight = this.cellContainer.clientHeight;
+							handler.layoutElement(viewCell, e.contentHeight + 32 + clientHeight);
+						}
+					}));
 
 					let cellWidthResizeObserver = getResizesObserver(templateData.editingContainer!, {
 						width: width,
 						height: totalHeight
 					}, () => {
 						let newWidth = cellWidthResizeObserver.getWidth();
-						let scrollHeight = this.editor!.getLinesTotalHeight();
+						let realContentHeight = this.editor!.getContentHeight();
 						this.editor!.layout(
 							{
 								width: newWidth,
-								height: scrollHeight
+								height: realContentHeight
 							}
 						);
 					});
 
 					cellWidthResizeObserver.startObserving();
-
-					// @TODO dispose?
+					this.localDisposables.add(cellWidthResizeObserver);
 
 					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
-
-					model.onDidChangeContent(() => {
-						viewCell.setText(model.getLinesContent());
-
-						let viewLayout = this.editor!.getLayoutInfo();
-						let scrollHeight = this.editor!.getLinesTotalHeight();
-
-						if (scrollHeight !== viewLayout.height) {
-							this.editor!.layout(
-								{
-									width: viewLayout.width,
-									height: scrollHeight
-								}
-							);
-						}
-
-						this.cellContainer.innerHTML = viewCell.getHTML() || '';
-
-						const clientHeight = this.cellContainer.clientHeight;
-						handler.layoutElement(viewCell, scrollHeight + 32 + clientHeight);
-					});
 				}
 
 				const clientHeight = this.cellContainer.clientHeight;
@@ -491,6 +494,7 @@ class StatefullMarkdownCell extends Disposable {
 		};
 
 		this._register(viewCell.onDidChangeEditingState(() => {
+			this.localDisposables.clear();
 			viewUpdate();
 		}));
 
@@ -650,13 +654,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		);
 
-		let scrollHeight = templateData.editor?.getLinesTotalHeight();
+		let realContentHeight = templateData.editor?.getContentHeight();
 
-		if (scrollHeight !== undefined && scrollHeight !== totalHeight) {
+		if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
 			templateData.editor?.layout(
 				{
 					width: width,
-					height: scrollHeight
+					height: realContentHeight
 				}
 			);
 		}
@@ -666,27 +670,25 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			height: totalHeight
 		}, () => {
 			let newWidth = cellWidthResizeObserver.getWidth();
-			let scrollHeight = templateData.editor!.getLinesTotalHeight();
+			let realContentHeight = templateData.editor!.getContentHeight();
 			templateData.editor?.layout(
 				{
 					width: newWidth,
-					height: scrollHeight
+					height: realContentHeight
 				}
 			);
 		});
 
 		cellWidthResizeObserver.startObserving();
 
-		let contentChangeListener = templateData.editor?.onDidChangeModelContent(() => {
-			let scrollHeight = templateData.editor!.getLinesTotalHeight();
-			let contentHeight = templateData.editor!.getLayoutInfo().height;
-			let contentWidth = templateData.editor!.getLayoutInfo().width;
-
-			if (scrollHeight !== contentHeight) {
-				templateData.editor!.layout(
+		let contentSizeChangeListener = templateData.editor?.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged) {
+				let width = templateData.editor!.getLayoutInfo().width;
+				templateData.editor?.layout(
 					{
-						width: contentWidth,
-						height: scrollHeight
+						width: width,
+						height: e.contentHeight
+
 					}
 				);
 			}
@@ -756,7 +758,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.disposables.set(templateData.cellContainer, {
 			dispose: () => {
 				listener.dispose();
-				contentChangeListener?.dispose();
+				contentSizeChangeListener?.dispose();
 				rerenderOutput.dispose();
 				cellWidthResizeObserver.stopObserving();
 				cellWidthResizeObserver.dispose();

@@ -762,13 +762,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.cursor.setSelections(source, ranges);
 	}
 
-	public getLinesTotalHeight(): number {
-		if (!this._modelData) {
-			return -1;
-		}
-		return this._modelData.viewModel.viewLayout.getLinesTotalHeight();
-	}
-
 	public getContentWidth(): number {
 		if (!this._modelData) {
 			return -1;
