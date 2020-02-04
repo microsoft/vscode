@@ -2538,7 +2538,7 @@ declare namespace monaco.editor {
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
 		 */
-		rulers?: number[];
+		rulers?: (number | IRulerOption)[];
 		/**
 		 * A string containing the word separators used when doing word navigation.
 		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
@@ -3035,6 +3035,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		peekWidgetDefaultFocus?: 'tree' | 'editor';
+		/**
+		 * Controls whether the definition link opens element in the peek widget.
+		 * Defaults to false.
+		 */
+		definitionLinkOpensInPeek?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3440,6 +3445,11 @@ declare namespace monaco.editor {
 		readonly renderFn: ((lineNumber: number) => string) | null;
 	}
 
+	export interface IRulerOption {
+		readonly column: number;
+		readonly color: string | null;
+	}
+
 	/**
 	 * Configuration options for editor scrollbars
 	 */
@@ -3761,50 +3771,51 @@ declare namespace monaco.editor {
 		overviewRulerLanes = 63,
 		parameterHints = 64,
 		peekWidgetDefaultFocus = 65,
-		quickSuggestions = 66,
-		quickSuggestionsDelay = 67,
-		readOnly = 68,
-		renderControlCharacters = 69,
-		renderIndentGuides = 70,
-		renderFinalNewline = 71,
-		renderLineHighlight = 72,
-		renderValidationDecorations = 73,
-		renderWhitespace = 74,
-		revealHorizontalRightPadding = 75,
-		roundedSelection = 76,
-		rulers = 77,
-		scrollbar = 78,
-		scrollBeyondLastColumn = 79,
-		scrollBeyondLastLine = 80,
-		selectionClipboard = 81,
-		selectionHighlight = 82,
-		selectOnLineNumbers = 83,
-		semanticHighlighting = 84,
-		showFoldingControls = 85,
-		showUnused = 86,
-		snippetSuggestions = 87,
-		smoothScrolling = 88,
-		stopRenderingLineAfter = 89,
-		suggest = 90,
-		suggestFontSize = 91,
-		suggestLineHeight = 92,
-		suggestOnTriggerCharacters = 93,
-		suggestSelection = 94,
-		tabCompletion = 95,
-		useTabStops = 96,
-		wordSeparators = 97,
-		wordWrap = 98,
-		wordWrapBreakAfterCharacters = 99,
-		wordWrapBreakBeforeCharacters = 100,
-		wordWrapColumn = 101,
-		wordWrapMinified = 102,
-		wrappingIndent = 103,
-		wrappingStrategy = 104,
-		editorClassName = 105,
-		pixelRatio = 106,
-		tabFocusMode = 107,
-		layoutInfo = 108,
-		wrappingInfo = 109
+		definitionLinkOpensInPeek = 66,
+		quickSuggestions = 67,
+		quickSuggestionsDelay = 68,
+		readOnly = 69,
+		renderControlCharacters = 70,
+		renderIndentGuides = 71,
+		renderFinalNewline = 72,
+		renderLineHighlight = 73,
+		renderValidationDecorations = 74,
+		renderWhitespace = 75,
+		revealHorizontalRightPadding = 76,
+		roundedSelection = 77,
+		rulers = 78,
+		scrollbar = 79,
+		scrollBeyondLastColumn = 80,
+		scrollBeyondLastLine = 81,
+		selectionClipboard = 82,
+		selectionHighlight = 83,
+		selectOnLineNumbers = 84,
+		semanticHighlighting = 85,
+		showFoldingControls = 86,
+		showUnused = 87,
+		snippetSuggestions = 88,
+		smoothScrolling = 89,
+		stopRenderingLineAfter = 90,
+		suggest = 91,
+		suggestFontSize = 92,
+		suggestLineHeight = 93,
+		suggestOnTriggerCharacters = 94,
+		suggestSelection = 95,
+		tabCompletion = 96,
+		useTabStops = 97,
+		wordSeparators = 98,
+		wordWrap = 99,
+		wordWrapBreakAfterCharacters = 100,
+		wordWrapBreakBeforeCharacters = 101,
+		wordWrapColumn = 102,
+		wordWrapMinified = 103,
+		wrappingIndent = 104,
+		wrappingStrategy = 105,
+		editorClassName = 106,
+		pixelRatio = 107,
+		tabFocusMode = 108,
+		layoutInfo = 109,
+		wrappingInfo = 110
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3873,6 +3884,7 @@ declare namespace monaco.editor {
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
+		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;

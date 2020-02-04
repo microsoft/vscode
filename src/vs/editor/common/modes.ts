@@ -1338,7 +1338,7 @@ export interface RenameProvider {
 /**
  * @internal
  */
-export interface Session {
+export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
 	accountName: string;

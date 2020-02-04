@@ -10,7 +10,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel } from 'vs/workbench/browser/panel';
@@ -168,7 +168,7 @@ registerAction2(class ApplyAction extends Action2 {
 			}],
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
-				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, ContextKeyExpr.equals('activePanel', BulkEditPane.ID), ContextKeyExpr.has('panelFocus')),
+				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, FocusedViewContext.isEqualTo(BulkEditPane.ID)),
 				primary: KeyMod.Shift + KeyCode.Enter,
 			}
 		});

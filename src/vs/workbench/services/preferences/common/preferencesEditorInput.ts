@@ -16,6 +16,9 @@ import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/p
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -36,9 +39,12 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService, textFileService, editorService, editorGroupService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService, textFileService, editorService, editorGroupService, fileService, labelService, filesConfigurationService);
 	}
 
 	getTypeId(): string {
