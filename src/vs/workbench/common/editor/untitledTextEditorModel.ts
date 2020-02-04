@@ -244,7 +244,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		let modelFirstWordsCandidate: string | undefined = undefined;
 
-		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH }).trim();
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim();
 		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
 			modelFirstWordsCandidate = firstLineText;
 		}
