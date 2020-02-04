@@ -4,13 +4,12 @@ set -e
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
-	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 	LINUX_NO_SANDBOX="--no-sandbox" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
 fi
 
+VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 cd $ROOT
 
 # Figure out which Electron to use for running tests
