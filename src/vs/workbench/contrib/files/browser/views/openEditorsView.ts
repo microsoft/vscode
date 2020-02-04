@@ -104,7 +104,7 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.updateDirtyIndicator(c)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateDirtyIndicator(workingCopy)));
 	}
 
 	private registerUpdateEvents(): void {
