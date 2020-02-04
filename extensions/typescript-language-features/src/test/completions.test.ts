@@ -33,6 +33,8 @@ namespace Config {
 	export const insertMode = 'editor.suggest.insertMode';
 }
 
+const insertModes = Object.freeze(['insert', 'replace']);
+
 suite('TypeScript Completions', () => {
 	const configDefaults: VsCodeConfiguration = Object.freeze({
 		[Config.suggestSelection]: 'first',
@@ -61,63 +63,74 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Basic var completion', async () => {
-		await createTestEditor(testDocumentUri,
-			`const abcdef = 123;`,
-			`ab$0;`
-		);
-
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
 				`const abcdef = 123;`,
-				`abcdef;`
-			));
+				`ab$0;`
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`const abcdef = 123;`,
+					`abcdef;`
+				),
+				`config: ${config}`
+			);
+		});
 	});
 
 	test('Should treat period as commit character for var completions', async () => {
-		await createTestEditor(testDocumentUri,
-			`const abcdef = 123;`,
-			`ab$0;`
-		);
-
-		const document = await typeCommitCharacter(testDocumentUri, '.', _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
 				`const abcdef = 123;`,
-				`abcdef.;`
-			));
+				`ab$0;`
+			);
+
+			const document = await typeCommitCharacter(testDocumentUri, '.', _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`const abcdef = 123;`,
+					`abcdef.;`
+				),
+				`config: ${config}`);
+		});
 	});
 
 	test('Should treat paren as commit character for function completions', async () => {
-		await createTestEditor(testDocumentUri,
-			`function abcdef() {};`,
-			`ab$0;`
-		);
-
-		const document = await typeCommitCharacter(testDocumentUri, '(', _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
 				`function abcdef() {};`,
-				`abcdef();`
-			));
+				`ab$0;`
+			);
+
+			const document = await typeCommitCharacter(testDocumentUri, '(', _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`function abcdef() {};`,
+					`abcdef();`
+				), `config: ${config}`);
+		});
 	});
 
 	test('Should insert backets when completing dot properties with spaces in name', async () => {
-		await createTestEditor(testDocumentUri,
-			'const x = { "hello world": 1 };',
-			'x.$0'
-		);
-
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
 				'const x = { "hello world": 1 };',
-				'x["hello world"]'
-			));
+				'x.$0'
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					'const x = { "hello world": 1 };',
+					'x["hello world"]'
+				), `config: ${config}`);
+		});
 	});
 
 	test('Should allow commit characters for backet completions', async () => {
@@ -144,19 +157,22 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Should not prioritize bracket accessor completions. #63100', async () => {
-		// 'a' should be first entry in completion list
-		await createTestEditor(testDocumentUri,
-			'const x = { "z-z": 1, a: 1 };',
-			'x.$0'
-		);
-
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			// 'a' should be first entry in completion list
+			await createTestEditor(testDocumentUri,
 				'const x = { "z-z": 1, a: 1 };',
-				'x.a'
-			));
+				'x.$0'
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					'const x = { "z-z": 1, a: 1 };',
+					'x.a'
+				),
+				`config: ${config}`);
+		});
 	});
 
 	test('Accepting a string completion should replace the entire string. #53962', async () => {
@@ -321,3 +337,10 @@ suite('TypeScript Completions', () => {
 	});
 });
 
+async function enumerateConfig(configKey: string, values: readonly string[], f: (message: string) => Promise<void>): Promise<void> {
+	for (const value of values) {
+		const newConfig = { [configKey]: value };
+		await updateConfig(newConfig);
+		await f(JSON.stringify(newConfig));
+	}
+}
