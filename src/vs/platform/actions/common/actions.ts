@@ -58,6 +58,8 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 
 export class MenuId {
 
+	private static _idPool = 0;
+
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
 	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
@@ -113,7 +115,6 @@ export class MenuId {
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 
-	private static _idPool = 0;
 
 	readonly id: number;
 	readonly _debugName: string;
