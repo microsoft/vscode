@@ -331,7 +331,7 @@ export class TextAreaInput extends Disposable {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '') {
+				if (typeInput.text !== '' || typeInput.replaceCharCnt !== 0) {
 					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
@@ -493,8 +493,11 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public refreshFocusState(): void {
-		if (document.body.contains(this.textArea.domNode) && document.activeElement === this.textArea.domNode) {
-			this._setHasFocus(true);
+		const shadowRoot = dom.getShadowRoot(this.textArea.domNode);
+		if (shadowRoot) {
+			this._setHasFocus(shadowRoot.activeElement === this.textArea.domNode);
+		} else if (dom.isInDOM(this.textArea.domNode)) {
+			this._setHasFocus(document.activeElement === this.textArea.domNode);
 		} else {
 			this._setHasFocus(false);
 		}
@@ -699,7 +702,15 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
 		const textArea = this._actual.domNode;
 
-		const currentIsFocused = (document.activeElement === textArea);
+		let activeElement: Element | null = null;
+		const shadowRoot = dom.getShadowRoot(textArea);
+		if (shadowRoot) {
+			activeElement = shadowRoot.activeElement;
+		} else {
+			activeElement = document.activeElement;
+		}
+
+		const currentIsFocused = (activeElement === textArea);
 		const currentSelectionStart = textArea.selectionStart;
 		const currentSelectionEnd = textArea.selectionEnd;
 

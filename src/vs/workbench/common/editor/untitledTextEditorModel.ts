@@ -11,14 +11,14 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Emitter } from 'vs/base/common/event';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
@@ -51,7 +51,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Otherwise fallback to resource
-		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
+		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
 	private dirty = false;
@@ -69,7 +69,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(modelService, modeService);
 
@@ -188,7 +189,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Listen to text model events
 		const textEditorModel = assertIsDefined(this.textEditorModel);
-		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
+		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 		// Name
@@ -208,16 +209,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
-	private onModelContentChanged(e: IModelContentChangedEvent): void {
-		if (!this.isResolved()) {
-			return;
-		}
-
+	private onModelContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
 		this.versionId++;
 
 		// mark the untitled text editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 
@@ -247,7 +244,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		let modelFirstWordsCandidate: string | undefined = undefined;
 
-		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH }).trim();
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim();
 		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
 			modelFirstWordsCandidate = firstLineText;
 		}

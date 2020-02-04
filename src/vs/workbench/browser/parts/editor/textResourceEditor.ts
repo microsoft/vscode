@@ -25,6 +25,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -109,11 +110,11 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
 
-		const inputName = this.input?.getName();
+		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.getResource()) : this.input?.getName();
 		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
-			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('untitledFileEditorAriaLabel', "Editor");
+			ariaLabel = inputName ? nls.localize('writeableEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('writeableEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;

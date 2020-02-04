@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { IEditorInput, Verbosity, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -104,7 +104,7 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.updateDirtyIndicator(c)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateDirtyIndicator(workingCopy)));
 	}
 
 	private registerUpdateEvents(): void {
@@ -586,15 +586,19 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		return editorTemplate;
 	}
 
-	renderElement(editor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
-		templateData.actionRunner.editor = editor;
+	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
+		const editor = openedEditor.editor;
+		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		templateData.root.setEditor(editor.editor, {
-			italic: editor.isPreview(),
+		templateData.root.setResource({
+			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
+			name: editor.getName(),
+			description: editor.getDescription(Verbosity.MEDIUM)
+		}, {
+			italic: openedEditor.isPreview(),
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			descriptionVerbosity: Verbosity.MEDIUM,
-			title: editor.editor.getTitle(Verbosity.LONG)
+			title: editor.getTitle(Verbosity.LONG)
 		});
 	}
 

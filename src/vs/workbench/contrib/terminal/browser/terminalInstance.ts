@@ -795,9 +795,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		dispose(this._windowsShellHelper);
 		this._windowsShellHelper = undefined;
-		this._linkHandler = dispose(this._linkHandler);
-		this._commandTrackerAddon = dispose(this._commandTrackerAddon);
-		this._widgetManager = dispose(this._widgetManager);
+		dispose(this._linkHandler);
+		this._linkHandler = undefined;
+		dispose(this._commandTrackerAddon);
+		this._commandTrackerAddon = undefined;
+		dispose(this._widgetManager);
+		this._widgetManager = undefined;
 
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');

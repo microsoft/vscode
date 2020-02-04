@@ -243,7 +243,7 @@ export class ExtensionsListView extends ViewPane {
 					getActions: () => actions.slice(0, actions.length - 1)
 				});
 			} else if (e.element) {
-				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped());
+				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped(), e.element);
 				groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = e.element!));
 				let actions: IAction[] = [];
 				for (const menuActions of groups) {

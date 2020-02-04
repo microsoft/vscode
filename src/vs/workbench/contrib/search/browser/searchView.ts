@@ -1297,7 +1297,7 @@ export class SearchView extends ViewPane {
 			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType);
 
 			if (!preserveFocus) {
-				this.searchWidget.focus(false); // focus back to input field
+				this.searchWidget.focus(false, undefined, true); // focus back to input field
 			}
 		}, onQueryValidationError);
 	}
@@ -1543,7 +1543,7 @@ export class SearchView extends ViewPane {
 
 			if (this.searchConfig.enableSearchEditorPreview) {
 				dom.append(messageEl, $('span', undefined, resultMsg + ' - '));
-				const span = dom.append(messageEl, $('span', undefined));
+				const span = dom.append(messageEl, $('span'));
 				const openInEditorLink = dom.append(span, $('a.pointer.prominent', undefined, nls.localize('openInEditor.message', "Open in editor")));
 
 				openInEditorLink.title = appendKeyBindingLabel(
@@ -1556,7 +1556,7 @@ export class SearchView extends ViewPane {
 				}));
 
 			} else {
-				dom.append(messageEl, $('p', undefined, resultMsg));
+				dom.append(messageEl, $('span', undefined, resultMsg));
 			}
 			this.reLayout();
 		} else if (!msgWasHidden) {

@@ -317,28 +317,8 @@ class Widget {
 
 	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
 		// Initially, the limits are defined as the dom node limits
-		let MIN_LIMIT = domNodePosition.left;
-		let MAX_LIMIT = domNodePosition.left + domNodePosition.width - 20;
-		if (MAX_LIMIT - MIN_LIMIT < width) {
-			// If the width is too large, we must expand the limits
-			const delta1 = Math.ceil((width - (MAX_LIMIT - MIN_LIMIT)) / 2);
-			MIN_LIMIT -= delta1;
-			MAX_LIMIT += delta1;
-
-			if (MAX_LIMIT > windowSize.width) {
-				// But we need to make sure we haven't expanded the limits over the page width
-				const delta2 = MAX_LIMIT - windowSize.width;
-				MIN_LIMIT -= delta2;
-				MAX_LIMIT -= delta2;
-			}
-
-			if (MIN_LIMIT < 0) {
-				// And we need to make sure we haven't expanded them before the page
-				const delta3 = MIN_LIMIT;
-				MIN_LIMIT += delta3;
-				MAX_LIMIT += delta3;
-			}
-		}
+		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
+		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
 
 		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
 

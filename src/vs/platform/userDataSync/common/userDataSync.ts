@@ -124,12 +124,13 @@ export interface IUserData {
 }
 
 export enum UserDataSyncErrorCode {
-	TooLarge = 'TooLarge',
 	Unauthroized = 'Unauthroized',
+	Forbidden = 'Forbidden',
+	ConnectionRefused = 'ConnectionRefused',
 	Rejected = 'Rejected',
-	Unknown = 'Unknown',
+	TooLarge = 'TooLarge',
 	TooManyFailures = 'TooManyFailures',
-	ConnectionRefused = 'ConnectionRefused'
+	Unknown = 'Unknown',
 }
 
 export class UserDataSyncError extends Error {
@@ -204,7 +205,7 @@ export interface ISynchroniser {
 export interface IUserDataSynchroniser extends ISynchroniser {
 	readonly source: SyncSource;
 	getRemoteContent(): Promise<string | null>;
-	resolveConflicts(content: string): Promise<void>;
+	resolveConflicts(content: string, remote: boolean): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -215,7 +216,7 @@ export interface IUserDataSyncService extends ISynchroniser {
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 	getRemoteContent(source: SyncSource): Promise<string | null>;
-	resolveConflictsAndContinueSync(content: string): Promise<void>;
+	resolveConflictsAndContinueSync(content: string, remote: boolean): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');

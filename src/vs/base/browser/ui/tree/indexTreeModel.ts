@@ -295,6 +295,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			if (isCollapsibleStateUpdate(update)) {
 				result = node.collapsible !== update.collapsible;
 				node.collapsible = update.collapsible;
+			} else if (!node.collapsible) {
+				result = false;
 			} else {
 				result = node.collapsed !== update.collapsed;
 				node.collapsed = update.collapsed;

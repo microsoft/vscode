@@ -1338,10 +1338,10 @@ export interface RenameProvider {
 /**
  * @internal
  */
-export interface Session {
+export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
-	displayName: string;
+	accountName: string;
 }
 
 export interface Command {

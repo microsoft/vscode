@@ -28,7 +28,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 		return this._provider.displayName;
 	}
 
-	async getSessions(): Promise<ReadonlyArray<vscode.Session>> {
+	async getSessions(): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		const isAllowed = await this._proxy.$getSessionsPrompt(this._provider.id, this.displayName, ExtensionIdentifier.toKey(this._requestingExtension.identifier), this._requestingExtension.displayName || this._requestingExtension.name);
 		if (!isAllowed) {
 			throw new Error('User did not consent to session access.');
@@ -37,7 +37,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 		return this._provider.getSessions();
 	}
 
-	async login(scopes: string[]): Promise<vscode.Session> {
+	async login(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const isAllowed = await this._proxy.$loginPrompt(this._provider.id, this.displayName, ExtensionIdentifier.toKey(this._requestingExtension.identifier), this._requestingExtension.displayName || this._requestingExtension.name);
 		if (!isAllowed) {
 			throw new Error('User did not consent to login.');
@@ -55,11 +55,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, vscode.AuthenticationProvider> = new Map<string, vscode.AuthenticationProvider>();
 
-	private _onDidRegisterAuthenticationProvider = new Emitter<string>();
-	readonly onDidRegisterAuthenticationProvider: Event<string> = this._onDidRegisterAuthenticationProvider.event;
-
-	private _onDidUnregisterAuthenticationProvider = new Emitter<string>();
-	readonly onDidUnregisterAuthenticationProvider: Event<string> = this._onDidUnregisterAuthenticationProvider.event;
+	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
+	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -83,17 +80,17 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 
 		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);
-		this._onDidRegisterAuthenticationProvider.fire(provider.id);
+		this._onDidChangeAuthenticationProviders.fire({ added: [provider.id], removed: [] });
 
 		return new Disposable(() => {
 			listener.dispose();
 			this._authenticationProviders.delete(provider.id);
 			this._proxy.$unregisterAuthenticationProvider(provider.id);
-			this._onDidUnregisterAuthenticationProvider.fire(provider.id);
+			this._onDidChangeAuthenticationProviders.fire({ added: [], removed: [provider.id] });
 		});
 	}
 
-	$login(providerId: string, scopes: string[]): Promise<modes.Session> {
+	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
 		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
 			return Promise.resolve(authProvider.login(scopes));
@@ -111,7 +108,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		throw new Error(`Unable to find authentication provider with handle: ${0}`);
 	}
 
-	$getSessions(providerId: string): Promise<ReadonlyArray<modes.Session>> {
+	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>> {
 		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
 			return Promise.resolve(authProvider.getSessions());

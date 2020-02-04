@@ -103,7 +103,7 @@ export interface IViewContainersRegistry {
 	/**
 	 * Returns the view container location
 	 */
-	getViewContainerLocation(container: ViewContainer): ViewContainerLocation | undefined;
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
 }
 
 interface ViewOrderDelegate {
@@ -162,7 +162,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return [...(this.viewContainers.get(location) || [])];
 	}
 
-	getViewContainerLocation(container: ViewContainer): ViewContainerLocation | undefined {
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
 		return keys(this.viewContainers).filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
 	}
 }
@@ -378,9 +378,11 @@ export interface IViewDescriptorService {
 
 	getViewContainer(viewId: string): ViewContainer | null;
 
-	getViewLocation(viewId: string): ViewContainerLocation | null;
+	getViewContainerLocation(viewContainr: ViewContainer): ViewContainerLocation | null;
 
 	getDefaultContainer(viewId: string): ViewContainer | null;
+
+	getViewLocation(viewId: string): ViewContainerLocation | null;
 }
 
 // Custom views

@@ -206,10 +206,10 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		// async expandAll is the default when no view state is given
-		const expand = [...this._tree.getNode(input).children];
+		// async expandAll (max=10) is the default when no view state is given
+		const expand = [...this._tree.getNode(input).children].slice(0, 10);
 		while (expand.length > 0) {
-			const { element } = expand.pop()!;
+			const { element } = expand.shift()!;
 			if (element instanceof FileElement) {
 				await this._tree.expand(element, true);
 			}

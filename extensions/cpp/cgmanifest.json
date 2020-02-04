@@ -6,11 +6,11 @@
 				"git": {
 					"name": "jeff-hykin/cpp-textmate-grammar",
 					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
-					"commitHash": "666808cab3907fc91ed4d3901060ee6b045cca58"
+					"commitHash": "5b6f67859e895da83dc242b849480ee04ce7ce38"
 				}
 			},
 			"license": "MIT",
-			"version": "1.14.15",
+			"version": "1.14.20",
 			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{

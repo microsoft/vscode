@@ -530,7 +530,7 @@ class MockQuickInputService implements IQuickInputService {
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Types.isArray(picks)) {
-			return Promise.resolve(<T>{ label: 'selectedPick', description: 'pick description' });
+			return Promise.resolve(<any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' });
 		} else {
 			return Promise.resolve(undefined);
 		}

@@ -152,7 +152,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		throw new Error('Extensions: Conflicts should not occur');
 	}
 
-	resolveConflicts(content: string): Promise<void> {
+	resolveConflicts(content: string, remote: boolean): Promise<void> {
 		throw new Error('Extensions: Conflicts should not occur');
 	}
 
@@ -206,7 +206,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 
 		if (added.length || removed.length || updated.length) {
-			this.logService.info('Extensions: Updating local extensions...');
 			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
 		}
 
@@ -218,7 +217,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteUserData = { ref, content };
 		}
 
-		if (hasChanges || !lastSyncUserData) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.info('Extensions: Updating last synchronised extensions...');
 			await this.updateLastSyncUserData<ILastSyncUserData>({ ...remoteUserData, skippedExtensions });
@@ -240,8 +239,23 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 
 		if (added.length || updated.length) {
-			const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 			await Promise.all([...added, ...updated].map(async e => {
+				const installedExtensions = await this.extensionManagementService.getInstalled();
+				const installedExtension = installedExtensions.filter(installed => areSameExtensions(installed.identifier, e.identifier))[0];
+
+				// Builtin Extension: Sync only enablement state
+				if (installedExtension && installedExtension.type === ExtensionType.System) {
+					if (e.enabled) {
+						this.logService.info('Extensions: Enabling extension.', e.identifier.id);
+						await this.extensionEnablementService.enableExtension(e.identifier);
+					} else {
+						this.logService.info('Extensions: Disabling extension.', e.identifier.id);
+						await this.extensionEnablementService.disableExtension(e.identifier);
+					}
+					removeFromSkipped.push(e.identifier);
+					return;
+				}
+
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, e.version);
 				if (extension) {
 					try {
@@ -253,7 +267,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 							await this.extensionEnablementService.disableExtension(extension.identifier);
 						}
 						// Install only if the extension does not exist
-						if (!installedExtensions.some(installed => areSameExtensions(installed.identifier, extension.identifier) && installed.manifest.version === extension.version)) {
+						if (!installedExtension || installedExtension.manifest.version !== extension.version) {
 							this.logService.info('Extensions: Installing extension.', e.identifier.id, extension.version);
 							await this.extensionManagementService.installFromGallery(extension);
 							removeFromSkipped.push(extension.identifier);
@@ -284,7 +298,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
-		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const disabledExtensions = await this.extensionEnablementService.getDisabledExtensionsAsync();
 		return installedExtensions
 			.map(({ identifier }) => ({ identifier, enabled: !disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier)) }));

@@ -635,6 +635,10 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
+	hasPreviewHandler(): false {
+		return false;
+	}
+
 	setPreviewHandler(): IDisposable {
 		return Disposable.None;
 	}

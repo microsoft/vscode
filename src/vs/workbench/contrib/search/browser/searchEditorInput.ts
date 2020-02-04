@@ -7,7 +7,7 @@ import * as network from 'vs/base/common/network';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextModel, ITextBufferFactory, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -60,6 +60,8 @@ export class SearchEditorInput extends EditorInput {
 
 	viewState: SearchEditorViewState = { focused: 'input' };
 
+	private _highlights: IModelDeltaDecoration[] | undefined;
+
 	constructor(
 		public readonly resource: URI,
 		getModel: () => Promise<ITextModel>,
@@ -106,6 +108,8 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		if ((await this.model).isDisposed()) { return; }
+
 		if (this.isUntitled()) {
 			return this.saveAs(group, options);
 		} else {
@@ -122,7 +126,9 @@ export class SearchEditorInput extends EditorInput {
 			if (await this.textFileService.saveAs(this.resource, path, options)) {
 				this.setDirty(false);
 				if (!isEqual(path, this.resource)) {
-					return this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
+					const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
+					input.setHighlights(this.highlights);
+					return input;
 				}
 				return this;
 			}
@@ -134,11 +140,15 @@ export class SearchEditorInput extends EditorInput {
 		return SearchEditorInput.ID;
 	}
 
-	getName(): string {
+	getName(maxLength = 12): string {
+		const trimToMax = (label: string) => (label.length < maxLength ? label : `${label.slice(0, maxLength - 3)}...`);
+
 		if (this.isUntitled()) {
-			return (this.query?.query
-				? localize('searchTitle.withQuery', "Search: {0}", this.query.query)
-				: localize('searchTitle', "Search"));
+			const query = this.query?.query?.trim();
+			if (query) {
+				return localize('searchTitle.withQuery', "Search: {0}", trimToMax(query));
+			}
+			return localize('searchTitle', "Search");
 		}
 
 		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
@@ -148,6 +158,8 @@ export class SearchEditorInput extends EditorInput {
 		const model = await this.model;
 		const query = extractSearchQuery(model);
 		this.query = query;
+		this._highlights = model.getAllDecorations();
+
 		this._onDidChangeLabel.fire();
 		return { model, query };
 	}
@@ -210,6 +222,17 @@ export class SearchEditorInput extends EditorInput {
 			}
 		}
 		return false;
+	}
+
+	public get highlights(): IModelDeltaDecoration[] {
+		return (this._highlights ?? []).map(({ range, options }) => ({ range, options }));
+	}
+
+	public async setHighlights(value: IModelDeltaDecoration[]) {
+		if (!value) { return; }
+		const model = await this.model;
+		model.deltaDecorations([], value);
+		this._highlights = value;
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions) {
@@ -285,16 +308,19 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 		}
 
 		const config = input.getConfigSync();
+		const dirty = input.isDirty();
+		const highlights = input.highlights;
 
-		return JSON.stringify({ resource, dirty: input.isDirty(), config, viewState: input.viewState, name: input.getName() });
+		return JSON.stringify({ resource, dirty, config, viewState: input.viewState, name: input.getName(), highlights });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, viewState } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, viewState, highlights } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
 			input.viewState = viewState;
 			input.setDirty(dirty);
+			input.setHighlights(highlights);
 			return input;
 		}
 		return undefined;

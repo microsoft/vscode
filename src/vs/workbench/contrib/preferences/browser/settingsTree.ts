@@ -1190,7 +1190,8 @@ export class SettingTreeRenderers {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
@@ -1205,7 +1206,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
 		];
 
-		const actionFactory = (setting: ISetting) => [this._instantiationService.createInstance(StopSyncingSettingAction, setting)];
+		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
 		const settingRenderers = [
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
@@ -1231,6 +1232,13 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingGroupRenderer),
 			this._instantiationService.createInstance(SettingNewExtensionsRenderer),
 		];
+	}
+
+	private getActionsForSetting(setting: ISetting): IAction[] {
+		const enableSync = this._configService.getValue<boolean>('sync.enable');
+		return enableSync ?
+			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
+			[];
 	}
 
 	cancelSuggesters() {

@@ -19,7 +19,7 @@ import { ICommandAction, MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/p
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -70,12 +70,19 @@ const category = nls.localize('search', "Search");
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: Constants.SearchViewVisibleKey,
+	when: ContextKeyExpr.or(Constants.SearchViewVisibleKey, Constants.InSearchEditor),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
-		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			searchView.toggleQueryDetails();
+		const editorService = accessor.get(IEditorService);
+		const contextService = accessor.get(IContextKeyService);
+		const control = editorService.activeControl;
+		if (control instanceof SearchEditor && !Constants.SearchViewFocusedKey.getValue(contextService)) {
+			control.toggleQueryDetails();
+		} else {
+			const searchView = getSearchView(accessor.get(IViewsService));
+			if (searchView) {
+				searchView.toggleQueryDetails();
+			}
 		}
 	}
 });

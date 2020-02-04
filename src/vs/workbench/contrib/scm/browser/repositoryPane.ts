@@ -719,7 +719,7 @@ export class RepositoryPane extends ViewPane {
 			fontSize: 13,
 			lineHeight: 20,
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			wrappingAlgorithm: 'dom',
+			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			// suggest: {
 			// 	showWords: false
@@ -769,7 +769,12 @@ export class RepositoryPane extends ViewPane {
 
 		// Keep model in sync with API
 		this.inputModel.setValue(this.repository.input.value);
-		this._register(this.repository.input.onDidChange(value => this.inputModel.setValue(value)));
+		this._register(this.repository.input.onDidChange(value => {
+			if (value === this.inputModel.getValue()) {
+				return;
+			}
+			this.inputModel.setValue(value);
+		}));
 
 		// Keep API in sync with model and update placeholder and validation
 		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
