@@ -81,15 +81,25 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 			return undefined;
 		}
 
-		// With associated path: use label provider
+		// With associated path: delegate to parent
 		return super.getDescription(verbosity);
 	}
 
 	getTitle(verbosity: Verbosity): string {
+
+		// Without associated path: check if name and description differ to decide
+		// if description should appear besides the name to distinguish better
 		if (!this.hasAssociatedFilePath) {
-			return this.getName();
+			const name = this.getName();
+			const description = this.getDescription();
+			if (description && description !== name) {
+				return `${name} • ${description}`;
+			}
+
+			return name;
 		}
 
+		// With associated path: delegate to parent
 		return super.getTitle(verbosity);
 	}
 

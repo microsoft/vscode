@@ -122,12 +122,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return super.getTitle(verbosity); // already decorated from getName()
-			default:
-				return this.decorateLabel(super.getTitle(verbosity));
-		}
+		return this.decorateLabel(super.getTitle(verbosity));
 	}
 
 	private decorateLabel(label: string): string {
