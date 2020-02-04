@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -43,21 +43,14 @@ export class TextEditorState {
 
 	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
 
-	private textEditorSelection?: ITextEditorSelection;
-
-	constructor(private _editorInput: IEditorInput, private _selection: Selection | null) {
-		this.textEditorSelection = Selection.isISelection(_selection) ? {
-			startLineNumber: _selection.startLineNumber,
-			startColumn: _selection.startColumn
-		} : undefined;
-	}
+	constructor(private _editorInput: IEditorInput, private _selection: Selection | null) { }
 
 	get editorInput(): IEditorInput {
 		return this._editorInput;
 	}
 
-	get selection(): ITextEditorSelection | undefined {
-		return this.textEditorSelection;
+	get selection(): Selection | undefined {
+		return withNullAsUndefined(this._selection);
 	}
 
 	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
@@ -91,7 +84,7 @@ interface ISerializedEditorHistoryEntry {
 
 interface IStackEntry {
 	input: IEditorInput | IResourceInput;
-	selection?: ITextEditorSelection;
+	selection?: Selection;
 }
 
 interface IRecentlyClosedFile {
@@ -436,19 +429,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.addToNavigationStack(editor.input);
 	}
 
-	private addToNavigationStack(input: IEditorInput, selection?: ITextEditorSelection): void {
+	private addToNavigationStack(input: IEditorInput, selection?: Selection): void {
 		if (!this.navigatingInStack) {
 			this.doAddOrReplaceInNavigationStack(input, selection);
 		}
 	}
 
-	private replaceInNavigationStack(input: IEditorInput, selection?: ITextEditorSelection): void {
+	private replaceInNavigationStack(input: IEditorInput, selection?: Selection): void {
 		if (!this.navigatingInStack) {
 			this.doAddOrReplaceInNavigationStack(input, selection, true /* force replace */);
 		}
 	}
 
-	private doAddOrReplaceInNavigationStack(input: IEditorInput, selection?: ITextEditorSelection, forceReplace?: boolean): void {
+	private doAddOrReplaceInNavigationStack(input: IEditorInput, selection?: Selection, forceReplace?: boolean): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
@@ -528,7 +521,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return input;
 	}
 
-	private sameSelection(selectionA?: ITextEditorSelection, selectionB?: ITextEditorSelection): boolean {
+	private sameSelection(selectionA?: Selection, selectionB?: Selection): boolean {
 		if (!selectionA && !selectionB) {
 			return true;
 		}
@@ -693,10 +686,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const position = activeTextEditorWidget.getPosition();
 		if (position) {
-			this.lastEditLocation.selection = {
-				startLineNumber: position.lineNumber,
-				startColumn: position.column
-			};
+			this.lastEditLocation.selection = new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
 		}
 	}
 
