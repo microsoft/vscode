@@ -328,7 +328,7 @@ const runOptions: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
 			default: 'default'
 		},
-		instances: {
+		instanceLimit: {
 			type: 'number',
 			description: nls.localize('JsonSchema.tasks.instances', 'How many instances of a task can run simultaneously.'),
 			default: 1

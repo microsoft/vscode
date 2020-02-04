@@ -683,7 +683,7 @@ export namespace RunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instances: value ? value.instances : Tasks.RunOnOptions.default
+			instances: value ? value.instances : 1
 		};
 	}
 }

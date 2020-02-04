@@ -59,8 +59,8 @@ interface ActiveTerminalData {
 }
 
 class InstanceManager {
-	currentInstances: number = 0;
-	counter: number = 0;
+	private currentInstances: number = 0;
+	private counter: number = 0;
 
 	addInstance() {
 		this.currentInstances++;
@@ -71,6 +71,9 @@ class InstanceManager {
 	}
 	getInstances() {
 		return this.currentInstances;
+	}
+	getCounter() {
+		return this.counter;
 	}
 }
 
@@ -230,22 +233,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let taskClone = undefined;
 		if (instance > 0) {
 			taskClone = task.clone();
-			taskClone._id += '|' + this.instances[commonKey].counter.toString();
+			taskClone._id += '|' + this.instances[commonKey].getCounter().toString();
 		}
 		let taskToExecute = taskClone ?? task;
 		let lastTaskInstance = this.getLastInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (terminalData && terminalData.promise && !validInstance) {
-			let reveal = RevealKind.Always;
-			let focus = false;
-			if (CustomTask.is(task) || ContributedTask.is(task)) {
-				reveal = task.command.presentation!.reveal;
-				focus = task.command.presentation!.focus;
-			}
-			if (reveal === RevealKind.Always || focus) {
-				this.terminalService.setActiveInstance(terminalData.terminal);
-				this.terminalService.showPanel(focus);
-			}
 			this.lastTask = this.currentTask;
 			return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}

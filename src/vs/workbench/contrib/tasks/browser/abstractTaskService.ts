@@ -210,7 +210,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
 	private static nextHandle: number = 0;
-	private count: { [key: string]: number; } = {};
 
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
@@ -1975,18 +1974,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): TaskQuickPickEntry[] {
-		this.count = {};
+		let count: { [key: string]: number; } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
 			let entryLabel = task._label;
 			let commonKey = task._id.split('|')[0];
-			if (this.count[commonKey]) {
-				entryLabel = entryLabel + ' (' + this.count[commonKey].toString() + ')';
-				this.count[commonKey]++;
+			if (count[commonKey]) {
+				entryLabel = entryLabel + ' (' + count[commonKey].toString() + ')';
+				count[commonKey]++;
 			} else {
-				this.count[commonKey] = 1;
+				count[commonKey] = 1;
 			}
 			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 
@@ -2052,7 +2051,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
-		this.count = {};
+		count = {};
 		return entries;
 	}
 
