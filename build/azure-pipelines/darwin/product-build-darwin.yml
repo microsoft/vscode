@@ -128,6 +128,7 @@ steps:
 - script: |
     set -e
     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
+    cp ../VSCode-darwin.zip ../VSCode-darwin-legacy-signed.zip
   displayName: Archive build
 
 - task: PublishPipelineArtifact@0
@@ -135,6 +136,35 @@ steps:
   inputs:
     artifactName: darwin-unsigned
     targetPath: ../VSCode-darwin.zip
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin-legacy-signed.zip'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppDeveloperSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 60
+  displayName: 'Legacy Codesign'
+
+- script: |
+    zip -d ../VSCode-darwin-legacy-signed.zip "*.pkg"
+  displayName: Clean Archive
+
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: darwin-legacy-signed
+    targetPath: ../VSCode-darwin-legacy-signed.zip
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
