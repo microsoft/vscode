@@ -10,7 +10,7 @@ import { join } from 'vs/base/common/path';
 import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { toResource } from 'vs/base/test/common/utils';
-import { TestFileService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 const fileService = new TestFileService();
 function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {

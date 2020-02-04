@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService, TestFileService, TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService, TestFilesConfigurationService, TestEnvironmentService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITextFileService, IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -32,7 +32,7 @@ class ServiceAccessor {
 	constructor(
 		@IEditorService public editorService: IEditorService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
-		@ITextFileService public textFileService: TestTextFileService,
+		@ITextFileService public textFileService: ITextFileService,
 		@IFileService public fileService: TestFileService,
 		@IConfigurationService public configurationService: TestConfigurationService
 	) {

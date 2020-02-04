@@ -15,7 +15,7 @@ import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-browser/backupTracker';
-import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
