@@ -952,7 +952,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private hasMultiSelection: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
-	private styler!: IDisposable;
+	private styler: IDisposable | undefined;
 
 	constructor(
 		private tree: WorkbenchObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData>,
@@ -1048,7 +1048,8 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
-		this.styler = dispose(this.styler);
+		dispose(this.styler);
+		this.styler = undefined;
 	}
 }
 

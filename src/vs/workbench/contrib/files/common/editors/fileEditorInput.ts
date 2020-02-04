@@ -240,10 +240,12 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 
 		// re-emit some events from the model
 		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidSave(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidRevert(() => this._onDidChangeDirty.fire()));
 		this._register(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
+
+		// important: treat save errors as potential dirty change because
+		// a file that is in save conflict or error will report dirty even
+		// if auto save is turned on.
+		this._register(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
 	}
 
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
@@ -269,7 +271,8 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	dispose(): void {
 
 		// Model reference
-		this.cachedTextFileModelReference = dispose(this.cachedTextFileModelReference);
+		dispose(this.cachedTextFileModelReference);
+		this.cachedTextFileModelReference = undefined;
 
 		super.dispose();
 	}
