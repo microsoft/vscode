@@ -2279,6 +2279,64 @@ suite('Editor Controller - Regression tests', () => {
 
 		model.dispose();
 	});
+
+	test('issue #85712: Paste line moves cursor to start of current line rather than start of next line', () => {
+		let model = createTextModel(
+			[
+				'abc123',
+				''
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(2, 1, 2, 1)
+			]);
+			cursorCommand(cursor, H.Paste, { text: 'something\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'abc123',
+				'something',
+				''
+			].join('\n'));
+			assertCursor(cursor, new Position(3, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #84897: Left delete behavior in some languages is changed', () => {
+		let model = createTextModel(
+			[
+				'สวัสดี'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 7, 1, 7)
+			]);
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวัส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวั');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สว');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'ส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), '');
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
@@ -2636,7 +2694,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(4, 1));
+			assertCursor(cursor, new Position(5, 1));
 		});
 
 		model.dispose();
@@ -4839,6 +4897,51 @@ suite('autoClosingPairs', () => {
 
 			cursorCommand(cursor, H.Type, { text: ']' }, 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+		});
+		mode.dispose();
+	});
+
+	test('issue #85983 - editor.autoClosingBrackets: beforeWhitespace is incorrect for Python', () => {
+		const languageId = new LanguageIdentifier('pythonMode', 5);
+		class PythonMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'r\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'R\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'u\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'U\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'f\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'F\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'b\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'r\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'R\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'u\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'U\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'f\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'F\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'b\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'B\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+		const mode = new PythonMode();
+		usingCursor({
+			text: [
+				'foo\'hello\''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
 		});
 		mode.dispose();
 	});

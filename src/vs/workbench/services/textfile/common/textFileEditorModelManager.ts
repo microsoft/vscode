@@ -44,7 +44,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
 
-	private readonly modelLoadQueue = new ResourceQueue();
+	private readonly modelLoadQueue = this._register(new ResourceQueue());
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -92,7 +92,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.mapResourceToModel.get(resource);
 	}
 
-	async loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
+	async resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -177,13 +177,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
-		if (resource) {
-			const res = this.mapResourceToModel.get(resource);
-
-			return res ? [res] : [];
-		}
-
+	getAll(filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
 		const res: ITextFileEditorModel[] = [];
 		this.mapResourceToModel.forEach(model => {
 			if (!filter || filter(model)) {

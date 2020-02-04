@@ -145,11 +145,9 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test.skip('active editor not always correct... #49125', async function () {
+	test('active editor not always correct... #49125', async function () {
 		const randomFile1 = await createRandomFile();
 		const randomFile2 = await createRandomFile();
-
-		console.log('Created random files: ' + randomFile1.toString() + ' and ' + randomFile2.toString());
 
 		const [docA, docB] = await Promise.all([
 			workspace.openTextDocument(randomFile1),
@@ -157,11 +155,9 @@ suite('window namespace tests', () => {
 		]);
 		for (let c = 0; c < 4; c++) {
 			let editorA = await window.showTextDocument(docA, ViewColumn.One);
-			console.log('Showing: ' + editorA.document.fileName + ' and active editor is: ' + window.activeTextEditor?.document.fileName);
 			assert.equal(window.activeTextEditor, editorA);
 
 			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
-			console.log('Showing: ' + editorB.document.fileName + ' and active editor is: ' + window.activeTextEditor?.document.fileName);
 			assert.equal(window.activeTextEditor, editorB);
 		}
 	});

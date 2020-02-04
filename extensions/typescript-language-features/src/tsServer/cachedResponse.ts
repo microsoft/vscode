@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ServerResponse } from '../typescriptService';
 
 type Resolve<T extends Proto.Response> = () => Promise<ServerResponse.Response<T>>;

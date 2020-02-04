@@ -10,7 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +27,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -89,7 +89,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 
 export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
-	const extensionEnablementService = accessor.get(IExtensionEnablementService);
+	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
 		.filter(e => e.operation === InstallOperation.Install)
 		.event;
@@ -111,7 +111,7 @@ export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtension
 
 export async function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExtensionStatus[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
-	const extensionEnablementService = accessor.get(IExtensionEnablementService);
+	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 	const extensions = await extensionService.getInstalled();
 	return extensions.map(extension => {
 		return {

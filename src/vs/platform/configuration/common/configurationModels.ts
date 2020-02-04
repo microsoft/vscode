@@ -89,7 +89,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			contents[key] = contentsForKey;
 		}
 
-		return new ConfigurationModel(contents);
+		return new ConfigurationModel(contents, this.keys, this.overrides);
 	}
 
 	merge(...others: ConfigurationModel[]): ConfigurationModel {
@@ -515,7 +515,7 @@ export class Configuration {
 		const currentFolderConfiguration = this.folderConfigurations.get(resource);
 		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
 		let keys = [...added, ...updated, ...removed];
-		if (keys.length) {
+		if (keys.length || !currentFolderConfiguration) {
 			this.updateFolderConfiguration(resource, folderConfiguration);
 		}
 		return { keys, overrides };

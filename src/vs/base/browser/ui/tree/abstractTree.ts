@@ -190,7 +190,13 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			},
 			getPosInSet(node) {
 				return node.visibleChildIndex + 1;
-			}
+			},
+			isChecked: options.ariaProvider && options.ariaProvider.isChecked ? (node) => {
+				return options.ariaProvider!.isChecked!(node.element);
+			} : undefined,
+			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
+				return options.ariaProvider!.getRole!(node.element);
+			} : undefined
 		}
 	};
 }
@@ -1579,7 +1585,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	open(elements: TRef[], browserEvent?: UIEvent): void {
-		const indexes = elements.map(e => this.model.getListIndex(e));
+		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i >= 0);
 		this.view.open(indexes, browserEvent);
 	}
 

@@ -236,7 +236,7 @@ class Preview extends Disposable {
 	}
 
 	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
-		if (resource.scheme === 'gitfs') {
+		if (resource.scheme === 'git') {
 			const stat = await vscode.workspace.fs.stat(resource);
 			if (stat.size === 0) {
 				return this.emptyPngDataUri;

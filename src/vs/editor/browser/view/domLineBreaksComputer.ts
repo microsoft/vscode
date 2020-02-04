@@ -111,6 +111,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 
 	containerDomNode.style.position = 'absolute';
 	containerDomNode.style.top = '10000';
+	containerDomNode.style.wordWrap = 'break-word';
 	document.body.appendChild(containerDomNode);
 
 	let range = document.createRange();

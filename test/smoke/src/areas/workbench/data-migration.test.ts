@@ -66,7 +66,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await stableApp.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Untitled Code';
+			const textToTypeInUntitled = untitled;
 			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';

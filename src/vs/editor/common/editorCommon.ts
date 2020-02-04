@@ -22,7 +22,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range: Range, text: string | null): void;
+	addEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Add a new edit operation (a replace operation).
@@ -30,7 +30,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addTrackedEditOperation(range: Range, text: string | null): void;
+	addTrackedEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -172,6 +172,14 @@ export interface IScrollEvent {
 	readonly scrollLeftChanged: boolean;
 	readonly scrollWidthChanged: boolean;
 	readonly scrollHeightChanged: boolean;
+}
+
+export interface IContentSizeChangedEvent {
+	readonly contentWidth: number;
+	readonly contentHeight: number;
+
+	readonly contentWidthChanged: boolean;
+	readonly contentHeightChanged: boolean;
 }
 
 export interface INewScrollPosition {

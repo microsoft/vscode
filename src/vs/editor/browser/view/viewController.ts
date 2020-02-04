@@ -37,7 +37,7 @@ export interface IMouseDispatchData {
 export interface ICommandDelegate {
 	executeEditorCommand(editorCommand: CoreEditorCommand, args: any): void;
 
-	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void;
+	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
 	type(source: string, text: string): void;
 	replacePreviousChar(source: string, text: string, replaceCharCnt: number): void;
 	compositionStart(source: string): void;
@@ -69,8 +69,8 @@ export class ViewController {
 		this.commandDelegate.executeEditorCommand(editorCommand, args);
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void {
-		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText);
+	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
+		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText, mode);
 	}
 
 	public type(source: string, text: string): void {

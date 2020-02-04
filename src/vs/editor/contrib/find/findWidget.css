@@ -13,7 +13,7 @@
 	transition: transform 200ms linear;
 	padding: 0 4px;
 	box-sizing: border-box;
-	transform: translateY(Calc(-100% - 10px)); /* shadow (10px) */
+	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
 }
 
 .monaco-editor .find-widget textarea {

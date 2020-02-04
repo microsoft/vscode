@@ -82,6 +82,24 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
+			"name": "VS Code Git Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"/tmp/my4g9l",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/git",
+				"--extensionTestsPath=${workspaceFolder}/extensions/git/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/git/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
@@ -167,7 +185,9 @@
 			"webRoot": "${workspaceFolder}",
 			// Settings for js-debug:
 			"pauseForSourceMap": false,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 		},
 		{
 			"type": "node",
@@ -231,7 +251,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "HTML Unit Tests",
-			"program": "${workspaceFolder}/extensions/html-language-features/server/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceFolder}/extensions/html-language-features/server/test/index.js",
 			"stopOnEntry": false,
 			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
 			"outFiles": [

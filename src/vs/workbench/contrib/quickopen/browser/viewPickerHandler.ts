@@ -199,7 +199,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
 		if (viewContainer?.hideIfEmpty) {
 			const viewsCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
-			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
+			return viewsCollection.activeViewDescriptors.length > 0;
 		}
 		return true;
 	}
