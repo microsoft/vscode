@@ -13,7 +13,7 @@ import { GitExtension, API, Repository, Status } from '../api/git';
 import { eventToPromise } from '../util';
 
 suite('git smoke test', function () {
-	const cwd = workspace.workspaceFolders![0].uri.path;
+	const cwd = fs.realpathSync(workspace.workspaceFolders![0].uri.fsPath);
 	const file = (relativePath: string) => path.join(cwd, relativePath);
 	const uri = (relativePath: string) => Uri.file(file(relativePath));
 	const open = async (relativePath: string) => {
@@ -47,7 +47,7 @@ suite('git smoke test', function () {
 		}
 
 		assert.equal(git.repositories.length, 1);
-		assert.equal(git.repositories[0].rootUri.path, cwd);
+		assert.equal(git.repositories[0].rootUri.fsPath, cwd);
 
 		repository = git.repositories[0];
 	});

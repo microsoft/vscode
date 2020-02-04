@@ -3,7 +3,7 @@ setlocal
 
 pushd %~dp0\..
 
-set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
+set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
@@ -12,7 +12,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
 	set VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE=1
 
-	echo "Running integration tests out of sources."
+	echo Running integration tests out of sources.
 ) else (
 	:: Run from a built: need to compile all test extensions
 	call yarn gulp compile-extension:vscode-api-tests
@@ -29,7 +29,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	set ELECTRON_ENABLE_LOGGING=1
 	set ELECTRON_ENABLE_STACK_DUMPING=1
 
-	echo "Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build."
+	echo Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build.
 )
 
 :: Integration & performance tests in AMD
@@ -50,7 +50,9 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %TMP%\git-%RANDOM%-%TIME:~6,5% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
+set GITWORKSPACE=%TMP%\git-%RANDOM%
+mkdir %GITWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in commonJS (HTML, CSS, JSON language server tests...)
