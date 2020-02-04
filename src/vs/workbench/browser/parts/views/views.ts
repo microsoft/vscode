@@ -12,7 +12,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex, move } from 'vs/base/common/arrays';
-import { isUndefinedOrNull, isUndefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, isUndefined, isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -22,9 +22,19 @@ import { toggleClass, addClass } from 'vs/base/browser/dom';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { VIEW_ID as SEARCH_VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { PaneCompositePanel, PanelRegistry, PanelDescriptor, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Viewlet, ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { URI } from 'vs/base/common/uri';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -451,10 +461,14 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 
+	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
+	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
+
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -466,11 +480,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.viewDisposable.clear();
 		}));
 
-		this.viewContainersRegistry.all.forEach(viewContainer => this.onViewContainerRegistered(viewContainer));
-		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer }) => this.onViewContainerRegistered(viewContainer)));
+		this.viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewContainersRegistry.getViewContainerLocation(viewContainer)));
+		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
 	}
 
-	private onViewContainerRegistered(viewContainer: ViewContainer): void {
+	private onDidRegisterViewContainer(viewContainer: ViewContainer, location: ViewContainerLocation): void {
 		const viewDescriptorCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
 		this.onViewsAdded(viewDescriptorCollection.allViewDescriptors, viewContainer);
 		this._register(viewDescriptorCollection.onDidChangeViews(({ added, removed }) => {
@@ -577,7 +591,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return undefined;
 	}
 
-	getActiveViewWithId(id: string): IView | null {
+	getActiveViewWithId<T extends IView>(id: string): T | null {
 		const viewContainer = this.viewDescriptorService.getViewContainer(id);
 		if (viewContainer) {
 			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
@@ -585,12 +599,12 @@ export class ViewsService extends Disposable implements IViewsService {
 			if (location === ViewContainerLocation.Sidebar) {
 				const activeViewlet = this.viewletService.getActiveViewlet();
 				if (activeViewlet?.getId() === viewContainer.id) {
-					return activeViewlet.getViewPaneContainer().getView(id) ?? null;
+					return activeViewlet.getViewPaneContainer().getView(id) as T ?? null;
 				}
 			} else if (location === ViewContainerLocation.Panel) {
 				const activePanel = this.panelService.getActivePanel();
-				if (activePanel?.getId() === viewContainer.id && activePanel instanceof PaneComposite) {
-					return activePanel.getViewPaneContainer().getView(id) ?? null;
+				if (activePanel?.getId() === viewContainer.id) {
+					return (activePanel as IPaneComposite).getViewPaneContainer().getView(id) as T ?? null;
 				}
 			}
 		}
@@ -613,6 +627,14 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		return null;
 	}
+
+	createContainer(container: ViewContainer): ViewPaneContainer {
+		const viewPaneContainer: ViewPaneContainer = this._register((this.instantiationService as any).createInstance(container.ctorDescriptor!.ctor, ...(container.ctorDescriptor!.staticArguments || [])));
+		this._register(viewPaneContainer.onDidAddViews(views => views.forEach(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: view.isBodyVisible() }))));
+		this._register(viewPaneContainer.onDidChangeViewVisibility(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: view.isBodyVisible() })));
+		this._register(viewPaneContainer.onDidRemoveViews(views => views.forEach(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: false }))));
+		return viewPaneContainer;
+	}
 }
 
 export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IWorkbenchThemeService): IDisposable {
@@ -629,3 +651,74 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 }
 
 registerSingleton(IViewsService, ViewsService);
+
+// Viewlets & Panels
+(function registerViewletsAndPanels(): void {
+	const registerPanel = (viewContainer: ViewContainer): void => {
+		class PaneContainerPanel extends PaneCompositePanel {
+			constructor(
+				@ITelemetryService telemetryService: ITelemetryService,
+				@IStorageService storageService: IStorageService,
+				@IInstantiationService instantiationService: IInstantiationService,
+				@IThemeService themeService: IThemeService,
+				@IContextMenuService contextMenuService: IContextMenuService,
+				@IExtensionService extensionService: IExtensionService,
+				@IWorkspaceContextService contextService: IWorkspaceContextService,
+				@IViewsService viewsService: ViewsService
+			) {
+				super(viewContainer.id, viewsService.createContainer(viewContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+			}
+		}
+		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
+			PaneContainerPanel,
+			viewContainer.id,
+			viewContainer.name,
+			isString(viewContainer.icon) ? viewContainer.icon : undefined,
+			viewContainer.order,
+			viewContainer.focusCommand?.id,
+		));
+	};
+
+	const registerViewlet = (viewContainer: ViewContainer): void => {
+		class PaneContainerViewlet extends Viewlet {
+			constructor(
+				@IConfigurationService configurationService: IConfigurationService,
+				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+				@ITelemetryService telemetryService: ITelemetryService,
+				@IWorkspaceContextService contextService: IWorkspaceContextService,
+				@IStorageService storageService: IStorageService,
+				@IInstantiationService instantiationService: IInstantiationService,
+				@IThemeService themeService: IThemeService,
+				@IContextMenuService contextMenuService: IContextMenuService,
+				@IExtensionService extensionService: IExtensionService
+			) {
+				super(viewContainer.id, (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || [])), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+			}
+		}
+		const viewletDescriptor = ViewletDescriptor.create(
+			PaneContainerViewlet,
+			viewContainer.id,
+			viewContainer.name,
+			isString(viewContainer.icon) ? viewContainer.icon : undefined,
+			viewContainer.order,
+			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
+		);
+
+		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+	};
+
+	const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+	viewContainerRegistry.getViewContainers(ViewContainerLocation.Panel).forEach(viewContainer => registerPanel(viewContainer));
+	viewContainerRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => {
+		switch (viewContainerLocation) {
+			case ViewContainerLocation.Panel:
+				registerPanel(viewContainer);
+				return;
+			case ViewContainerLocation.Sidebar:
+				if (viewContainer.ctorDescriptor) {
+					registerViewlet(viewContainer);
+				}
+				return;
+		}
+	});
+})();
