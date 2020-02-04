@@ -349,10 +349,10 @@ configurationRegistry.registerConfiguration({
 			enum: ['6', '11'],
 			enumDescriptions: [
 				nls.localize('terminal.integrated.unicodeVersion.six', "Version 6 of unicode, this is an older version which should work better on older systems."),
-				nls.localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode, this version provides better support for emoji on modern systems.")
+				nls.localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode, this version provides better support on modern systems that use modern versions of unicode.")
 			],
 			default: '11',
-			description: nls.localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji not taking up the right amount of space or being able to backspace beyond your prompt character then you may want to try tweaking this setting.")
+			description: nls.localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		}
 	}
 });
