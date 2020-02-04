@@ -19,6 +19,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
 
 const $ = dom.$;
 
@@ -748,10 +749,15 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseUp(e), this));
 
-
-		this._register(this.selectList.onDidBlur(_ => this.onListBlur()));
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onFocusChange(e => this.onListFocus(e)));
+
+		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.FOCUS_OUT, e => {
+			if (!this._isVisible || dom.isAncestor(e.relatedTarget as HTMLElement, this.selectDropDownContainer)) {
+				return;
+			}
+			this.onListBlur();
+		}));
 
 		this.selectList.getHTMLElement().setAttribute('aria-label', this.selectBoxOptions.ariaLabel || '');
 		this.selectList.getHTMLElement().setAttribute('aria-expanded', 'true');
@@ -823,7 +829,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 
-	private renderDescriptionMarkdown(text: string): HTMLElement {
+	private renderDescriptionMarkdown(text: string, actionHandler?: IContentActionHandler): HTMLElement {
 		const cleanRenderedMarkdown = (element: Node) => {
 			for (let i = 0; i < element.childNodes.length; i++) {
 				const child = <Element>element.childNodes.item(i);
@@ -837,7 +843,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 		};
 
-		const renderedMarkdown = renderMarkdown({ value: text });
+		const renderedMarkdown = renderMarkdown({ value: text }, { actionHandler });
 
 		renderedMarkdown.classList.add('select-box-description-markdown');
 		cleanRenderedMarkdown(renderedMarkdown);
@@ -859,7 +865,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		if (description) {
 			if (descriptionIsMarkdown) {
-				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description));
+				const actionHandler = this.options[selectedIndex].descriptionMarkdownActionHandler;
+				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description, actionHandler));
 			} else {
 				this.selectionDetailsPane.innerText = description;
 			}
@@ -872,7 +879,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this._skipLayout = true;
 		this.contextViewProvider.layout();
 		this._skipLayout = false;
-
 	}
 
 	// List keyboard controller

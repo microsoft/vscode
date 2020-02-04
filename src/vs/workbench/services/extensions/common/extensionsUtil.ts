@@ -45,7 +45,7 @@ export function getExtensionKind(manifest: IExtensionManifest, productService: I
 	// check product.json
 	result = getProductExtensionKind(manifest, productService);
 	if (typeof result !== 'undefined') {
-		return toArray(result);
+		return result;
 	}
 
 	// check the manifest itself
@@ -88,10 +88,10 @@ function isUIExtensionPoint(extensionPoint: string): boolean {
 	return _uiExtensionPoints.has(extensionPoint);
 }
 
-let _productExtensionKindsMap: Map<string, ExtensionKind | ExtensionKind[]> | null = null;
-function getProductExtensionKind(manifest: IExtensionManifest, productService: IProductService): ExtensionKind | ExtensionKind[] | undefined {
+let _productExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
+function getProductExtensionKind(manifest: IExtensionManifest, productService: IProductService): ExtensionKind[] | undefined {
 	if (_productExtensionKindsMap === null) {
-		const productExtensionKindsMap = new Map<string, ExtensionKind | ExtensionKind[]>();
+		const productExtensionKindsMap = new Map<string, ExtensionKind[]>();
 		if (productService.extensionKind) {
 			for (const id of Object.keys(productService.extensionKind)) {
 				productExtensionKindsMap.set(ExtensionIdentifier.toKey(id), productService.extensionKind[id]);

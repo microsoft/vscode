@@ -78,7 +78,6 @@
 .markers-panel .markers-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
-	height: 100%;
 }
 
 .markers-panel .markers-panel-container .message-box-container .messageAction {
@@ -132,6 +131,14 @@
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
 	display: flex;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link {
+	color: inherit;
+}
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .monaco-highlighted-label {
+	text-decoration: underline;
+	text-underline-position: under;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {

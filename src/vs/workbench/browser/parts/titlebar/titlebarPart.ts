@@ -16,7 +16,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
-import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -30,7 +30,7 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -43,7 +43,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
-// tslint:disable-next-line: import-patterns layering
+// eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -64,7 +64,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	//#endregion
 
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onMenubarVisibilityChange: Event<boolean> = this._onMenubarVisibilityChange.event;
+	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
 	_serviceBrand: undefined;
 
@@ -195,7 +195,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor instanceof EditorInput) {
+		if (activeEditor) {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
@@ -316,7 +316,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
-		const dirty = editor?.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
+		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const remoteName = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority);
 		const separator = TitlebarPart.TITLE_SEPARATOR;
@@ -517,7 +517,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 
 			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
-			this.element.style.color = titleForeground;
+			this.element.style.color = titleForeground || '';
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';

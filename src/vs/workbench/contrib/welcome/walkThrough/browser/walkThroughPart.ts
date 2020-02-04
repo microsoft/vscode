@@ -39,6 +39,7 @@ import { Dimension, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -278,7 +279,7 @@ export class WalkThroughPart extends BaseEditor {
 					return;
 				}
 
-				const content = model.main.textEditorModel.getLinesContent().join('\n');
+				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
 				if (!strings.endsWith(input.getResource().path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
@@ -421,7 +422,8 @@ export class WalkThroughPart extends BaseEditor {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 3,
 			fixedOverflowWidgets: true,

@@ -9,6 +9,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
+import { equals } from 'vs/base/common/objects';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -91,8 +92,10 @@ class FastLabelNode {
 export class IconLabel extends Disposable {
 
 	private domNode: FastLabelNode;
-	private descriptionContainer: FastLabelNode;
+
 	private nameNode: Label | LabelWithHighlights;
+
+	private descriptionContainer: FastLabelNode;
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
@@ -165,15 +168,17 @@ class Label {
 
 	private label: string | string[] | undefined = undefined;
 	private singleLabel: HTMLElement | undefined = undefined;
+	private options: IIconLabelValueOptions | undefined;
 
 	constructor(private container: HTMLElement) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
-		if (this.label === label) {
+		if (this.label === label && equals(this.options, options)) {
 			return;
 		}
 
 		this.label = label;
+		this.options = options;
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
@@ -226,15 +231,17 @@ class LabelWithHighlights {
 
 	private label: string | string[] | undefined = undefined;
 	private singleLabel: HighlightedLabel | undefined = undefined;
+	private options: IIconLabelValueOptions | undefined;
 
 	constructor(private container: HTMLElement, private supportCodicons: boolean) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
-		if (this.label === label) {
+		if (this.label === label && equals(this.options, options)) {
 			return;
 		}
 
 		this.label = label;
+		this.options = options;
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {

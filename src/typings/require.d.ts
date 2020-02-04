@@ -31,7 +31,7 @@ declare class LoaderEvent {
 	readonly detail: string;
 }
 
-declare var define: {
+declare const define: {
 	(moduleName: string, dependencies: string[], callback: (...args: any[]) => any): any;
 	(moduleName: string, dependencies: string[], definition: any): any;
 	(moduleName: string, callback: (...args: any[]) => any): any;

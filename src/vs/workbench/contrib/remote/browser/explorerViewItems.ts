@@ -20,6 +20,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
@@ -50,23 +51,25 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		if (this.optionsItems.length > 0) {
 			let index = 0;
 			const remoteAuthority = environmentService.configuration.remoteAuthority;
-			const explorerType: string | undefined = remoteAuthority ? remoteAuthority.split('+')[0] :
-				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE) ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL);
-			if (explorerType) {
+			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] :
+				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL)?.split(',');
+			if (explorerType !== undefined) {
 				index = this.getOptionIndexForExplorerType(optionsItems, explorerType);
 			}
 			this.select(index);
-			remoteExplorerService.targetType = optionsItems[index].authority[0];
+			remoteExplorerService.targetType = optionsItems[index].authority;
 		}
 	}
 
-	private getOptionIndexForExplorerType(optionsItems: IRemoteSelectItem[], explorerType: string): number {
+	private getOptionIndexForExplorerType(optionsItems: IRemoteSelectItem[], explorerType: string[]): number {
 		let index = 0;
 		for (let optionIterator = 0; (optionIterator < this.optionsItems.length) && (index === 0); optionIterator++) {
 			for (let authorityIterator = 0; authorityIterator < optionsItems[optionIterator].authority.length; authorityIterator++) {
-				if (optionsItems[optionIterator].authority[authorityIterator] === explorerType) {
-					index = optionIterator;
-					break;
+				for (let i = 0; i < explorerType.length; i++) {
+					if (optionsItems[optionIterator].authority[authorityIterator] === explorerType[i]) {
+						index = optionIterator;
+						break;
+					}
 				}
 			}
 		}
@@ -85,10 +88,10 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		return this.optionsItems[index];
 	}
 
-	static createOptionItems(views: IViewDescriptor[]): IRemoteSelectItem[] {
+	static createOptionItems(views: IViewDescriptor[], contextKeyService: IContextKeyService): IRemoteSelectItem[] {
 		let options: IRemoteSelectItem[] = [];
 		views.forEach(view => {
-			if (view.group && startsWith(view.group, 'targets') && view.remoteAuthority) {
+			if (view.group && startsWith(view.group, 'targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
 				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });
 			}
 		});
@@ -109,6 +112,6 @@ export class SwitchRemoteAction extends Action {
 	}
 
 	public async run(item: IRemoteSelectItem): Promise<any> {
-		this.remoteExplorerService.targetType = item.authority[0];
+		this.remoteExplorerService.targetType = item.authority;
 	}
 }

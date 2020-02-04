@@ -10,7 +10,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 

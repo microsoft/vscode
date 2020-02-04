@@ -91,6 +91,10 @@
 	height: 100%;
 }
 
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .active-item-indicator {
+	pointer-events: none;
+}
+
 .monaco-workbench.border .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .active-item-indicator {
 	left: -2px;
 }

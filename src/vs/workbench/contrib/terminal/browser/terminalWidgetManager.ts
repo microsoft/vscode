@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 export enum WidgetVerticalAlignment {
 	Bottom,
@@ -20,7 +24,8 @@ export class TerminalWidgetManager implements IDisposable {
 	private readonly _messageListeners = new DisposableStore();
 
 	constructor(
-		terminalWrapper: HTMLElement
+		terminalWrapper: HTMLElement,
+		private readonly _openerService: IOpenerService
 	) {
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-widget-overlay');
@@ -48,20 +53,22 @@ export class TerminalWidgetManager implements IDisposable {
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
-	public showMessage(left: number, y: number, text: string, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom): void {
+	public showMessage(left: number, y: number, text: IMarkdownString, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom): void {
 		if (!this._container) {
 			return;
 		}
 		dispose(this._messageWidget);
 		this._messageListeners.clear();
-		this._messageWidget = new MessageWidget(this._container, left, y, text, verticalAlignment);
+		this._messageWidget = new MessageWidget(this._container, left, y, text, verticalAlignment, this._openerService);
 	}
 
 	public closeMessage(): void {
 		this._messageListeners.clear();
-		if (this._messageWidget) {
-			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget));
-		}
+		setTimeout(() => {
+			if (this._messageWidget && !this._messageWidget.mouseOver) {
+				this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget));
+			}
+		}, 50);
 	}
 
 	private _refreshHeight(): void {
@@ -73,13 +80,16 @@ export class TerminalWidgetManager implements IDisposable {
 }
 
 class MessageWidget {
-	private _domNode: HTMLDivElement;
+	private _domNode: HTMLElement;
+	private _mouseOver = false;
+	private readonly _messageListeners = new DisposableStore();
 
 	public get left(): number { return this._left; }
 	public get y(): number { return this._y; }
-	public get text(): string { return this._text; }
+	public get text(): IMarkdownString { return this._text; }
 	public get domNode(): HTMLElement { return this._domNode; }
 	public get verticalAlignment(): WidgetVerticalAlignment { return this._verticalAlignment; }
+	public get mouseOver(): boolean { return this._mouseOver; }
 
 	public static fadeOut(messageWidget: MessageWidget): IDisposable {
 		let handle: any;
@@ -98,10 +108,16 @@ class MessageWidget {
 		private _container: HTMLElement,
 		private _left: number,
 		private _y: number,
-		private _text: string,
-		private _verticalAlignment: WidgetVerticalAlignment
+		private _text: IMarkdownString,
+		private _verticalAlignment: WidgetVerticalAlignment,
+		private readonly _openerService: IOpenerService
 	) {
-		this._domNode = document.createElement('div');
+		this._domNode = renderMarkdown(this._text, {
+			actionHandler: {
+				callback: this._handleLinkClicked.bind(this),
+				disposeables: this._messageListeners
+			}
+		});
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
 
@@ -114,7 +130,15 @@ class MessageWidget {
 		}
 
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
-		this._domNode.textContent = _text;
+		this._domNode.addEventListener('mouseenter', () => {
+			this._mouseOver = true;
+		});
+
+		this._domNode.addEventListener('mouseleave', () => {
+			this._mouseOver = false;
+			this._messageListeners.add(MessageWidget.fadeOut(this));
+		});
+
 		this._container.appendChild(this._domNode);
 	}
 
@@ -122,5 +146,11 @@ class MessageWidget {
 		if (this.domNode.parentElement === this._container) {
 			this._container.removeChild(this.domNode);
 		}
+
+		this._messageListeners.dispose();
+	}
+
+	private _handleLinkClicked(content: string) {
+		this._openerService.open(URI.parse(content));
 	}
 }

@@ -34,7 +34,7 @@ import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -47,7 +47,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 class RequestState {
 
@@ -233,7 +233,7 @@ class OutlineViewState {
 	}
 }
 
-export class OutlinePane extends ViewletPane {
+export class OutlinePane extends ViewPane {
 
 	private _disposables = new Array<IDisposable>();
 
@@ -257,17 +257,17 @@ export class OutlinePane extends ViewletPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationService: IMarkerDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService);
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
@@ -334,13 +334,19 @@ export class OutlinePane extends ViewletPane {
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
-					listBackground: SIDE_BAR_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			}
 		);
 
+
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+			if (views.some(v => v.id === this.id)) {
+				this._tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
+			}
+		}));
 
 		// override the globally defined behaviour
 		this._tree.updateOptions({
@@ -372,9 +378,7 @@ export class OutlinePane extends ViewletPane {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
 			}
-			// This is a temporary solution to try and minimize refilters while
-			// ConfigurationChangeEvents only provide the first section of the config path.
-			if (e.affectedKeys.some(key => key.search(/(outline|\[\w+\])/) === 0)) {
+			if (e.affectsConfiguration('outline')) {
 				this._tree.refilter();
 			}
 		}));

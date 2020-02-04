@@ -22,6 +22,12 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp compile-extension:css-language-features-server
 	call yarn gulp compile-extension:html-language-features-server
 	call yarn gulp compile-extension:json-language-features-server
+	call yarn gulp compile-extension:git
+
+	:: Configuration for more verbose output
+	set VSCODE_CLI=1
+	set ELECTRON_ENABLE_LOGGING=1
+	set ELECTRON_ENABLE_STACK_DUMPING=1
 
 	echo "Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build."
 )
@@ -42,6 +48,9 @@ call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-colorize-test
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %TMP%\git-%RANDOM%-%TIME:~6,5% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in commonJS (HTML, CSS, JSON language server tests...)

@@ -11,7 +11,7 @@ import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
 suite('ExtHostWebview', () => {

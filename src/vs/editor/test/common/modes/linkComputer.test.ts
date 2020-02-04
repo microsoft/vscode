@@ -209,4 +209,11 @@ suite('Editor Modes - Link Computer', () => {
 			'                 https://portal.azure.com  '
 		);
 	});
+
+	test('issue #86358: URL wrong recognition pattern', () => {
+		assertLink(
+			'POST|https://portal.azure.com|2019-12-05|',
+			'     https://portal.azure.com            '
+		);
+	});
 });

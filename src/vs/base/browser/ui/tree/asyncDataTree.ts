@@ -258,7 +258,20 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
 		),
-		ariaProvider: undefined,
+		ariaProvider: options.ariaProvider && {
+			getPosInSet(el, index) {
+				return options.ariaProvider!.getPosInSet(el.element as T, index);
+			},
+			getSetSize(el, index, listLength) {
+				return options.ariaProvider!.getSetSize(el.element as T, index, listLength);
+			},
+			getRole: options.ariaProvider!.getRole ? (el) => {
+				return options.ariaProvider!.getRole!(el.element as T);
+			} : undefined,
+			isChecked: options.ariaProvider!.isChecked ? (e) => {
+				return options.ariaProvider?.isChecked!(e.element as T);
+			} : undefined
+		},
 		additionalScrollHeight: options.additionalScrollHeight
 	};
 }
@@ -548,6 +561,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		const node = this.getDataNode(element);
+
+		if (this.tree.hasElement(node) && !this.tree.isCollapsible(node)) {
+			return false;
+		}
 
 		if (node.refreshPromise) {
 			await this.root.refreshPromise;
@@ -1189,14 +1206,16 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 			if (compressedNode) {
 				for (let i = 0; i < compressedNode.elements.length; i++) {
 					const id = getId(compressedNode.elements[i].element as T);
+					const element = compressedNode.elements[compressedNode.elements.length - 1].element as T;
 
-					if (oldSelection.has(id)) {
-						selection.push(compressedNode.elements[compressedNode.elements.length - 1].element as T);
+					// github.com/microsoft/vscode/issues/85938
+					if (oldSelection.has(id) && selection.indexOf(element) === -1) {
+						selection.push(element);
 						didChangeSelection = true;
 					}
 
-					if (oldFocus.has(id)) {
-						focus.push(compressedNode.elements[compressedNode.elements.length - 1].element as T);
+					if (oldFocus.has(id) && focus.indexOf(element) === -1) {
+						focus.push(element);
 						didChangeFocus = true;
 					}
 				}

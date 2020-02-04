@@ -36,78 +36,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
 
-export const debugToolBarBackground = registerColor('debugToolBar.background', {
-	dark: '#333333',
-	light: '#F3F3F3',
-	hc: '#000000'
-}, localize('debugToolBarBackground', "Debug toolbar background color."));
-
-export const debugToolBarBorder = registerColor('debugToolBar.border', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('debugToolBarBorder', "Debug toolbar border color."));
-
-export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
-	dark: '#89D185',
-	light: '#388A34',
-	hc: '#89D185'
-}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
-
-export const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
-
-export const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
-	dark: '#F48771',
-	light: '#A1260D',
-	hc: '#F48771'
-}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
-
-export const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
-	dark: '#F48771',
-	light: '#A1260D',
-	hc: '#F48771'
-}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
-
-export const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
-	dark: '#89D185',
-	light: '#388A34',
-	hc: '#89D185'
-}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
-
-export const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
-
-export const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
-
-export const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
-
-export const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
-
-export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
-
 export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private $el: HTMLElement;
@@ -184,9 +112,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}, 20));
 
 		this.updateStyles();
-
 		this.registerListeners();
-
 		this.hide();
 	}
 
@@ -327,7 +253,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		dom.hide(this.$el);
 	}
 
-	public static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): { actions: IAction[], disposable: IDisposable } {
+	static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): { actions: IAction[], disposable: IDisposable } {
 		const actions: IAction[] = [];
 		const disposable = createAndFillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {
@@ -340,7 +266,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		};
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		if (this.$el) {
@@ -352,6 +278,78 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 }
+
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
+	dark: '#333333',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, localize('debugToolBarBackground', "Debug toolbar background color."));
+
+export const debugToolBarBorder = registerColor('debugToolBar.border', {
+	dark: null,
+	light: null,
+	hc: null
+}, localize('debugToolBarBorder', "Debug toolbar border color."));
+
+export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
+
+export const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
+
+export const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
+
+export const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
+
+export const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
+
+export const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
+
+export const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
+
+export const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
+
+export const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
+
+export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
 
 registerThemingParticipant((theme, collector) => {
 

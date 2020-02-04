@@ -12,6 +12,7 @@ export interface IMouseEvent {
 	readonly leftButton: boolean;
 	readonly middleButton: boolean;
 	readonly rightButton: boolean;
+	readonly buttons: number;
 	readonly target: HTMLElement;
 	readonly detail: number;
 	readonly posx: number;
@@ -33,6 +34,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly leftButton: boolean;
 	public readonly middleButton: boolean;
 	public readonly rightButton: boolean;
+	public readonly buttons: number;
 	public readonly target: HTMLElement;
 	public detail: number;
 	public readonly posx: number;
@@ -49,6 +51,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.leftButton = e.button === 0;
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
+		this.buttons = e.buttons;
 
 		this.target = <HTMLElement>e.target;
 

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { renderCodicons } from 'vs/base/common/codicons';
 import { escape } from 'vs/base/common/strings';
 
 export interface IHighlight {
 	start: number;
 	end: number;
+	extraClasses?: string;
 }
 
 export class HighlightedLabel {
@@ -65,13 +66,17 @@ export class HighlightedLabel {
 			if (pos < highlight.start) {
 				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
+				htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
 				htmlContent += '</span>';
 				pos = highlight.end;
 			}
-			htmlContent += '<span class="highlight">';
+			if (highlight.extraClasses) {
+				htmlContent += `<span class="highlight ${highlight.extraClasses}">`;
+			} else {
+				htmlContent += `<span class="highlight">`;
+			}
 			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
+			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
 			htmlContent += '</span>';
 			pos = highlight.end;
 		}
@@ -79,7 +84,7 @@ export class HighlightedLabel {
 		if (pos < this.text.length) {
 			htmlContent += '<span>';
 			const substring = this.text.substring(pos);
-			htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
+			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
 			htmlContent += '</span>';
 		}
 

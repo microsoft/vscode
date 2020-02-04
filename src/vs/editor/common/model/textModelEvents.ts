@@ -80,6 +80,7 @@ export interface IModelDecorationsChangedEvent {
 
 /**
  * An event describing that some ranges of lines have been tokenized (their tokens have changed).
+ * @internal
  */
 export interface IModelTokensChangedEvent {
 	readonly tokenizationSupportChanged: boolean;

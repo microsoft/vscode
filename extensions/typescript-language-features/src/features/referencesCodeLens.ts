@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { CachedResponse } from '../tsServer/cachedResponse';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -78,26 +78,35 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
 				// Only show references for exported variables
-				if (!item.kindModifiers.match(/\bexport\b/)) {
-					break;
+				if (/\bexport\b/.test(item.kindModifiers)) {
+					return getSymbolRange(document, item);
 				}
-			// fallthrough
+				break;
 
 			case PConst.Kind.class:
 				if (item.text === '<class>') {
 					break;
 				}
-			// fallthrough
+				return getSymbolRange(document, item);
 
-			case PConst.Kind.memberFunction:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-			case PConst.Kind.constructorImplementation:
 			case PConst.Kind.interface:
 			case PConst.Kind.type:
 			case PConst.Kind.enum:
 				return getSymbolRange(document, item);
+
+			case PConst.Kind.memberFunction:
+			case PConst.Kind.memberGetAccessor:
+			case PConst.Kind.memberSetAccessor:
+			case PConst.Kind.constructorImplementation:
+			case PConst.Kind.memberVariable:
+				// Only show if parent is a class type object (not a literal)
+				switch (parent?.kind) {
+					case PConst.Kind.class:
+					case PConst.Kind.interface:
+					case PConst.Kind.type:
+						return getSymbolRange(document, item);
+				}
+				break;
 		}
 
 		return null;

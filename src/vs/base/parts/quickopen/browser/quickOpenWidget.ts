@@ -406,7 +406,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 
 	protected applyStyles(): void {
 		if (this.element) {
-			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
+			const foreground = this.styles.foreground ? this.styles.foreground.toString() : '';
 			const background = this.styles.background ? this.styles.background.toString() : '';
 			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : '';
 			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : '';
@@ -754,6 +754,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 		else if (autoFocus.autoFocusLastEntry) {
 			if (entries.length > 1) {
 				this.tree.focusLast();
+				this.tree.reveal(this.tree.getFocus());
 			}
 		}
 	}

@@ -18,6 +18,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 class MockJSMode extends MockMode {
 
@@ -46,7 +47,7 @@ suite('SmartSelect', () => {
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService), new TestThemeService());
+		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService), new TestThemeService(), new NullLogService());
 		mode = new MockJSMode();
 	});
 

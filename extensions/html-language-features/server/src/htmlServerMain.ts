@@ -6,11 +6,13 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
-	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest, TextDocumentSyncKind
+	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind
 } from 'vscode-languageserver';
-import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-html-languageservice';
-import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
+import {
+	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier
+} from './modes/languageModes';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -21,12 +23,25 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { getFoldingRanges } from './modes/htmlFolding';
 import { getDataProviders } from './customData';
 import { getSelectionRanges } from './modes/selectionRanges';
+import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+}
+
+// experimental: semantic tokens
+interface SemanticTokenParams {
+	textDocument: TextDocumentIdentifier;
+	ranges?: Range[];
+}
+namespace SemanticTokenRequest {
+	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+}
+namespace SemanticTokenLegendRequest {
+	export const type: RequestType<void, { types: string[]; modifiers: string[] } | null, any, any> = new RequestType('html/semanticTokenLegend');
 }
 
 // Create a connection for the server
@@ -499,6 +514,47 @@ connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
 		return null;
 	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
 });
+
+connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const pos = params.position;
+			if (pos.character > 0) {
+				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+				if (mode && mode.findMatchingTagPosition) {
+					return mode.findMatchingTagPosition(document, pos);
+				}
+			}
+		}
+		return null;
+	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
+});
+
+let semanticTokensProvider: SemanticTokenProvider | undefined;
+function getSemanticTokenProvider() {
+	if (!semanticTokensProvider) {
+		semanticTokensProvider = newSemanticTokenProvider(languageModes);
+	}
+	return semanticTokensProvider;
+}
+
+connection.onRequest(SemanticTokenRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			return getSemanticTokenProvider().getSemanticTokens(document, params.ranges);
+		}
+		return null;
+	}, null, `Error while computing semantic tokens for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(SemanticTokenLegendRequest.type, (_params, token) => {
+	return runSafe(() => {
+		return getSemanticTokenProvider().legend;
+	}, null, `Error while computing semantic tokens legend`, token);
+});
+
 
 // Listen on the connection
 connection.listen();

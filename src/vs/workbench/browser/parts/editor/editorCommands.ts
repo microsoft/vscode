@@ -46,8 +46,9 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
-export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
+export const NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX = 'edt ';
+export const NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX = 'edt mru ';
+export const NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX = 'edt active ';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
@@ -665,10 +666,6 @@ function registerCloseEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const quickOpenService = accessor.get(IQuickOpenService);
 
-			if (editorGroupService.count <= 1) {
-				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
-			}
-
 			const commandsContext = getCommandsContext(resourceOrContext, context);
 			if (commandsContext && typeof commandsContext.groupId === 'number') {
 				const group = editorGroupService.getGroup(commandsContext.groupId);
@@ -677,7 +674,7 @@ function registerCloseEditorCommands() {
 				}
 			}
 
-			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX);
+			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX);
 		}
 	});
 

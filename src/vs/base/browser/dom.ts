@@ -232,9 +232,9 @@ class DomListener implements IDisposable {
 
 export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
-	return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
+	return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 
 export interface IAddStandardDisposableListenerSignature {
@@ -287,7 +287,7 @@ export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -302,7 +302,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -628,11 +628,17 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
-	let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
+	let offsetParent = element.offsetParent;
+	let top = element.offsetTop;
+	let left = element.offsetLeft;
 
-	while ((element = <HTMLElement>element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
+	while (
+		(element = <HTMLElement>element.parentNode) !== null
+		&& element !== document.body
+		&& element !== document.documentElement
+	) {
 		top -= element.scrollTop;
-		let c = getComputedStyle(element);
+		const c = isShadowRoot(element) ? null : getComputedStyle(element);
 		if (c) {
 			left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
 		}
@@ -793,7 +799,7 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 }
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
@@ -818,6 +824,27 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 
 export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+}
+
+export function isShadowRoot(node: Node): node is ShadowRoot {
+	return (
+		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+	);
+}
+
+export function isInShadowDOM(domNode: Node): boolean {
+	return !!getShadowRoot(domNode);
+}
+
+export function getShadowRoot(domNode: Node): ShadowRoot | null {
+	while (domNode.parentNode) {
+		if (domNode === document.body) {
+			// reached the body
+			return null;
+		}
+		domNode = domNode.parentNode;
+	}
+	return isShadowRoot(domNode) ? domNode : null;
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
@@ -972,6 +999,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
+	refreshState?(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -1000,6 +1028,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _refreshStateHandler: () => void;
+
 	constructor(element: HTMLElement | Window) {
 		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
@@ -1026,8 +1056,23 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
+		this._refreshStateHandler = () => {
+			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			if (currentNodeHasFocus !== hasFocus) {
+				if (hasFocus) {
+					onBlur();
+				} else {
+					onFocus();
+				}
+			}
+		};
+
 		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
 		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+	}
+
+	refreshState() {
+		this._refreshStateHandler();
 	}
 }
 
@@ -1149,7 +1194,7 @@ export function hide(...elements: HTMLElement[]): void {
 }
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}
@@ -1268,7 +1313,22 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
-export function triggerDownload(uri: URI, name: string): void {
+
+export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
+
+	// If the data is provided as Buffer, we create a
+	// blog URL out of it to produce a valid link
+	let url: string;
+	if (URI.isUri(dataOrUri)) {
+		url = dataOrUri.toString(true);
+	} else {
+		const blob = new Blob([dataOrUri]);
+		url = URL.createObjectURL(blob);
+
+		// Ensure to free the data from DOM eventually
+		setTimeout(() => URL.revokeObjectURL(url));
+	}
+
 	// In order to download from the browser, the only way seems
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
@@ -1276,7 +1336,7 @@ export function triggerDownload(uri: URI, name: string): void {
 	const anchor = document.createElement('a');
 	document.body.appendChild(anchor);
 	anchor.download = name;
-	anchor.href = uri.toString(true);
+	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually

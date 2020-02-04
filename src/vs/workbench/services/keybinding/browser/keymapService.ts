@@ -349,7 +349,7 @@ export class BrowserKeyboardMapperFactoryBase {
 			// The value is empty when the key is not a printable character, we skip validation.
 			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
 				setTimeout(() => {
-					this._getBrowserKeyMapping().then((keymap: IKeyboardMapping) => {
+					this._getBrowserKeyMapping().then((keymap: IRawMixedKeyboardMapping | null) => {
 						if (this.isKeyMappingActive(keymap)) {
 							return;
 						}
@@ -626,7 +626,6 @@ const keyboardConfiguration: IConfigurationNode = {
 	'order': 15,
 	'type': 'object',
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'overridable': true,
 	'properties': {
 		'keyboard.layout': {
 			'type': 'string',

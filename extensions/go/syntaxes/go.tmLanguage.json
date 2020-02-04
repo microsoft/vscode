@@ -1,14 +1,16 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-go/blob/master/grammars/go.cson",
+		"This file has been converted from https://github.com/jeff-hykin/better-go-syntax/blob/master/source/generated.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-go/commit/b6fd68f74efa109679e31fe6f4a41ac105262d0e",
+	"version": "https://github.com/jeff-hykin/better-go-syntax/commit/302b427373ba8390786723a99f6cdf8e38833159",
 	"name": "Go",
 	"scopeName": "source.go",
-	"comment": "Go language",
 	"patterns": [
+		{
+			"include": "#comments"
+		},
 		{
 			"include": "#comments"
 		},
@@ -147,14 +149,7 @@
 			}
 		},
 		{
-			"comment": "Floating-point literals",
-			"match": "(\\.\\d+([Ee][-+]\\d+)?i?)\\b|\\b\\d+\\.\\d*(([Ee][-+]\\d+)?i?\\b)?",
-			"name": "constant.numeric.floating-point.go"
-		},
-		{
-			"comment": "Integers",
-			"match": "\\b((0x[0-9a-fA-F]+)|(0[0-7]+i?)|(\\d+([Ee]\\d+)?i?)|(\\d+[Ee][-+]\\d+i?))\\b",
-			"name": "constant.numeric.integer.go"
+			"include": "#numeric_literals"
 		},
 		{
 			"comment": "Language constants",
@@ -257,7 +252,7 @@
 			}
 		},
 		{
-			"match": "\\w+(?:,\\s*\\w+)*(?=\\s*:=)",
+			"match": "\\b\\w+(?:,\\s*\\w+)*(?=\\s*:=)",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -350,24 +345,29 @@
 		"comments": {
 			"patterns": [
 				{
-					"begin": "/\\*",
-					"end": "\\*/",
-					"captures": {
-						"0": {
+					"name": "comment.block.go",
+					"begin": "(\\/\\*)",
+					"beginCaptures": {
+						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
 					},
-					"name": "comment.block.go"
+					"end": "(\\*\\/)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.go"
+						}
+					}
 				},
 				{
-					"begin": "//",
+					"name": "comment.line.double-slash.go",
+					"begin": "(\\/\\/)",
 					"beginCaptures": {
-						"0": {
+						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
 					},
-					"end": "$",
-					"name": "comment.line.double-slash.go"
+					"end": "(?:\\n|$)"
 				}
 			]
 		},
@@ -587,7 +587,7 @@
 		"string_placeholder": {
 			"patterns": [
 				{
-					"match": "%(\\[\\d+\\])?([\\+#\\-0\\x20]{,2}((\\d+|\\*)?(\\.?(\\d+|\\*|(\\[\\d+\\])\\*?)?(\\[\\d+\\])?)?))?[vT%tbcdoqxXUbeEfFgGsp]",
+					"match": "%(\\[\\d+\\])?([\\+#\\-0\\x20]{,2}((\\d+|\\*)?(\\.?(\\d+|\\*|(\\[\\d+\\])\\*?)?(\\[\\d+\\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]",
 					"name": "constant.other.placeholder.go"
 				}
 			]
@@ -671,6 +671,24 @@
 					]
 				}
 			]
+		},
+		"numeric_literals": {
+			"patterns": [
+				{
+					"include": "#float"
+				},
+				{
+					"include": "#integer"
+				}
+			]
+		},
+		"float": {
+			"match": "(\\.\\d+([Ee][-+]\\d+)?i?)\\b|\\b\\d+\\.\\d*(([Ee][-+]\\d+)?i?\\b)?",
+			"name": "constant.numeric.floating-point.go"
+		},
+		"integer": {
+			"match": "\\b((0x[0-9a-fA-F]+)|(0[0-7]+i?)|(\\d+([Ee]\\d+)?i?)|(\\d+[Ee][-+]\\d+i?))\\b",
+			"name": "constant.numeric.integer.go"
 		}
 	}
 }

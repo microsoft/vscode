@@ -7,14 +7,13 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID, ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SCMStatusController } from './activity';
-import { SCMViewlet } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,6 +23,9 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewlet';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -38,13 +40,13 @@ class OpenSCMViewletAction extends ShowViewletAction {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
-	SCMViewlet,
-	VIEWLET_ID,
-	localize('source control', "Source Control"),
-	'codicon-source-control',
-	2
-));
+Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: VIEWLET_ID,
+	name: localize('source control', "Source Control"),
+	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
+	icon: 'codicon-source-control',
+	order: 2
+}, ViewContainerLocation.Sidebar);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
@@ -81,6 +83,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.diffDecorations': {
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
+			enumDescriptions: [
+				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
+				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
+				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
+				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
+				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
+			],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},

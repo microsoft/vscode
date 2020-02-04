@@ -19,7 +19,7 @@ module.exports = withDefaults({
 	output: {
 		filename: 'main.js',
 		path: path.join(__dirname, 'dist'),
-		libraryTarget: "commonjs",
+		libraryTarget: 'commonjs',
 	},
 	resolve: {
 		mainFields: ['module', 'main'],

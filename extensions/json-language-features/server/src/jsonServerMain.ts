@@ -6,7 +6,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -16,7 +16,7 @@ import * as URL from 'url';
 import { posix } from 'path';
 import { setTimeout, clearTimeout } from 'timers';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, SchemaRequestService, Diagnostic } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, SchemaRequestService, Diagnostic, Range, Position } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -33,6 +33,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace ResultLimitReachedNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
 }
 
 namespace ForceValidateRequest {
@@ -122,12 +126,13 @@ let hierarchicalDocumentSymbolSupport = false;
 let foldingRangeLimitDefault = Number.MAX_VALUE;
 let foldingRangeLimit = Number.MAX_VALUE;
 let resultLimit = Number.MAX_VALUE;
+let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-	const handledProtocols = params.initializationOptions && params.initializationOptions['handledSchemaProtocols'];
+	const handledProtocols = params.initializationOptions?.handledSchemaProtocols;
 
 	languageService = getLanguageService({
 		schemaRequestService: getSchemaRequestService(handledProtocols),
@@ -149,9 +154,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
+	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions?.provideFormatter !== 'boolean');
 	foldingRangeLimitDefault = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
+	formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 	const capabilities: ServerCapabilities = {
 		textDocumentSync: TextDocumentSyncKind.Incremental,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
@@ -211,7 +217,7 @@ namespace LimitExceededWarnings {
 			} else {
 				warning = { features: { [name]: name } };
 				warning.timeout = setTimeout(() => {
-					connection.window.showInformationMessage(`${posix.basename(uri)}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
+					connection.sendNotification(ResultLimitReachedNotification.type, `${posix.basename(uri)}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
 					warning.timeout = undefined;
 				}, 2000);
 				pendingWarnings[uri] = warning;
@@ -441,7 +447,12 @@ connection.onDocumentRangeFormatting((formatParams, token) => {
 	return runSafe(() => {
 		const document = documents.get(formatParams.textDocument.uri);
 		if (document) {
-			return languageService.format(document, formatParams.range, formatParams.options);
+			const edits = languageService.format(document, formatParams.range, formatParams.options);
+			if (edits.length > formatterMaxNumberOfEdits) {
+				const newText = TextDocument.applyEdits(document, edits);
+				return [TextEdit.replace(Range.create(Position.create(0, 0), document.positionAt(document.getText().length - 1)), newText)];
+			}
+			return edits;
 		}
 		return [];
 	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
