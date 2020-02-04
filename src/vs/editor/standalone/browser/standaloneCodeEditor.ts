@@ -75,7 +75,7 @@ export interface IActionDescriptor {
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convenience
 	 */
-	run(editor: ICodeEditor, param?: any): void | Promise<void>;
+	run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
 }
 
 /**
