@@ -467,8 +467,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super();
 
@@ -628,8 +627,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	createContainer(container: ViewContainer): ViewPaneContainer {
-		const viewPaneContainer: ViewPaneContainer = this._register((this.instantiationService as any).createInstance(container.ctorDescriptor!.ctor, ...(container.ctorDescriptor!.staticArguments || [])));
+	registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): ViewPaneContainer {
 		this._register(viewPaneContainer.onDidAddViews(views => views.forEach(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: view.isBodyVisible() }))));
 		this._register(viewPaneContainer.onDidChangeViewVisibility(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: view.isBodyVisible() })));
 		this._register(viewPaneContainer.onDidRemoveViews(views => views.forEach(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: false }))));
@@ -666,7 +664,9 @@ registerSingleton(IViewsService, ViewsService);
 				@IWorkspaceContextService contextService: IWorkspaceContextService,
 				@IViewsService viewsService: ViewsService
 			) {
-				super(viewContainer.id, viewsService.createContainer(viewContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
+				const viewPaneContainer = viewsService.registerViewPaneContainer((instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || [])));
+				super(viewContainer.id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 			}
 		}
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
@@ -690,9 +690,12 @@ registerSingleton(IViewsService, ViewsService);
 				@IInstantiationService instantiationService: IInstantiationService,
 				@IThemeService themeService: IThemeService,
 				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService
+				@IExtensionService extensionService: IExtensionService,
+				@IViewsService viewsService: ViewsService
 			) {
-				super(viewContainer.id, (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || [])), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
+				const viewPaneContainer = viewsService.registerViewPaneContainer((instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || [])));
+				super(viewContainer.id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
 			}
 		}
 		const viewletDescriptor = ViewletDescriptor.create(
