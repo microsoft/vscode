@@ -277,21 +277,18 @@ export class SingleCursorState {
 	public readonly position: Position;
 	public readonly leftoverVisibleColumns: number;
 	public readonly selection: Selection;
-	public readonly isEnd: boolean;
 
 	constructor(
 		selectionStart: Range,
 		selectionStartLeftoverVisibleColumns: number,
 		position: Position,
 		leftoverVisibleColumns: number,
-		isEnd: boolean = false
 	) {
 		this.selectionStart = selectionStart;
 		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
 		this.position = position;
 		this.leftoverVisibleColumns = leftoverVisibleColumns;
 		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
-		this.isEnd = isEnd;
 	}
 
 	public equals(other: SingleCursorState) {
@@ -307,15 +304,14 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number, isEnd: boolean = false): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
 				this.selectionStart,
 				this.selectionStartLeftoverVisibleColumns,
 				new Position(lineNumber, column),
-				leftoverVisibleColumns,
-				isEnd
+				leftoverVisibleColumns
 			);
 		} else {
 			// move everything
@@ -323,8 +319,7 @@ export class SingleCursorState {
 				new Range(lineNumber, column, lineNumber, column),
 				leftoverVisibleColumns,
 				new Position(lineNumber, column),
-				leftoverVisibleColumns,
-				isEnd
+				leftoverVisibleColumns
 			);
 		}
 	}

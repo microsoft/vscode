@@ -7,6 +7,7 @@ import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorSta
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 
 export class CursorPosition {
 	_cursorPositionBrand: void;
@@ -122,13 +123,9 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		if (cursor.isEnd) {
-			column = model.getLineMaxColumn(lineNumber + 1);
-		}
-
 		let r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
-		return cursor.move(inSelectionMode, r.lineNumber, cursor.isEnd ? column : r.column, r.leftoverVisibleColumns, cursor.isEnd);
+		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
 	}
 
 	public static translateDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
@@ -178,13 +175,9 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		if (cursor.isEnd) {
-			column = model.getLineMaxColumn(lineNumber - 1);
-		}
-
 		let r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
-		return cursor.move(inSelectionMode, r.lineNumber, cursor.isEnd ? column : r.column, r.leftoverVisibleColumns, cursor.isEnd);
+		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
 	}
 
 	public static translateUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
@@ -222,7 +215,7 @@ export class MoveOperations {
 	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
 		let lineNumber = cursor.position.lineNumber;
 		let maxColumn = model.getLineMaxColumn(lineNumber);
-		return cursor.move(inSelectionMode, lineNumber, maxColumn, 0, true);
+		return cursor.move(inSelectionMode, lineNumber, maxColumn, Constants.MAX_SAFE_SMALL_INTEGER - maxColumn);
 	}
 
 	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
