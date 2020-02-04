@@ -11,7 +11,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Emitter } from 'vs/base/common/event';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -189,7 +189,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Listen to text model events
 		const textEditorModel = assertIsDefined(this.textEditorModel);
-		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e)));
+		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 		// Name
@@ -209,16 +209,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
-	private onModelContentChanged(e: IModelContentChangedEvent): void {
-		if (!this.isResolved()) {
-			return;
-		}
-
+	private onModelContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
 		this.versionId++;
 
 		// mark the untitled text editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 
