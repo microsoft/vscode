@@ -57,7 +57,7 @@ export interface ITunnelViewModel {
 	onForwardedPortsChanged: Event<void>;
 	readonly forwarded: TunnelItem[];
 	readonly detected: TunnelItem[];
-	readonly candidates: Promise<TunnelItem[]>;
+	readonly candidates: TunnelItem[];
 	readonly input: TunnelItem;
 	groups(): Promise<ITunnelGroup[]>;
 }
@@ -67,6 +67,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	public onForwardedPortsChanged: Event<void> = this._onForwardedPortsChanged.event;
 	private model: TunnelModel;
 	private _input: TunnelItem;
+	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
@@ -87,6 +88,10 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	async groups(): Promise<ITunnelGroup[]> {
 		const groups: ITunnelGroup[] = [];
+		this._candidates = new Map();
+		(await this.model.candidates).forEach(candidate => {
+			this._candidates.set(MakeAddress(candidate.host, candidate.port), candidate);
+		});
 		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
 			groups.push({
 				label: nls.localize('remote.tunnelsView.forwarded', "Forwarded"),
@@ -115,9 +120,18 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		return groups;
 	}
 
+	private addProcessInfoFromCandidate(tunnelItem: ITunnelItem) {
+		const key = MakeAddress(tunnelItem.remoteHost, tunnelItem.remotePort);
+		if (this._candidates.has(key)) {
+			tunnelItem.description = this._candidates.get(key)!.detail;
+		}
+	}
+
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
-			return TunnelItem.createFromTunnel(tunnel);
+			const tunnelItem = TunnelItem.createFromTunnel(tunnel);
+			this.addProcessInfoFromCandidate(tunnelItem);
+			return tunnelItem;
 		}).sort((a: TunnelItem, b: TunnelItem) => {
 			if (a.remotePort === b.remotePort) {
 				return a.remoteHost < b.remoteHost ? -1 : 1;
@@ -133,21 +147,21 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get detected(): TunnelItem[] {
 		return Array.from(this.model.detected.values()).map(tunnel => {
-			return TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
+			const tunnelItem = TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
+			this.addProcessInfoFromCandidate(tunnelItem);
+			return tunnelItem;
 		});
 	}
 
-	get candidates(): Promise<TunnelItem[]> {
-		return this.model.candidates.then(values => {
-			const candidates: TunnelItem[] = [];
-			values.forEach(value => {
-				const key = MakeAddress(value.host, value.port);
-				if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
-					candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, false, undefined, value.detail));
-				}
-			});
-			return candidates;
+	get candidates(): TunnelItem[] {
+		const candidates: TunnelItem[] = [];
+		this._candidates.forEach(value => {
+			const key = MakeAddress(value.host, value.port);
+			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
+				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, false, undefined, value.detail));
+			}
 		});
+		return candidates;
 	}
 
 	get input(): TunnelItem {
@@ -384,6 +398,10 @@ class TunnelItem implements ITunnelItem {
 		} else {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0}", this.remotePort);
 		}
+	}
+
+	set description(description: string | undefined) {
+		this._description = description;
 	}
 
 	get description(): string | undefined {

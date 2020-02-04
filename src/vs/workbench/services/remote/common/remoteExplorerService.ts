@@ -31,7 +31,7 @@ export interface ITunnelItem {
 	localAddress?: string;
 	name?: string;
 	closeable?: boolean;
-	readonly description?: string;
+	description?: string;
 	readonly label: string;
 }
 

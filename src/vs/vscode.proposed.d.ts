@@ -18,7 +18,7 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface Session {
+	export interface AuthenticationSession {
 		id: string;
 		accessToken: string;
 		accountName: string;
@@ -58,12 +58,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Promise<ReadonlyArray<Session>>;
+		getSessions(): Promise<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Promise<Session>;
+		login(scopes: string[]): Promise<AuthenticationSession>;
 		logout(sessionId: string): Promise<void>;
 	}
 
@@ -171,6 +171,8 @@ declare module 'vscode' {
 		/**
 		 * Fired when the list of tunnels has changed.
 		 */
+		// TODO@alexr
+		// eslint-disable-next-line vscode-dts-event-naming
 		export const onDidTunnelsChange: Event<void>;
 	}
 
@@ -182,6 +184,8 @@ declare module 'vscode' {
 
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
+		// TODO@isi
+		// eslint-disable-next-line vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
@@ -1241,6 +1245,8 @@ declare module 'vscode' {
 		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 */
+		// TODO@matt
+		// eslint-disable-next-line vscode-dts-event-naming
 		readonly onEdit: Event<{ readonly resource: Uri, readonly edit: EditType }>;
 
 		/**

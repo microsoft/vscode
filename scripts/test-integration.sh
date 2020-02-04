@@ -4,13 +4,12 @@ set -e
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
-	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 	LINUX_NO_SANDBOX="--no-sandbox" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
 fi
 
+VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 cd $ROOT
 
 # Figure out which Electron to use for running tests
@@ -29,6 +28,7 @@ else
 	yarn gulp compile-extension:css-language-features-server
 	yarn gulp compile-extension:html-language-features-server
 	yarn gulp compile-extension:json-language-features-server
+	yarn gulp compile-extension:git
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1
@@ -46,6 +46,7 @@ fi
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/markdown-language-features/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/markdown-language-features --extensionTestsPath=$ROOT/extensions/markdown-language-features/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
 
 mkdir -p $ROOT/extensions/emmet/test-fixtures
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started  --user-data-dir=$VSCODEUSERDATADIR

@@ -342,7 +342,8 @@ class SuggestionDetails {
 	}
 
 	renderItem(item: CompletionItem, explainMode: boolean): void {
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		dispose(this.renderDisposeable);
+		this.renderDisposeable = undefined;
 
 		let { documentation, detail } = item.completion;
 		// --- documentation
@@ -449,7 +450,8 @@ class SuggestionDetails {
 
 	dispose(): void {
 		this.disposables.dispose();
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		dispose(this.renderDisposeable);
+		this.renderDisposeable = undefined;
 	}
 }
 

@@ -512,9 +512,9 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		return title;
 	}
 
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
-		const panels: ViewPane[] = super.onDidAddViews(added);
+		const panels: ViewPane[] = super.onDidAddViewDescriptors(added);
 		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {

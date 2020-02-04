@@ -29,7 +29,7 @@ class ServiceAccessor {
 	) { }
 }
 
-suite('Workbench untitled text editors', () => {
+suite('Untitled text editors', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
@@ -394,23 +394,29 @@ suite('Workbench untitled text editors', () => {
 
 		model.textEditorModel.setValue('foo');
 		assert.equal(input.getName(), 'foo');
+		assert.equal(model.name, 'foo');
 
 		assert.equal(counter, 1);
 		model.textEditorModel.setValue('bar');
 		assert.equal(input.getName(), 'bar');
+		assert.equal(model.name, 'bar');
 
 		assert.equal(counter, 2);
 		model.textEditorModel.setValue('');
 		assert.equal(input.getName(), 'Untitled-1');
+		assert.equal(model.name, 'Untitled-1');
 
 		model.textEditorModel.setValue('        ');
 		assert.equal(input.getName(), 'Untitled-1');
+		assert.equal(model.name, 'Untitled-1');
 
 		model.textEditorModel.setValue('([]}'); // require actual words
 		assert.equal(input.getName(), 'Untitled-1');
+		assert.equal(model.name, 'Untitled-1');
 
 		model.textEditorModel.setValue('([]}hello   '); // require actual words
 		assert.equal(input.getName(), '([]}hello');
+		assert.equal(model.name, '([]}hello');
 
 		assert.equal(counter, 4);
 
@@ -463,6 +469,26 @@ suite('Workbench untitled text editors', () => {
 		model.textEditorModel.setValue('bar');
 
 		assert.equal(counter, 1, 'Another change does not fire event');
+
+		input.dispose();
+		model.dispose();
+	});
+
+	test('model#onDidChangeEncoding', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = service.create();
+
+		let counter = 0;
+
+		const model = await input.resolve();
+		model.onDidChangeEncoding(() => counter++);
+
+		model.setEncoding('utf16');
+
+		assert.equal(counter, 1, 'Dirty model should trigger event');
+		model.setEncoding('utf16');
+
+		assert.equal(counter, 1, 'Another change to same encoding does not fire event');
 
 		input.dispose();
 		model.dispose();

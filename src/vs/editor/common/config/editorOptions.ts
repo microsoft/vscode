@@ -555,6 +555,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	peekWidgetDefaultFocus?: 'tree' | 'editor';
+	/**
+	 * Controls whether the definition link opens element in the peek widget.
+	 * Defaults to false.
+	 */
+	definitionLinkOpensInPeek?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -2751,7 +2756,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
-					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
+					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Controls whether an active snippet prevents quick suggestions.")
 				},
 				'editor.suggest.showIcons': {
 					type: 'boolean',
@@ -3192,6 +3197,7 @@ export const enum EditorOption {
 	overviewRulerLanes,
 	parameterHints,
 	peekWidgetDefaultFocus,
+	definitionLinkOpensInPeek,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3440,7 +3446,13 @@ export const EditorOptions = {
 		EditorOption.foldingStrategy, 'foldingStrategy',
 		'auto' as 'auto' | 'indentation',
 		['auto', 'indentation'] as const,
-		{ markdownDescription: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges. `auto` uses a language specific folding strategy, if available. `indentation` uses the indentation based folding strategy.") }
+		{
+			enumDescriptions: [
+				nls.localize('foldingStrategy.auto', "Use a language-specific folding strategy if available, else the indentation-based one."),
+				nls.localize('foldingStrategy.indentation', "Use the indentation-based folding strategy."),
+			],
+			description: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges.")
+		}
 	)),
 	foldingHighlight: register(new EditorBooleanOption(
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
@@ -3583,6 +3595,10 @@ export const EditorOptions = {
 			description: nls.localize('peekWidgetDefaultFocus', "Controls whether to focus the inline editor or the tree in the peek widget.")
 		}
 	)),
+	definitionLinkOpensInPeek: register(new EditorBooleanOption(
+		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
+		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the definition link opens element in the peek widget.") }
+	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
@@ -3675,7 +3691,13 @@ export const EditorOptions = {
 		EditorOption.showFoldingControls, 'showFoldingControls',
 		'mouseover' as 'always' | 'mouseover',
 		['always', 'mouseover'] as const,
-		{ description: nls.localize('showFoldingControls', "Controls whether the fold controls on the gutter are automatically hidden.") }
+		{
+			enumDescriptions: [
+				nls.localize('showFoldingControls.always', "Always show the folding controls."),
+				nls.localize('showFoldingControls.mouseover', "Only show the folding controls when the mouse is over the gutter."),
+			],
+			description: nls.localize('showFoldingControls', "Controls when the folding controls on the gutter are shown.")
+		}
 	)),
 	showUnused: register(new EditorBooleanOption(
 		EditorOption.showUnused, 'showUnused', true,

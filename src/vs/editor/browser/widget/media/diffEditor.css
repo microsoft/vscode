@@ -8,19 +8,14 @@
 	z-index: 9;
 }
 
+.monaco-diff-editor .diffOverview .diffViewport {
+	z-index: 10;
+}
+
 /* colors not externalized: using transparancy on background */
 .monaco-diff-editor.vs			.diffOverview { background: rgba(0, 0, 0, 0.03); }
 .monaco-diff-editor.vs-dark		.diffOverview { background: rgba(255, 255, 255, 0.01); }
 
-.monaco-diff-editor .diffViewport {
-	box-shadow: inset 0px 0px 1px 0px #B9B9B9;
-	background: rgba(0, 0, 0, 0.10);
-}
-
-.monaco-diff-editor.vs-dark .diffViewport,
-.monaco-diff-editor.hc-black .diffViewport {
-	background: rgba(255, 255, 255, 0.10);
-}
 .monaco-scrollable-element.modified-in-monaco-diff-editor.vs		.scrollbar { background: rgba(0,0,0,0); }
 .monaco-scrollable-element.modified-in-monaco-diff-editor.vs-dark	.scrollbar { background: rgba(0,0,0,0); }
 .monaco-scrollable-element.modified-in-monaco-diff-editor.hc-black	.scrollbar { background: none; }
