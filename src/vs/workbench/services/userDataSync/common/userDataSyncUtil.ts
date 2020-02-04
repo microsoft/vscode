@@ -11,6 +11,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
@@ -21,7 +22,12 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
+
+	public async updateConfigurationValue(key: string, value: any): Promise<void> {
+		await this.configurationService.updateValue(key, value, ConfigurationTarget.USER);
+	}
 
 	public async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
 		const keys: IStringDictionary<string> = {};
@@ -46,6 +52,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
 		};
 	}
+
 }
 
 registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);

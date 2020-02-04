@@ -24,7 +24,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
@@ -35,12 +35,13 @@ import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_I
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
-function getContext(element: CallStackItem | null): any {
+export function getContext(element: CallStackItem | null): any {
 	return element instanceof StackFrame ? {
 		sessionId: element.thread.session.getId(),
 		threadId: element.thread.getId(),
@@ -51,6 +52,25 @@ function getContext(element: CallStackItem | null): any {
 	} : isDebugSession(element) ? {
 		sessionId: element.getId()
 	} : undefined;
+}
+
+// Extensions depend on this context, should not be changed even though it is not fully deterministic
+export function getContextForContributedActions(element: CallStackItem | null): string | number {
+	if (element instanceof StackFrame) {
+		if (element.source.inMemory) {
+			return element.source.raw.path || element.source.reference || '';
+		}
+
+		return element.source.uri.toString();
+	}
+	if (element instanceof Thread) {
+		return element.threadId;
+	}
+	if (isDebugSession(element)) {
+		return element.getId();
+	}
+
+	return '';
 }
 
 export class CallStackView extends ViewPane {
@@ -72,13 +92,14 @@ export class CallStackView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -93,7 +114,7 @@ export class CallStackView extends ViewPane {
 			if (thread && thread.stoppedDetails) {
 				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
 				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
-				this.pauseMessageLabel.toggleAttribute('exception', thread.stoppedDetails.reason === 'exception');
+				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 				if (this.toolbar) {
 					this.toolbar.setActions([])();
@@ -182,7 +203,7 @@ export class CallStackView extends ViewPane {
 
 		this.tree.setInput(this.debugService.getModel());
 
-		const callstackNavigator = new TreeResourceNavigator2(this.tree);
+		const callstackNavigator = new TreeResourceNavigator(this.tree);
 		this._register(callstackNavigator);
 		this._register(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
@@ -289,7 +310,13 @@ export class CallStackView extends ViewPane {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
-				this.tree.reveal(element);
+				// If the element is outside of the screen bounds,
+				// position it in the middle
+				if (this.tree.getRelativeTop(element) === null) {
+					this.tree.reveal(element, 0.5);
+				} else {
+					this.tree.reveal(element);
+				}
 			} catch (e) { }
 			finally {
 				this.ignoreSelectionChangedEvent = false;
@@ -336,7 +363,7 @@ export class CallStackView extends ViewPane {
 		}
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -344,24 +371,6 @@ export class CallStackView extends ViewPane {
 			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
-	}
-
-	private getContextForContributedActions(element: CallStackItem | null): string | number {
-		if (element instanceof StackFrame) {
-			if (element.source.inMemory) {
-				return element.source.raw.path || element.source.reference || '';
-			}
-
-			return element.source.uri.toString();
-		}
-		if (element instanceof Thread) {
-			return element.threadId;
-		}
-		if (isDebugSession(element)) {
-			return element.getId();
-		}
-
-		return '';
 	}
 }
 
@@ -511,11 +520,11 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		data.stackFrame.toggleAttribute('disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
-		data.stackFrame.toggleAttribute('label', stackFrame.presentationHint === 'label');
-		data.stackFrame.toggleAttribute('subtle', stackFrame.presentationHint === 'subtle');
-		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
-		data.stackFrame.toggleAttribute('has-actions', hasActions);
+		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
+		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
+		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
+		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle' && stackFrame.range.startLineNumber !== undefined;
+		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {

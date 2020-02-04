@@ -12,22 +12,21 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
@@ -37,9 +36,8 @@ import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
@@ -55,28 +53,23 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { localize } from 'vs/nls';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 
 const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
-const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplService');
 const DECORATION_KEY = 'replinputdecoration';
 
-interface IPrivateReplService {
-	_serviceBrand: undefined;
-	acceptReplInput(): void;
-	getVisibleContent(): string;
-	selectSession(session?: IDebugSession): Promise<void>;
-	clearRepl(): Promise<void>;
-	focusRepl(): void;
-}
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
 }
 
 const sessionsToIgnore = new Set<IDebugSession>();
-export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
+
+export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
@@ -99,21 +92,23 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private modelChangeListener: IDisposable = Disposable.None;
 
 	constructor(
+		options: IViewPaneOptions,
 		@IDebugService private readonly debugService: IDebugService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private readonly modelService: IModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(REPL_ID, telemetryService, themeService, storageService);
+		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
@@ -141,7 +136,34 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 								const text = model.getValue();
 								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 								const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-								const suggestions = await session.completions(frameId, text, position, overwriteBefore, token);
+								const response = await session.completions(frameId, text, position, overwriteBefore, token);
+
+								const suggestions: CompletionItem[] = [];
+								const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
+								if (response && response.body && response.body.targets) {
+									response.body.targets.forEach(item => {
+										if (item && item.label) {
+											suggestions.push({
+												label: item.label,
+												insertText: item.text || item.label,
+												kind: completionKindFromString(item.type || 'property'),
+												filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
+												range: computeRange(item.length || overwriteBefore),
+												sortText: item.sortText
+											});
+										}
+									});
+								}
+
+								const history = this.history.getHistory();
+								history.forEach(h => suggestions.push({
+									label: h,
+									insertText: h,
+									kind: CompletionItemKind.Text,
+									range: computeRange(h.length),
+									sortText: 'ZZZ'
+								}));
+
 								return { suggestions };
 							}
 
@@ -159,7 +181,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			if (!input || input.state === State.Inactive) {
 				await this.selectSession(newSession);
 			}
-			this.updateTitleArea();
+			this.updateActions();
 		}));
 		this._register(this.themeService.onThemeChange(() => {
 			this.refreshReplElements(false);
@@ -167,7 +189,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.updateInputDecoration();
 			}
 		}));
-		this._register(this.onDidChangeVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible) {
 				dispose(this.model);
 			} else {
@@ -300,7 +322,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				// Ignore inactive sessions which got cleared - so they are not shown any more
 				sessionsToIgnore.add(session);
 				await this.selectSession();
-				this.updateTitleArea();
+				this.updateActions();
 			}
 		}
 		this.replInput.focus();
@@ -317,7 +339,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replInputLineCount = 1;
 			if (shouldRelayout) {
 				// Trigger a layout to shrink a potential multi line input
-				this.layout(this.dimension);
+				this.layoutBody(this.dimension.height, this.dimension.width);
 			}
 		}
 	}
@@ -338,21 +360,21 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		return removeAnsiEscapeCodes(text);
 	}
 
-	layout(dimension: dom.Dimension): void {
-		this.dimension = dimension;
+	protected layoutBody(height: number, width: number): void {
+		this.dimension = new dom.Dimension(width, height);
 		const replInputHeight = Repl.REPL_INPUT_LINE_HEIGHT * this.replInputLineCount;
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			const treeHeight = dimension.height - replInputHeight;
+			const treeHeight = height - replInputHeight;
 			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight, dimension.width);
+			this.tree.layout(treeHeight, width);
 			if (lastElementVisible) {
 				revealLastElement(this.tree);
 			}
 		}
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: dimension.width - 20, height: replInputHeight });
+		this.replInput.layout({ width: width - 20, height: replInputHeight });
 	}
 
 	focus(): void {
@@ -382,12 +404,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	// --- Cached locals
 	@memoize
 	private get selectReplAction(): SelectReplAction {
-		return this.scopedInstantiationService.createInstance(SelectReplAction, SelectReplAction.ID, SelectReplAction.LABEL);
+		return this.instantiationService.createInstance(SelectReplAction, SelectReplAction.ID, SelectReplAction.LABEL);
 	}
 
 	@memoize
 	private get clearReplAction(): ClearReplAction {
-		return this.scopedInstantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
+		return this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
 	}
 
 	@memoize
@@ -408,8 +430,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	// --- Creation
 
-	create(parent: HTMLElement): void {
-		super.create(parent);
+	protected renderBody(parent: HTMLElement): void {
 		this.container = dom.append(parent, $('.repl'));
 		const treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
@@ -469,8 +490,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this._register(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
 		options.ariaLabel = localize('debugConsole', "Debug Console");
@@ -483,7 +503,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
 			if (lineCount !== this.replInputLineCount) {
 				this.replInputLineCount = lineCount;
-				this.layout(this.dimension);
+				this.layoutBody(this.dimension.height, this.dimension.width);
 			}
 		}));
 		// We add the input decoration only when the focus is in the input #61126
@@ -562,7 +582,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.setDecorations(DECORATION_KEY, decorations);
 	}
 
-	protected saveState(): void {
+	saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
 			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
@@ -604,7 +624,8 @@ class AcceptReplInputAction extends EditorAction {
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
-		accessor.get(IPrivateReplService).acceptReplInput();
+		const repl = getReplView(accessor.get(IViewsService));
+		repl?.acceptReplInput();
 	}
 }
 
@@ -626,7 +647,8 @@ class FilterReplAction extends EditorAction {
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
-		accessor.get(IPrivateReplService).focusRepl();
+		const repl = getReplView(accessor.get(IViewsService));
+		repl?.focusRepl();
 	}
 }
 
@@ -643,7 +665,10 @@ class ReplCopyAllAction extends EditorAction {
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		return clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+		const repl = getReplView(accessor.get(IViewsService));
+		if (repl) {
+			return clipboardService.writeText(repl.getVisibleContent());
+		}
 	}
 }
 
@@ -672,7 +697,7 @@ class SelectReplAction extends Action {
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
-		@IPrivateReplService private readonly replService: IPrivateReplService
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super(id, label);
 	}
@@ -682,10 +707,11 @@ class SelectReplAction extends Action {
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
 			await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
-			await this.replService.selectSession(session);
+			const repl = getReplView(this.viewsService);
+			if (repl) {
+				await repl.selectSession(session);
+			}
 		}
-
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -694,14 +720,18 @@ export class ClearReplAction extends Action {
 	static readonly LABEL = localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
-		@IPanelService private readonly panelService: IPanelService
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super(id, label, 'debug-action codicon-clear-all');
 	}
 
 	async run(): Promise<any> {
-		const repl = <Repl>this.panelService.openPanel(REPL_ID);
-		await repl.clearRepl();
+		const view = await this.viewsService.openView(REPL_VIEW_ID) as Repl;
+		await view.clearRepl();
 		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
 	}
+}
+
+function getReplView(viewsService: IViewsService): Repl | undefined {
+	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }

@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionMenuActionContext } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
@@ -45,7 +45,6 @@ import { RemoteExtensionsInstaller } from 'vs/workbench/contrib/extensions/brows
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -83,7 +82,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	{
 		id: VIEWLET_ID,
 		name: localize('extensions', "Extensions"),
-		ctorDescriptor: { ctor: ExtensionsViewPaneContainer },
+		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: 'codicon-extensions',
 		order: 4
 	}, ViewContainerLocation.Sidebar);
@@ -253,6 +252,7 @@ CommandsRegistry.registerCommand({
 			}
 		} catch (e) {
 			onUnexpectedError(e);
+			throw e;
 		}
 	}
 });
@@ -285,6 +285,7 @@ CommandsRegistry.registerCommand({
 			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);
+			throw e;
 		}
 	}
 });
@@ -342,50 +343,71 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 
 // Extension Context Menu
 
-registerAction({
-	id: 'workbench.extensions.action.copyExtension',
-	title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },
-	async handler(accessor, context: IExtensionMenuActionContext) {
-		const productService = accessor.get(IProductService);
-		const name = localize('extensionInfoName', 'Name: {0}', context.packageJSON.displayName);
-		const id = localize('extensionInfoId', 'Id: {0}', context.id);
-		const description = localize('extensionInfoDescription', 'Description: {0}', context.packageJSON.description);
-		const verision = localize('extensionInfoVersion', 'Version: {0}', context.packageJSON.version);
-		const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', context.packageJSON.publisher);
-		const link = productService.extensionsGallery ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${productService.extensionsGallery!.itemUrl}?itemName=${context.id}`) : null;
-		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-		await accessor.get(IClipboardService).writeText(clipboardStr);
-	},
-	menu: {
-		menuId: MenuId.ExtensionContext,
-		group: '1_copy'
-	},
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.extensions.action.copyExtension',
+			title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '1_copy'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, extensionId: string) {
+		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		let extension = extensionWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
+			|| (await extensionWorkbenchService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None)).firstPage[0];
+		if (extension) {
+			const name = localize('extensionInfoName', 'Name: {0}', extension.displayName);
+			const id = localize('extensionInfoId', 'Id: {0}', extensionId);
+			const description = localize('extensionInfoDescription', 'Description: {0}', extension.description);
+			const verision = localize('extensionInfoVersion', 'Version: {0}', extension.version);
+			const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', extension.publisherDisplayName);
+			const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${extension.url}`) : null;
+			const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
+			await accessor.get(IClipboardService).writeText(clipboardStr);
+		}
+	}
 });
 
-registerAction({
-	id: 'workbench.extensions.action.copyExtensionId',
-	title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id"), original: 'Copy Extension Id' },
-	async handler(accessor, context: IExtensionMenuActionContext) {
-		await accessor.get(IClipboardService).writeText(context.id);
-	},
-	menu: {
-		menuId: MenuId.ExtensionContext,
-		group: '1_copy'
-	},
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.extensions.action.copyExtensionId',
+			title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id"), original: 'Copy Extension Id' },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '1_copy'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, id: string) {
+		await accessor.get(IClipboardService).writeText(id);
+	}
 });
 
-registerAction({
-	id: 'workbench.extensions.action.configure',
-	title: { value: localize('workbench.extensions.action.configure', "Configure..."), original: 'Configure...' },
-	async handler(accessor, context: IExtensionMenuActionContext) {
-		await accessor.get(IPreferencesService).openSettings(false, `@ext:${context.id}`);
-	},
-	menu: {
-		menuId: MenuId.ExtensionContext,
-		group: '2_configure',
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
-	},
+registerAction2(class extends Action2 {
 
+	constructor() {
+		super({
+			id: 'workbench.extensions.action.configure',
+			title: { value: localize('workbench.extensions.action.configure', "Extension Settings"), original: 'Extension Settings' },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, id: string) {
+		await accessor.get(IPreferencesService).openSettings(false, `@ext:${id}`);
+	}
 });
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

@@ -155,15 +155,3 @@
 .xterm.xterm-cursor-pointer {
 	cursor: pointer!important;
 }
-
-.monaco-workbench .quick-open-terminal-configure {
-	background-image: url('configure-light.svg');
-}
-
-.vs-dark .monaco-workbench .quick-open-terminal-configure {
-	background-image: url('configure-dark.svg');
-}
-
-.hc-black .monaco-workbench .quick-open-terminal-configure {
-	background-image: url('configure-hc.svg');
-}

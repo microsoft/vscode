@@ -7,8 +7,8 @@ import { AsyncEmitter, Emitter, Event, IWaitUntil } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IResourceFileEditDto, IResourceTextEditDto } from './extHost.protocol';
+import type * as vscode from 'vscode';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IWorkspaceFileEditDto, IWorkspaceTextEditDto } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -219,7 +219,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		if (edits.length > 0) {
 			// flatten all WorkspaceEdits collected via waitUntil-call
 			// and apply them in one go.
-			const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
+			const allEdits = new Array<Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto>>();
 			for (let edit of edits) {
 				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 				allEdits.push(edits);

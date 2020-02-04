@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -21,6 +21,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
+import { coalesce } from 'vs/base/common/arrays';
+import { trim } from 'vs/base/common/strings';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -35,7 +38,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IFileService protected readonly fileService: IFileService,
 		@IOpenerService protected readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IModeService private readonly modeService: IModeService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -90,10 +94,12 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		let message: string;
+		let detail = nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.");
 		if (fileNamesOrResources.length === 1) {
 			message = nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fileNamesOrResources[0] === 'string' ? fileNamesOrResources[0] : resources.basename(fileNamesOrResources[0]));
 		} else {
-			message = getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNamesOrResources.length), fileNamesOrResources);
+			message = nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNamesOrResources.length);
+			detail = getFileNamesMessage(fileNamesOrResources) + '\n' + detail;
 		}
 
 		const buttons: string[] = [
@@ -104,7 +110,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
 			cancelId: 2,
-			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+			detail
 		});
 
 		switch (choice) {
@@ -220,7 +226,56 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	abstract pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
 	abstract pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 	abstract pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
-	abstract pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
 	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+
+	abstract pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
+
+	protected getPickFileToSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[]): ISaveDialogOptions {
+		const options: ISaveDialogOptions = {
+			defaultUri,
+			title: nls.localize('saveAsTitle', "Save As"),
+			availableFileSystems,
+		};
+
+		interface IFilter { name: string; extensions: string[]; }
+
+		// Build the file filter by using our known languages
+		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
+		let matchingFilter: IFilter | undefined;
+		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+			const extensions = this.modeService.getExtensions(languageName);
+			if (!extensions || !extensions.length) {
+				return null;
+			}
+
+			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
+
+			if (ext && extensions.indexOf(ext) >= 0) {
+				matchingFilter = filter;
+
+				return null; // matching filter will be added last to the top
+			}
+
+			return filter;
+		}));
+
+		// Filters are a bit weird on Windows, based on having a match or not:
+		// Match: we put the matching filter first so that it shows up selected and the all files last
+		// No match: we put the all files filter first
+		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
+		if (matchingFilter) {
+			filters.unshift(matchingFilter);
+			filters.unshift(allFilesFilter);
+		} else {
+			filters.unshift(allFilesFilter);
+		}
+
+		// Allow to save file without extension
+		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
+
+		options.filters = filters;
+
+		return options;
+	}
 }

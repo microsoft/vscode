@@ -6,7 +6,6 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
@@ -31,8 +30,7 @@ import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 
 class ServiceAccessor {
 	constructor(
-		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
+		@ITextFileService public textFileService: TestTextFileService
 	) {
 	}
 }
@@ -94,9 +92,7 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	teardown(async () => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
 		disposables.clear();
 

@@ -38,7 +38,9 @@ class MarkerDecorations extends Disposable {
 	}
 
 	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): void {
-		const ids = this.model.deltaDecorations(keys(this._markersData), newDecorations);
+		const oldIds = keys(this._markersData);
+		this._markersData.clear();
+		const ids = this.model.deltaDecorations(oldIds, newDecorations);
 		for (let index = 0; index < ids.length; index++) {
 			this._markersData.set(ids[index], markers[index]);
 		}
@@ -145,12 +147,10 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 		let ret = Range.lift(rawMarker);
 
-		if (rawMarker.severity === MarkerSeverity.Hint) {
-			if (!rawMarker.tags || rawMarker.tags.indexOf(MarkerTag.Unnecessary) === -1) {
-				// * never render hints on multiple lines
-				// * make enough space for three dots
-				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
-			}
+		if (rawMarker.severity === MarkerSeverity.Hint && !this._hasMarkerTag(rawMarker, MarkerTag.Unnecessary) && !this._hasMarkerTag(rawMarker, MarkerTag.Deprecated)) {
+			// * never render hints on multiple lines
+			// * make enough space for three dots
+			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
 		}
 
 		ret = model.validateRange(ret);
@@ -186,7 +186,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private _createDecorationOption(marker: IMarker): IModelDecorationOptions {
 
-		let className: string;
+		let className: string | undefined;
 		let color: ThemeColor | undefined = undefined;
 		let zIndex: number;
 		let inlineClassName: string | undefined = undefined;
@@ -194,7 +194,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
+				if (this._hasMarkerTag(marker, MarkerTag.Deprecated)) {
+					className = undefined;
+				} else if (this._hasMarkerTag(marker, MarkerTag.Unnecessary)) {
 					className = ClassName.EditorUnnecessaryDecoration;
 				} else {
 					className = ClassName.EditorHintDecoration;
@@ -248,5 +250,12 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			zIndex,
 			inlineClassName,
 		};
+	}
+
+	private _hasMarkerTag(marker: IMarker, tag: MarkerTag): boolean {
+		if (marker.tags) {
+			return marker.tags.indexOf(tag) >= 0;
+		}
+		return false;
 	}
 }

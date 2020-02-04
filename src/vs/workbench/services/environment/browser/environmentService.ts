@@ -134,10 +134,16 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
-	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.keybindings.json'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, '.sync'); }
+
+	@memoize
+	get settingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'keybindings.json'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
@@ -234,8 +240,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	sharedIPCHandle!: string;
 
 	nodeCachedDataDir?: string;
-
-	argvResource!: URI;
 
 	disableCrashReporter!: boolean;
 

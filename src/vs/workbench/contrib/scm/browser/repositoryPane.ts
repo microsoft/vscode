@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -25,16 +24,13 @@ import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/a
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IThemeService, LIGHT, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
-import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { format } from 'vs/base/common/strings';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
@@ -45,7 +41,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -54,6 +50,21 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Hasher } from 'vs/base/common/hash';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ITextModel } from 'vs/editor/common/model';
+import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import * as platform from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Schemas } from 'vs/base/common/network';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -553,6 +564,12 @@ class ViewModel {
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+
+		for (const item of this.items) {
+			item.disposable.dispose();
+		}
+
+		this.items = [];
 	}
 }
 
@@ -578,20 +595,14 @@ export class ToggleViewModeAction extends Action {
 	}
 }
 
-function convertValidationType(type: InputValidationType): MessageType {
-	switch (type) {
-		case InputValidationType.Information: return MessageType.INFO;
-		case InputValidationType.Warning: return MessageType.WARNING;
-		case InputValidationType.Error: return MessageType.ERROR;
-	}
-}
-
 export class RepositoryPane extends ViewPane {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputBoxContainer!: HTMLElement;
-	private inputBox!: InputBox;
+	private inputContainer!: HTMLElement;
+	private validationContainer!: HTMLElement;
+	private inputEditor!: CodeEditorWidget;
+	private inputModel!: ITextModel;
 	private listContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
@@ -612,12 +623,14 @@ export class RepositoryPane extends ViewPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IModelService private modelService: IModelService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -655,51 +668,128 @@ export class RepositoryPane extends ViewPane {
 		this._register(focusTracker);
 
 		// Input
-		this.inputBoxContainer = append(container, $('.scm-editor'));
+		this.inputContainer = append(container, $('.scm-editor'));
+		const editorContainer = append(this.inputContainer, $('.scm-editor-container'));
 
+		const placeholderTextContainer = append(editorContainer, $('.scm-editor-placeholder'));
 		const updatePlaceholder = () => {
 			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholder = format(this.repository.input.placeholder, label);
+			const placeholderText = format(this.repository.input.placeholder, label);
 
-			this.inputBox.setPlaceHolder(placeholder);
+			placeholderTextContainer.textContent = placeholderText;
 		};
+
+		this.validationContainer = append(editorContainer, $('.scm-editor-validation'));
 
 		const validationDelayer = new ThrottledDelayer<any>(200);
 		const validate = () => {
-			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart || 0).then(result => {
+			const position = this.inputEditor.getSelection()?.getStartPosition();
+			const offset = position && this.inputModel.getOffsetAt(position);
+			const value = this.inputModel.getValue();
+
+			return this.repository.input.validateInput(value, offset || 0).then(result => {
 				if (!result) {
-					this.inputBox.inputElement.removeAttribute('aria-invalid');
-					this.inputBox.hideMessage();
+					removeClass(editorContainer, 'validation-info');
+					removeClass(editorContainer, 'validation-warning');
+					removeClass(editorContainer, 'validation-error');
+					removeClass(this.validationContainer, 'validation-info');
+					removeClass(this.validationContainer, 'validation-warning');
+					removeClass(this.validationContainer, 'validation-error');
+					this.validationContainer.textContent = null;
 				} else {
-					this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
-					this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
+					toggleClass(editorContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(editorContainer, 'validation-error', result.type === InputValidationType.Error);
+					toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
+					this.validationContainer.textContent = result.message;
 				}
 			});
 		};
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
-		this.inputBox.setEnabled(this.isBodyVisible());
-		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
-		this._register(this.inputBox);
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 4,
+			dragAndDrop: false,
+			cursorWidth: 1,
+			fontSize: 13,
+			lineHeight: 20,
+			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			// suggest: {
+			// 	showWords: false
+			// }
+		};
 
-		this._register(this.inputBox.onDidChange(triggerValidation, null));
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				// SuggestController.ID,
+				// SnippetController2.ID,
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				ContextMenuController.ID,
+			])
+		};
 
-		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
-		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
+		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
+		const instantiationService = this.instantiationService.createChild(services);
+		this.inputEditor = instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
 
-		this.inputBox.value = this.repository.input.value;
-		this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
-		this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
+		this._register(this.inputEditor);
+
+		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
+		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
+
+		let query: string | undefined;
+
+		if (this.repository.provider.rootUri) {
+			query = `rootUri=${encodeURIComponent(this.repository.provider.rootUri.toString())}`;
+		}
+
+		const uri = URI.from({
+			scheme: Schemas.vscode,
+			path: `scm/${this.repository.provider.contextValue}/${this.repository.provider.id}/input`,
+			query
+		});
+
+		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
+		this.inputEditor.setModel(this.inputModel);
+
+		this.inputEditor.changeViewZones(accessor => {
+			accessor.addZone({ afterLineNumber: 0, domNode: $('div'), heightInPx: 3 });
+		});
+
+		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+
+		// Keep model in sync with API
+		this.inputModel.setValue(this.repository.input.value);
+		this._register(this.repository.input.onDidChange(value => {
+			if (value === this.inputModel.getValue()) {
+				return;
+			}
+			this.inputModel.setValue(value);
+		}));
+
+		// Keep API in sync with model and update placeholder and validation
+		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+		this.inputModel.onDidChangeContent(() => {
+			this.repository.input.value = this.inputModel.getValue();
+			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+			triggerValidation();
+		});
 
 		updatePlaceholder();
 		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
 		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
+		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
@@ -820,18 +910,24 @@ export class RepositoryPane extends ViewPane {
 		}
 
 		this.cachedHeight = height;
+		this.cachedWidth = width;
 
 		if (this.repository.input.visible) {
-			removeClass(this.inputBoxContainer, 'hidden');
-			this.inputBox.layout();
+			removeClass(this.inputContainer, 'hidden');
 
-			const editorHeight = this.inputBox.height;
-			const listHeight = height - (editorHeight + 12 /* margin */);
+			const editorContentHeight = this.inputEditor.getContentHeight();
+			const editorHeight = Math.min(editorContentHeight + 3, 134);
+			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
+
+			this.validationContainer.style.top = `${editorHeight + 1}px`;
+
+			const listHeight = height - (editorHeight + 5 + 2 + 5);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
 		} else {
-			addClass(this.inputBoxContainer, 'hidden');
+			addClass(this.inputContainer, 'hidden');
 
+			this.inputEditor.onHide();
 			this.listContainer.style.height = `${height}px`;
 			this.tree.layout(height, width);
 		}
@@ -842,7 +938,7 @@ export class RepositoryPane extends ViewPane {
 
 		if (this.isExpanded()) {
 			if (this.repository.input.visible) {
-				this.inputBox.focus();
+				this.inputEditor.focus();
 			} else {
 				this.tree.domFocus();
 			}
@@ -852,8 +948,13 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private _onDidChangeVisibility(visible: boolean): void {
-		this.inputBox.setEnabled(visible);
 		this.viewModel.setVisible(visible);
+
+		if (this.repository.input.visible && visible) {
+			this.inputEditor.onVisible();
+		} else {
+			this.inputEditor.onHide();
+		}
 	}
 
 	getActions(): IAction[] {
@@ -937,11 +1038,13 @@ export class RepositoryPane extends ViewPane {
 		const oldCommitTemplate = this.commitTemplate;
 		this.commitTemplate = this.repository.provider.commitTemplate;
 
-		if (this.inputBox.value && this.inputBox.value !== oldCommitTemplate) {
+		const value = this.inputModel.getValue();
+
+		if (value && value !== oldCommitTemplate) {
 			return;
 		}
 
-		this.inputBox.value = this.commitTemplate;
+		this.inputModel.setValue(this.commitTemplate);
 	}
 
 	private updateInputBoxVisibility(): void {
@@ -957,7 +1060,7 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 
 	readonly id: string;
 	readonly name: string;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<RepositoryPane>;
 	readonly canToggleVisibility = true;
 	readonly order = -500;
 	readonly workspace = true;
@@ -970,6 +1073,84 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 		this.id = `scm:repository:${hasher.value}`;
 		this.name = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
 
-		this.ctorDescriptor = { ctor: RepositoryPane, arguments: [repository] };
+		this.ctorDescriptor = new SyncDescriptor(RepositoryPane, [repository]);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	if (inputBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .monaco-editor-background,
+		.scm-viewlet .scm-editor-container .monaco-editor,
+		.scm-viewlet .scm-editor-container .monaco-editor .margin
+		{ background-color: ${inputBackgroundColor}; }`);
+	}
+
+	const inputForegroundColor = theme.getColor(inputForeground);
+	if (inputForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
+	}
+
+	const inputBorderColor = theme.getColor(inputBorder);
+	if (inputBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+	}
+
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
+	}
+
+	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
+	if (inputPlaceholderForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
+	}
+
+	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
+	if (inputValidationInfoBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { border: 1px solid ${inputValidationInfoBorderColor}; }`);
+	}
+
+	const inputValidationInfoBackgroundColor = theme.getColor(inputValidationInfoBackground);
+	if (inputValidationInfoBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
+	}
+
+	const inputValidationInfoForegroundColor = theme.getColor(inputValidationInfoForeground);
+	if (inputValidationInfoForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
+	}
+
+	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
+	if (inputValidationWarningBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { border: 1px solid ${inputValidationWarningBorderColor}; }`);
+	}
+
+	const inputValidationWarningBackgroundColor = theme.getColor(inputValidationWarningBackground);
+	if (inputValidationWarningBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
+	}
+
+	const inputValidationWarningForegroundColor = theme.getColor(inputValidationWarningForeground);
+	if (inputValidationWarningForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
+	}
+
+	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
+	if (inputValidationErrorBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { border: 1px solid ${inputValidationErrorBorderColor}; }`);
+	}
+
+	const inputValidationErrorBackgroundColor = theme.getColor(inputValidationErrorBackground);
+	if (inputValidationErrorBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
+	}
+
+	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
+	if (inputValidationErrorForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
+	}
+});

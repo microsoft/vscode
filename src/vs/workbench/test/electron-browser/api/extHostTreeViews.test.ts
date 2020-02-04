@@ -18,6 +18,7 @@ import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import type { IDisposable } from 'vs/base/common/lifecycle';
 
 suite('ExtHostTreeView', function () {
 
@@ -29,7 +30,9 @@ suite('ExtHostTreeView', function () {
 		}
 
 		$refresh(viewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
-			return Promise.resolve(null).then(() => this.onRefresh.fire(itemsToRefresh));
+			return Promise.resolve(null).then(() => {
+				this.onRefresh.fire(itemsToRefresh);
+			});
 		}
 
 		$reveal(): Promise<void> {
@@ -243,46 +246,62 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeNode.fire(getNode('bb'));
 	});
 
-	test('refresh parent and child node trigger refresh only on parent - scenario 1', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:b', '0/0:a/0:aa'], Object.keys(actuals));
-			assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
-				handle: '0/0:b',
-				label: { label: 'b' },
-				collapsibleState: TreeItemCollapsibleState.Collapsed
+	async function runWithEventMerging(action: (resolve: () => void) => void) {
+		await new Promise((resolve) => {
+			let subscription: IDisposable | undefined = undefined;
+			subscription = target.onRefresh.event(() => {
+				subscription!.dispose();
+				resolve();
 			});
-			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
-				handle: '0/0:a/0:aa',
-				parentHandle: '0/0:a',
-				label: { label: 'aa' },
-				collapsibleState: TreeItemCollapsibleState.None
-			});
-			done();
+			onDidChangeTreeNode.fire(getNode('b'));
 		});
-		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire(getNode('aa'));
-		onDidChangeTreeNode.fire(getNode('bb'));
+		await new Promise(action);
+	}
+
+	test('refresh parent and child node trigger refresh only on parent - scenario 1', async () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.deepEqual(['0/0:b', '0/0:a/0:aa'], Object.keys(actuals));
+				assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
+					handle: '0/0:b',
+					label: { label: 'b' },
+					collapsibleState: TreeItemCollapsibleState.Collapsed
+				});
+				assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
+					handle: '0/0:a/0:aa',
+					parentHandle: '0/0:a',
+					label: { label: 'aa' },
+					collapsibleState: TreeItemCollapsibleState.None
+				});
+				resolve();
+			});
+			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTreeNode.fire(getNode('aa'));
+			onDidChangeTreeNode.fire(getNode('bb'));
+		});
 	});
 
-	test('refresh parent and child node trigger refresh only on parent - scenario 2', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:a/0:aa', '0/0:b'], Object.keys(actuals));
-			assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
-				handle: '0/0:b',
-				label: { label: 'b' },
-				collapsibleState: TreeItemCollapsibleState.Collapsed
+	test('refresh parent and child node trigger refresh only on parent - scenario 2', async () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.deepEqual(['0/0:a/0:aa', '0/0:b'], Object.keys(actuals));
+				assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
+					handle: '0/0:b',
+					label: { label: 'b' },
+					collapsibleState: TreeItemCollapsibleState.Collapsed
+				});
+				assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
+					handle: '0/0:a/0:aa',
+					parentHandle: '0/0:a',
+					label: { label: 'aa' },
+					collapsibleState: TreeItemCollapsibleState.None
+				});
+				resolve();
 			});
-			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
-				handle: '0/0:a/0:aa',
-				parentHandle: '0/0:a',
-				label: { label: 'aa' },
-				collapsibleState: TreeItemCollapsibleState.None
-			});
-			done();
+			onDidChangeTreeNode.fire(getNode('bb'));
+			onDidChangeTreeNode.fire(getNode('aa'));
+			onDidChangeTreeNode.fire(getNode('b'));
 		});
-		onDidChangeTreeNode.fire(getNode('bb'));
-		onDidChangeTreeNode.fire(getNode('aa'));
-		onDidChangeTreeNode.fire(getNode('b'));
 	});
 
 	test('refresh an element for label change', function (done) {
@@ -299,63 +318,73 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeNode.fire(getNode('a'));
 	});
 
-	test('refresh calls are throttled on roots', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.equal(undefined, actuals);
-			done();
+	test('refresh calls are throttled on roots', () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.equal(undefined, actuals);
+				resolve();
+			});
+			onDidChangeTreeNode.fire(undefined);
+			onDidChangeTreeNode.fire(undefined);
+			onDidChangeTreeNode.fire(undefined);
+			onDidChangeTreeNode.fire(undefined);
 		});
-		onDidChangeTreeNode.fire(undefined);
-		onDidChangeTreeNode.fire(undefined);
-		onDidChangeTreeNode.fire(undefined);
-		onDidChangeTreeNode.fire(undefined);
 	});
 
-	test('refresh calls are throttled on elements', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
-			done();
-		});
+	test('refresh calls are throttled on elements', () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.deepEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
+				resolve();
+			});
 
-		onDidChangeTreeNode.fire(getNode('a'));
-		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTreeNode.fire(getNode('a'));
+		});
 	});
 
-	test('refresh calls are throttled on unknown elements', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
-			done();
-		});
+	test('refresh calls are throttled on unknown elements', () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.deepEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
+				resolve();
+			});
 
-		onDidChangeTreeNode.fire(getNode('a'));
-		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire(getNode('g'));
-		onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTreeNode.fire(getNode('g'));
+			onDidChangeTreeNode.fire(getNode('a'));
+		});
 	});
 
-	test('refresh calls are throttled on unknown elements and root', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.equal(undefined, actuals);
-			done();
-		});
+	test('refresh calls are throttled on unknown elements and root', () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.equal(undefined, actuals);
+				resolve();
+			});
 
-		onDidChangeTreeNode.fire(getNode('a'));
-		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire(getNode('g'));
-		onDidChangeTreeNode.fire(undefined);
+			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTreeNode.fire(getNode('g'));
+			onDidChangeTreeNode.fire(undefined);
+		});
 	});
 
-	test('refresh calls are throttled on elements and root', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.equal(undefined, actuals);
-			done();
-		});
+	test('refresh calls are throttled on elements and root', () => {
+		return runWithEventMerging((resolve) => {
+			target.onRefresh.event(actuals => {
+				assert.equal(undefined, actuals);
+				resolve();
+			});
 
-		onDidChangeTreeNode.fire(getNode('a'));
-		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire(undefined);
-		onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTreeNode.fire(undefined);
+			onDidChangeTreeNode.fire(getNode('a'));
+		});
 	});
 
 	test('generate unique handles from labels by escaping them', (done) => {
@@ -552,37 +581,40 @@ suite('ExtHostTreeView', function () {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
 		return loadCompleteTree('treeDataProvider')
 			.then(() => {
-				tree = {
-					'a': {
-						'aa': {},
-						'ac': {}
-					},
-					'b': {
-						'ba': {},
-						'bb': {}
-					}
-				};
-				onDidChangeTreeNode.fire(getNode('a'));
-				tree = {
-					'a': {
-						'aa': {},
-						'ac': {}
-					},
-					'b': {
-						'ba': {},
-						'bc': {}
-					}
-				};
-				onDidChangeTreeNode.fire(getNode('b'));
-
-				return treeView.reveal({ key: 'bc' })
-					.then(() => {
-						assert.ok(revealTarget.calledOnce);
-						assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-						assert.deepEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]));
-						assert.deepEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
-						assert.deepEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][3]);
-					});
+				runWithEventMerging((resolve) => {
+					tree = {
+						'a': {
+							'aa': {},
+							'ac': {}
+						},
+						'b': {
+							'ba': {},
+							'bb': {}
+						}
+					};
+					onDidChangeTreeNode.fire(getNode('a'));
+					tree = {
+						'a': {
+							'aa': {},
+							'ac': {}
+						},
+						'b': {
+							'ba': {},
+							'bc': {}
+						}
+					};
+					onDidChangeTreeNode.fire(getNode('b'));
+					resolve();
+				}).then(() => {
+					return treeView.reveal({ key: 'bc' })
+						.then(() => {
+							assert.ok(revealTarget.calledOnce);
+							assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
+							assert.deepEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]));
+							assert.deepEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
+							assert.deepEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][3]);
+						});
+				});
 			});
 	});
 

@@ -40,9 +40,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
@@ -64,6 +63,7 @@ interface QuickInputUI {
 	leftActionBar: ActionBar;
 	titleBar: HTMLElement;
 	title: HTMLElement;
+	description: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
@@ -95,6 +95,7 @@ interface QuickInputUI {
 
 type Visibilities = {
 	title?: boolean;
+	description?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
 	visibleCount?: boolean;
@@ -108,6 +109,7 @@ type Visibilities = {
 class QuickInput extends Disposable implements IQuickInput {
 
 	private _title: string | undefined;
+	private _description: string | undefined;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	protected visible = false;
@@ -136,6 +138,15 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	set title(title: string | undefined) {
 		this._title = title;
+		this.update();
+	}
+
+	get description() {
+		return this._description;
+	}
+
+	set description(description: string | undefined) {
+		this._description = description;
 		this.update();
 	}
 
@@ -244,6 +255,10 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		}
+		const description = this.getDescription();
+		if (this.ui.description.textContent !== description) {
+			this.ui.description.textContent = description;
+		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
 			this.busyDelay.setIfNotSet(() => {
@@ -296,6 +311,10 @@ class QuickInput extends Disposable implements IQuickInput {
 			return this.getSteps();
 		}
 		return '';
+	}
+
+	private getDescription() {
+		return this.description || '';
 	}
 
 	private getSteps() {
@@ -713,7 +732,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: this.ok, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, description: !!this.description, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -872,7 +891,7 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
+		this.ui.setVisibilities({ title: !!this.title || !!this.step, description: !!this.description || !!this.step, inputBox: true, message: true });
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -1037,6 +1056,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const rightActionBar = this._register(new ActionBar(titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
+		const description = dom.append(container, $('.quick-input-description'));
+
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
@@ -1166,6 +1187,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			leftActionBar,
 			titleBar,
 			title,
+			description,
 			rightActionBar,
 			checkAll,
 			filterContainer,
@@ -1186,7 +1208,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
-			isScreenReaderOptimized: () => this.isScreenReaderOptimized(),
+			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
@@ -1377,6 +1399,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.setEnabled(true);
 		ui.leftActionBar.clear();
 		ui.title.textContent = '';
+		ui.description.textContent = '';
 		ui.rightActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
@@ -1410,6 +1433,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private setVisibilities(visibilities: Visibilities) {
 		const ui = this.getUI();
 		ui.title.style.display = visibilities.title ? '' : 'none';
+		ui.description.style.display = visibilities.description ? '' : 'none';
 		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
@@ -1438,12 +1462,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 				ui.inputBox.removeAttribute('aria-activedescendant');
 			}
 		}
-	}
-
-	private isScreenReaderOptimized() {
-		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
-		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	private setEnabled(enabled: boolean) {
@@ -1542,7 +1560,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const quickInputBackground = theme.getColor(QUICK_INPUT_BACKGROUND);
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			const quickInputForeground = theme.getColor(QUICK_INPUT_FOREGROUND);
-			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : null;
+			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			const contrastBorderColor = theme.getColor(contrastBorder);
 			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : '';
 			const widgetShadowColor = theme.getColor(widgetShadow);

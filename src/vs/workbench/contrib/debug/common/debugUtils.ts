@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IDebuggerContribution, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
@@ -235,4 +235,40 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			}
 			break;
 	}
+}
+
+export function getVisibleAndSorted<T extends { presentation?: IConfigPresentation }>(array: T[]): T[] {
+	return array.filter(config => !config.presentation?.hidden).sort((first, second) => {
+		if (!first.presentation) {
+			return 1;
+		}
+		if (!second.presentation) {
+			return -1;
+		}
+		if (!first.presentation.group) {
+			if (!second.presentation.group) {
+				return compareOrders(first.presentation.order, second.presentation.order);
+			}
+			return 1;
+		}
+		if (!second.presentation.group) {
+			return -1;
+		}
+		if (first.presentation.group !== second.presentation.group) {
+			return first.presentation.group.localeCompare(second.presentation.group);
+		}
+
+		return compareOrders(first.presentation.order, second.presentation.order);
+	});
+}
+
+function compareOrders(first: number | undefined, second: number | undefined): number {
+	if (typeof first !== 'number') {
+		return 1;
+	}
+	if (typeof second !== 'number') {
+		return -1;
+	}
+
+	return first - second;
 }

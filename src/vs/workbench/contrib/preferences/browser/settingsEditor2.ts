@@ -533,7 +533,7 @@ export class SettingsEditor2 extends BaseEditor {
 		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
 
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
-			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
+			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : '';
 		}));
 
 		this.createTOC(bodyContainer);

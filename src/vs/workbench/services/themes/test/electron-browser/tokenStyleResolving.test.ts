@@ -16,7 +16,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
-import { TokenMetadata, FontStyle } from 'vs/editor/common/modes';
+import { ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 let tokenClassificationRegistry = getTokenClassificationRegistry();
 
@@ -49,24 +49,21 @@ function assertTokenStyle(actual: TokenStyle | undefined | null, expected: Token
 	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
-function assertTokenStyleMetaData(colorIndex: string[], actual: number | undefined, expected: TokenStyle | undefined | null, message?: string) {
+function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message?: string) {
 	if (expected === undefined || expected === null || actual === undefined) {
 		assert.equal(actual, expected, message);
 		return;
 	}
-	const actualFontStyle = TokenMetadata.getFontStyle(actual);
-	assert.equal((actualFontStyle & FontStyle.Bold) === FontStyle.Bold, expected.bold === true, 'bold');
-	assert.equal((actualFontStyle & FontStyle.Italic) === FontStyle.Italic, expected.italic === true, 'italic');
-	assert.equal((actualFontStyle & FontStyle.Underline) === FontStyle.Underline, expected.underline === true, 'underline');
+	assert.strictEqual(actual.bold, expected.bold, 'bold');
+	assert.strictEqual(actual.italic, expected.italic, 'italic');
+	assert.strictEqual(actual.underline, expected.underline, 'underline');
 
-	const actualForegroundIndex = TokenMetadata.getForeground(actual);
+	const actualForegroundIndex = actual.foreground;
 	if (expected.foreground) {
 		assert.equal(actualForegroundIndex, colorIndex.indexOf(Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase()), 'foreground');
 	} else {
 		assert.equal(actualForegroundIndex, 0, 'foreground');
 	}
-	const actualBackgroundIndex = TokenMetadata.getBackground(actual);
-	assert.equal(actualBackgroundIndex, 0, 'background');
 }
 
 
@@ -152,7 +149,7 @@ suite('Themes - TokenStyleResolving', () => {
 			'type': ts(undefined, undefinedStyle),
 			'function': ts(undefined, undefinedStyle),
 			'string': ts('#a31515', undefinedStyle),
-			'number': ts('#09885a', undefinedStyle),
+			'number': ts('#098658', undefinedStyle),
 			'keyword': ts('#0000ff', undefinedStyle)
 		});
 
@@ -306,7 +303,7 @@ suite('Themes - TokenStyleResolving', () => {
 			'*.static': { fontStyle: 'bold' },
 			'*.declaration': { fontStyle: 'italic' },
 			'*.async.static': { fontStyle: 'italic underline' },
-			'*.async': { foreground: '#000fff', fontStyle: '-italic underline' }
+			'*.async': { foreground: '#000fff', fontStyle: 'underline' }
 		});
 
 		assertTokenStyles(themeData, {
@@ -316,7 +313,7 @@ suite('Themes - TokenStyleResolving', () => {
 			'class': ts('#0000ff', { italic: true }),
 			'class.static.declaration': ts('#0000ff', { bold: true, italic: true }),
 			'class.declaration': ts('#0000ff', { italic: true }),
-			'class.declaration.async': ts('#000fff', { underline: true, italic: false }),
+			'class.declaration.async': ts('#000fff', { underline: true, italic: true }),
 			'class.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
 		});
 

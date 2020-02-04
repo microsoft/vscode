@@ -26,21 +26,25 @@
 		"vscode": "1.1.5"
 	},
 	"contributes": {
-		"tokenTypes": [
+		"semanticTokenTypes": [
 			{
 				"id": "testToken",
 				"description": "A test token"
 			}
 		],
-		"tokenModifiers": [
+		"semanticTokenModifiers": [
 			{
 				"id": "testModifier",
 				"description": "A test modifier"
 			}
 		],
-		"tokenStyleDefaults": [
+		"semanticTokenStyleDefaults": [
 			{
-				"selector": "testToken.testModifier",
+				"selector": "testToken",
+				"scope": [ "entity.name.function.special" ]
+			},
+			{
+				"selector": "*.testModifier",
 				"light": {
 					"fontStyle": "bold"
 				},
@@ -50,7 +54,6 @@
 				"highContrast": {
 					"fontStyle": "bold"
 				}
-
 			}
 		]
 	}

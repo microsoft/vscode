@@ -173,8 +173,13 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file {
-	display: none;
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file .line-number {
+	visibility: hidden;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .monaco-action-bar {
+	position: absolute;
+	right: 2px;
 }
 
 .debug-viewlet .debug-call-stack .monaco-list-row .monaco-action-bar {
@@ -386,14 +391,4 @@
 .debug-viewlet .debug-breakpoints .breakpoint .name {
 	overflow: hidden;
 	text-overflow: ellipsis
-}
-
-/* No workspace view */
-
-.debug-viewlet > .noworkspace-view {
-	padding: 0 20px 0 20px;
-}
-
-.debug-viewlet > .noworkspace-view > p {
-	line-height: 1.5em;
 }

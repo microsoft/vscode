@@ -121,7 +121,7 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = new SuggestModel(this.editor, editorWorker);
 
-		this.widget = new IdleValue(() => {
+		this.widget = this._toDispose.add(new IdleValue(() => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -165,14 +165,27 @@ export class SuggestController implements IEditorContribution {
 			}));
 			this._toDispose.add(toDisposable(() => makesTextEdit.reset()));
 
+			this._toDispose.add(widget.onDetailsKeyDown(e => {
+				// cmd + c on macOS, ctrl + c on Win / Linux
+				if (
+					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
+					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+				) {
+					e.stopPropagation();
+					return;
+				}
 
+				if (!e.toKeybinding().isModifierKey()) {
+					this.editor.focus();
+				}
+			}));
 
 			return widget;
-		});
+		}));
 
-		this._alternatives = new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new IdleValue(() => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
-		});
+		}));
 
 		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
 
@@ -195,21 +208,6 @@ export class SuggestController implements IEditorContribution {
 			if (!_sticky) {
 				this.model.cancel();
 				this.model.clear();
-			}
-		}));
-
-		this._toDispose.add(this.widget.getValue().onDetailsKeyDown(e => {
-			// cmd + c on macOS, ctrl + c on Win / Linux
-			if (
-				e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
-				(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
-			) {
-				e.stopPropagation();
-				return;
-			}
-
-			if (!e.toKeybinding().isModifierKey()) {
-				this.editor.focus();
 			}
 		}));
 
@@ -343,8 +341,9 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
+		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
-			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", suggestion.label, suggestion.additionalTextEdits.length);
+			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
@@ -529,11 +528,8 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	handler(x, args) {
-		const alternative: boolean = typeof args === 'object' && typeof args.alternative === 'boolean'
-			? args.alternative
-			: false;
-		x.acceptSelectedSuggestion(true, alternative);
+	handler(x) {
+		x.acceptSelectedSuggestion(true, false);
 	}
 }));
 
@@ -553,16 +549,23 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight
 });
 
+// todo@joh control enablement via context key
 // shift+enter and shift+tab use the alternative-flag so that the suggest controller
 // is doing the opposite of the editor.suggest.overwriteOnAccept-configuration
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
-	primary: KeyMod.Shift | KeyCode.Tab,
-	secondary: [KeyMod.Shift | KeyCode.Enter],
-	args: { alternative: true },
-	weight
-});
+registerEditorCommand(new SuggestCommand({
+	id: 'acceptAlternativeSelectedSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textInputFocus,
+		primary: KeyMod.Shift | KeyCode.Enter,
+		secondary: [KeyMod.Shift | KeyCode.Tab],
+	},
+	handler(x) {
+		x.acceptSelectedSuggestion(false, true);
+	},
+}));
+
 
 // continue to support the old command
 CommandsRegistry.registerCommandAlias('acceptSelectedSuggestionOnEnter', 'acceptSelectedSuggestion');

@@ -238,7 +238,7 @@ configurationRegistry.registerConfiguration({
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE_LANGUAGE,
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
 			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
@@ -246,7 +246,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE_LANGUAGE,
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.eol': {
@@ -263,7 +263,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'auto',
 			'description': nls.localize('eol', "The default end of line character."),
-			'scope': ConfigurationScope.RESOURCE_LANGUAGE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.enableTrash': {
 			'type': 'boolean',
@@ -274,36 +274,36 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'scope': ConfigurationScope.RESOURCE_LANGUAGE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'scope': ConfigurationScope.RESOURCE_LANGUAGE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.trimFinalNewlines': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
-			scope: ConfigurationScope.RESOURCE_LANGUAGE,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE],
 			'markdownEnumDescriptions': [
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty file is never automatically saved."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty file is automatically saved after the configured `#files.autoSaveDelay#`."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty file is automatically saved when the editor loses focus."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty file is automatically saved when the window loses focus.")
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty editor is never automatically saved."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty editor is automatically saved after the configured `#files.autoSaveDelay#`."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty editor is automatically saved when the editor loses focus."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty editor is automatically saved when the window loses focus.")
 			],
 			'default': platform.isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty editors. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty editor is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
 			'type': 'object',
@@ -314,7 +314,7 @@ configurationRegistry.registerConfiguration({
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
-			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
 		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
@@ -322,11 +322,19 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: platform.isNative
 		},
-		'files.preventSaveConflicts': {
-			'type': 'boolean',
-			'description': nls.localize('files.preventSaveConflicts', "When enabled, will prevent to save a file that has been changed since it was last edited. Instead, a diff editor is provided to compare the changes and accept or revert them. This setting should only be disabled if you frequently encounter save conflict errors and may result in data loss if used without caution."),
-			'default': true,
-			'scope': ConfigurationScope.RESOURCE
+		'files.saveConflictResolution': {
+			'type': 'string',
+			'enum': [
+				'askUser',
+				'overwriteFileOnDisk'
+			],
+			'enumDescriptions': [
+				nls.localize('askUser', "Will refuse to save and ask for resolving the save conflict manually."),
+				nls.localize('overwriteFileOnDisk', "Will resolve the save conflict by overwriting the file on disk with the changes in the editor.")
+			],
+			'description': nls.localize('files.saveConflictResolution', "A save conflict can occur when a file is saved to disk that was changed by another program in the meantime. To prevent data loss, the user is asked to compare the changes in the editor with the version on disk. This setting should only be changed if you frequently encounter save conflict errors and may result in data loss if used without caution."),
+			'default': 'askUser',
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',
@@ -343,13 +351,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
-			scope: ConfigurationScope.RESOURCE_LANGUAGE,
-		},
-		'editor.formatOnSaveTimeout': {
-			'type': 'number',
-			'default': 750,
-			'description': nls.localize('formatOnSaveTimeout', "Timeout in milliseconds after which the formatting that is run on file save is cancelled."),
-			scope: ConfigurationScope.RESOURCE_LANGUAGE,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 		}
 	}
 });

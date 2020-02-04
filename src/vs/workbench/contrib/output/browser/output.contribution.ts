@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
@@ -20,7 +20,7 @@ import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/l
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 // Register Service
@@ -89,14 +89,18 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ShowLogsOutpu
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(OpenOutputLogFileAction, OpenOutputLogFileAction.ID, OpenOutputLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
 
 // Define clear command, contribute to editor context menu
-registerAction({
-	id: 'editor.action.clearoutput',
-	title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
-	menu: {
-		menuId: MenuId.EditorContext,
-		when: CONTEXT_IN_OUTPUT
-	},
-	handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.clearoutput',
+			title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
+			menu: {
+				id: MenuId.EditorContext,
+				when: CONTEXT_IN_OUTPUT
+			},
+		});
+	}
+	run(accessor: ServicesAccessor) {
 		const activeChannel = accessor.get(IOutputService).getActiveChannel();
 		if (activeChannel) {
 			activeChannel.clear();
@@ -104,14 +108,18 @@ registerAction({
 	}
 });
 
-registerAction({
-	id: 'workbench.action.openActiveLogOutputFile',
-	title: { value: nls.localize('openActiveLogOutputFile', "Open Active Log Output File"), original: 'Open Active Log Output File' },
-	menu: {
-		menuId: MenuId.CommandPalette,
-		when: CONTEXT_ACTIVE_LOG_OUTPUT
-	},
-	handler(accessor) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openActiveLogOutputFile',
+			title: { value: nls.localize('openActiveLogOutputFile', "Open Active Log Output File"), original: 'Open Active Log Output File' },
+			menu: {
+				id: MenuId.CommandPalette,
+				when: CONTEXT_ACTIVE_LOG_OUTPUT
+			},
+		});
+	}
+	run(accessor: ServicesAccessor) {
 		accessor.get(IInstantiationService).createInstance(OpenLogOutputFile).run();
 	}
 });

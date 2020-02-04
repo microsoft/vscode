@@ -28,7 +28,6 @@ import { setup as setupDataPreferencesTests } from './areas/preferences/preferen
 import { setup as setupDataSearchTests } from './areas/search/search.test';
 import { setup as setupDataCSSTests } from './areas/css/css.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataDebugTests } from './areas/debug/debug.test';
 import { setup as setupDataGitTests } from './areas/git/git.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
@@ -37,8 +36,8 @@ import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.te
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 
-if (!/^v10/.test(process.version)) {
-	console.error('Error: Smoketest must be run using Node 10. Currently running', process.version);
+if (!/^v10/.test(process.version) && !/^v12/.test(process.version)) {
+	console.error('Error: Smoketest must be run using Node 10/12. Currently running', process.version);
 	process.exit(1);
 }
 
@@ -73,7 +72,6 @@ const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
 
 const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
-
 if (screenshotsPath) {
 	mkdirp.sync(screenshotsPath);
 }
@@ -81,10 +79,6 @@ if (screenshotsPath) {
 function fail(errorMessage): void {
 	console.error(errorMessage);
 	process.exit(1);
-}
-
-if (parseInt(process.version.substr(1)) < 6) {
-	fail('Please update your Node version to greater than 6 to run the smoke test.');
 }
 
 const repoPath = path.join(__dirname, '..', '..', '..');
@@ -122,43 +116,64 @@ function getBuildElectronPath(root: string): string {
 	}
 }
 
-let testCodePath = opts.build;
-let stableCodePath = opts['stable-build'];
-let electronPath: string;
-let stablePath: string | undefined = undefined;
+let quality: Quality;
 
-if (testCodePath) {
-	electronPath = getBuildElectronPath(testCodePath);
+if (!opts.web) {
+	let testCodePath = opts.build;
+	let stableCodePath = opts['stable-build'];
+	let electronPath: string;
+	let stablePath: string | undefined = undefined;
 
-	if (stableCodePath) {
-		stablePath = getBuildElectronPath(stableCodePath);
+	if (testCodePath) {
+		electronPath = getBuildElectronPath(testCodePath);
+
+		if (stableCodePath) {
+			stablePath = getBuildElectronPath(stableCodePath);
+		}
+	} else {
+		testCodePath = getDevElectronPath();
+		electronPath = testCodePath;
+		process.env.VSCODE_REPOSITORY = repoPath;
+		process.env.VSCODE_DEV = '1';
+		process.env.VSCODE_CLI = '1';
+	}
+
+	if (!fs.existsSync(electronPath || '')) {
+		fail(`Can't find VSCode at ${electronPath}.`);
+	}
+
+	if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
+		fail(`Can't find Stable VSCode at ${stablePath}.`);
+	}
+
+	if (process.env.VSCODE_DEV === '1') {
+		quality = Quality.Dev;
+	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
+		quality = Quality.Insiders;
+	} else {
+		quality = Quality.Stable;
 	}
 } else {
-	testCodePath = getDevElectronPath();
-	electronPath = testCodePath;
-	process.env.VSCODE_REPOSITORY = repoPath;
-	process.env.VSCODE_DEV = '1';
-	process.env.VSCODE_CLI = '1';
-}
+	let testCodeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH;
 
-if (!opts.web && !fs.existsSync(electronPath || '')) {
-	fail(`Can't find Code at ${electronPath}.`);
-}
+	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
+		fail(`Can't find Code server at ${testCodeServerPath}.`);
+	}
 
-if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
-	fail(`Can't find Stable Code at ${stablePath}.`);
+	if (!testCodeServerPath) {
+		process.env.VSCODE_REPOSITORY = repoPath;
+		process.env.VSCODE_DEV = '1';
+		process.env.VSCODE_CLI = '1';
+	}
+
+	if (process.env.VSCODE_DEV === '1') {
+		quality = Quality.Dev;
+	} else {
+		quality = Quality.Insiders;
+	}
 }
 
 const userDataDir = path.join(testDataPath, 'd');
-
-let quality: Quality;
-if (process.env.VSCODE_DEV === '1') {
-	quality = Quality.Dev;
-} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-	quality = Quality.Insiders;
-} else {
-	quality = Quality.Stable;
-}
 
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
@@ -246,7 +261,7 @@ after(async function () {
 });
 
 if (!opts.web) {
-	setupDataMigrationTests(stableCodePath, testDataPath);
+	setupDataMigrationTests(opts['stable-build'], testDataPath);
 }
 
 describe('Running Code', () => {
@@ -287,7 +302,6 @@ describe('Running Code', () => {
 	setupDataSearchTests();
 	setupDataCSSTests();
 	setupDataEditorTests();
-	if (!opts.web) { setupDataDebugTests(); }
 	setupDataGitTests();
 	setupDataStatusbarTests(!!opts.web);
 	setupDataExtensionTests();

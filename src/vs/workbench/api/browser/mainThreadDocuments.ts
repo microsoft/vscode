@@ -8,15 +8,13 @@ import { IDisposable, IReference, dispose, DisposableStore } from 'vs/base/commo
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
-import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
 
@@ -70,7 +68,6 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textModelResolverService: ITextModelService;
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
-	private readonly _untitledTextEditorService: IUntitledTextEditorService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 
 	private readonly _toDispose = new DisposableStore();
@@ -83,18 +80,15 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
-		this._untitledTextEditorService = untitledTextEditorService;
 		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
@@ -104,19 +98,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.add(this._modelReferenceCollection);
 		this._toDispose.add(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-		this._toDispose.add(textFileService.models.onModelSaved(e => {
-			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptModelSaved(e.resource);
+		this._toDispose.add(textFileService.files.onDidSave(e => {
+			if (this._shouldHandleFileEvent(e.model.resource)) {
+				this._proxy.$acceptModelSaved(e.model.resource);
 			}
 		}));
-		this._toDispose.add(textFileService.models.onModelReverted(e => {
-			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptDirtyStateChanged(e.resource, false);
-			}
-		}));
-		this._toDispose.add(textFileService.models.onModelDirty(e => {
-			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptDirtyStateChanged(e.resource, true);
+		this._toDispose.add(textFileService.files.onDidChangeDirty(m => {
+			if (this._shouldHandleFileEvent(m.resource)) {
+				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
 
@@ -131,8 +120,8 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.dispose();
 	}
 
-	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {
-		const model = this._modelService.getModel(e.resource);
+	private _shouldHandleFileEvent(resource: URI): boolean {
+		const model = this._modelService.getModel(resource);
 		return !!model && shouldSynchronizeModel(model);
 	}
 
@@ -171,7 +160,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	// --- from extension host process
 
 	$trySaveDocument(uri: UriComponents): Promise<boolean> {
-		return this._textFileService.save(URI.revive(uri));
+		return this._textFileService.save(URI.revive(uri)).then(target => !!target);
 	}
 
 	$tryOpenDocument(_uri: UriComponents): Promise<any> {
@@ -222,16 +211,15 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}, err => {
-			return this._doCreateUntitled(uri).then(resource => !!resource);
+			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined).then(resource => !!resource);
 		});
 	}
 
-	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._untitledTextEditorService.loadOrCreate({
-			resource,
+	private _doCreateUntitled(associatedResource?: URI, mode?: string, initialValue?: string): Promise<URI> {
+		return this._textFileService.untitled.resolve({
+			associatedResource,
 			mode,
-			initialValue,
-			useResourcePath: Boolean(resource && resource.path)
+			initialValue
 		}).then(model => {
 			const resource = model.resource;
 

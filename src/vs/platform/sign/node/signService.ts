@@ -5,9 +5,8 @@
 
 import { ISignService } from 'vs/platform/sign/common/sign';
 
-/* tslint:disable */
-
 declare module vsda {
+	// eslint-disable-next-line @typescript-eslint/class-name-casing
 	export class signer {
 		sign(arg: any): any;
 	}

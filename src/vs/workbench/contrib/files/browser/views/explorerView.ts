@@ -24,7 +24,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { TreeResourceNavigator2, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -55,6 +55,7 @@ import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -76,6 +77,48 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 	}
 
 	return false;
+}
+
+export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], respectMultiSelection: boolean,
+	compressedNavigationControllerProvider: { getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined }): ExplorerItem[] {
+
+	let focusedStat: ExplorerItem | undefined;
+	focusedStat = focus.length ? focus[0] : undefined;
+
+	const compressedNavigationController = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
+	focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
+
+	const selectedStats: ExplorerItem[] = [];
+
+	for (const stat of selection) {
+		const controller = compressedNavigationControllerProvider.getCompressedNavigationController(stat);
+		if (controller && focusedStat && controller === compressedNavigationController) {
+			if (stat === focusedStat) {
+				selectedStats.push(stat);
+			}
+			// Ignore stats which are selected but are part of the same compact node as the focused stat
+			continue;
+		}
+
+		if (controller) {
+			selectedStats.push(...controller.items);
+		} else {
+			selectedStats.push(stat);
+		}
+	}
+	if (!focusedStat) {
+		if (respectMultiSelection) {
+			return selectedStats;
+		} else {
+			return [];
+		}
+	}
+
+	if (respectMultiSelection && selectedStats.indexOf(focusedStat) >= 0) {
+		return selectedStats;
+	}
+
+	return [focusedStat];
 }
 
 export class ExplorerView extends ViewPane {
@@ -107,7 +150,8 @@ export class ExplorerView extends ViewPane {
 	constructor(
 		options: IViewPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -125,7 +169,7 @@ export class ExplorerView extends ViewPane {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -297,45 +341,7 @@ export class ExplorerView extends ViewPane {
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		let focusedStat: ExplorerItem | undefined;
-
-		const focus = this.tree.getFocus();
-		focusedStat = focus.length ? focus[0] : undefined;
-
-		const compressedNavigationController = focusedStat && this.renderer.getCompressedNavigationController(focusedStat);
-		focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
-
-		const selectedStats: ExplorerItem[] = [];
-
-		for (const stat of this.tree.getSelection()) {
-			const controller = this.renderer.getCompressedNavigationController(stat);
-			if (controller && focusedStat && controller === compressedNavigationController) {
-				if (stat === focusedStat) {
-					selectedStats.push(stat);
-				}
-				// Ignore stats which are selected but are part of the same compact node as the focused stat
-				continue;
-			}
-
-			if (controller) {
-				selectedStats.push(...controller.items);
-			} else {
-				selectedStats.push(stat);
-			}
-		}
-		if (!focusedStat) {
-			if (respectMultiSelection) {
-				return selectedStats;
-			} else {
-				return [];
-			}
-		}
-
-		if (respectMultiSelection && selectedStats.indexOf(focusedStat) >= 0) {
-			return selectedStats;
-		}
-
-		return [focusedStat];
+		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
@@ -422,7 +428,7 @@ export class ExplorerView extends ViewPane {
 		// Update resource context based on focused element
 		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
 		this.onFocusChanged([]);
-		const explorerNavigator = new TreeResourceNavigator2(this.tree);
+		const explorerNavigator = new TreeResourceNavigator(this.tree);
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
 		this._register(explorerNavigator.onDidOpenResource(async e => {
@@ -700,7 +706,7 @@ export class ExplorerView extends ViewPane {
 		if (Array.isArray(treeInput)) {
 			if (hasExpandedRootChild(this.tree, treeInput)) {
 				treeInput.forEach(folder => {
-					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child));
+					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child, true));
 				});
 
 				return;

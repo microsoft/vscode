@@ -136,7 +136,7 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
 
 		// Run when idle
 		this.runWhenIdleDisposable = runWhenIdle(() => {
@@ -180,7 +180,8 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	}
 
 	dispose(): void {
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
 
 		super.dispose();
 	}

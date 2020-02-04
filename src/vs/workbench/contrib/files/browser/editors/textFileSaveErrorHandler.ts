@@ -13,7 +13,6 @@ import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTex
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -64,15 +63,15 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
 
-		// Hook into model
-		TextFileEditorModel.setSaveErrorHandler(this);
+		// Set as save error handler to service for text files
+		this.textFileService.saveErrorHandler = this;
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
-		this._register(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
+		this._register(this.textFileService.files.onDidSave(e => this.onFileSavedOrReverted(e.model.resource)));
+		this._register(this.textFileService.files.onDidRevert(m => this.onFileSavedOrReverted(m.resource)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
@@ -180,7 +179,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		Event.once(handle.onDidClose)(() => { dispose(primaryActions), dispose(secondaryActions); });
+		Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
 		this.messages.set(model.resource, handle);
 	}
 
@@ -333,7 +332,7 @@ class ConfigureSaveConflictAction extends Action {
 	}
 
 	run(): Promise<any> {
-		this.preferencesService.openSettings(undefined, 'files.preventSaveConflicts');
+		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
 
 		return Promise.resolve(true);
 	}

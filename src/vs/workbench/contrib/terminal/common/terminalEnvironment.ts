@@ -74,10 +74,10 @@ function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnv
 	}
 }
 
-function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | undefined): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
-		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
+		if (typeof value === 'string') {
 			try {
 				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 			} catch (e) {
@@ -346,7 +346,7 @@ function getShellSetting(
 
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
-	lastActiveWorkspace: IWorkspaceFolder | null,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	envFromConfig: { userValue?: ITerminalEnvironment, value?: ITerminalEnvironment, defaultValue?: ITerminalEnvironment },
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,

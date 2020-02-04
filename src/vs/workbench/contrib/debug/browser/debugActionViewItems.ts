@@ -161,15 +161,15 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		let lastGroup: string | undefined;
 		const disabledIdxs: number[] = [];
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
-			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
-				this.selected = this.options.length;
-			}
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.options.length) {
 					this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
 					disabledIdxs.push(this.options.length - 1);
 				}
+			}
+			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
+				this.selected = this.options.length;
 			}
 
 			const label = inWorkspace ? `${name} (${launch.name})` : name;

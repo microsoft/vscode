@@ -1,4 +1,6 @@
 // @ts-check
+// todo@jackson
+/* eslint code-no-unexternalized-strings: 0 */
 
 const mappings = [
 	['bat', 'source.batchfile'],

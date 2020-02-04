@@ -29,7 +29,7 @@ import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -1062,9 +1062,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		uri = normalizePath(uri);
 
 		// remove trailing slash
-		if (hasTrailingPathSeparator(uri)) {
-			uri = removeTrailingPathSeparator(uri);
-		}
+		uri = removeTrailingPathSeparator(uri);
 
 		// File
 		if (isFileToOpen(toOpen)) {

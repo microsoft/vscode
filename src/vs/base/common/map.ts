@@ -454,8 +454,8 @@ export class ResourceMap<T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T) => void): void {
-		this.map.forEach(clb);
+	forEach(clb: (value: T, key: URI) => void): void {
+		this.map.forEach((value, index) => clb(value, URI.parse(index)));
 	}
 
 	values(): T[] {

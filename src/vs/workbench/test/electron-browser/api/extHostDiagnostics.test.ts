@@ -33,8 +33,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => collection.name);
 		assert.throws(() => collection.clear());
 		assert.throws(() => collection.delete(URI.parse('aa:bb')));
-		// tslint:disable-next-line:semicolon
-		assert.throws(() => collection.forEach(() => { ; }));
+		assert.throws(() => collection.forEach(() => { }));
 		assert.throws(() => collection.get(URI.parse('aa:bb')));
 		assert.throws(() => collection.has(URI.parse('aa:bb')));
 		assert.throws(() => collection.set(URI.parse('aa:bb'), []));

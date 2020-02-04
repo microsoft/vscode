@@ -786,6 +786,15 @@ export class TokensStore2 {
 			const bEndCharacter = bTokens.getEndCharacter(bIndex);
 			const bMetadata = bTokens.getMetadata(bIndex);
 
+			const bMask = (
+				((bMetadata & MetadataConsts.SEMANTIC_USE_ITALIC) ? MetadataConsts.ITALIC_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_BOLD) ? MetadataConsts.BOLD_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_UNDERLINE) ? MetadataConsts.UNDERLINE_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_FOREGROUND) ? MetadataConsts.FOREGROUND_MASK : 0)
+				| ((bMetadata & MetadataConsts.SEMANTIC_USE_BACKGROUND) ? MetadataConsts.BACKGROUND_MASK : 0)
+			) >>> 0;
+			const aMask = (~bMask) >>> 0;
+
 			// push any token from `a` that is before `b`
 			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bStartCharacter) {
 				result[resultLen++] = aTokens.getEndOffset(aIndex);
@@ -800,21 +809,24 @@ export class TokensStore2 {
 			}
 
 			// skip any tokens from `a` that are contained inside `b`
-			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bEndCharacter) {
+			while (aIndex < aLen && aTokens.getEndOffset(aIndex) < bEndCharacter) {
+				result[resultLen++] = aTokens.getEndOffset(aIndex);
+				result[resultLen++] = (aTokens.getMetadata(aIndex) & aMask) | (bMetadata & bMask);
 				aIndex++;
 			}
 
-			const aMetadata = aTokens.getMetadata(aIndex - 1 > 0 ? aIndex - 1 : aIndex);
-			const languageId = TokenMetadata.getLanguageId(aMetadata);
-			const tokenType = TokenMetadata.getTokenType(aMetadata);
+			if (aIndex < aLen && aTokens.getEndOffset(aIndex) === bEndCharacter) {
+				// `a` ends exactly at the same spot as `b`!
+				result[resultLen++] = aTokens.getEndOffset(aIndex);
+				result[resultLen++] = (aTokens.getMetadata(aIndex) & aMask) | (bMetadata & bMask);
+				aIndex++;
+			} else {
+				const aMergeIndex = Math.min(Math.max(0, aIndex - 1), aLen - 1);
 
-			// push the token from `b`
-			result[resultLen++] = bEndCharacter;
-			result[resultLen++] = (
-				(bMetadata & MetadataConsts.LANG_TTYPE_CMPL)
-				| ((languageId << MetadataConsts.LANGUAGEID_OFFSET) >>> 0)
-				| ((tokenType << MetadataConsts.TOKEN_TYPE_OFFSET) >>> 0)
-			);
+				// push the token from `b`
+				result[resultLen++] = bEndCharacter;
+				result[resultLen++] = (aTokens.getMetadata(aMergeIndex) & aMask) | (bMetadata & bMask);
+			}
 		}
 
 		// push the remaining tokens from `a`

@@ -6,10 +6,10 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IViewState } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -18,8 +18,7 @@ import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
@@ -31,7 +30,7 @@ const USE_IDENTITY_LINES_COLLECTION = true;
 export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
-	private readonly configuration: editorCommon.IConfiguration;
+	private readonly configuration: IConfiguration;
 	private readonly model: ITextModel;
 	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private hasFocus: boolean;
@@ -43,7 +42,14 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	public readonly viewLayout: ViewLayout;
 	private readonly decorations: ViewModelDecorations;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(
+		editorId: number,
+		configuration: IConfiguration,
+		model: ITextModel,
+		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
+	) {
 		super();
 
 		this.editorId = editorId;
@@ -61,25 +67,19 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		} else {
 			const options = this.configuration.options;
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const fontInfo = options.get(EditorOption.fontInfo);
-			const wordWrapBreakAfterCharacters = options.get(EditorOption.wordWrapBreakAfterCharacters);
-			const wordWrapBreakBeforeCharacters = options.get(EditorOption.wordWrapBreakBeforeCharacters);
-			const wordWrapBreakObtrusiveCharacters = options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
+			const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
-
-			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				wordWrapBreakBeforeCharacters,
-				wordWrapBreakAfterCharacters,
-				wordWrapBreakObtrusiveCharacters
-			);
 
 			this.lines = new SplitLinesCollection(
 				this.model,
-				hardWrappingLineMapperFactory,
+				domLineBreaksComputerFactory,
+				monospaceLineBreaksComputerFactory,
+				fontInfo,
 				this.model.getOptions().tabSize,
+				wrappingStrategy,
 				wrappingInfo.wrappingColumn,
-				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 				wrappingIndent
 			);
 		}
@@ -95,6 +95,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			try {
 				const eventsCollector = this._beginEmit();
 				eventsCollector.emit(new viewEvents.ViewScrollChangedEvent(e));
+			} finally {
+				this._endEmit();
+			}
+		}));
+
+		this._register(this.viewLayout.onDidContentSizeChange((e) => {
+			try {
+				const eventsCollector = this._beginEmit();
+				eventsCollector.emit(new viewEvents.ViewContentSizeChangedEvent(e));
 			} finally {
 				this._endEmit();
 			}
@@ -155,11 +164,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let restorePreviousViewportStart = false;
 
 		const options = this.configuration.options;
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth)) {
+		if (this.lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -200,8 +210,26 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				const changes = e.changes;
 				const versionId = e.versionId;
 
-				for (let j = 0, lenJ = changes.length; j < lenJ; j++) {
-					const change = changes[j];
+				// Do a first pass to compute line mappings, and a second pass to actually interpret them
+				const lineBreaksComputer = this.lines.createLineBreaksComputer();
+				for (const change of changes) {
+					switch (change.changeType) {
+						case textModelEvents.RawContentChangedType.LinesInserted: {
+							for (const line of change.detail) {
+								lineBreaksComputer.addRequest(line, null);
+							}
+							break;
+						}
+						case textModelEvents.RawContentChangedType.LineChanged: {
+							lineBreaksComputer.addRequest(change.detail, null);
+							break;
+						}
+					}
+				}
+				const lineBreaks = lineBreaksComputer.finalize();
+				let lineBreaksOffset = 0;
+
+				for (const change of changes) {
 
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
@@ -222,7 +250,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail);
+							const insertedLineBreaks = lineBreaks.slice(lineBreaksOffset, lineBreaksOffset + change.detail.length);
+							lineBreaksOffset += change.detail.length;
+
+							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emit(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -231,7 +262,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, change.detail);
+							const changedLineBreakData = lineBreaks[lineBreaksOffset];
+							lineBreaksOffset++;
+
+							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
 								eventsCollector.emit(linesChangedEvent);
@@ -422,7 +456,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public saveState(): editorCommon.IViewState {
+	public saveState(): IViewState {
 		const compatViewState = this.viewLayout.saveState();
 
 		const scrollTop = compatViewState.scrollTop;
@@ -437,7 +471,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; } {
 		if (typeof state.firstPosition === 'undefined') {
 			// This is a view state serialized by an older version
 			return this._reduceRestoreStateCompatibility(state);
@@ -452,7 +486,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	private _reduceRestoreStateCompatibility(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number; } {
 		return {
 			scrollLeft: state.scrollLeft,
 			scrollTop: state.scrollTopWithoutViewZones!
@@ -475,8 +509,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
-		this.lines.warmUpLookupCache(startLineNumber, endLineNumber);
-
 		this.viewportStartLine = startLineNumber;
 		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
@@ -546,7 +578,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			mightContainNonBasicASCII,
 			lineData.tokens,
 			inlineDecorations,
-			tabSize
+			tabSize,
+			lineData.startVisibleColumn
 		);
 	}
 
@@ -563,7 +596,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
-		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.options.get(EditorOption.readOnly), theme);
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, filterValidationDecorations(this.configuration.options), theme);
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
@@ -623,15 +656,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getEOL();
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
 		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
-		ranges = ranges.slice(0);
-		ranges.sort(Range.compareRangesUsingStarts);
+		modelRanges = modelRanges.slice(0);
+		modelRanges.sort(Range.compareRangesUsingStarts);
 
 		let hasEmptyRange = false;
 		let hasNonEmptyRange = false;
-		for (const range of ranges) {
+		for (const range of modelRanges) {
 			if (range.isEmpty()) {
 				hasEmptyRange = true;
 			} else {
@@ -645,10 +678,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				return '';
 			}
 
-			const modelLineNumbers = ranges.map((r) => {
-				const viewLineStart = new Position(r.startLineNumber, 1);
-				return this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).lineNumber;
-			});
+			const modelLineNumbers = modelRanges.map((r) => r.startLineNumber);
 
 			let result = '';
 			for (let i = 0; i < modelLineNumbers.length; i++) {
@@ -664,14 +694,14 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			// mixed empty selections and non-empty selections
 			let result: string[] = [];
 			let prevModelLineNumber = 0;
-			for (const range of ranges) {
-				const modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-				if (range.isEmpty()) {
+			for (const modelRange of modelRanges) {
+				const modelLineNumber = modelRange.startLineNumber;
+				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
 						result.push(this.model.getLineContent(modelLineNumber));
 					}
 				} else {
-					result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 				}
 				prevModelLineNumber = modelLineNumber;
 			}
@@ -679,31 +709,32 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		let result: string[] = [];
-		for (const range of ranges) {
-			if (!range.isEmpty()) {
-				result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const modelRange of modelRanges) {
+			if (!modelRange.isEmpty()) {
+				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 			}
 		}
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string | null {
-		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
+	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
+		const languageId = this.model.getLanguageIdentifier();
+		if (languageId.id === LanguageId.PlainText) {
 			return null;
 		}
 
-		if (viewRanges.length !== 1) {
+		if (modelRanges.length !== 1) {
 			// no multiple selection support at this time
 			return null;
 		}
 
-		let range = this.coordinatesConverter.convertViewRangeToModelRange(viewRanges[0]);
+		let range = modelRanges[0];
 		if (range.isEmpty()) {
 			if (!emptySelectionClipboard) {
 				// nothing to copy
 				return null;
 			}
-			let lineNumber = range.startLineNumber;
+			const lineNumber = range.startLineNumber;
 			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
 		}
 
@@ -711,19 +742,22 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		const colorMap = this._getColorMap();
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return (
-			`<div style="`
-			+ `color: ${colorMap[ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
-			+ `font-family: ${fontFamily};`
-			+ `font-weight: ${fontInfo.fontWeight};`
-			+ `font-size: ${fontInfo.fontSize}px;`
-			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this._getHTMLToCopy(range, colorMap)
-			+ '</div>'
-		);
+		return {
+			mode: languageId.language,
+			html: (
+				`<div style="`
+				+ `color: ${colorMap[ColorId.DefaultForeground]};`
+				+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
+				+ `font-family: ${fontFamily};`
+				+ `font-weight: ${fontInfo.fontWeight};`
+				+ `font-size: ${fontInfo.fontSize}px;`
+				+ `line-height: ${fontInfo.lineHeight}px;`
+				+ `white-space: pre;`
+				+ `">`
+				+ this._getHTMLToCopy(range, colorMap)
+				+ '</div>'
+			)
+		};
 	}
 
 	private _getHTMLToCopy(modelRange: Range, colorMap: string[]): string {

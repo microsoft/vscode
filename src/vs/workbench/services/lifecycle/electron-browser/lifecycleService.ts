@@ -13,6 +13,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -107,10 +109,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			reason
 		});
 
-		return handleVetos(vetos, err => {
-			this.notificationService.error(toErrorMessage(err));
-			onUnexpectedError(err);
-		});
+		return handleVetos(vetos, error => this.onShutdownError(reason, error));
 	}
 
 	private async handleWillShutdown(reason: ShutdownReason): Promise<void> {
@@ -128,9 +127,34 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		try {
 			await Promise.all(joiners);
 		} catch (error) {
-			this.notificationService.error(toErrorMessage(error));
-			onUnexpectedError(error);
+			this.onShutdownError(reason, error);
 		}
+	}
+
+	private onShutdownError(reason: ShutdownReason, error: Error): void {
+		let message: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('errorClose', "An unexpected error prevented the window from closing ({0}).", toErrorMessage(error));
+				break;
+			case ShutdownReason.QUIT:
+				message = localize('errorQuit', "An unexpected error prevented the application from closing ({0}).", toErrorMessage(error));
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('errorReload', "An unexpected error prevented the window from reloading ({0}).", toErrorMessage(error));
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('errorLoad', "An unexpected error prevented the window from changing it's workspace ({0}).", toErrorMessage(error));
+				break;
+		}
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message,
+			sticky: true
+		});
+
+		onUnexpectedError(error);
 	}
 }
 
