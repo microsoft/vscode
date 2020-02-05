@@ -54,5 +54,15 @@ suite('typescript.previewer', () => {
 			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
 	});
 
+	test('Should support non-ascii characters in paramter name (#90108)', async () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'param',
+					text: 'parámetroConDiacríticos this will not'
+				}
+			]),
+			'*@param* `parámetroConDiacríticos` — this will not');
+	});
 });
 
