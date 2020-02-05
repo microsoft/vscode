@@ -152,7 +152,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		throw new Error('Extensions: Conflicts should not occur');
 	}
 
-	resolveConflicts(content: string, remote: boolean): Promise<void> {
+	accept(content: string): Promise<void> {
 		throw new Error('Extensions: Conflicts should not occur');
 	}
 

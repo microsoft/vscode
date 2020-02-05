@@ -204,8 +204,8 @@ export interface ISynchroniser {
 
 export interface IUserDataSynchroniser extends ISynchroniser {
 	readonly source: SyncSource;
-	getRemoteContent(): Promise<string | null>;
-	resolveConflicts(content: string, remote: boolean): Promise<void>;
+	getRemoteContent(preivew?: boolean): Promise<string | null>;
+	accept(content: string): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -215,8 +215,8 @@ export interface IUserDataSyncService extends ISynchroniser {
 	isFirstTimeSyncAndHasUserData(): Promise<boolean>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
-	getRemoteContent(source: SyncSource): Promise<string | null>;
-	resolveConflictsAndContinueSync(content: string, remote: boolean): Promise<void>;
+	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
+	accept(source: SyncSource, content: string): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');

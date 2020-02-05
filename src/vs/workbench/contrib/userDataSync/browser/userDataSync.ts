@@ -688,10 +688,10 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		let promise: Promise<string | null> | undefined;
 		if (isEqual(uri, toRemoteContentResource(SyncSource.Settings))) {
-			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings);
+			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings, true);
 		}
 		if (isEqual(uri, toRemoteContentResource(SyncSource.Keybindings))) {
-			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
+			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings, true);
 		}
 		if (promise) {
 			return promise.then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
@@ -776,35 +776,36 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 	private createAcceptChangesWidgetRenderer(): void {
 		if (!this.acceptChangesButton) {
-			const replaceLabel = localize('accept remote', "Replace (Overwrite Local)");
-			const applyLabel = localize('accept local', "Apply");
-			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? replaceLabel : applyLabel, null);
+			const acceptRemoteLabel = localize('accept remote', "Accept Remote");
+			const acceptLocalLabel = localize('accept local', "Accept Local");
+			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? acceptRemoteLabel : acceptLocalLabel, null);
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
 					const conflictsSource = this.userDataSyncService.conflictsSource;
 					const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
-					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource!, action: syncSource !== undefined ? 'replaceLocal' : 'apply' });
-					if (syncSource !== undefined) {
-						const syncAreaLabel = getSyncAreaLabel(syncSource);
-						const result = await this.dialogService.confirm({
-							type: 'info',
-							title: localize('Sync overwrite local', "Sync: {0}", replaceLabel),
-							message: localize('confirm replace and overwrite local', "Would you like to replace Local {0} with Remote {1}?", syncAreaLabel, syncAreaLabel),
-							primaryButton: replaceLabel
-						});
-						if (!result.confirmed) {
-							return;
+					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource!, action: syncSource !== undefined ? 'acceptRemote' : 'acceptLocal' });
+					const syncAreaLabel = getSyncAreaLabel(conflictsSource!);
+					const result = await this.dialogService.confirm({
+						type: 'info',
+						title: syncSource !== undefined
+							? localize('Sync accept remote', "Sync: {0}", acceptRemoteLabel)
+							: localize('Sync accept local', "Sync: {0}", acceptLocalLabel),
+						message: syncSource !== undefined
+							? localize('confirm replace and overwrite local', "Would you like to accept Remote {0} and replace Local {1}?", syncAreaLabel, syncAreaLabel)
+							: localize('confirm replace and overwrite remote', "Would you like to accept Local {0} and replace Remote {1}?", syncAreaLabel, syncAreaLabel),
+						primaryButton: syncSource !== undefined ? acceptRemoteLabel : acceptLocalLabel
+					});
+					if (result.confirmed) {
+						try {
+							await this.userDataSyncService.accept(conflictsSource!, model.getValue());
+						} catch (e) {
+							this.userDataSyncService.restart().then(() => {
+								if (conflictsSource === this.userDataSyncService.conflictsSource) {
+									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+								}
+							});
 						}
-					}
-					try {
-						await this.userDataSyncService.resolveConflictsAndContinueSync(model.getValue(), syncSource !== undefined);
-					} catch (e) {
-						this.userDataSyncService.restart().then(() => {
-							if (conflictsSource === this.userDataSyncService.conflictsSource) {
-								this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
-							}
-						});
 					}
 				}
 			}));
