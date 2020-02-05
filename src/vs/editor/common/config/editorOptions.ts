@@ -2666,7 +2666,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	constructor() {
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
-			insertHighlight: false,
+			insertHighlight: true,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
