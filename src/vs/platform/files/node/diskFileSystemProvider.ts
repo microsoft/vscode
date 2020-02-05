@@ -76,10 +76,10 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const { stat, symbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
-				type: this.toType(stat, isSymbolicLink),
+				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -98,18 +98,7 @@ export class DiskFileSystemProvider extends Disposable implements
 				try {
 					let type: FileType;
 					if (child.isSymbolicLink()) {
-						try {
-							type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
-						} catch (error) {
-							if (error.code !== FileSystemProviderErrorCode.FileNotFound) {
-								throw error; // any error that is not file not found is unexpected
-							}
-
-							// a symbolic link can point to a target that does
-							// not exist on the file system. in that case we
-							// still want to return the element as UNKNOWN.
-							type = FileType.SymbolicLink | FileType.Unknown;
-						}
+						type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
 					} else {
 						type = this.toType(child);
 					}
@@ -126,9 +115,24 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
-		let type = entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
-		if (isSymbolicLink) {
+	private toType(entry: Stats | Dirent, symbolicLink?: { dangling: boolean }): FileType {
+
+		// Signal file type by checking for file / directory, except:
+		// - symbolic links pointing to non-existing files are FileType.Unknown
+		// - files that are neither file nor directory are FileType.Unknown
+		let type: FileType;
+		if (symbolicLink?.dangling) {
+			type = FileType.Unknown;
+		} else if (entry.isFile()) {
+			type = FileType.File;
+		} else if (entry.isDirectory()) {
+			type = FileType.Directory;
+		} else {
+			type = FileType.Unknown;
+		}
+
+		// Always signal symbolic link as file type additionally
+		if (symbolicLink) {
 			type |= FileType.SymbolicLink;
 		}
 

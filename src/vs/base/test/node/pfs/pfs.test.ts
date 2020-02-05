@@ -334,7 +334,7 @@ suite('PFS', function () {
 
 	test('stat link', async () => {
 		if (isWindows) {
-			return Promise.resolve(); // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
 		}
 
 		const id1 = uuid.generateUuid();
@@ -349,12 +349,36 @@ suite('PFS', function () {
 		fs.symlinkSync(directory, symbolicLink);
 
 		let statAndIsLink = await pfs.statLink(directory);
-		assert.ok(!statAndIsLink!.isSymbolicLink);
+		assert.ok(!statAndIsLink?.symbolicLink);
 
 		statAndIsLink = await pfs.statLink(symbolicLink);
-		assert.ok(statAndIsLink!.isSymbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink);
+		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
 
 		pfs.rimrafSync(directory);
+	});
+
+	test('stat link (non existing target)', async () => {
+		if (isWindows) {
+			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+		}
+
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'pfs', id1);
+
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'pfs', id2);
+
+		await pfs.mkdirp(directory, 493);
+
+		fs.symlinkSync(directory, symbolicLink);
+
+		pfs.rimrafSync(directory);
+
+		const statAndIsLink = await pfs.statLink(symbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink?.dangling);
 	});
 
 	test('readdir', async () => {
@@ -546,7 +570,7 @@ suite('PFS', function () {
 
 	test('writeFile (stream, error handling EACCES)', async () => {
 		if (isLinux) {
-			return Promise.resolve(); // somehow this test fails on Linux in our TFS builds
+			return; // somehow this test fails on Linux in our TFS builds
 		}
 
 		const id = uuid.generateUuid();

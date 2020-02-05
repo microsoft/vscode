@@ -445,8 +445,7 @@ suite('Disk File Service', function () {
 			return; // not reliable on windows
 		}
 
-		const link = URI.file(join(testDir, 'foo'));
-		await symlink(link.fsPath, join(testDir, 'bar'));
+		await symlink(join(testDir, 'foo'), join(testDir, 'bar'));
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
@@ -483,6 +482,52 @@ suite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+	});
+
+	test('deleteFile - symbolic link (exists)', async () => {
+		if (isWindows) {
+			return; // not reliable on windows
+		}
+
+		const target = URI.file(join(testDir, 'lorem.txt'));
+		const link = URI.file(join(testDir, 'lorem.txt-linked'));
+		await symlink(target.fsPath, link.fsPath);
+
+		const source = await service.resolve(link);
+
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		await service.del(source.resource);
+
+		assert.equal(existsSync(source.resource.fsPath), false);
+
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, link.fsPath);
+		assert.equal(event!.operation, FileOperation.DELETE);
+
+		assert.equal(existsSync(target.fsPath), true); // target the link pointed to is never deleted
+	});
+
+	test('deleteFile - symbolic link (pointing to non-existing file)', async () => {
+		if (isWindows) {
+			return; // not reliable on windows
+		}
+
+		const target = URI.file(join(testDir, 'foo'));
+		const link = URI.file(join(testDir, 'bar'));
+		await symlink(target.fsPath, link.fsPath);
+
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		await service.del(link);
+
+		assert.equal(existsSync(link.fsPath), false);
+
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, link.fsPath);
+		assert.equal(event!.operation, FileOperation.DELETE);
 	});
 
 	test('deleteFolder (recursive)', async () => {
