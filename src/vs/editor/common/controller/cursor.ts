@@ -580,11 +580,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 					viewPosition = viewPositions[i];
 				}
 			}
-		} else {
-			if (viewPositions.length > 1) {
-				// no revealing!
-				return;
-			}
+		} else if (revealTarget === RevealTarget.Primary) {
+			// Do nothing. The `viewPosition` to reveal is `viewPositions[0]` and it's already set above.
 		}
 
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
