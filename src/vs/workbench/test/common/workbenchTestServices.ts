@@ -127,3 +127,11 @@ export class TestStorageService extends InMemoryStorageService {
 }
 
 export class TestWorkingCopyService extends WorkingCopyService { }
+
+export function mock<T>(): Ctor<T> {
+	return function () { } as any;
+}
+
+export interface Ctor<T> {
+	new(): T;
+}

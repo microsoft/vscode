@@ -225,8 +225,11 @@ export class TestAccessibilityService implements IAccessibilityService {
 }
 
 export class TestDecorationsService implements IDecorationsService {
+
 	_serviceBrand: undefined;
+
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
+
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
 }
@@ -271,17 +274,9 @@ export class TestDialogService implements IDialogService {
 
 	_serviceBrand: undefined;
 
-	confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return Promise.resolve({ confirmed: false });
-	}
-
-	show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> {
-		return Promise.resolve({ choice: 0 });
-	}
-
-	about(): Promise<void> {
-		return Promise.resolve();
-	}
+	confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> { return Promise.resolve({ confirmed: false }); }
+	show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> { return Promise.resolve({ choice: 0 }); }
+	about(): Promise<void> { return Promise.resolve(); }
 }
 
 export class TestFileDialogService implements IFileDialogService {
@@ -290,46 +285,23 @@ export class TestFileDialogService implements IFileDialogService {
 
 	private confirmResult!: ConfirmResult;
 
-	defaultFilePath(_schemeFilter?: string): URI | undefined {
-		return undefined;
-	}
-	defaultFolderPath(_schemeFilter?: string): URI | undefined {
-		return undefined;
-	}
-	defaultWorkspacePath(_schemeFilter?: string): URI | undefined {
-		return undefined;
-	}
-	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
-		return Promise.resolve(0);
-	}
-	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> {
-		return Promise.resolve(0);
-	}
-	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
-		return Promise.resolve(0);
-	}
-	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
-		return Promise.resolve(0);
-	}
+	defaultFilePath(_schemeFilter?: string): URI | undefined { return undefined; }
+	defaultFolderPath(_schemeFilter?: string): URI | undefined { return undefined; }
+	defaultWorkspacePath(_schemeFilter?: string): URI | undefined { return undefined; }
+	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
+	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
+	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
+	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
+
 	private fileToSave!: URI;
-	setPickFileToSave(path: URI): void {
-		this.fileToSave = path;
-	}
-	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		return Promise.resolve(this.fileToSave);
-	}
-	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
-		return Promise.resolve(undefined);
-	}
-	showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
-		return Promise.resolve(undefined);
-	}
-	setConfirmResult(result: ConfirmResult): void {
-		this.confirmResult = result;
-	}
-	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		return Promise.resolve(this.confirmResult);
-	}
+	setPickFileToSave(path: URI): void { this.fileToSave = path; }
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> { return Promise.resolve(this.fileToSave); }
+
+	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> { return Promise.resolve(undefined); }
+	showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> { return Promise.resolve(undefined); }
+
+	setConfirmResult(result: ConfirmResult): void { this.confirmResult = result; }
+	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> { return Promise.resolve(this.confirmResult); }
 }
 
 export class TestLayoutService implements IWorkbenchLayoutService {
@@ -349,115 +321,42 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onLayout = Event.None;
 
 	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
+	get onMenubarVisibilityChange(): Event<Dimension> { return this._onMenubarVisibilityChange.event; }
 
-	get onMenubarVisibilityChange(): Event<Dimension> {
-		return this._onMenubarVisibilityChange.event;
-	}
-
-	isRestored(): boolean {
-		return true;
-	}
-
-	hasFocus(_part: Parts): boolean {
-		return false;
-	}
-
-	hasWindowBorder(): boolean {
-		return false;
-	}
-
-	getWindowBorderRadius(): string | undefined {
-		return undefined;
-	}
-
-	isVisible(_part: Parts): boolean {
-		return true;
-	}
-
-	getDimension(_part: Parts): Dimension {
-		return new Dimension(0, 0);
-	}
-
-	getContainer(_part: Parts): HTMLElement {
-		return null!;
-	}
-
-	isTitleBarHidden(): boolean {
-		return false;
-	}
-
-	getTitleBarOffset(): number {
-		return 0;
-	}
-
-	isStatusBarHidden(): boolean {
-		return false;
-	}
-
-	isActivityBarHidden(): boolean {
-		return false;
-	}
-
+	isRestored(): boolean { return true; }
+	hasFocus(_part: Parts): boolean { return false; }
+	hasWindowBorder(): boolean { return false; }
+	getWindowBorderRadius(): string | undefined { return undefined; }
+	isVisible(_part: Parts): boolean { return true; }
+	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
+	getContainer(_part: Parts): HTMLElement { return null!; }
+	isTitleBarHidden(): boolean { return false; }
+	getTitleBarOffset(): number { return 0; }
+	isStatusBarHidden(): boolean { return false; }
+	isActivityBarHidden(): boolean { return false; }
 	setActivityBarHidden(_hidden: boolean): void { }
-
-	isSideBarHidden(): boolean {
-		return false;
-	}
-
+	isSideBarHidden(): boolean { return false; }
 	setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
-
 	setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
-
-	isPanelHidden(): boolean {
-		return false;
-	}
-
+	isPanelHidden(): boolean { return false; }
 	setPanelHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
-
 	toggleMaximizedPanel(): void { }
-
-	isPanelMaximized(): boolean {
-		return false;
-	}
-
-	getMenubarVisibility(): MenuBarVisibility {
-		throw new Error('not implemented');
-	}
-
-	getSideBarPosition() {
-		return 0;
-	}
-
-	getPanelPosition() {
-		return 0;
-	}
-
-	setPanelPosition(_position: PartPosition): Promise<void> {
-		return Promise.resolve();
-	}
-
+	isPanelMaximized(): boolean { return false; }
+	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
+	getSideBarPosition() { return 0; }
+	getPanelPosition() { return 0; }
+	setPanelPosition(_position: PartPosition): Promise<void> { return Promise.resolve(); }
 	addClass(_clazz: string): void { }
 	removeClass(_clazz: string): void { }
-
 	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
-
 	getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
-
 	toggleZenMode(): void { }
-
 	isEditorLayoutCentered(): boolean { return false; }
 	centerEditorLayout(_active: boolean): void { }
-
-
 	resizePart(_part: Parts, _sizeChange: number): void { }
-
 	registerPart(part: Part): void { }
-
-	isWindowMaximized() {
-		return false;
-	}
-
+	isWindowMaximized() { return false; }
 	updateWindowMaximizedState(maximized: boolean): void { }
 }
 
@@ -476,42 +375,16 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> {
-		return Promise.resolve(undefined);
-	}
-
-	getViewlets(): ViewletDescriptor[] {
-		return [];
-	}
-
-	getAllViewlets(): ViewletDescriptor[] {
-		return [];
-	}
-
-	getActiveViewlet(): IViewlet {
-		return activeViewlet;
-	}
-
-	dispose() {
-	}
-
-	getDefaultViewletId(): string {
-		return 'workbench.view.explorer';
-	}
-
-	getViewlet(id: string): ViewletDescriptor | undefined {
-		return undefined;
-	}
-
-	getProgressIndicator(id: string) {
-		return undefined;
-	}
-
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> { return Promise.resolve(undefined); }
+	getViewlets(): ViewletDescriptor[] { return []; }
+	getAllViewlets(): ViewletDescriptor[] { return []; }
+	getActiveViewlet(): IViewlet { return activeViewlet; }
+	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
+	getViewlet(id: string): ViewletDescriptor | undefined { return undefined; }
+	getProgressIndicator(id: string) { return undefined; }
 	hideActiveViewlet(): void { }
-
-	getLastActiveViewletId(): string {
-		return undefined!;
-	}
+	getLastActiveViewletId(): string { return undefined!; }
+	dispose() { }
 }
 
 export class TestPanelService implements IPanelService {
@@ -520,44 +393,17 @@ export class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	async openPanel(id?: string, focus?: boolean): Promise<undefined> {
-		return undefined;
-	}
-
-	getPanel(id: string): any {
-		return activeViewlet;
-	}
-
-	getPanels() {
-		return [];
-	}
-
-	getPinnedPanels() {
-		return [];
-	}
-
-	getActivePanel(): IViewlet {
-		return activeViewlet;
-	}
-
+	async openPanel(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
+	getPanel(id: string): any { return activeViewlet; }
+	getPanels() { return []; }
+	getPinnedPanels() { return []; }
+	getActivePanel(): IViewlet { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
-
-	dispose() {
-	}
-
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
-		throw new Error('Method not implemented.');
-	}
-
-	getProgressIndicator(id: string) {
-		return null!;
-	}
-
+	dispose() { }
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
+	getProgressIndicator(id: string) { return null!; }
 	hideActivePanel(): void { }
-
-	getLastActivePanelId(): string {
-		return undefined!;
-	}
+	getLastActivePanelId(): string { return undefined!; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -581,78 +427,30 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	contentDimension = { width: 800, height: 600 };
 
-	get activeGroup(): IEditorGroup {
-		return this.groups[0];
-	}
+	get activeGroup(): IEditorGroup { return this.groups[0]; }
+	get count(): number { return this.groups.length; }
 
-	get count(): number {
-		return this.groups.length;
-	}
-
-	getGroups(_order?: GroupsOrder): ReadonlyArray<IEditorGroup> {
-		return this.groups;
-	}
-
-	getGroup(identifier: number): IEditorGroup | undefined {
-		return find(this.groups, group => group.id === identifier);
-	}
-
-	getLabel(_identifier: number): string {
-		return 'Group 1';
-	}
-
-	findGroup(_scope: IFindGroupScope, _source?: number | IEditorGroup, _wrap?: boolean): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
-	activateGroup(_group: number | IEditorGroup): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
-	restoreGroup(_group: number | IEditorGroup): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
-	getSize(_group: number | IEditorGroup): { width: number, height: number } {
-		return { width: 100, height: 100 };
-	}
-
+	getGroups(_order?: GroupsOrder): ReadonlyArray<IEditorGroup> { return this.groups; }
+	getGroup(identifier: number): IEditorGroup | undefined { return find(this.groups, group => group.id === identifier); }
+	getLabel(_identifier: number): string { return 'Group 1'; }
+	findGroup(_scope: IFindGroupScope, _source?: number | IEditorGroup, _wrap?: boolean): IEditorGroup { throw new Error('not implemented'); }
+	activateGroup(_group: number | IEditorGroup): IEditorGroup { throw new Error('not implemented'); }
+	restoreGroup(_group: number | IEditorGroup): IEditorGroup { throw new Error('not implemented'); }
+	getSize(_group: number | IEditorGroup): { width: number, height: number } { return { width: 100, height: 100 }; }
 	setSize(_group: number | IEditorGroup, _size: { width: number, height: number }): void { }
-
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
-
 	applyLayout(_layout: EditorGroupLayout): void { }
-
 	setGroupOrientation(_orientation: any): void { }
-
-	addGroup(_location: number | IEditorGroup, _direction: GroupDirection, _options?: IAddGroupOptions): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
+	addGroup(_location: number | IEditorGroup, _direction: GroupDirection, _options?: IAddGroupOptions): IEditorGroup { throw new Error('not implemented'); }
 	removeGroup(_group: number | IEditorGroup): void { }
-
-	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
-	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
-	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup {
-		throw new Error('not implemented');
-	}
-
+	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
+	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): IEditorGroup { throw new Error('not implemented'); }
+	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
-
-	isLayoutCentered(): boolean {
-		return false;
-	}
+	isLayoutCentered(): boolean { return false; }
 
 	partOptions!: IEditorPartOptions;
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
-		return Disposable.None;
-	}
+	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -688,66 +486,23 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onDidFocus: Event<void> = Event.None;
 	onDidChange: Event<{ width: number; height: number; }> = Event.None;
 
-	getEditors(_order?: EditorsOrder): ReadonlyArray<IEditorInput> {
-		return [];
-	}
-
-	getEditorByIndex(_index: number): IEditorInput {
-		throw new Error('not implemented');
-	}
-
-	getIndexOfEditor(_editor: IEditorInput): number {
-		return -1;
-	}
-
-	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Promise<IEditor> {
-		throw new Error('not implemented');
-	}
-
-	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditor> {
-		throw new Error('not implemented');
-	}
-
-	isOpened(_editor: IEditorInput | IResourceInput): boolean {
-		return false;
-	}
-
-	isPinned(_editor: IEditorInput): boolean {
-		return false;
-	}
-
-	isActive(_editor: IEditorInput): boolean {
-		return false;
-	}
-
+	getEditors(_order?: EditorsOrder): ReadonlyArray<IEditorInput> { return []; }
+	getEditorByIndex(_index: number): IEditorInput { throw new Error('not implemented'); }
+	getIndexOfEditor(_editor: IEditorInput): number { return -1; }
+	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Promise<IEditor> { throw new Error('not implemented'); }
+	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditor> { throw new Error('not implemented'); }
+	isOpened(_editor: IEditorInput | IResourceInput): boolean { return false; }
+	isPinned(_editor: IEditorInput): boolean { return false; }
+	isActive(_editor: IEditorInput): boolean { return false; }
 	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IMoveEditorOptions): void { }
-
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: ICopyEditorOptions): void { }
-
-	closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }, options?: ICloseEditorOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	closeAllEditors(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	replaceEditors(_editors: IEditorReplacement[]): Promise<void> {
-		return Promise.resolve();
-	}
-
+	closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { return Promise.resolve(); }
+	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }, options?: ICloseEditorOptions): Promise<void> { return Promise.resolve(); }
+	closeAllEditors(): Promise<void> { return Promise.resolve(); }
+	replaceEditors(_editors: IEditorReplacement[]): Promise<void> { return Promise.resolve(); }
 	pinEditor(_editor?: IEditorInput): void { }
-
 	focus(): void { }
-
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		throw new Error('not implemented');
-	}
-
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T { throw new Error('not implemented'); }
 	setActive(_isActive: boolean): void { }
 	notifyIndexChanged(_index: number): void { }
 	dispose(): void { }
@@ -802,15 +557,8 @@ export class TestEditorService implements EditorServiceImpl {
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 
 	getEditors() { return []; }
-
-	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable {
-		return toDisposable(() => undefined);
-	}
-
-	openEditor(_editor: any, _options?: any, _group?: any): Promise<any> {
-		throw new Error('not implemented');
-	}
-
+	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }
+	openEditor(_editor: any, _options?: any, _group?: any): Promise<any> { throw new Error('not implemented'); }
 	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditor): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
@@ -818,46 +566,16 @@ export class TestEditorService implements EditorServiceImpl {
 
 		return [this.editorGroupService.activeGroup, editor as EditorInput, undefined];
 	}
-
-	openEditors(_editors: any, _group?: any): Promise<IEditor[]> {
-		throw new Error('not implemented');
-	}
-
-	isOpen(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): boolean {
-		return false;
-	}
-
-	getOpened(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): IEditorInput {
-		throw new Error('not implemented');
-	}
-
-	replaceEditors(_editors: any, _group: any) {
-		return Promise.resolve(undefined);
-	}
-
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		throw new Error('not implemented');
-	}
-
-	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput {
-		throw new Error('not implemented');
-	}
-
-	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
-
-	saveAll(options?: ISaveEditorsOptions): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
-
-	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
-
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
+	openEditors(_editors: any, _group?: any): Promise<IEditor[]> { throw new Error('not implemented'); }
+	isOpen(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): boolean { return false; }
+	getOpened(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): IEditorInput { throw new Error('not implemented'); }
+	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { throw new Error('not implemented'); }
+	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput { throw new Error('not implemented'); }
+	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 }
 
 export class TestFileService implements IFileService {
@@ -879,34 +597,13 @@ export class TestFileService implements IFileService {
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 	}
 
-	setContent(content: string): void {
-		this.content = content;
-	}
-
-	getContent(): string {
-		return this.content;
-	}
-
-	getLastReadFileUri(): URI {
-		return this.lastReadFileUri;
-	}
-
-	get onFileChanges(): Event<FileChangesEvent> {
-		return this._onFileChanges.event;
-	}
-
-	fireFileChanges(event: FileChangesEvent): void {
-		this._onFileChanges.fire(event);
-	}
-
-	get onAfterOperation(): Event<FileOperationEvent> {
-		return this._onAfterOperation.event;
-	}
-
-	fireAfterOperation(event: FileOperationEvent): void {
-		this._onAfterOperation.fire(event);
-	}
-
+	setContent(content: string): void { this.content = content; }
+	getContent(): string { return this.content; }
+	getLastReadFileUri(): URI { return this.lastReadFileUri; }
+	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onFileChanges.fire(event); }
+	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onAfterOperation.fire(event); }
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
@@ -929,9 +626,7 @@ export class TestFileService implements IFileService {
 		return stats.map(stat => ({ stat, success: true }));
 	}
 
-	async exists(_resource: URI): Promise<boolean> {
-		return true;
-	}
+	async exists(_resource: URI): Promise<boolean> { return true; }
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
 		this.lastReadFileUri = resource;
@@ -997,21 +692,10 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return Promise.resolve(null!);
-	}
-
-	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return Promise.resolve(null!);
-	}
-
-	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		return Promise.resolve(null!);
-	}
-
-	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
-	}
+	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { throw new Error('not implemented'); }
 
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
@@ -1023,14 +707,8 @@ export class TestFileService implements IFileService {
 		return toDisposable(() => this.providers.delete(scheme));
 	}
 
-	activateProvider(_scheme: string): Promise<void> {
-		throw new Error('not implemented');
-	}
-
-	canHandleResource(resource: URI): boolean {
-		return resource.scheme === 'file' || this.providers.has(resource.scheme);
-	}
-
+	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
+	canHandleResource(resource: URI): boolean { return resource.scheme === 'file' || this.providers.has(resource.scheme); }
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
 		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
 			return true;
@@ -1039,66 +717,29 @@ export class TestFileService implements IFileService {
 		return false;
 	}
 
-	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		return Promise.resolve();
-	}
-
-	watch(_resource: URI): IDisposable {
-		return Disposable.None;
-	}
-
-	getWriteEncoding(_resource: URI): IResourceEncoding {
-		return { encoding: 'utf8', hasBOM: false };
-	}
-
-	dispose(): void {
-	}
+	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
+	watch(_resource: URI): IDisposable { return Disposable.None; }
+	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
+	dispose(): void { }
 }
 
 export class TestBackupFileService implements IBackupFileService {
 	_serviceBrand: undefined;
 
-	hasBackups(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	hasBackup(_resource: URI): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	hasBackupSync(resource: URI, versionId?: number): boolean {
-		return false;
-	}
-
-	registerResourceForBackup(_resource: URI): Promise<void> {
-		return Promise.resolve();
-	}
-
-	deregisterResourceForBackup(_resource: URI): Promise<void> {
-		return Promise.resolve();
-	}
-
-	backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		return Promise.resolve();
-	}
-
-	getBackups(): Promise<URI[]> {
-		return Promise.resolve([]);
-	}
-
+	hasBackups(): Promise<boolean> { return Promise.resolve(false); }
+	hasBackup(_resource: URI): Promise<boolean> { return Promise.resolve(false); }
+	hasBackupSync(resource: URI, versionId?: number): boolean { return false; }
+	registerResourceForBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
+	deregisterResourceForBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
+	backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> { return Promise.resolve(); }
+	getBackups(): Promise<URI[]> { return Promise.resolve([]); }
+	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> { return Promise.resolve(undefined); }
+	discardBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
-	}
-
-	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> {
-		return Promise.resolve(undefined);
-	}
-
-	discardBackup(_resource: URI): Promise<void> {
-		return Promise.resolve();
 	}
 }
 
@@ -1136,12 +777,15 @@ export class TestLifecycleService implements ILifecycleService {
 	startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
-	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
-	private readonly _onShutdown = new Emitter<void>();
+	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
 
-	when(): Promise<void> {
-		return Promise.resolve();
-	}
+	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
+	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
+
+	private readonly _onShutdown = new Emitter<void>();
+	get onShutdown(): Event<void> { return this._onShutdown.event; }
+
+	when(): Promise<void> { return Promise.resolve(); }
 
 	fireShutdown(reason = ShutdownReason.QUIT): void {
 		this._onWillShutdown.fire({
@@ -1150,29 +794,14 @@ export class TestLifecycleService implements ILifecycleService {
 		});
 	}
 
-	fireWillShutdown(event: BeforeShutdownEvent): void {
-		this._onBeforeShutdown.fire(event);
-	}
-
-	get onBeforeShutdown(): Event<BeforeShutdownEvent> {
-		return this._onBeforeShutdown.event;
-	}
-
-	get onWillShutdown(): Event<WillShutdownEvent> {
-		return this._onWillShutdown.event;
-	}
-
-	get onShutdown(): Event<void> {
-		return this._onShutdown.event;
-	}
+	fireWillShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
 
 	_serviceBrand: undefined;
 
-	constructor(private configurationService = new TestConfigurationService()) {
-	}
+	constructor(private configurationService = new TestConfigurationService()) { }
 
 	onDidChangeConfiguration() {
 		return { dispose() { } };

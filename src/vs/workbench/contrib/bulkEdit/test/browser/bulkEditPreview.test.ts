@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { IFileService } from 'vs/platform/files/common/files';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,6 @@ import type { WorkspaceEdit } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { Range } from 'vs/editor/common/core/range';
-
 
 suite('BulkEditPreview', function () {
 

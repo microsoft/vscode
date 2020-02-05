@@ -111,9 +111,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 
 	_serviceBrand: undefined;
 
-	getChannel(channelName: string): any {
-		return undefined;
-	}
+	getChannel(channelName: string): any { return undefined; }
 
 	registerChannel(channelName: string, channel: any): void { }
 
