@@ -11,7 +11,6 @@ import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/t
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { originalFSPath } from 'vs/base/common/resources';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -185,9 +184,9 @@ export function getCwd(
 	logService?: ILogService
 ): string {
 	if (shell.cwd) {
-		const unresolved = (typeof shell.cwd === 'object') ? originalFSPath(shell.cwd) : shell.cwd;
+		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 		const resolved = _resolveCwd(unresolved, lastActiveWorkspace, configurationResolverService);
-		return resolved || unresolved;
+		return _sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;
@@ -200,14 +199,14 @@ export function getCwd(
 			if (path.isAbsolute(customCwd)) {
 				cwd = customCwd;
 			} else if (root) {
-				cwd = path.join(originalFSPath(root), customCwd);
+				cwd = path.join(root.fsPath, customCwd);
 			}
 		}
 	}
 
 	// If there was no custom cwd or it was relative with no workspace
 	if (!cwd) {
-		cwd = root ? originalFSPath(root) : userHome;
+		cwd = root ? root.fsPath : userHome;
 	}
 
 	return _sanitizeCwd(cwd);
