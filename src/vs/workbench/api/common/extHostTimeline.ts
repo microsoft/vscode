@@ -7,15 +7,16 @@ import * as vscode from 'vscode';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { TimelineItem, TimelineItemWithSource, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TimelineItemWithSource, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
-	$getTimeline(source: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItem[]>;
+	$getTimeline(id: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItemWithSource[]>;
 }
 
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
@@ -33,23 +34,24 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTimeline);
 	}
 
-	async $getTimeline(source: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItem[]> {
-		const provider = this._providers.get(source);
+	async $getTimeline(id: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItemWithSource[]> {
+		const provider = this._providers.get(id);
 		return provider?.provideTimeline(URI.revive(uri), token) ?? [];
 	}
 
-	registerTimelineProvider(provider: vscode.TimelineProvider, commandConverter: CommandsConverter): IDisposable {
+	registerTimelineProvider(provider: vscode.TimelineProvider, extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
 		const timelineDisposables = new DisposableStore();
 
-		const convertTimelineItem = this.convertTimelineItem(provider.source, commandConverter, timelineDisposables);
+		const convertTimelineItem = this.convertTimelineItem(provider.id, commandConverter, timelineDisposables);
 
 		let disposable: IDisposable | undefined;
 		if (provider.onDidChange) {
-			disposable = provider.onDidChange(this.emitTimelineChangeEvent(provider.source), this);
+			disposable = provider.onDidChange(this.emitTimelineChangeEvent(provider.id), this);
 		}
 
 		return this.registerTimelineProviderCore({
 			...provider,
+			onDidChange: undefined,
 			async provideTimeline(uri: URI, token: CancellationToken) {
 				timelineDisposables.clear();
 
@@ -98,30 +100,29 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		};
 	}
 
-	private emitTimelineChangeEvent(source: string) {
-		return (uri: vscode.Uri | undefined) => {
-			this._proxy.$emitTimelineChangeEvent(source, uri);
+	private emitTimelineChangeEvent(id: string) {
+		return (e: vscode.TimelineChangeEvent) => {
+			this._proxy.$emitTimelineChangeEvent({ ...e, id: id });
 		};
 	}
 
 	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable {
-		// console.log(`ExtHostTimeline#registerTimelineProvider: source=${provider.source}`);
+		// console.log(`ExtHostTimeline#registerTimelineProvider: id=${provider.id}`);
 
-		const existing = this._providers.get(provider.source);
-		if (existing && !existing.replaceable) {
-			throw new Error(`Timeline Provider ${provider.source} already exists.`);
+		const existing = this._providers.get(provider.id);
+		if (existing) {
+			throw new Error(`Timeline Provider ${provider.id} already exists.`);
 		}
 
 		this._proxy.$registerTimelineProvider({
-			source: provider.source,
-			sourceDescription: provider.sourceDescription,
-			replaceable: provider.replaceable
+			id: provider.id,
+			label: provider.label
 		});
-		this._providers.set(provider.source, provider);
+		this._providers.set(provider.id, provider);
 
 		return toDisposable(() => {
-			this._providers.delete(provider.source);
-			this._proxy.$unregisterTimelineProvider(provider.source);
+			this._providers.delete(provider.id);
+			this._proxy.$unregisterTimelineProvider(provider.id);
 			provider.dispose();
 		});
 	}
