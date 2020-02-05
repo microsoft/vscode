@@ -25,13 +25,13 @@ module.exports = new (_a = class ApiEventNaming {
             const verbs = new Set(config.verbs);
             return {
                 ['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node) => {
-                    var _a, _b, _c, _d, _e;
+                    var _a, _b;
                     const def = (_b = (_a = node.parent) === null || _a === void 0 ? void 0 : _a.parent) === null || _b === void 0 ? void 0 : _b.parent;
                     let ident;
-                    if (((_c = def) === null || _c === void 0 ? void 0 : _c.type) === experimental_utils_1.AST_NODE_TYPES.Identifier) {
+                    if ((def === null || def === void 0 ? void 0 : def.type) === experimental_utils_1.AST_NODE_TYPES.Identifier) {
                         ident = def;
                     }
-                    else if ((((_d = def) === null || _d === void 0 ? void 0 : _d.type) === experimental_utils_1.AST_NODE_TYPES.TSPropertySignature || ((_e = def) === null || _e === void 0 ? void 0 : _e.type) === experimental_utils_1.AST_NODE_TYPES.ClassProperty) && def.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
+                    else if (((def === null || def === void 0 ? void 0 : def.type) === experimental_utils_1.AST_NODE_TYPES.TSPropertySignature || (def === null || def === void 0 ? void 0 : def.type) === experimental_utils_1.AST_NODE_TYPES.ClassProperty) && def.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
                         ident = def.key;
                     }
                     if (!ident) {
