@@ -253,11 +253,6 @@ export class CommandCenter {
 		});
 	}
 
-	@command('git.activate')
-	async activate(): Promise<void> {
-		// noop
-	}
-
 	@command('git.setLogLevel')
 	async setLogLevel(): Promise<void> {
 		const createItem = (logLevel: LogLevel) => ({

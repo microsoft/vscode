@@ -27,11 +27,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "git.activate",
-        "title": "%command.activate%",
-        "category": "Git"
-      },
-      {
         "command": "git.setLogLevel",
         "title": "%command.setLogLevel%",
         "category": "Git"
@@ -456,10 +451,6 @@
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "git.activate",
-          "when": "false"
-        },
         {
           "command": "git.clone",
           "when": "config.git.enabled"
