@@ -234,7 +234,6 @@
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
 	overflow: hidden;
-	margin-left: 16px;
 	flex-shrink: 0;
 	max-width: 45%;
 }
