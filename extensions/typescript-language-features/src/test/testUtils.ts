@@ -74,14 +74,9 @@ export const joinLines = (...args: string[]) => args.join('\n');
 
 export async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
 	const document = await vscode.workspace.openTextDocument(uri);
-	await vscode.window.showTextDocument(document);
-	const activeEditor = vscode.window.activeTextEditor;
-	if (!activeEditor) {
-		throw new Error('no active editor');
-	}
-
-	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
-	return activeEditor;
+	const editor = await vscode.window.showTextDocument(document);
+	await editor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
+	return editor;
 }
 
 export function assertEditorContents(editor: vscode.TextEditor, expectedDocContent: string, message?: string): void {
@@ -94,15 +89,11 @@ export function assertEditorContents(editor: vscode.TextEditor, expectedDocConte
 
 	if (cursorIndex >= 0) {
 		const expectedCursorPos = editor.document.positionAt(cursorIndex);
-		assert.strictEqual(
-			editor.selection.active.line,
-			expectedCursorPos.line
+		assert.deepEqual(
+			{ line: editor.selection.active.line, character: editor.selection.active.line },
+			{ line: expectedCursorPos.line, character: expectedCursorPos.line },
+			'Cursor position'
 		);
-		assert.strictEqual(
-			editor.selection.active.character,
-			expectedCursorPos.character
-		);
-
 	}
 }
 
@@ -120,7 +111,6 @@ export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeCon
 	return oldConfig;
 }
 
-
 export const Config = Object.freeze({
 	autoClosingBrackets: 'editor.autoClosingBrackets',
 	completeFunctionCalls: 'typescript.suggest.completeFunctionCalls',
@@ -128,3 +118,18 @@ export const Config = Object.freeze({
 	snippetSuggestions: 'editor.snippetSuggestions',
 	suggestSelection: 'editor.suggestSelection',
 } as const);
+
+export const insertModesValues = Object.freeze(['insert', 'replace']);
+
+export async function enumerateConfig(
+	documentUri: vscode.Uri,
+	configKey: string,
+	values: readonly string[],
+	f: (message: string) => Promise<void>
+): Promise<void> {
+	for (const value of values) {
+		const newConfig = { [configKey]: value };
+		await updateConfig(documentUri, newConfig);
+		await f(JSON.stringify(newConfig));
+	}
+}

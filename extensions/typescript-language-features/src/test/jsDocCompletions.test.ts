@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
 import { acceptFirstSuggestion } from './suggestTestHelpers';
-import { Config, createTestEditor, joinLines, updateConfig, VsCodeConfiguration, wait } from './testUtils';
+import { assertEditorContents, Config, createTestEditor, CURSOR, enumerateConfig, insertModesValues, joinLines, updateConfig, VsCodeConfiguration, wait } from './testUtils';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
@@ -38,21 +37,25 @@ suite('JSDoc Completions', () => {
 	});
 
 	test('Should complete jsdoc inside single line comment', async () => {
-		await createTestEditor(testDocumentUri,
-			`/**$0 */`,
-			`function abcdef(x, y) { }`,
-		);
+		await enumerateConfig(testDocumentUri, Config.insertMode, insertModesValues, async config => {
 
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
-				`/**`,
-				` * `,
-				` * @param x `,
-				` * @param y `,
-				` */`,
+			const editor = await createTestEditor(testDocumentUri,
+				`/**$0 */`,
 				`function abcdef(x, y) { }`,
-			));
+			);
+
+			await acceptFirstSuggestion(testDocumentUri, _disposables);
+
+			assertEditorContents(editor,
+				joinLines(
+					`/**`,
+					` * `,
+					` * @param x ${CURSOR}`,
+					` * @param y `,
+					` */`,
+					`function abcdef(x, y) { }`,
+				),
+				`Config: ${config}`);
+		});
 	});
 });
