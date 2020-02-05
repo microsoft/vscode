@@ -14,19 +14,27 @@ import { eventToPromise } from '../util';
 
 suite('git smoke test', function () {
 	const cwd = fs.realpathSync(workspace.workspaceFolders![0].uri.fsPath);
-	const file = (relativePath: string) => path.join(cwd, relativePath);
-	const uri = (relativePath: string) => Uri.file(file(relativePath));
-	const open = async (relativePath: string) => {
+
+	function file(relativePath: string) {
+		return path.join(cwd, relativePath);
+	}
+
+	function uri(relativePath: string) {
+		return Uri.file(file(relativePath));
+	}
+
+	async function open(relativePath: string) {
 		const doc = await workspace.openTextDocument(uri(relativePath));
 		await window.showTextDocument(doc);
 		return doc;
-	};
-	const type = async (doc: TextDocument, text: string) => {
+	}
+
+	async function type(doc: TextDocument, text: string) {
 		const edit = new WorkspaceEdit();
 		const end = doc.lineAt(doc.lineCount - 1).range.end;
 		edit.replace(doc.uri, new Range(end, end), text);
 		await workspace.applyEdit(edit);
-	};
+	}
 
 	let git: API;
 	let repository: Repository;
