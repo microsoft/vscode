@@ -8,21 +8,6 @@ import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor, PaneCompositePanel } from 'vs/workbench/browser/panel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Viewlet, ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -133,8 +118,7 @@ import { URI } from 'vs/base/common/uri';
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
 				'description': nls.localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
-				'default': true,
-				'included': !isMacintosh
+				'default': true
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -328,6 +312,23 @@ import { URI } from 'vs/base/common/uri';
 				'markdownDescription': nls.localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
 				'included': isWindows || isLinux || isWeb
 			},
+			'window.openFilesInNewWindow': {
+				'type': 'string',
+				'enum': ['on', 'off', 'default'],
+				'enumDescriptions': [
+					nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
+					nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
+					isMacintosh ?
+						nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
+						nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
+				],
+				'default': 'off',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription':
+					isMacintosh ?
+						nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+						nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',
 				'enum': ['on', 'off', 'default'],
@@ -390,77 +391,6 @@ import { URI } from 'vs/base/common/uri';
 				'default': true,
 				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
 			}
-		}
-	});
-})();
-
-// Viewlets & Panels
-(function registerViewletsAndPanels(): void {
-	const registerPanel = (viewContainer: ViewContainer): void => {
-		class PaneContainerPanel extends PaneCompositePanel {
-			constructor(
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IStorageService storageService: IStorageService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService
-			) {
-				super(viewContainer.id, (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || [])), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-			}
-		}
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-			PaneContainerPanel,
-			viewContainer.id,
-			viewContainer.name,
-			isString(viewContainer.icon) ? viewContainer.icon : undefined,
-			viewContainer.order,
-			viewContainer.focusCommand?.id,
-		));
-	};
-
-	const registerViewlet = (viewContainer: ViewContainer): void => {
-		class PaneContainerViewlet extends Viewlet {
-			constructor(
-				@IConfigurationService configurationService: IConfigurationService,
-				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IStorageService storageService: IStorageService,
-				@IEditorService editorService: IEditorService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService
-			) {
-				super(viewContainer.id, (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || [])), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-			}
-		}
-		const viewletDescriptor = ViewletDescriptor.create(
-			PaneContainerViewlet,
-			viewContainer.id,
-			viewContainer.name,
-			isString(viewContainer.icon) ? viewContainer.icon : undefined,
-			viewContainer.order,
-			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
-		);
-
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
-	};
-
-	const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-	viewContainerRegistry.getViewContainers(ViewContainerLocation.Panel).forEach(viewContainer => registerPanel(viewContainer));
-	viewContainerRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => {
-		switch (viewContainerLocation) {
-			case ViewContainerLocation.Panel:
-				registerPanel(viewContainer);
-				return;
-			case ViewContainerLocation.Sidebar:
-				if (viewContainer.ctorDescriptor) {
-					registerViewlet(viewContainer);
-				}
-				return;
 		}
 	});
 })();

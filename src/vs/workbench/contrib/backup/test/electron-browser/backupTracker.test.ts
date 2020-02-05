@@ -13,7 +13,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-browser/backupTracker';
-import { TestTextFileService, workbenchInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestContextService, TestFileService, TestElectronService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
+import { TestLifecycleService, TestFilesConfigurationService, TestContextService, TestFileService, TestFileDialogService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -42,6 +42,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { TestTextFileService, TestElectronService, workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');

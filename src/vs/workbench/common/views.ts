@@ -341,6 +341,12 @@ export interface IView {
 
 	readonly id: string;
 
+	isVisible(): boolean;
+
+	isBodyVisible(): boolean;
+
+	setExpanded(expanded: boolean): boolean;
+
 }
 
 export interface IViewsViewlet extends IViewlet {
@@ -354,9 +360,16 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: undefined;
 
-	getActiveViewWithId(id: string): IView | null;
+	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
 
-	openView(id: string, focus?: boolean): Promise<IView | null>;
+	isViewVisible(id: string): boolean;
+
+	getActiveViewWithId<T extends IView>(id: string): T | null;
+
+	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
+
+	closeView(id: string): void;
+
 }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
@@ -512,6 +525,12 @@ export interface IEditableData {
 }
 
 export interface IViewPaneContainer {
+	onDidAddViews: Event<IView[]>;
+	onDidRemoveViews: Event<IView[]>;
+	onDidChangeViewVisibility: Event<IView>;
+
+	readonly length: number;
+
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;
 	focus(): void;

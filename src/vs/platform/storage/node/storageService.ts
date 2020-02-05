@@ -203,7 +203,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
 
 		// Run when idle
 		this.runWhenIdleDisposable = runWhenIdle(() => {
@@ -224,7 +224,8 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
 		this.periodicFlushScheduler.dispose();
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });

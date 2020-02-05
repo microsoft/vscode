@@ -56,61 +56,73 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
-export const enum MenuId {
-	CommandPalette,
-	DebugBreakpointsContext,
-	DebugCallStackContext,
-	DebugConsoleContext,
-	DebugVariablesContext,
-	DebugWatchContext,
-	DebugToolBar,
-	EditorContext,
-	EditorContextPeek,
-	EditorTitle,
-	EditorTitleContext,
-	EmptyEditorGroupContext,
-	ExplorerContext,
-	ExtensionContext,
-	GlobalActivity,
-	MenubarAppearanceMenu,
-	MenubarDebugMenu,
-	MenubarEditMenu,
-	MenubarFileMenu,
-	MenubarGoMenu,
-	MenubarHelpMenu,
-	MenubarLayoutMenu,
-	MenubarNewBreakpointMenu,
-	MenubarPreferencesMenu,
-	MenubarRecentMenu,
-	MenubarSelectionMenu,
-	MenubarSwitchEditorMenu,
-	MenubarSwitchGroupMenu,
-	MenubarTerminalMenu,
-	MenubarViewMenu,
-	OpenEditorsContext,
-	ProblemsPanelContext,
-	SCMChangeContext,
-	SCMResourceContext,
-	SCMResourceFolderContext,
-	SCMResourceGroupContext,
-	SCMSourceControl,
-	SCMTitle,
-	SearchContext,
-	StatusBarWindowIndicatorMenu,
-	TouchBarContext,
-	TitleBarContext,
-	TunnelContext,
-	TunnelInline,
-	TunnelTitle,
-	ViewItemContext,
-	ViewTitle,
-	ViewTitleContext,
-	CommentThreadTitle,
-	CommentThreadActions,
-	CommentTitle,
-	CommentActions,
-	BulkEditTitle,
-	BulkEditContext,
+export class MenuId {
+
+	private static _idPool = 0;
+
+	static readonly CommandPalette = new MenuId('CommandPalette');
+	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
+	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
+	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
+	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
+	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
+	static readonly DebugToolBar = new MenuId('DebugToolBar');
+	static readonly EditorContext = new MenuId('EditorContext');
+	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
+	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
+	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
+	static readonly ExplorerContext = new MenuId('ExplorerContext');
+	static readonly ExtensionContext = new MenuId('ExtensionContext');
+	static readonly GlobalActivity = new MenuId('GlobalActivity');
+	static readonly MenubarAppearanceMenu = new MenuId('MenubarAppearanceMenu');
+	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
+	static readonly MenubarEditMenu = new MenuId('MenubarEditMenu');
+	static readonly MenubarFileMenu = new MenuId('MenubarFileMenu');
+	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
+	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
+	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
+	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
+	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
+	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
+	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
+	static readonly MenubarSwitchEditorMenu = new MenuId('MenubarSwitchEditorMenu');
+	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
+	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
+	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
+	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
+	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
+	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
+	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
+	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
+	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
+	static readonly SCMTitle = new MenuId('SCMTitle');
+	static readonly SearchContext = new MenuId('SearchContext');
+	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
+	static readonly TouchBarContext = new MenuId('TouchBarContext');
+	static readonly TitleBarContext = new MenuId('TitleBarContext');
+	static readonly TunnelContext = new MenuId('TunnelContext');
+	static readonly TunnelInline = new MenuId('TunnelInline');
+	static readonly TunnelTitle = new MenuId('TunnelTitle');
+	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewTitle = new MenuId('ViewTitle');
+	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
+	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
+	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentTitle = new MenuId('CommentTitle');
+	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
+	static readonly BulkEditContext = new MenuId('BulkEditContext');
+
+
+	readonly id: number;
+	readonly _debugName: string;
+
+	constructor(debugName: string) {
+		this.id = MenuId._idPool++;
+		this._debugName = debugName;
+	}
 }
 
 export interface IMenuActionOptions {
@@ -146,7 +158,7 @@ export interface IMenuRegistry {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
-	private readonly _menuItems = new Map<number, Array<IMenuItem | ISubmenuItem>>();
+	private readonly _menuItems = new Map<MenuId, Array<IMenuItem | ISubmenuItem>>();
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;

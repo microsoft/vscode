@@ -29,7 +29,7 @@ import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { Session } from 'vs/editor/common/modes';
+import { AuthenticationSession } from 'vs/editor/common/modes';
 import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -82,7 +82,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
-	private _activeAccount: Session | undefined;
+	private _activeAccount: AuthenticationSession | undefined;
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -143,6 +143,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (sessions.length === 1) {
+			this.logAuthenticatedEvent(sessions[0]);
 			this.activeAccount = sessions[0];
 			return;
 		}
@@ -155,15 +156,30 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}), { canPickMany: false });
 
 		if (selectedAccount) {
-			this.activeAccount = sessions.filter(account => selectedAccount.id === account.id)[0];
+			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
+			this.logAuthenticatedEvent(selected);
+			this.activeAccount = selected;
 		}
 	}
 
-	get activeAccount(): Session | undefined {
+	private logAuthenticatedEvent(session: AuthenticationSession): void {
+		type UserAuthenticatedClassification = {
+			id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
+		};
+
+		type UserAuthenticatedEvent = {
+			id: string;
+		};
+
+		const id = session.id.split('/')[1];
+		this.telemetryService.publicLog2<UserAuthenticatedEvent, UserAuthenticatedClassification>('user.authenticated', { id });
+	}
+
+	get activeAccount(): AuthenticationSession | undefined {
 		return this._activeAccount;
 	}
 
-	set activeAccount(account: Session | undefined) {
+	set activeAccount(account: AuthenticationSession | undefined) {
 		this._activeAccount = account;
 
 		if (account) {

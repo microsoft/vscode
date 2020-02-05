@@ -21,7 +21,7 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { ipcRenderer as ipc, webFrame, crashReporter, Event as IpcEvent } from 'electron';
+import { ipcRenderer as ipc, webFrame, crashReporter, CrashReporterStartOptions, Event as IpcEvent } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -272,13 +272,10 @@ export class ElectronWindow extends Disposable {
 					return; // do not indicate dirty of working copies that are auto saved after short delay
 				}
 
-				if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
-					const hasDirtyFiles = this.workingCopyService.hasDirty;
-					this.isDocumentedEdited = hasDirtyFiles;
-
-					this.electronService.setDocumentEdited(hasDirtyFiles);
-				}
+				this.updateDocumentEdited(gotDirty);
 			}));
+
+			this.updateDocumentEdited();
 		}
 
 		// Detect minimize / maximize
@@ -288,6 +285,15 @@ export class ElectronWindow extends Disposable {
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+	}
+
+	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
+		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
+			const hasDirtyFiles = this.workingCopyService.hasDirty;
+			this.isDocumentedEdited = hasDirtyFiles;
+
+			this.electronService.setDocumentEdited(hasDirtyFiles);
+		}
 	}
 
 	private onDidChangeMaximized(maximized: boolean): void {
@@ -537,13 +543,13 @@ export class ElectronWindow extends Disposable {
 		}
 
 		// base options with product info
-		const options = {
+		const options: CrashReporterStartOptions = {
 			companyName,
 			productName,
 			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
 			extra: {
 				vscode_version: product.version,
-				vscode_commit: product.commit
+				vscode_commit: product.commit || ''
 			}
 		};
 
@@ -612,10 +618,18 @@ export class ElectronWindow extends Disposable {
 		// are closed that the user wants to wait for. When this happens we delete
 		// the wait marker file to signal to the outside that editing is done.
 		const listener = this.editorService.onDidCloseEditor(async event => {
-			const closedResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const detailsResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.DETAILS });
+			const masterResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
 
-			// Remove from resources to wait for
-			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => !isEqual(closedResource, resourceToWaitFor));
+			// Remove from resources to wait for based on the
+			// resources from editors that got closed
+			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => {
+				if (isEqual(resourceToWaitFor, masterResource) || isEqual(resourceToWaitFor, detailsResource)) {
+					return false; // remove - the closing editor matches this resource
+				}
+
+				return true; // keep - not yet closed
+			});
 
 			if (resourcesToWaitFor.length === 0) {
 				// If auto save is configured with the default delay (1s) it is possible
@@ -642,8 +656,8 @@ export class ElectronWindow extends Disposable {
 			}
 
 			// Otherwise resolve promise when resource is saved
-			const listener = this.workingCopyService.onDidChangeDirty(e => {
-				if (!e.isDirty() && isEqual(resource, e.resource)) {
+			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
+				if (!workingCopy.isDirty() && isEqual(resource, workingCopy.resource)) {
 					listener.dispose();
 
 					resolve();
@@ -770,8 +784,8 @@ class NativeMenubarControl extends MenubarControl {
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
-					if (!this.menus[menuItem.item.submenu]) {
-						const menu = this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					if (!this.menus[menuItem.item.submenu.id]) {
+						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
 						this._register(menu.onDidChange(() => this.updateMenubar()));
 					}
 

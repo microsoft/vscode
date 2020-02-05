@@ -22,15 +22,14 @@ type ProviderHandle = number;
 type GroupHandle = number;
 type ResourceStateHandle = number;
 
-function getIconPath(decorations?: vscode.SourceControlResourceThemableDecorations): string | undefined {
+function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): vscode.Uri | undefined {
 	if (!decorations) {
 		return undefined;
 	} else if (typeof decorations.iconPath === 'string') {
-		return URI.file(decorations.iconPath).toString();
-	} else if (decorations.iconPath) {
-		return `${decorations.iconPath}`;
+		return URI.file(decorations.iconPath);
+	} else {
+		return decorations.iconPath;
 	}
-	return undefined;
 }
 
 function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
@@ -287,28 +286,28 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				this._resourceStatesMap.set(handle, r);
 
 				const sourceUri = r.resourceUri;
-				const iconPath = getIconPath(r.decorations);
-				const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
-				const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
-				const icons: string[] = [];
+				const iconUri = getIconResource(r.decorations);
+				const lightIconUri = r.decorations && getIconResource(r.decorations.light) || iconUri;
+				const darkIconUri = r.decorations && getIconResource(r.decorations.dark) || iconUri;
+				const icons: UriComponents[] = [];
 
 				if (r.command) {
 					this._resourceStatesCommandsMap.set(handle, r.command);
 				}
 
-				if (lightIconPath) {
-					icons.push(lightIconPath);
+				if (lightIconUri) {
+					icons.push(lightIconUri);
 				}
 
-				if (darkIconPath && (darkIconPath !== lightIconPath)) {
-					icons.push(darkIconPath);
+				if (darkIconUri && (darkIconUri.toString() !== lightIconUri?.toString())) {
+					icons.push(darkIconUri);
 				}
 
 				const tooltip = (r.decorations && r.decorations.tooltip) || '';
 				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 				const faded = r.decorations && !!r.decorations.faded;
 
-				const rawResource = [handle, <UriComponents>sourceUri, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 
 				return { rawResource, handle };
 			});

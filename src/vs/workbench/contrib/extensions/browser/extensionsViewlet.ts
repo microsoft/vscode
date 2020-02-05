@@ -536,8 +536,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		))).then(() => undefined);
 	}
 
-	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const addedViews = super.onDidAddViews(added);
+	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+		const addedViews = super.onDidAddViewDescriptors(added);
 		this.progress(Promise.all(addedViews.map(addedView =>
 			(<ExtensionsListView>addedView).show(this.normalizedQuery())
 				.then(model => this.alertSearchResult(model.length, addedView.id))

@@ -752,7 +752,22 @@ export class FileService extends Disposable implements IFileService {
 		// Create directories as needed
 		for (let i = directoriesToCreate.length - 1; i >= 0; i--) {
 			directory = joinPath(directory, directoriesToCreate[i]);
-			await provider.mkdir(directory);
+
+			try {
+				await provider.mkdir(directory);
+			} catch (error) {
+				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileExists) {
+					// For mkdirp() we tolerate that the mkdir() call fails
+					// in case the folder already exists. This follows node.js
+					// own implementation of fs.mkdir({ recursive: true }) and
+					// reduces the chances of race conditions leading to errors
+					// if multiple calls try to create the same folders
+					// As such, we only throw an error here if it is other than
+					// the fact that the file already exists.
+					// (see also https://github.com/microsoft/vscode/issues/89834)
+					throw error;
+				}
+			}
 		}
 	}
 

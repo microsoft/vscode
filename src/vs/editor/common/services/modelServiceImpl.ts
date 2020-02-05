@@ -8,7 +8,7 @@ import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecyc
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_MODEL_DEFAULTS, IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
@@ -25,6 +25,10 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+
+export interface IEditorSemanticHighlightingOptions {
+	enabled?: boolean;
+}
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
