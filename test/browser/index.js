@@ -19,6 +19,7 @@ const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('run', 'only run tests matching <file_pattern>').alias('run', 'glob').string('runGlob')
 	.describe('build', 'run with build output (out-build)').boolean('build')
+	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
@@ -88,7 +89,7 @@ const testModules = (async function () {
 
 async function runTestsInBrowser(testModules, browserType) {
 
-	const browser = await playwright[browserType].launch();
+	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
 	const context = await browser.newContext();
 
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
