@@ -227,7 +227,7 @@ export const enum TextEditorSelectionRevealType {
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
 	 */
-	Definition = 2,
+	NearTop = 2,
 }
 
 export interface ITextEditorOptions extends IEditorOptions {

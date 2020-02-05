@@ -359,7 +359,7 @@ export interface IEditor {
 	 * Scroll vertically as necessary and reveal a line close to the top of the viewport,
 	 * optimized for viewing a code definition.
 	 */
-	revealLineAtDefinition(lineNumber: number, scrollType?: ScrollType): void;
+	revealLineNearTop(lineNumber: number, scrollType?: ScrollType): void;
 
 	/**
 	 * Scroll vertically or horizontally as necessary and reveal a position.
@@ -380,7 +380,7 @@ export interface IEditor {
 	 * Scroll vertically or horizontally as necessary and reveal a position close to the top of the viewport,
 	 * optimized for viewing a code definition.
 	 */
-	revealPositionAtDefinition(position: IPosition, scrollType?: ScrollType): void;
+	revealPositionNearTop(position: IPosition, scrollType?: ScrollType): void;
 
 	/**
 	 * Returns the primary selection of the editor.
@@ -438,7 +438,7 @@ export interface IEditor {
 	 * Scroll vertically as necessary and reveal lines close to the top of the viewport,
 	 * optimized for viewing a code definition.
 	 */
-	revealLinesAtDefinition(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
+	revealLinesNearTop(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
 
 	/**
 	 * Scroll vertically or horizontally as necessary and reveal a range.
@@ -464,7 +464,7 @@ export interface IEditor {
 	 * Scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
 	 * optimized for viewing a code definition.
 	 */
-	revealRangeAtDefinition(range: IRange, scrollType?: ScrollType): void;
+	revealRangeNearTop(range: IRange, scrollType?: ScrollType): void;
 
 	/**
 	 * Directly trigger a handler or an editor action.

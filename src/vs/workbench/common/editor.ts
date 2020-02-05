@@ -1202,8 +1202,8 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 			editor.setSelection(range);
 
-			if (this.selectionRevealType === TextEditorSelectionRevealType.Definition) {
-				editor.revealRangeAtDefinition(range, scrollType);
+			if (this.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
+				editor.revealRangeNearTop(range, scrollType);
 			} else if (this.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
 				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 			} else {

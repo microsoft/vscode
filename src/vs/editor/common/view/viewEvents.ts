@@ -184,7 +184,7 @@ export const enum VerticalRevealType {
 	CenterIfOutsideViewport = 2,
 	Top = 3,
 	Bottom = 4,
-	Definition = 5,
+	NearTop = 5,
 }
 
 export class ViewRevealRangeRequestEvent {

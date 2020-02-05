@@ -630,7 +630,7 @@ export class OutlinePane extends ViewPane {
 			options: {
 				preserveFocus: !focus,
 				selection: Range.collapseToStart(element.symbol.selectionRange),
-				selectionRevealType: TextEditorSelectionRevealType.Definition,
+				selectionRevealType: TextEditorSelectionRevealType.NearTop,
 			}
 		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
