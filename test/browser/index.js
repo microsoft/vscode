@@ -55,7 +55,8 @@ const out = path.join(__dirname, `../../${outdir}`);
 
 const testModules = (async function () {
 
-	const defaultGlob = '**/test/**/{common,browser}/**/*.test.js';
+	const defaultGlob = '**/*.test.js';
+	const excludeGlob = '**/{node,electron-browser,electron-main}/**/*.test.js';
 	const pattern = argv.glob || defaultGlob
 
 	return new Promise((resolve, reject) => {
@@ -65,17 +66,20 @@ const testModules = (async function () {
 				return;
 			}
 
-			let modules = files.map(file => file.replace(/\.js$/, ''));
+			const modules = [];
+			const badFiles = [];
 
-			if (pattern !== defaultGlob) {
-				// defaultGlob is the biggest set of files
-				const len = modules.length;
-				modules = modules.filter(module => !minimatch(module, defaultGlob));
-				if (len !== modules.length) {
-					console.warn(`DROPPED ${len - modules.length} files because ${pattern} is more relaxed than ${defaultGlob}`)
+			for (let file of files) {
+				if (minimatch(file, excludeGlob)) {
+					badFiles.push(file);
+				} else {
+					modules.push(file.replace(/\.js$/, ''));
 				}
 			}
 
+			if (badFiles.length > 0 && pattern !== defaultGlob) {
+				console.warn(`DROPPED ${badFiles.length} files because '${pattern}' includes files from invalid layers.${badFiles.map(file => `\n\t-${file}`)}`);
+			}
 			resolve(modules);
 		});
 	})
