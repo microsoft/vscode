@@ -9,7 +9,7 @@ import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainers
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex, move } from 'vs/base/common/arrays';
 import { isUndefinedOrNull, isUndefined, isString } from 'vs/base/common/types';
@@ -464,15 +464,19 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
 
+	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
+
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
+		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
 
 		this._register(toDisposable(() => {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
@@ -483,16 +487,50 @@ export class ViewsService extends Disposable implements IViewsService {
 		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
 	}
 
+	registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): ViewPaneContainer {
+		this._register(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
+		this._register(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
+		this._register(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
+		return viewPaneContainer;
+	}
+
+	private onViewsAdded(added: IView[]): void {
+		for (const view of added) {
+			this.onViewsVisibilityChanged(view, view.isBodyVisible());
+		}
+	}
+
+	private onViewsVisibilityChanged(view: IView, visible: boolean): void {
+		this.getOrCreateActiveViewContextKey(view).set(visible);
+		this._onDidChangeViewVisibility.fire({ id: view.id, visible: visible });
+	}
+
+	private onViewsRemoved(removed: IView[]): void {
+		for (const view of removed) {
+			this.onViewsVisibilityChanged(view, false);
+		}
+	}
+
+	private getOrCreateActiveViewContextKey(view: IView): IContextKey<boolean> {
+		const visibleContextKeyId = `${view.id}.visible`;
+		let contextKey = this.visibleViewContextKeys.get(visibleContextKeyId);
+		if (!contextKey) {
+			contextKey = new RawContextKey(visibleContextKeyId, false).bindTo(this.contextKeyService);
+			this.visibleViewContextKeys.set(visibleContextKeyId, contextKey);
+		}
+		return contextKey;
+	}
+
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, location: ViewContainerLocation): void {
 		const viewDescriptorCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
-		this.onViewsAdded(viewDescriptorCollection.allViewDescriptors, viewContainer);
+		this.onViewDescriptorsAdded(viewDescriptorCollection.allViewDescriptors, viewContainer);
 		this._register(viewDescriptorCollection.onDidChangeViews(({ added, removed }) => {
-			this.onViewsAdded(added, viewContainer);
-			this.onViewsRemoved(removed);
+			this.onViewDescriptorsAdded(added, viewContainer);
+			this.onViewDescriptorsRemoved(removed);
 		}));
 	}
 
-	private onViewsAdded(views: IViewDescriptor[], container: ViewContainer): void {
+	private onViewDescriptorsAdded(views: IViewDescriptor[], container: ViewContainer): void {
 		const location = this.viewContainersRegistry.getViewContainerLocation(container);
 		if (location === undefined) {
 			return;
@@ -561,7 +599,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 	}
 
-	private onViewsRemoved(views: IViewDescriptor[]): void {
+	private onViewDescriptorsRemoved(views: IViewDescriptor[]): void {
 		for (const view of views) {
 			const disposable = this.viewDisposable.get(view);
 			if (disposable) {
@@ -629,7 +667,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			if (activeViewPaneContainer) {
 				const view = activeViewPaneContainer.getView(id);
 				if (view) {
-					if (activeViewPaneContainer.length === 1) {
+					if (activeViewPaneContainer.views.length === 1) {
 						const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
 							this.viewletService.hideActiveViewlet();
@@ -660,13 +698,6 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 
 		return null;
-	}
-
-	registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): ViewPaneContainer {
-		this._register(viewPaneContainer.onDidAddViews(views => views.forEach(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: view.isBodyVisible() }))));
-		this._register(viewPaneContainer.onDidChangeViewVisibility(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: view.isBodyVisible() })));
-		this._register(viewPaneContainer.onDidRemoveViews(views => views.forEach(view => this._onDidChangeViewVisibility.fire({ id: view.id, visible: false }))));
-		return viewPaneContainer;
 	}
 }
 

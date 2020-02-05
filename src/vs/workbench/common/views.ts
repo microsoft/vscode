@@ -529,7 +529,7 @@ export interface IViewPaneContainer {
 	onDidRemoveViews: Event<IView[]>;
 	onDidChangeViewVisibility: Event<IView>;
 
-	readonly length: number;
+	readonly views: IView[];
 
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;
