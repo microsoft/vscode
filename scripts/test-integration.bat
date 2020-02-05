@@ -50,7 +50,8 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-set GITWORKSPACE=%TEMP%\git-%RANDOM%
+for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
+set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR%
 if %errorlevel% neq 0 exit /b %errorlevel%
