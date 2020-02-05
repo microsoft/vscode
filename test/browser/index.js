@@ -123,7 +123,7 @@ class EchoRunner extends events.EventEmitter {
 		event.on('hook', (hook) => this.emit('hook', EchoRunner.deserializeRunnable(hook)));
 		event.on('hook end', (hook) => this.emit('hook end', EchoRunner.deserializeRunnable(hook)));
 		event.on('pass', (test) => this.emit('pass', EchoRunner.deserializeRunnable(test)));
-		event.on('fail', (test, err) => this.emit('fail', EchoRunner.deserializeRunnable(test), EchoRunner.deserializeError(err)));
+		event.on('fail', (test, err) => this.emit('fail', EchoRunner.deserializeRunnable(test, title), EchoRunner.deserializeError(err)));
 		event.on('pending', (test) => this.emit('pending', EchoRunner.deserializeRunnable(test)));
 	}
 
@@ -142,10 +142,10 @@ class EchoRunner extends events.EventEmitter {
 		};
 	}
 
-	static deserializeRunnable(runnable) {
+	static deserializeRunnable(runnable, titleExtra) {
 		return {
 			title: runnable.title,
-			fullTitle: () => runnable.fullTitle,
+			fullTitle: () => titleExtra && runnable.fullTitle ? `${runnable.fullTitle} - /${titleExtra}/` : runnable.fullTitle,
 			async: runnable.async,
 			slow: () => runnable.slow,
 			speed: runnable.speed,
