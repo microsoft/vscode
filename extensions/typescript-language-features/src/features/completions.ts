@@ -77,26 +77,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 			};
 		}
 
-		if (tsEntry.insertText) {
-			this.insertText = tsEntry.insertText;
-
-			// Set filterText for intelliCode and bracket accessors , but not for `this.` completions since it results in
-			// them being overly prioritized. #74164
-			this.filterText = !(/^this\./).test(tsEntry.insertText) ? tsEntry.insertText : undefined;
-
-			// Handle the case:
-			//
-			// ```
-			// const xyz = { 'ab c': 1 };
-			// xyz.ab|
-			// ```
-			//
-			// In which case we want to insert a bracket accessor but should use `.abc` as the filter text instead of
-			// the bracketed insert text.
-			if (tsEntry.insertText[0] === '[') {
-				this.filterText = tsEntry.insertText.replace(/^\[['"](.+)[['"]\]$/, '.$1');
-			}
-		}
+		this.insertText = tsEntry.insertText;
+		this.filterText = this.getFilterText(line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
@@ -137,6 +119,42 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 		}
 		this.resolveRange(line);
+	}
+
+	private getFilterText(line: string, insertText: string | undefined): string | undefined {
+		// Handle private field completions
+		if (this.tsEntry.name.startsWith('#')) {
+			const wordRange = this.document.getWordRangeAtPosition(this.position);
+			const wordStart = wordRange ? line.charAt(wordRange.start.character) : undefined;
+			if (insertText) {
+				if (insertText.startsWith('this.#')) {
+					return wordStart === '#' ? insertText : insertText.replace(/^this\.#/, '');
+				} else {
+					return insertText;
+				}
+			} else {
+				return wordStart === '#' ? undefined : this.tsEntry.name.replace(/^#/, '');
+			}
+			return undefined;
+		}
+
+		// For `this.` completions, generally don't set the filter text since we don't want them to be overly prioritized. #74164
+		if (insertText?.startsWith('this.')) {
+			return undefined;
+		}
+		// Handle the case:
+		// ```
+		// const xyz = { 'ab c': 1 };
+		// xyz.ab|
+		// ```
+		// In which case we want to insert a bracket accessor but should use `.abc` as the filter text instead of
+		// the bracketed insert text.
+		else if (insertText?.startsWith('[')) {
+			return insertText.replace(/^\[['"](.+)[['"]\]$/, '.$1');
+		}
+
+		// In all other cases, fallback to using the insertText
+		return insertText;
 	}
 
 	private resolveRange(line: string): void {

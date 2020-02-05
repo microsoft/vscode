@@ -27,20 +27,22 @@ async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfi
 }
 
 namespace Config {
-	export const suggestSelection = 'editor.suggestSelection';
-	export const completeFunctionCalls = 'typescript.suggest.completeFunctionCalls';
 	export const autoClosingBrackets = 'editor.autoClosingBrackets';
+	export const completeFunctionCalls = 'typescript.suggest.completeFunctionCalls';
 	export const insertMode = 'editor.suggest.insertMode';
+	export const snippetSuggestions = 'editor.snippetSuggestions';
+	export const suggestSelection = 'editor.suggestSelection';
 }
 
 const insertModes = Object.freeze(['insert', 'replace']);
 
 suite('TypeScript Completions', () => {
 	const configDefaults: VsCodeConfiguration = Object.freeze({
-		[Config.suggestSelection]: 'first',
-		[Config.completeFunctionCalls]: false,
 		[Config.autoClosingBrackets]: 'always',
+		[Config.completeFunctionCalls]: false,
 		[Config.insertMode]: 'insert',
+		[Config.snippetSuggestions]: 'none',
+		[Config.suggestSelection]: 'first',
 	});
 
 	const _disposables: vscode.Disposable[] = [];
@@ -462,6 +464,110 @@ suite('TypeScript Completions', () => {
 				`const abc = { 'xy z': 123 }`,
 				`abc["xy w"]`
 			));
+	});
+
+	test('Private field completions on `this.#` should work', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  #xyz = 1;`,
+				`  foo() {`,
+				`    this.#$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  #xyz = 1;`,
+					`  foo() {`,
+					`    this.#xyz`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
+	});
+
+	test('Private field completions on `#` should insert `this.`', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  #xyz = 1;`,
+				`  foo() {`,
+				`    #$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  #xyz = 1;`,
+					`  foo() {`,
+					`    this.#xyz`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
+	});
+
+	test('Private field completions should not require strict prefix match (#89556)', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  #xyz = 1;`,
+				`  foo() {`,
+				`    this.xyz$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  #xyz = 1;`,
+					`  foo() {`,
+					`    this.#xyz`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
+	});
+
+	test('Private field completions without `this.` should not require strict prefix match (#89556)', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  #xyz = 1;`,
+				`  foo() {`,
+				`    xyz$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  #xyz = 1;`,
+					`  foo() {`,
+					`    this.#xyz`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
 	});
 });
 
