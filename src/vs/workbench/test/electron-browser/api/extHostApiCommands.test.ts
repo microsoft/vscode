@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
@@ -28,11 +27,26 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+
+import 'vs/editor/contrib/codeAction/codeAction';
+import 'vs/editor/contrib/codelens/codelens';
+import 'vs/editor/contrib/colorPicker/color';
+import 'vs/editor/contrib/format/format';
+import 'vs/editor/contrib/gotoSymbol/goToCommands';
+import 'vs/editor/contrib/hover/getHover';
+import 'vs/editor/contrib/links/getLinks';
+import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+import 'vs/editor/contrib/quickOpen/quickOpen';
+import 'vs/editor/contrib/smartSelect/smartSelect';
+import 'vs/editor/contrib/suggest/suggest';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -64,42 +78,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		setUnexpectedErrorHandler(() => { });
 
 		// Use IInstantiationService to get typechecking when instantiating
-		let inst: IInstantiationService;
-		{
-			let instantiationService = new TestInstantiationService();
-			rpcProtocol = new TestRPCProtocol();
-			instantiationService.stub(ICommandService, {
-				_serviceBrand: undefined,
-				executeCommand(id: string, ...args: any): any {
-					const command = CommandsRegistry.getCommands().get(id);
-					if (!command) {
-						return Promise.reject(new Error(id + ' NOT known'));
-					}
-					const { handler } = command;
-					return Promise.resolve(instantiationService.invokeFunction(handler, ...args));
+		let insta: IInstantiationService;
+		rpcProtocol = new TestRPCProtocol();
+		const services = new ServiceCollection();
+		services.set(IExtensionService, new class extends mock<IExtensionService>() {
+			async activateByEvent() {
+
+			}
+		});
+		services.set(ICommandService, new SyncDescriptor(class extends mock<ICommandService>() {
+
+			executeCommand(id: string, ...args: any): any {
+				const command = CommandsRegistry.getCommands().get(id);
+				if (!command) {
+					return Promise.reject(new Error(id + ' NOT known'));
 				}
-			});
-			instantiationService.stub(IMarkerService, new MarkerService());
-			instantiationService.stub(IModelService, <IModelService>{
-				_serviceBrand: undefined,
-				getModel(): any { return model; },
-				createModel() { throw new Error(); },
-				updateModel() { throw new Error(); },
-				setMode() { throw new Error(); },
-				destroyModel() { throw new Error(); },
-				getModels() { throw new Error(); },
-				onModelAdded: undefined!,
-				onModelModeChanged: undefined!,
-				onModelRemoved: undefined!,
-				getCreationOptions() { throw new Error(); }
-			});
-			instantiationService.stub(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-				async computeMoreMinimalEdits(_uri: any, edits: any) {
-					return edits || undefined;
-				}
-			});
-			inst = instantiationService;
-		}
+				const { handler } = command;
+				return Promise.resolve(insta.invokeFunction(handler, ...args));
+			}
+		}));
+		services.set(IMarkerService, new MarkerService());
+		services.set(IModelService, new class extends mock<IModelService>() {
+			getModel() { return model; }
+		});
+		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
+			async computeMoreMinimalEdits(_uri: any, edits: any) {
+				return edits || undefined;
+			}
+		});
+
+		insta = new InstantiationService(services);
 
 		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
@@ -117,7 +125,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
-		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
+		rpcProtocol.set(MainContext.MainThreadCommands, insta.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService());
@@ -126,7 +134,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
+		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, insta.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 
 		return rpcProtocol.sync();
 	});
