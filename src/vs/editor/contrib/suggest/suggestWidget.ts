@@ -51,8 +51,8 @@ interface ISuggestionTemplateData {
 
 	/**
 	 * Flexbox
-	 * < ------- left ------- >     < -------- right -------- >
-	 * <icon><label><signature>     <qualifier><type><readmore>
+	 * < ------------- left ------------ >     < --- right -- >
+	 * <icon><label><signature><qualifier>     <type><readmore>
 	 */
 	left: HTMLElement;
 	right: HTMLElement;
