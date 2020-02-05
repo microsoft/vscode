@@ -41,13 +41,13 @@ suite('Debug', function () {
 		const file = await createRandomFile('let i = 5;', undefined, '.js');
 		const doc = await workspace.openTextDocument(file);
 		await window.showTextDocument(doc, undefined, false);
-
 		const breakpointsChanged = new Promise<void>(resolve => onBreakpointsChange = resolve);
 		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
 		await breakpointsChanged;
 		assert.equal(debug.breakpoints.length, 1);
 		assert.equal(debug.breakpoints[0].enabled, true);
 
+		await window.showTextDocument(doc, undefined, false);
 		const breakpointsChangedSecond = new Promise<void>(resolve => onBreakpointsChange = resolve);
 		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
 		await breakpointsChangedSecond;
