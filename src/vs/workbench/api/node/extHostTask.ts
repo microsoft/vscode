@@ -179,7 +179,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	}
 
 	public $getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return this._terminalService.$requestDefaultShellAndArgs(true);
+		return this._terminalService.$getDefaultShellAndArgs(true);
 	}
 
 	public async $jsonTasksSupported(): Promise<boolean> {

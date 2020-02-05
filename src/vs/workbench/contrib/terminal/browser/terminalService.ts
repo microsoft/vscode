@@ -600,7 +600,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _detectWindowsShells(): Promise<IShellDefinition[]> {
-		return new Promise(r => this._onRequestAvailableShells.fire(r));
+		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
 
 

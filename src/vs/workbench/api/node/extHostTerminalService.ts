@@ -204,12 +204,12 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
+	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		return Promise.resolve({
+		return {
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
 			args: this.getDefaultShellArgs(useAutomationShell, configProvider)
-		});
+		};
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
