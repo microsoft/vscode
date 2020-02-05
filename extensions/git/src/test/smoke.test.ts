@@ -40,6 +40,8 @@ suite('git smoke test', function () {
 		cp.execSync('git add .', { cwd });
 		cp.execSync('git commit -m "initial commit"', { cwd });
 
+		// make sure git is activated
+		await commands.executeCommand('git.activate');
 		git = extensions.getExtension<GitExtension>('vscode.git')!.exports.getAPI(1);
 
 		if (git.repositories.length === 0) {
