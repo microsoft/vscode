@@ -15,6 +15,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
+import { isWindows } from 'vs/base/common/platform';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
@@ -76,7 +77,7 @@ suite('Debug - Base Debug View', () => {
 		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector });
 		assert.equal(container.textContent, 'this...');
 
-		expression.value = process.platform === 'win32' ? 'C:\\foo.js:5' : '/foo.js:5';
+		expression.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		container = $('.container');
 		renderExpressionValue(expression, container, { colorize: true, linkDetector });
 		assert.ok(container.querySelector('a'));
@@ -109,7 +110,7 @@ suite('Debug - Base Debug View', () => {
 		assert.equal(label.element.textContent, 'foo:');
 		assert.equal(label.element.title, 'string');
 
-		variable.value = process.platform === 'win32' ? 'C:\\foo.js:5' : '/foo.js:5';
+		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		expression = $('.');
 		name = $('.');
 		value = $('.');
