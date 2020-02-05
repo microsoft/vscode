@@ -4,11 +4,12 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "*"
 	},
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-objective-c grammars/objective-c.cson ./syntaxes/objective-c.tmLanguage.json && node ../../build/npm/update-grammar.js atom/language-objective-c grammars/objective-c%2B%2B.cson ./syntaxes/objective-c++.tmLanguage.json"
+		"update-grammar": "node ./build/update-grammars.js"
 	},
 	"contributes": {
 		"languages": [

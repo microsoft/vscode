@@ -26,6 +26,42 @@ export interface ThemeIcon {
 	readonly id: string;
 }
 
+export namespace ThemeIcon {
+	export function isThemeIcon(obj: any): obj is ThemeIcon {
+		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
+	}
+
+	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+
+	export function fromString(str: string): ThemeIcon | undefined {
+		const match = _regexFromString.exec(str);
+		if (!match) {
+			return undefined;
+		}
+		let [, owner, name] = match;
+		if (!owner) {
+			owner = `codicon/`;
+		}
+		return { id: owner + name };
+	}
+
+	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
+
+	export function asClassName(icon: ThemeIcon): string | undefined {
+		// todo@martin,joh -> this should go into the ThemeService
+		const match = _regexAsClassName.exec(icon.id);
+		if (!match) {
+			return undefined;
+		}
+		let [, , name, modifier] = match;
+		let className = `codicon codicon-${name}`;
+		if (modifier) {
+			className += ` ${modifier.substr(1)}`;
+		}
+		return className;
+	}
+}
+
 export const FileThemeIcon = { id: 'file' };
 export const FolderThemeIcon = { id: 'folder' };
 
@@ -43,6 +79,13 @@ export function getThemeTypeSelector(type: ThemeType): string {
 	}
 }
 
+export interface ITokenStyle {
+	readonly foreground?: number;
+	readonly bold?: boolean;
+	readonly underline?: boolean;
+	readonly italic?: boolean;
+}
+
 export interface ITheme {
 	readonly type: ThemeType;
 
@@ -52,13 +95,23 @@ export interface ITheme {
 	 * @param color the id of the color
 	 * @param useDefault specifies if the default color should be used. If not set, the default is used.
 	 */
-	getColor(color: ColorIdentifier, useDefault?: boolean): Color | null;
+	getColor(color: ColorIdentifier, useDefault?: boolean): Color | undefined;
 
 	/**
 	 * Returns whether the theme defines a value for the color. If not, that means the
 	 * default color will be used.
 	 */
 	defines(color: ColorIdentifier): boolean;
+
+	/**
+	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
+	 */
+	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined;
+
+	/**
+	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.
+	 */
+	readonly tokenColorMap: string[];
 }
 
 export interface IIconTheme {
@@ -76,7 +129,7 @@ export interface IThemingParticipant {
 }
 
 export interface IThemeService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getTheme(): ITheme;
 

@@ -117,13 +117,13 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 	}
 
 	public createScrollEvent(previous: ScrollState): ScrollEvent {
-		let widthChanged = (this.width !== previous.width);
-		let scrollWidthChanged = (this.scrollWidth !== previous.scrollWidth);
-		let scrollLeftChanged = (this.scrollLeft !== previous.scrollLeft);
+		const widthChanged = (this.width !== previous.width);
+		const scrollWidthChanged = (this.scrollWidth !== previous.scrollWidth);
+		const scrollLeftChanged = (this.scrollLeft !== previous.scrollLeft);
 
-		let heightChanged = (this.height !== previous.height);
-		let scrollHeightChanged = (this.scrollHeight !== previous.scrollHeight);
-		let scrollTopChanged = (this.scrollTop !== previous.scrollTop);
+		const heightChanged = (this.height !== previous.height);
+		const scrollHeightChanged = (this.scrollHeight !== previous.scrollHeight);
+		const scrollTopChanged = (this.scrollTop !== previous.scrollTop);
 
 		return {
 			width: this.width,
@@ -377,8 +377,8 @@ export class SmoothScrollingOperation {
 	private readonly _startTime: number;
 	public animationFrameDisposable: IDisposable | null;
 
-	private scrollLeft: IAnimation;
-	private scrollTop: IAnimation;
+	private scrollLeft!: IAnimation;
+	private scrollTop!: IAnimation;
 
 	protected constructor(from: ISmoothScrollPosition, to: ISmoothScrollPosition, startTime: number, duration: number) {
 		this.from = from;

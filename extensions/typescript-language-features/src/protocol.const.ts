@@ -12,6 +12,7 @@ export class Kind {
 	public static readonly constructSignature = 'construct';
 	public static readonly directory = 'directory';
 	public static readonly enum = 'enum';
+	public static readonly enumMember = 'enum member';
 	public static readonly externalModuleName = 'external module name';
 	public static readonly function = 'function';
 	public static readonly indexSignature = 'index';
@@ -32,6 +33,7 @@ export class Kind {
 	public static readonly warning = 'warning';
 	public static readonly string = 'string';
 	public static readonly parameter = 'parameter';
+	public static readonly typeParameter = 'type parameter';
 }
 
 
@@ -60,4 +62,13 @@ export class KindModifiers {
 		KindModifiers.jsxFile,
 		KindModifiers.jsonFile,
 	];
+}
+
+export class DisplayPartKind {
+	public static readonly functionName = 'functionName';
+	public static readonly methodName = 'methodName';
+	public static readonly parameterName = 'parameterName';
+	public static readonly propertyName = 'propertyName';
+	public static readonly punctuation = 'punctuation';
+	public static readonly text = 'text';
 }

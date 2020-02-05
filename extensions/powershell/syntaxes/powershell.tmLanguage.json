@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/12b7d7257eb493e45a9af0af9094ec0c2a996712",
+	"version": "https://github.com/PowerShell/EditorSyntax/commit/d10ae29c0d3ceb248172c383a159ae43b9ccfb4d",
 	"name": "PowerShell",
 	"scopeName": "source.powershell",
 	"patterns": [
@@ -274,7 +274,7 @@
 			]
 		},
 		"attribute": {
-			"begin": "(\\[)\\s*\\b(?i)(cmdletbinding|alias|outputtype|parameter|validatenotnull|validatenotnullorempty|validatecount|validateset|allownull|allowemptycollection|allowemptystring|validatescript|validaterange|validatepattern|validatelength)\\b",
+			"begin": "(\\[)\\s*\\b(?i)(cmdletbinding|alias|outputtype|parameter|validatenotnull|validatenotnullorempty|validatecount|validateset|allownull|allowemptycollection|allowemptystring|validatescript|validaterange|validatepattern|validatelength|supportswildcards)\\b",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.section.bracket.begin.powershell"
@@ -306,33 +306,6 @@
 					},
 					"patterns": [
 						{
-							"include": "#variable"
-						},
-						{
-							"include": "#variableNoProperty"
-						},
-						{
-							"include": "#hashtable"
-						},
-						{
-							"include": "#scriptblock"
-						},
-						{
-							"include": "#doubleQuotedStringEscapes"
-						},
-						{
-							"include": "#doubleQuotedString"
-						},
-						{
-							"include": "#type"
-						},
-						{
-							"include": "#numericConstant"
-						},
-						{
-							"include": "#doubleQuotedString"
-						},
-						{
 							"include": "$self"
 						},
 						{
@@ -345,27 +318,6 @@
 									"name": "keyword.operator.assignment.powershell"
 								}
 							}
-						},
-						{
-							"begin": "(?<!')'",
-							"beginCaptures": {
-								"0": {
-									"name": "punctuation.definition.string.begin.powershell"
-								}
-							},
-							"end": "'(?!')",
-							"endCaptures": {
-								"0": {
-									"name": "punctuation.definition.string.end.powershell"
-								}
-							},
-							"name": "string.quoted.single.powershell",
-							"patterns": [
-								{
-									"match": "''",
-									"name": "constant.character.escape.powershell"
-								}
-							]
 						}
 					]
 				}
@@ -434,12 +386,28 @@
 		"doubleQuotedStringEscapes": {
 			"patterns": [
 				{
-					"match": "`[0abnfrvt\"'$`]",
+					"match": "`[`0abefnrtv\"'$]",
 					"name": "constant.character.escape.powershell"
+				},
+				{
+					"include": "#unicodeEscape"
 				},
 				{
 					"match": "\"\"",
 					"name": "constant.character.escape.powershell"
+				}
+			]
+		},
+		"unicodeEscape": {
+			"comment": "`u{xxxx} added in PowerShell 6.0",
+			"patterns": [
+				{
+					"match": "`u\\{(?:(?:10)?([0-9a-fA-F]){1,4}|0?\\g<1>{1,5})}",
+					"name": "constant.character.escape.powershell"
+				},
+				{
+					"match": "`u(?:\\{[0-9a-fA-F]{,6}.)?",
+					"name": "invalid.character.escape.powershell"
 				}
 			]
 		},
@@ -677,7 +645,7 @@
 				{
 					"captures": {
 						"0": {
-							"name": "support.constant.automatic.powershell"
+							"name": "support.variable.automatic.powershell"
 						},
 						"1": {
 							"name": "punctuation.definition.variable.powershell"
@@ -687,7 +655,7 @@
 						}
 					},
 					"comment": "Automatic variables are not constants, but they are read-only. In monokai (default) color schema support.variable doesn't have color, so we use constant.",
-					"match": "(\\$)(?i:(\\$|\\^|\\?|_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+					"match": "(\\$)((?:[$^?])|(?i:_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This)\\b)((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
 				},
 				{
 					"captures": {
@@ -702,7 +670,7 @@
 						}
 					},
 					"comment": "Style preference variables as language variables so that they stand out.",
-					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|InformationPreference|LogCommandHealthEvent|LogCommandLifecycleEvent|LogEngineHealthEvent|LogEngineLifecycleEvent|LogProviderHealthEvent|LogProviderLifecycleEvent|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|PSCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoLoadingPreference|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|ProgressPreference|VerbosePreference|WarningPreference|WhatIfPreference))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
 				},
 				{
 					"captures": {
@@ -865,7 +833,7 @@
 						}
 					},
 					"comment": "Automatic variables are not constants, but they are read-only...",
-					"match": "(\\$)(?i:(\\$|\\^|\\?|_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This))\\b"
+					"match": "(\\$)((?:[$^?])|(?i:_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This)\\b)"
 				},
 				{
 					"captures": {
@@ -880,7 +848,7 @@
 						}
 					},
 					"comment": "Style preference variables as language variables so that they stand out.",
-					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))\\b"
+					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|InformationPreference|LogCommandHealthEvent|LogCommandLifecycleEvent|LogEngineHealthEvent|LogEngineLifecycleEvent|LogProviderHealthEvent|LogProviderLifecycleEvent|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|PSCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoLoadingPreference|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|ProgressPreference|VerbosePreference|WarningPreference|WhatIfPreference))\\b"
 				},
 				{
 					"captures": {
@@ -897,7 +865,7 @@
 							"name": "variable.other.member.powershell"
 						}
 					},
-					"match": "(?i:(\\$|@)(global|local|private|script|using|workflow):((?:\\p{L}|\\d|_)+))"
+					"match": "(?i:(\\$)(global|local|private|script|using|workflow):((?:\\p{L}|\\d|_)+))"
 				},
 				{
 					"captures": {
@@ -1022,9 +990,6 @@
 				},
 				{
 					"include": "#variableNoProperty"
-				},
-				{
-					"include": "#variable"
 				},
 				{
 					"include": "#doubleQuotedStringEscapes"

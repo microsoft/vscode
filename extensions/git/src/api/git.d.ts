@@ -41,6 +41,9 @@ export interface Commit {
 	readonly hash: string;
 	readonly message: string;
 	readonly parents: string[];
+	readonly authorDate?: Date;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
 }
 
 export interface Submodule {
@@ -67,6 +70,7 @@ export const enum Status {
 	DELETED,
 	UNTRACKED,
 	IGNORED,
+	INTENT_TO_ADD,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -109,6 +113,22 @@ export interface RepositoryUIState {
 	readonly onDidChange: Event<void>;
 }
 
+/**
+ * Log options.
+ */
+export interface LogOptions {
+	/** Max number of log entries to retrieve. If not specified, the default is 32. */
+	readonly maxEntries?: number;
+}
+
+export interface CommitOptions {
+	all?: boolean | 'tracked';
+	amend?: boolean;
+	signoff?: boolean;
+	signCommit?: boolean;
+	empty?: boolean;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;
@@ -119,6 +139,7 @@ export interface Repository {
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
+	getGlobalConfig(key: string): Promise<string>;
 
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
 	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }>;
@@ -130,11 +151,16 @@ export interface Repository {
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
 	diff(cached?: boolean): Promise<string>;
+	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
+	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
+	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffBlobs(object1: string, object2: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 
 	hashObject(data: string): Promise<string>;
@@ -152,16 +178,28 @@ export interface Repository {
 	addRemote(name: string, url: string): Promise<void>;
 	removeRemote(name: string): Promise<void>;
 
-	fetch(remote?: string, ref?: string): Promise<void>;
-	pull(): Promise<void>;
+	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
+	pull(unshallow?: boolean): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+
+	blame(path: string): Promise<string>;
+	log(options?: LogOptions): Promise<Commit[]>;
+
+	commit(message: string, opts?: CommitOptions): Promise<void>;
 }
 
+export type APIState = 'uninitialized' | 'initialized';
+
 export interface API {
+	readonly state: APIState;
+	readonly onDidChangeState: Event<APIState>;
 	readonly git: Git;
 	readonly repositories: Repository[];
 	readonly onDidOpenRepository: Event<Repository>;
 	readonly onDidCloseRepository: Event<Repository>;
+
+	toGitUri(uri: Uri, ref: string): Uri;
+	getRepository(uri: Uri): Repository | null;
 }
 
 export interface GitExtension {
@@ -214,4 +252,7 @@ export const enum GitErrorCodes {
 	WrongCase = 'WrongCase',
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
+	PatchDoesNotApply = 'PatchDoesNotApply',
+	NoPathFound = 'NoPathFound',
+	UnknownPath = 'UnknownPath',
 }

@@ -4,31 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IContextMenuEvent {
-	shiftKey?: boolean;
-	ctrlKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
+	readonly shiftKey?: boolean;
+	readonly ctrlKey?: boolean;
+	readonly altKey?: boolean;
+	readonly metaKey?: boolean;
 }
 
 export class ContextSubMenu extends SubmenuAction {
-	constructor(label: string, public entries: (ContextSubMenu | IAction)[]) {
+	constructor(label: string, public entries: Array<ContextSubMenu | IAction>) {
 		super(label, entries, 'contextsubmenu');
 	}
 }
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): (IAction | ContextSubMenu)[];
-	getActionItem?(action: IAction): IActionItem;
+	getActions(): ReadonlyArray<IAction | ContextSubMenu>;
+	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
+	getActionViewItem?(action: IAction): IActionViewItem | undefined;
 	getActionsContext?(event?: IContextMenuEvent): any;
-	getKeyBinding?(action: IAction): ResolvedKeybinding;
+	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;
 	autoSelectFirstItem?: boolean;
+	anchorAlignment?: AnchorAlignment;
 }

@@ -119,9 +119,7 @@ function getNextAttribute(selectionStart: vscode.Position, selectionEnd: vscode.
 		return;
 	}
 
-	for (let i = 0; i < node.attributes.length; i++) {
-		let attr = node.attributes[i];
-
+	for (const attr of node.attributes) {
 		if (selectionEnd.isBefore(attr.start)) {
 			// select full attr
 			return new vscode.Selection(attr.start, attr.end);

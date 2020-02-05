@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
-import { nativeSep } from 'vs/base/common/paths';
+import { matchesPrefix, IMatch, matchesCamelCase, isUpper } from 'vs/base/common/filters';
+import { sep } from 'vs/base/common/path';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
@@ -60,7 +60,7 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 	return res;
 }
 
-function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): [number, number[]] {
+function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): Score {
 	const scores: number[] = [];
 	const matches: number[] = [];
 
@@ -80,15 +80,25 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	//  y
 	//
 	for (let queryIndex = 0; queryIndex < queryLength; queryIndex++) {
+		const queryIndexOffset = queryIndex * targetLength;
+		const queryIndexPreviousOffset = queryIndexOffset - targetLength;
+
+		const queryIndexGtNull = queryIndex > 0;
+
+		const queryCharAtIndex = query[queryIndex];
+		const queryLowerCharAtIndex = queryLower[queryIndex];
+
 		for (let targetIndex = 0; targetIndex < targetLength; targetIndex++) {
-			const currentIndex = queryIndex * targetLength + targetIndex;
+			const targetIndexGtNull = targetIndex > 0;
+
+			const currentIndex = queryIndexOffset + targetIndex;
 			const leftIndex = currentIndex - 1;
-			const diagIndex = (queryIndex - 1) * targetLength + targetIndex - 1;
+			const diagIndex = queryIndexPreviousOffset + targetIndex - 1;
 
-			const leftScore: number = targetIndex > 0 ? scores[leftIndex] : 0;
-			const diagScore: number = queryIndex > 0 && targetIndex > 0 ? scores[diagIndex] : 0;
+			const leftScore = targetIndexGtNull ? scores[leftIndex] : 0;
+			const diagScore = queryIndexGtNull && targetIndexGtNull ? scores[diagIndex] : 0;
 
-			const matchesSequenceLength: number = queryIndex > 0 && targetIndex > 0 ? matches[diagIndex] : 0;
+			const matchesSequenceLength = queryIndexGtNull && targetIndexGtNull ? matches[diagIndex] : 0;
 
 			// If we are not matching on the first query character any more, we only produce a
 			// score if we had a score previously for the last query index (by looking at the diagScore).
@@ -96,10 +106,10 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
 			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
 			let score: number;
-			if (!diagScore && queryIndex > 0) {
+			if (!diagScore && queryIndexGtNull) {
 				score = 0;
 			} else {
-				score = computeCharScore(query, queryLower, queryIndex, target, targetLower, targetIndex, matchesSequenceLength);
+				score = computeCharScore(queryCharAtIndex, queryLowerCharAtIndex, target, targetLower, targetIndex, matchesSequenceLength);
 			}
 
 			// We have a score and its equal or larger than the left score
@@ -146,10 +156,10 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	return [scores[queryLength * targetLength - 1], positions.reverse()];
 }
 
-function computeCharScore(query: string, queryLower: string, queryIndex: number, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
+function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: string, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
 
-	if (queryLower[queryIndex] !== targetLower[targetIndex]) {
+	if (queryLowerCharAtIndex !== targetLower[targetIndex]) {
 		return score; // no match of characters
 	}
 
@@ -170,7 +180,7 @@ function computeCharScore(query: string, queryLower: string, queryIndex: number,
 	}
 
 	// Same case bonus
-	if (query[queryIndex] === target[targetIndex]) {
+	if (queryCharAtIndex === target[targetIndex]) {
 		score += 1;
 
 		// if (DEBUG) {
@@ -275,17 +285,17 @@ export interface IItemAccessor<T> {
 	/**
 	 * Just the label of the item to score on.
 	 */
-	getItemLabel(item: T): string;
+	getItemLabel(item: T): string | null;
 
 	/**
 	 * The optional description of the item to score on. Can be null.
 	 */
-	getItemDescription(item: T): string;
+	getItemDescription(item: T): string | null;
 
 	/**
 	 * If the item is a file, the path of the file to score on. Can be null.
 	 */
-	getItemPath(file: T): string;
+	getItemPath(file: T): string | undefined;
 }
 
 const PATH_IDENTITY_SCORE = 1 << 18;
@@ -310,11 +320,11 @@ export function prepareQuery(original: string): IPreparedQuery {
 
 	let value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
 	if (isWindows) {
-		value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
+		value = value.replace(/\//g, sep); // Help Windows users to search for paths when using slash
 	}
 
 	const lowercase = value.toLowerCase();
-	const containsPathSeparator = value.indexOf(nativeSep) >= 0;
+	const containsPathSeparator = value.indexOf(sep) >= 0;
 
 	return { original, value, lowercase, containsPathSeparator };
 }
@@ -349,11 +359,28 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 	return itemScore;
 }
 
-function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function createMatches(offsets: undefined | number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	if (!offsets) {
+		return ret;
+	}
+	let last: IMatch | undefined;
+	for (const pos of offsets) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+	return ret;
+}
+
+function doScoreItem(label: string, description: string | null, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isLinux ? query.original === path : equalsIgnoreCase(query.original, path)) {
-		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
+	if (path && (isLinux ? query.original === path : equalsIgnoreCase(query.original, path))) {
+		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
 	// We only consider label matches if the query is not including file path separators
@@ -383,7 +410,7 @@ function doScoreItem(label: string, description: string, path: string, query: IP
 	if (description) {
 		let descriptionPrefix = description;
 		if (!!path) {
-			descriptionPrefix = `${description}${nativeSep}`; // assume this is a file path
+			descriptionPrefix = `${description}${sep}`; // assume this is a file path
 		}
 
 		const descriptionPrefixLength = descriptionPrefix.length;
@@ -442,8 +469,8 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 			return scoreA === LABEL_PREFIX_SCORE ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA);
-		const labelB = accessor.getItemLabel(itemB);
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 
 		// prefer shorter names when both match on label prefix
 		if (labelA.length !== labelB.length) {
@@ -457,8 +484,8 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 			return scoreA === LABEL_CAMELCASE_SCORE ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA);
-		const labelB = accessor.getItemLabel(itemB);
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 
 		// prefer more compact camel case matches over longer
 		const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
@@ -565,8 +592,8 @@ function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number 
 export function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
-	const labelA = accessor.getItemLabel(itemA);
-	const labelB = accessor.getItemLabel(itemB);
+	const labelA = accessor.getItemLabel(itemA) || '';
+	const labelB = accessor.getItemLabel(itemB) || '';
 
 	const descriptionA = accessor.getItemDescription(itemA);
 	const descriptionB = accessor.getItemDescription(itemB);

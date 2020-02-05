@@ -5,6 +5,7 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const es = require("event-stream");
+const fs = require("fs");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
 const minifyCSS = require("gulp-cssnano");
@@ -13,10 +14,11 @@ const flatmap = require("gulp-flatmap");
 const sourcemaps = require("gulp-sourcemaps");
 const uglify = require("gulp-uglify");
 const composer = require("gulp-uglify/composer");
-const gulpUtil = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
-const uglifyes = require("uglify-es");
+const terser = require("terser");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
@@ -24,7 +26,7 @@ const stats_1 = require("./stats");
 const util = require("./util");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
-    gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
+    fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
 function loaderConfig(emptyPaths) {
     const result = {
@@ -110,13 +112,17 @@ function toBundleStream(src, bundledFileHeader, bundles) {
         return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
     }));
 }
+const DEFAULT_FILE_HEADER = [
+    '/*!--------------------------------------------------------',
+    ' * Copyright (C) Microsoft Corporation. All rights reserved.',
+    ' *--------------------------------------------------------*/'
+].join('\n');
 function optimizeTask(opts) {
     const src = opts.src;
     const entryPoints = opts.entryPoints;
-    const otherSources = opts.otherSources;
     const resources = opts.resources;
     const loaderConfig = opts.loaderConfig;
-    const bundledFileHeader = opts.header;
+    const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
     const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
     const out = opts.out;
     return function () {
@@ -127,6 +133,14 @@ function optimizeTask(opts) {
             if (err || !result) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
+            if (opts.inlineAmdImages) {
+                try {
+                    result = inlineAmdImages(src, result);
+                }
+                catch (err) {
+                    return bundlesStream.emit('error', JSON.stringify(err));
+                }
+            }
             toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
             // Remove css inlined resources
             const filteredResources = resources.slice();
@@ -136,7 +150,7 @@ function optimizeTask(opts) {
                 }
                 filteredResources.push('!' + resource);
             });
-            gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
+            gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
             const bundleInfoArray = [];
             if (opts.bundleInfo) {
                 bundleInfoArray.push(new VinylFile({
@@ -147,20 +161,7 @@ function optimizeTask(opts) {
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         });
-        const otherSourcesStream = es.through();
-        const otherSourcesStreamArr = [];
-        gulp.src(otherSources, { base: `${src}` })
-            .pipe(es.through(function (data) {
-            otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
-        }, function () {
-            if (!otherSourcesStreamArr.length) {
-                setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
-            }
-            else {
-                es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
-            }
-        }));
-        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
+        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
             sourceRoot: undefined,
@@ -175,6 +176,39 @@ function optimizeTask(opts) {
     };
 }
 exports.optimizeTask = optimizeTask;
+function inlineAmdImages(src, result) {
+    for (const outputFile of result.files) {
+        for (const sourceFile of outputFile.sources) {
+            if (sourceFile.path && /\.js$/.test(sourceFile.path)) {
+                sourceFile.contents = sourceFile.contents.replace(/\([^.]+\.registerAndGetAmdImageURL\(([^)]+)\)\)/g, (_, m0) => {
+                    let imagePath = m0;
+                    // remove `` or ''
+                    if ((imagePath.charAt(0) === '`' && imagePath.charAt(imagePath.length - 1) === '`')
+                        || (imagePath.charAt(0) === '\'' && imagePath.charAt(imagePath.length - 1) === '\'')) {
+                        imagePath = imagePath.substr(1, imagePath.length - 2);
+                    }
+                    if (!/\.(png|svg)$/.test(imagePath)) {
+                        console.log(`original: ${_}`);
+                        return _;
+                    }
+                    const repoLocation = path.join(src, imagePath);
+                    const absoluteLocation = path.join(REPO_ROOT_PATH, repoLocation);
+                    if (!fs.existsSync(absoluteLocation)) {
+                        const message = `Invalid amd image url in file ${sourceFile.path}: ${imagePath}`;
+                        console.log(message);
+                        throw new Error(message);
+                    }
+                    const fileContents = fs.readFileSync(absoluteLocation);
+                    const mime = /\.svg$/.test(imagePath) ? 'image/svg+xml' : 'image/png';
+                    // Mark the file as inlined so we don't ship it by itself
+                    result.cssInlinedResources.push(repoLocation);
+                    return `("data:${mime};base64,${fileContents.toString('base64')}")`;
+                });
+            }
+        }
+    }
+    return result;
+}
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
@@ -205,7 +239,7 @@ function uglifyWithCopyrights() {
             return false;
         };
     };
-    const minify = composer(uglifyes);
+    const minify = composer(terser);
     const input = es.through();
     const output = input
         .pipe(flatmap((stream, f) => {
@@ -223,7 +257,12 @@ function minifyTask(src, sourceMapBaseUrl) {
     return cb => {
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
-        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.write('./', {
+        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.mapSources((sourcePath) => {
+            if (sourcePath === 'bootstrap-fork.js') {
+                return 'bootstrap-fork.orig.js';
+            }
+            return sourcePath;
+        }), sourcemaps.write('./', {
             sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,

@@ -13,13 +13,18 @@ import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from
 export class HorizontalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+		const scrollDimensions = scrollable.getScrollDimensions();
+		const scrollPosition = scrollable.getCurrentScrollPosition();
 		super({
 			lazyRender: options.lazyRender,
 			host: host,
 			scrollbarState: new ScrollbarState(
 				(options.horizontalHasArrows ? options.arrowSize : 0),
 				(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize),
-				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize)
+				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
+				scrollDimensions.width,
+				scrollDimensions.scrollWidth,
+				scrollPosition.scrollLeft
 			),
 			visibility: options.horizontal,
 			extraScrollbarClassName: 'horizontal',
@@ -34,8 +39,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				className: 'left-arrow',
 				top: scrollbarDelta,
 				left: arrowDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
@@ -44,8 +49,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			this._createArrow({
 				className: 'right-arrow',
 				top: scrollbarDelta,
-				left: void 0,
-				bottom: void 0,
+				left: undefined,
+				bottom: undefined,
 				right: arrowDelta,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,

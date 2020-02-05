@@ -11,7 +11,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[] | null): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
@@ -262,7 +262,7 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
 suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[] | null): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
@@ -306,10 +306,10 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 			'',
 			'1'
 		], [
-				editOp(1, 1, 1, 3, 0, 2, ['Your']),
-				editOp(1, 4, 1, 4, 3, 0, ['Interesting ']),
-				editOp(2, 3, 2, 6, 16, 3, null)
-			],
+			editOp(1, 1, 1, 3, 0, 2, ['Your']),
+			editOp(1, 4, 1, 4, 3, 0, ['Interesting ']),
+			editOp(2, 3, 2, 6, 16, 3, null)
+		],
 			editOp(1, 1, 2, 6, 0, 19, [
 				'Your Interesting First Line',
 				'\t\t'

@@ -8,12 +8,12 @@
 	height: 100%;
 	width: 100%;
 	white-space: nowrap;
-	-webkit-user-select: none;
-	-khtml-user-select: none;
-	-moz-user-select: -moz-none;
-	-ms-user-select: none;
-	-o-user-select: none;
+}
+
+.monaco-list.mouse-support {
 	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
 }
 
 .monaco-list > .monaco-scrollable-element {
@@ -26,15 +26,20 @@
 	height: 100%;
 }
 
+.monaco-list.horizontal-scrolling .monaco-list-rows {
+	width: auto;
+	min-width: 100%;
+}
+
 .monaco-list-row {
 	position: absolute;
-	-moz-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
-	cursor: pointer;
+	box-sizing:	border-box;
 	overflow: hidden;
 	width: 100%;
+}
+
+.monaco-list.mouse-support .monaco-list-row {
+	cursor: pointer;
 	touch-action: none;
 }
 
@@ -46,4 +51,116 @@
 /* Focus */
 .monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
 	outline: 0 !important;
+}
+
+.monaco-list:focus .monaco-list-row.selected .codicon {
+	color: inherit;
+}
+
+/* Dnd */
+.monaco-drag-image {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 12px;
+	position: absolute;
+}
+
+/* Type filter */
+
+.monaco-list-type-filter {
+	display: flex;
+	align-items: center;
+	position: absolute;
+	border-radius: 2px;
+	padding: 0px 3px;
+	max-width: calc(100% - 10px);
+	text-overflow: ellipsis;
+	overflow: hidden;
+	text-align: right;
+	box-sizing: border-box;
+	cursor: all-scroll;
+	font-size: 13px;
+	line-height: 18px;
+	height: 20px;
+	z-index: 1;
+	top: 4px;
+}
+
+.monaco-list-type-filter.dragging {
+	transition: top 0.2s, left 0.2s;
+}
+
+.monaco-list-type-filter.ne {
+	right: 4px;
+}
+
+.monaco-list-type-filter.nw {
+	left: 4px;
+}
+
+.monaco-list-type-filter > .controls {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	transition: width 0.2s;
+	width: 0;
+}
+
+.monaco-list-type-filter.dragging > .controls,
+.monaco-list-type-filter:hover > .controls {
+	width: 36px;
+}
+
+.monaco-list-type-filter > .controls > * {
+	border: none;
+	box-sizing: border-box;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background: none;
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.monaco-list-type-filter > .controls > .filter:checked::before {
+	content: "\eb83" !important; /* codicon-list-filter */
+}
+
+.monaco-list-type-filter > .controls > .filter {
+	margin-left: 4px;
+}
+
+.monaco-list-type-filter-message {
+	position: absolute;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	top: 0;
+	left: 0;
+	padding: 40px 1em 1em 1em;
+	text-align: center;
+	white-space: normal;
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+.monaco-list-type-filter-message:empty {
+	display: none;
+}
+
+/* Electron */
+
+.monaco-list-type-filter {
+	cursor: grab;
+}
+
+.monaco-list-type-filter.dragging {
+	cursor: grabbing;
 }

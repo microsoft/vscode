@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { View } from 'vs/editor/browser/view/viewImpl';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -26,10 +26,10 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.ICodeEditor {
+export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
+	protected _createConfiguration(options: editorOptions.IEditorConstructionOptions): IConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected _createView(viewModel: ViewModel, cursor: Cursor): [View, boolean] {
@@ -42,9 +42,9 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	public getCursor(): Cursor | undefined {
 		return this._modelData ? this._modelData.cursor : undefined;
 	}
-	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor: any): T {
+	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
-		this._contributions[r.getId()] = r;
+		this._contributions[id] = r;
 		return r;
 	}
 	public dispose() {
@@ -73,25 +73,30 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	serviceCollection?: ServiceCollection;
 }
 
-export function withTestCodeEditor(text: string | string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor | undefined) => void): void {
+export function withTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
 		if (typeof text === 'string') {
 			options.model = TextModel.createFromString(text);
-		} else {
+		} else if (text) {
 			options.model = TextModel.createFromString(text.join('\n'));
 		}
 	}
 
 	let editor = <TestCodeEditor>createTestCodeEditor(options);
-	callback(editor, editor.getCursor());
+	callback(editor, editor.getCursor()!);
 
 	editor.dispose();
 }
 
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCodeEditor {
 
+	const model = options.model;
+	delete options.model;
+
 	const services: ServiceCollection = options.serviceCollection || new ServiceCollection();
+	delete options.serviceCollection;
+
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	if (!services.has(ICodeEditorService)) {
@@ -119,6 +124,6 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): Te
 		options,
 		codeEditorWidgetOptions
 	);
-	editor.setModel(options.model);
+	editor.setModel(model);
 	return editor;
 }

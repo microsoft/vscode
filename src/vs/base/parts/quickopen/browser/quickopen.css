@@ -70,18 +70,23 @@
 	width: 16px;
 	height: 16px;
 	margin-right: 4px;
-	display: inline-block;
+	display: flex;
+	align-items: center;
 	vertical-align: middle;
 	flex-shrink: 0;
 }
 
 .monaco-quick-open-widget .quick-open-tree .monaco-icon-label,
-.monaco-quick-open-widget .quick-open-tree .monaco-icon-label .monaco-icon-label-description-container {
+.monaco-quick-open-widget .quick-open-tree .monaco-icon-label .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1; /* make sure the icon label grows within the row */
 }
 
 .monaco-quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label span {
 	opacity: 1;
+}
+
+.monaco-quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label .codicon {
+	vertical-align: sub; /* vertically align codicon */
 }
 
 .monaco-quick-open-widget .quick-open-tree .quick-open-entry-meta {

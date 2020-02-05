@@ -5,9 +5,10 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
+import { toGitUri } from '../uri';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -76,6 +77,10 @@ export class ApiRepository implements Repository {
 		return this._repository.setConfig(key, value);
 	}
 
+	getGlobalConfig(key: string): Promise<string> {
+		return this._repository.getGlobalConfig(key);
+	}
+
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
 		return this._repository.getObjectDetails(treeish, path);
 	}
@@ -104,19 +109,27 @@ export class ApiRepository implements Repository {
 		return this._repository.diff(cached);
 	}
 
-	diffWithHEAD(path: string): Promise<string> {
+	diffWithHEAD(): Promise<Change[]>;
+	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEAD(path?: string): Promise<string | Change[]> {
 		return this._repository.diffWithHEAD(path);
 	}
 
-	diffWith(ref: string, path: string): Promise<string> {
+	diffWith(ref: string): Promise<Change[]>;
+	diffWith(ref: string, path: string): Promise<string>;
+	diffWith(ref: string, path?: string): Promise<string | Change[]> {
 		return this._repository.diffWith(ref, path);
 	}
 
-	diffIndexWithHEAD(path: string): Promise<string> {
+	diffIndexWithHEAD(): Promise<Change[]>;
+	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		return this._repository.diffIndexWithHEAD(path);
 	}
 
-	diffIndexWith(ref: string, path: string): Promise<string> {
+	diffIndexWith(ref: string): Promise<Change[]>;
+	diffIndexWith(ref: string, path: string): Promise<string>;
+	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
 		return this._repository.diffIndexWith(ref, path);
 	}
 
@@ -124,7 +137,9 @@ export class ApiRepository implements Repository {
 		return this._repository.diffBlobs(object1, object2);
 	}
 
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this._repository.diffBetween(ref1, ref2, path);
 	}
 
@@ -168,16 +183,28 @@ export class ApiRepository implements Repository {
 		return this._repository.removeRemote(name);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref);
+	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
+		return this._repository.fetch(remote, ref, depth);
 	}
 
-	pull(): Promise<void> {
-		return this._repository.pull();
+	pull(unshallow?: boolean): Promise<void> {
+		return this._repository.pull(undefined, unshallow);
 	}
 
 	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {
 		return this._repository.pushTo(remoteName, branchName, setUpstream);
+	}
+
+	blame(path: string): Promise<string> {
+		return this._repository.blame(path);
+	}
+
+	log(options?: LogOptions): Promise<Commit[]> {
+		return this._repository.log(options);
+	}
+
+	commit(message: string, opts?: CommitOptions): Promise<void> {
+		return this._repository.commit(message, opts);
 	}
 }
 
@@ -192,6 +219,14 @@ export class ApiImpl implements API {
 
 	readonly git = new ApiGit(this._model);
 
+	get state(): APIState {
+		return this._model.state;
+	}
+
+	get onDidChangeState(): Event<APIState> {
+		return this._model.onDidChangeState;
+	}
+
 	get onDidOpenRepository(): Event<Repository> {
 		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));
 	}
@@ -202,6 +237,15 @@ export class ApiImpl implements API {
 
 	get repositories(): Repository[] {
 		return this._model.repositories.map(r => new ApiRepository(r));
+	}
+
+	toGitUri(uri: Uri, ref: string): Uri {
+		return toGitUri(uri, ref);
+	}
+
+	getRepository(uri: Uri): Repository | null {
+		const result = this._model.getRepository(uri);
+		return result ? new ApiRepository(result) : null;
 	}
 
 	constructor(private _model: Model) { }

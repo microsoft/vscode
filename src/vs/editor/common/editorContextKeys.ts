@@ -6,6 +6,8 @@
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export namespace EditorContextKeys {
+
+	export const editorSimpleInput = new RawContextKey<boolean>('editorSimpleInput', false);
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 */
@@ -46,7 +48,12 @@ export namespace EditorContextKeys {
 	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', false);
 	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', false);
 	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', false);
+	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
+
+	// -- mode context keys: formatting
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', false);
 	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', false);
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
+	export const hasMultipleDocumentFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentFormattingProvider', false);
+	export const hasMultipleDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentSelectionFormattingProvider', false);
+
 }

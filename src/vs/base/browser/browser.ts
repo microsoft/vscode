@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 
 class WindowManager {
 
@@ -14,7 +13,7 @@ class WindowManager {
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
 	private _lastZoomLevelChangeTime: number = 0;
-	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
 	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
@@ -35,7 +34,7 @@ class WindowManager {
 	}
 
 	// --- Zoom Factor
-	private _zoomFactor: number = 0;
+	private _zoomFactor: number = 1;
 
 	public getZoomFactor(): number {
 		return this._zoomFactor;
@@ -46,19 +45,19 @@ class WindowManager {
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
-		let ctx = document.createElement('canvas').getContext('2d');
+		let ctx: any = document.createElement('canvas').getContext('2d');
 		let dpr = window.devicePixelRatio || 1;
-		let bsr = (<any>ctx).webkitBackingStorePixelRatio ||
-			(<any>ctx).mozBackingStorePixelRatio ||
-			(<any>ctx).msBackingStorePixelRatio ||
-			(<any>ctx).oBackingStorePixelRatio ||
-			(<any>ctx).backingStorePixelRatio || 1;
+		let bsr = ctx.webkitBackingStorePixelRatio ||
+			ctx.mozBackingStorePixelRatio ||
+			ctx.msBackingStorePixelRatio ||
+			ctx.oBackingStorePixelRatio ||
+			ctx.backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
 
 	// --- Fullscreen
-	private _fullscreen: boolean;
-	private readonly _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
+	private _fullscreen: boolean = false;
+	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
 	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 	public setFullscreen(fullscreen: boolean): void {
@@ -71,23 +70,6 @@ class WindowManager {
 	}
 	public isFullscreen(): boolean {
 		return this._fullscreen;
-	}
-
-	// --- Accessibility
-	private _accessibilitySupport = platform.AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
-
-	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
-	}
-	public getAccessibilitySupport(): platform.AccessibilitySupport {
-		return this._accessibilitySupport;
 	}
 }
 
@@ -126,16 +108,6 @@ export function isFullscreen(): boolean {
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
-export function setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
-	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
-}
-export function getAccessibilitySupport(): platform.AccessibilitySupport {
-	return WindowManager.INSTANCE.getAccessibilitySupport();
-}
-export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeAccessibilitySupport(callback);
-}
-
 const userAgent = navigator.userAgent;
 
 export const isIE = (userAgent.indexOf('Trident') >= 0);
@@ -146,23 +118,8 @@ export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
-export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
+export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
+export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
-
-export function hasClipboardSupport() {
-	if (isIE) {
-		return false;
-	}
-
-	if (isEdge) {
-		let index = userAgent.indexOf('Edge/');
-		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
-
-		if (!version || (version >= 12 && version <= 16)) {
-			return false;
-		}
-	}
-
-	return true;
-}
+export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);

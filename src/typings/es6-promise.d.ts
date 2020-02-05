@@ -44,7 +44,12 @@ declare namespace Promise {
 	 * Make a new promise from the thenable.
 	 * A thenable is promise-like in as far as it has a "then" method.
 	 */
-	function resolve<T>(value?: T | Thenable<T>): Promise<T>;
+	function resolve<T>(value: T | Thenable<T>): Promise<T>;
+
+	/**
+	 *
+	 */
+	function resolve(): Promise<void>;
 
 	/**
 	 * Make a promise that rejects to obj. For consistency and debugging (eg stack traces), obj should be an instanceof Error

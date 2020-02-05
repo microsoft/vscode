@@ -4,157 +4,185 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./renameInputField';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { inputBackground, inputBorder, inputForeground, widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { toggleClass } from 'vs/base/browser/dom';
 
-export default class RenameInputField implements IContentWidget, IDisposable {
+export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
-	private _editor: ICodeEditor;
-	private _position: Position;
-	private _domNode: HTMLElement;
-	private _inputField: HTMLInputElement;
-	private _visible: boolean;
-	private _disposables: IDisposable[] = [];
+export interface RenameInputFieldResult {
+	newName: string;
+	wantsPreview?: boolean;
+}
 
-	// Editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow: boolean = true;
+export class RenameInputField implements IContentWidget {
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
-		this._editor = editor;
+	private _position?: Position;
+	private _domNode?: HTMLElement;
+	private _input?: HTMLInputElement;
+	private _label?: HTMLDivElement;
+	private _visible?: boolean;
+	private readonly _visibleContextKey: IContextKey<boolean>;
+	private readonly _disposables = new DisposableStore();
+
+	readonly allowEditorOverflow: boolean = true;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _acceptKeybindings: [string, string],
+		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+
 		this._editor.addContentWidget(this);
 
-		this._disposables.push(editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
-				this.updateFont();
+		this._disposables.add(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
+				this._updateFont();
 			}
 		}));
 
-		this._disposables.push(themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._disposables.add(_themeService.onThemeChange(this._updateStyles, this));
 	}
 
-	private onThemeChange(theme: ITheme): void {
-		this.updateStyles(theme);
-	}
-
-	public dispose(): void {
-		this._disposables = dispose(this._disposables);
+	dispose(): void {
+		this._disposables.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
-	public getId(): string {
+	getId(): string {
 		return '__renameInputWidget';
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		if (!this._domNode) {
-			this._inputField = document.createElement('input');
-			this._inputField.className = 'rename-input';
-			this._inputField.type = 'text';
-			this._inputField.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode = document.createElement('div');
-			this._domNode.style.height = `${this._editor.getConfiguration().lineHeight}px`;
 			this._domNode.className = 'monaco-editor rename-box';
-			this._domNode.appendChild(this._inputField);
 
-			this.updateFont();
-			this.updateStyles(this.themeService.getTheme());
+			this._input = document.createElement('input');
+			this._input.className = 'rename-input';
+			this._input.type = 'text';
+			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
+			this._domNode.appendChild(this._input);
+
+			this._label = document.createElement('div');
+			this._label.className = 'rename-label';
+			this._domNode.appendChild(this._label);
+			const updateLabel = () => {
+				const [accept, preview] = this._acceptKeybindings;
+				this._keybindingService.lookupKeybinding(accept);
+				this._label!.innerText = localize('label', "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+			};
+			updateLabel();
+			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
+
+			this._updateFont();
+			this._updateStyles(this._themeService.getTheme());
 		}
 		return this._domNode;
 	}
 
-	private updateStyles(theme: ITheme): void {
-		if (!this._inputField) {
+	private _updateStyles(theme: ITheme): void {
+		if (!this._input || !this._domNode) {
 			return;
 		}
 
-		const background = theme.getColor(inputBackground);
-		const foreground = theme.getColor(inputForeground);
 		const widgetShadowColor = theme.getColor(widgetShadow);
+		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
+		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : '';
+		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
+
+		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
+		// this._input.style.color = String(theme.getColor(inputForeground) ?? '');
 		const border = theme.getColor(inputBorder);
-
-		this._inputField.style.backgroundColor = background ? background.toString() : null;
-		this._inputField.style.color = foreground ? foreground.toString() : null;
-
-		this._inputField.style.borderWidth = border ? '1px' : '0px';
-		this._inputField.style.borderStyle = border ? 'solid' : 'none';
-		this._inputField.style.borderColor = border ? border.toString() : 'none';
-
-		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : null;
+		this._input.style.borderWidth = border ? '1px' : '0px';
+		this._input.style.borderStyle = border ? 'solid' : 'none';
+		this._input.style.borderColor = border?.toString() ?? 'none';
 	}
 
-	private updateFont(): void {
-		if (!this._inputField) {
+	private _updateFont(): void {
+		if (!this._input || !this._label) {
 			return;
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
-		this._inputField.style.fontFamily = fontInfo.fontFamily;
-		this._inputField.style.fontWeight = fontInfo.fontWeight;
-		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		this._input.style.fontFamily = fontInfo.fontFamily;
+		this._input.style.fontWeight = fontInfo.fontWeight;
+		this._input.style.fontSize = `${fontInfo.fontSize}px`;
+
+		this._label.style.fontSize = `${fontInfo.fontSize * 0.8}px`;
 	}
 
-	public getPosition(): IContentWidgetPosition | null {
-		return this._visible
-			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
-			: null;
+	getPosition(): IContentWidgetPosition | null {
+		if (!this._visible) {
+			return null;
+		}
+		return {
+			position: this._position!,
+			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+		};
 	}
 
-	private _currentAcceptInput: (() => void) | null = null;
-	private _currentCancelInput: ((focusEditor) => void) | null = null;
+	private _currentAcceptInput?: (wantsPreview: boolean) => void;
+	private _currentCancelInput?: (focusEditor: boolean) => void;
 
-	public acceptInput(): void {
+	acceptInput(wantsPreview: boolean): void {
 		if (this._currentAcceptInput) {
-			this._currentAcceptInput();
+			this._currentAcceptInput(wantsPreview);
 		}
 	}
 
-	public cancelInput(focusEditor: boolean): void {
+	cancelInput(focusEditor: boolean): void {
 		if (this._currentCancelInput) {
 			this._currentCancelInput(focusEditor);
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean): Promise<RenameInputFieldResult | boolean> {
+
+		toggleClass(this._domNode!, 'preview', supportPreview);
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
-		this._inputField.value = value;
-		this._inputField.setAttribute('selectionStart', selectionStart.toString());
-		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
-		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
+		this._input!.value = value;
+		this._input!.setAttribute('selectionStart', selectionStart.toString());
+		this._input!.setAttribute('selectionEnd', selectionEnd.toString());
+		this._input!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
-		let disposeOnDone: IDisposable[] = [],
-			always: Function;
+		const disposeOnDone = new DisposableStore();
 
-		always = () => {
-			dispose(disposeOnDone);
-			this._hide();
-		};
-
-		return new Promise<string>(resolve => {
+		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
-				this._currentAcceptInput = null;
-				this._currentCancelInput = null;
+				this._currentAcceptInput = undefined;
+				this._currentCancelInput = undefined;
 				resolve(focusEditor);
 				return true;
 			};
 
-			this._currentAcceptInput = () => {
-				if (this._inputField.value.trim().length === 0 || this._inputField.value === value) {
+			this._currentAcceptInput = (wantsPreview) => {
+				if (this._input!.value.trim().length === 0 || this._input!.value === value) {
 					// empty or whitespace only or not changed
 					this.cancelInput(true);
 					return;
 				}
 
-				this._currentAcceptInput = null;
-				this._currentCancelInput = null;
-				resolve(this._inputField.value);
+				this._currentAcceptInput = undefined;
+				this._currentCancelInput = undefined;
+				resolve({
+					newName: this._input!.value,
+					wantsPreview: supportPreview && wantsPreview
+				});
 			};
 
 			let onCursorChanged = () => {
@@ -164,35 +192,34 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 				}
 			};
 
-			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
-			disposeOnDone.push(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			disposeOnDone.add(this._editor.onDidChangeCursorSelection(onCursorChanged));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
 
 			this._show();
 
-		}).then(newValue => {
-			always();
-			return newValue;
-		}, err => {
-			always();
-			return Promise.reject(err);
+		}).finally(() => {
+			disposeOnDone.dispose();
+			this._hide();
 		});
 	}
 
 	private _show(): void {
-		this._editor.revealLineInCenterIfOutsideViewport(this._position.lineNumber, ScrollType.Smooth);
+		this._editor.revealLineInCenterIfOutsideViewport(this._position!.lineNumber, ScrollType.Smooth);
 		this._visible = true;
+		this._visibleContextKey.set(true);
 		this._editor.layoutContentWidget(this);
 
 		setTimeout(() => {
-			this._inputField.focus();
-			this._inputField.setSelectionRange(
-				parseInt(this._inputField.getAttribute('selectionStart')!),
-				parseInt(this._inputField.getAttribute('selectionEnd')!));
+			this._input!.focus();
+			this._input!.setSelectionRange(
+				parseInt(this._input!.getAttribute('selectionStart')!),
+				parseInt(this._input!.getAttribute('selectionEnd')!));
 		}, 100);
 	}
 
 	private _hide(): void {
 		this._visible = false;
+		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
 	}
 }

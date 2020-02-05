@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { fromNodeEventEmitter } from 'vs/base/common/event';
-import { BrowserWindow, app } from 'electron';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { BrowserWindow, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
 
 type LoginEvent = {
-	event: Electron.Event;
-	webContents: Electron.WebContents;
-	req: Electron.Request;
-	authInfo: Electron.AuthInfo;
+	event: ElectronEvent;
+	webContents: WebContents;
+	req: Request;
+	authInfo: AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 
@@ -22,18 +21,21 @@ type Credentials = {
 	password: string;
 };
 
-export class ProxyAuthHandler {
+export class ProxyAuthHandler extends Disposable {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private retryCount = 0;
-	private disposables: IDisposable[] = [];
 
-	constructor(
-		@IWindowsMainService private windowsMainService: IWindowsMainService
-	) {
-		const onLogin = fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
-		onLogin(this.onLogin, this, this.disposables);
+	constructor() {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
+		this._register(onLogin(this.onLogin, this));
 	}
 
 	private onLogin({ event, authInfo, cb }: LoginEvent): void {
@@ -54,13 +56,16 @@ export class ProxyAuthHandler {
 			width: 450,
 			height: 220,
 			show: true,
-			title: 'VS Code'
+			title: 'VS Code',
+			webPreferences: {
+				nodeIntegration: true,
+				webviewTag: true
+			}
 		};
 
-		const focusedWindow = this.windowsMainService.getFocusedWindow();
-
+		const focusedWindow = BrowserWindow.getFocusedWindow();
 		if (focusedWindow) {
-			opts.parent = focusedWindow.win;
+			opts.parent = focusedWindow;
 			opts.modal = true;
 		}
 
@@ -84,9 +89,5 @@ export class ProxyAuthHandler {
 			win.removeListener('close', onWindowClose);
 			win.close();
 		});
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

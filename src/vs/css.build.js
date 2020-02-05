@@ -17,7 +17,7 @@
 var _cssPluginGlobal = this;
 var CSSBuildLoaderPlugin;
 (function (CSSBuildLoaderPlugin) {
-    var global = _cssPluginGlobal || {};
+    var global = (_cssPluginGlobal || {});
     /**
      * Known issue:
      * - In IE there is no way to know if the CSS file loaded successfully or not.
@@ -319,7 +319,7 @@ var CSSBuildLoaderPlugin;
                         global.cssInlinedResources = global.cssInlinedResources || [];
                         var normalizedFSPath = fsPath.replace(/\\/g, '/');
                         if (global.cssInlinedResources.indexOf(normalizedFSPath) >= 0) {
-                            // console.warn('CSS INLINING IMAGE AT ' + fsPath + ' MORE THAN ONCE. CONSIDER CONSOLIDATING CSS RULES');
+                            console.warn('CSS INLINING IMAGE AT ' + fsPath + ' MORE THAN ONCE. CONSIDER CONSOLIDATING CSS RULES');
                         }
                         global.cssInlinedResources.push(normalizedFSPath);
                         var MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';

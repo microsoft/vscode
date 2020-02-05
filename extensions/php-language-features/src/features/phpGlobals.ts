@@ -8,7 +8,7 @@
 export interface IEntry { description?: string; signature?: string; }
 export interface IEntries { [name: string]: IEntry; }
 
-export var globalvariables: IEntries = {
+export const globalvariables: IEntries = {
 	$GLOBALS: {
 		description: 'An associative array containing references to all variables which are currently defined in the global scope of the script. The variable names are the keys of the array.',
 	},
@@ -55,7 +55,7 @@ export var globalvariables: IEntries = {
 		description: 'Refers to the current object',
 	},
 };
-export var compiletimeconstants: IEntries = {
+export const compiletimeconstants: IEntries = {
 	__CLASS__: {
 		description: 'The class name. (Added in PHP 4.3.0) As of PHP 5 this constant returns the class name as it was declared (case-sensitive). In PHP 4 its value is always lowercased.',
 	},
@@ -159,7 +159,7 @@ export var compiletimeconstants: IEntries = {
 		description: 'The default algorithm to use for hashing if no algorithm is provided. This may change in newer PHP releases when newer, stronger hashing algorithms are supported.',
 	},
 };
-export var keywords: IEntries = {
+export const keywords: IEntries = {
 	define: {
 		description: 'Defines a named constant at runtime.',
 		signature: '( string $name , mixed $value [, bool $case_insensitive = false ] ): bool'

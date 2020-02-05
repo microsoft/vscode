@@ -13,6 +13,8 @@ import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from
 export class VerticalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+		const scrollDimensions = scrollable.getScrollDimensions();
+		const scrollPosition = scrollable.getCurrentScrollPosition();
 		super({
 			lazyRender: options.lazyRender,
 			host: host,
@@ -20,7 +22,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				(options.verticalHasArrows ? options.arrowSize : 0),
 				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
 				// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
-				0
+				0,
+				scrollDimensions.height,
+				scrollDimensions.scrollHeight,
+				scrollPosition.scrollTop
 			),
 			visibility: options.vertical,
 			extraScrollbarClassName: 'vertical',
@@ -35,8 +40,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				className: 'up-arrow',
 				top: arrowDelta,
 				left: scrollbarDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
@@ -44,10 +49,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 			this._createArrow({
 				className: 'down-arrow',
-				top: void 0,
+				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,
-				right: void 0,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),

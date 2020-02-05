@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { QuickOpenEditorWidget } from 'vs/editor/standalone/browser/quickOpen/quickOpenEditorWidget';
@@ -22,25 +22,21 @@ export interface IQuickOpenControllerOpts {
 	getAutoFocus(searchValue: string): IAutoFocus;
 }
 
-export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
+export class QuickOpenController implements IEditorContribution, IDecorator {
 
-	private static readonly ID = 'editor.controller.quickOpenController';
+	public static readonly ID = 'editor.controller.quickOpenController';
 
 	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private widget: QuickOpenEditorWidget;
-	private rangeHighlightDecorationId: string;
-	private lastKnownEditorSelection: Selection;
+	private readonly editor: ICodeEditor;
+	private widget: QuickOpenEditorWidget | null = null;
+	private rangeHighlightDecorationId: string | null = null;
+	private lastKnownEditorSelection: Selection | null = null;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
-	}
-
-	public getId(): string {
-		return QuickOpenController.ID;
 	}
 
 	public dispose(): void {
@@ -65,7 +61,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			// Restore selection if canceled
 			if (canceled && this.lastKnownEditorSelection) {
 				this.editor.setSelection(this.lastKnownEditorSelection);
-				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection, editorCommon.ScrollType.Smooth);
+				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection, ScrollType.Smooth);
 			}
 
 			this.lastKnownEditorSelection = null;
@@ -83,7 +79,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			() => onClose(false),
 			() => onClose(true),
 			(value: string) => {
-				this.widget.setInput(opts.getModel(value), opts.getAutoFocus(value));
+				this.widget!.setInput(opts.getModel(value), opts.getAutoFocus(value));
 			},
 			{
 				inputAriaLabel: opts.inputAriaLabel
@@ -148,7 +144,7 @@ export interface IQuickOpenOpts {
  */
 export abstract class BaseEditorQuickOpenAction extends EditorAction {
 
-	private _inputAriaLabel: string;
+	private readonly _inputAriaLabel: string;
 
 	constructor(inputAriaLabel: string, opts: IActionOptions) {
 		super(opts);
@@ -169,8 +165,8 @@ export abstract class BaseEditorQuickOpenAction extends EditorAction {
 }
 
 export interface IDecorator {
-	decorateLine(range: Range, editor: editorCommon.IEditor): void;
+	decorateLine(range: Range, editor: IEditor): void;
 	clearDecorations(): void;
 }
 
-registerEditorContribution(QuickOpenController);
+registerEditorContribution(QuickOpenController.ID, QuickOpenController);

@@ -25,10 +25,10 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	readonly id = ID_SYNTAX_PROVIDER;
 
-	constructor(private editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
+	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
 
-	compute(cancellationToken: CancellationToken): Thenable<FoldingRegions | null> {
+	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
 		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
 			if (ranges) {
 				let res = sanitizeRanges(ranges, this.limit);
@@ -43,7 +43,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 }
 
-function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
+function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Promise<IFoldingRangeData[] | null> {
 	let rangeData: IFoldingRangeData[] | null = null;
 	let promises = providers.map((provider, i) => {
 		return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
@@ -69,13 +69,13 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 }
 
 export class RangesCollector {
-	private _startIndexes: number[];
-	private _endIndexes: number[];
-	private _nestingLevels: number[];
-	private _nestingLevelCounts: number[];
-	private _types: (string | undefined)[];
+	private readonly _startIndexes: number[];
+	private readonly _endIndexes: number[];
+	private readonly _nestingLevels: number[];
+	private readonly _nestingLevelCounts: number[];
+	private readonly _types: Array<string | undefined>;
 	private _length: number;
-	private _foldingRangesLimit: number;
+	private readonly _foldingRangesLimit: number;
 
 	constructor(foldingRangesLimit: number) {
 		this._startIndexes = [];
@@ -127,7 +127,7 @@ export class RangesCollector {
 
 			let startIndexes = new Uint32Array(this._foldingRangesLimit);
 			let endIndexes = new Uint32Array(this._foldingRangesLimit);
-			let types: (string | undefined)[] = [];
+			let types: Array<string | undefined> = [];
 			for (let i = 0, k = 0; i < this._length; i++) {
 				let level = this._nestingLevels[i];
 				if (level < maxLevel || (level === maxLevel && entries++ < this._foldingRangesLimit)) {
@@ -155,7 +155,7 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): F
 	});
 	let collector = new RangesCollector(limit);
 
-	let top: IFoldingRangeData | undefined = void 0;
+	let top: IFoldingRangeData | undefined = undefined;
 	let previous: IFoldingRangeData[] = [];
 	for (let entry of sorted) {
 		if (!top) {

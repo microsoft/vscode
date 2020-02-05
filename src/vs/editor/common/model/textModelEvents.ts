@@ -80,8 +80,10 @@ export interface IModelDecorationsChangedEvent {
 
 /**
  * An event describing that some ranges of lines have been tokenized (their tokens have changed).
+ * @internal
  */
 export interface IModelTokensChangedEvent {
+	readonly tokenizationSupportChanged: boolean;
 	readonly ranges: {
 		/**
 		 * The start of the range (inclusive)
@@ -96,6 +98,7 @@ export interface IModelTokensChangedEvent {
 
 export interface IModelOptionsChangedEvent {
 	readonly tabSize: boolean;
+	readonly indentSize: boolean;
 	readonly insertSpaces: boolean;
 	readonly trimAutoWhitespace: boolean;
 }

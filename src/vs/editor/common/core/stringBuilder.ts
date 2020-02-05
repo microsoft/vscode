@@ -5,7 +5,7 @@
 
 import * as strings from 'vs/base/common/strings';
 
-declare var TextDecoder: any; // TODO@TypeScript
+declare const TextDecoder: any; // TODO@TypeScript
 interface TextDecoder {
 	decode(view: Uint16Array): string;
 }

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import * as arrays from './arrays';
+import * as os from 'os';
+import * as path from 'path';
 
 export enum TsServerLogLevel {
 	Off,
@@ -52,6 +54,8 @@ export class TypeScriptServiceConfiguration {
 	public readonly checkJs: boolean;
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
+	public readonly useSeparateSyntaxServer: boolean;
+	public readonly maxTsServerMemory: number;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -69,6 +73,8 @@ export class TypeScriptServiceConfiguration {
 		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
 		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
+		this.useSeparateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
+		this.maxTsServerMemory = TypeScriptServiceConfiguration.readMaxTsServerMemory(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -80,21 +86,33 @@ export class TypeScriptServiceConfiguration {
 			&& this.checkJs === other.checkJs
 			&& this.experimentalDecorators === other.experimentalDecorators
 			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
-			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths);
+			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
+			&& this.useSeparateSyntaxServer === other.useSeparateSyntaxServer
+			&& this.maxTsServerMemory === other.maxTsServerMemory;
+	}
+
+	private static fixPathPrefixes(inspectValue: string): string {
+		const pathPrefixes = ['~' + path.sep];
+		for (const pathPrefix of pathPrefixes) {
+			if (inspectValue.startsWith(pathPrefix)) {
+				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
+			}
+		}
+		return inspectValue;
 	}
 
 	private static extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
-			return inspect.globalValue;
+		if (inspect && typeof inspect.globalValue === 'string') {
+			return this.fixPathPrefixes(inspect.globalValue);
 		}
 		return null;
 	}
 
 	private static extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
-			return inspect.workspaceValue;
+		if (inspect && typeof inspect.workspaceValue === 'string') {
+			return this.fixPathPrefixes(inspect.workspaceValue);
 		}
 		return null;
 	}
@@ -126,5 +144,19 @@ export class TypeScriptServiceConfiguration {
 
 	private static extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
 		return configuration.get<string | null>('typescript.locale', null);
+	}
+
+	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.useSeparateSyntaxServer', true);
+	}
+
+	private static readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
+		const defaultMaxMemory = 3072;
+		const minimumMaxMemory = 128;
+		const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', defaultMaxMemory);
+		if (!Number.isSafeInteger(memoryInMB)) {
+			return defaultMaxMemory;
+		}
+		return Math.max(memoryInMB, minimumMaxMemory);
 	}
 }

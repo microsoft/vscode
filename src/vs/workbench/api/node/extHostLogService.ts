@@ -3,34 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/paths';
-import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
-import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
+import { ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { Schemas } from 'vs/base/common/network';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { dirname } from 'vs/base/common/resources';
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
 
-	private _logsPath: string;
-	readonly logFile: URI;
-
 	constructor(
-		logLevel: LogLevel,
-		logsPath: string,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(createSpdLogService(ExtensionHostLogFileName, logLevel, logsPath));
-		this._logsPath = logsPath;
-		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
+		if (initData.logFile.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
+		super(new SpdLogService(ExtensionHostLogFileName, dirname(initData.logFile).fsPath, initData.logLevel));
 	}
 
 	$setLevel(level: LogLevel): void {
 		this.setLevel(level);
-	}
-
-	getLogDirectory(extensionID: string): string {
-		return join(this._logsPath, extensionID);
 	}
 }

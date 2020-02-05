@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from '../../application';
-import { ActivityBarPosition } from '../activitybar/activityBar';
+import { Application, ActivityBarPosition } from '../../../../automation';
 
 export function setup() {
 	describe('Preferences', () => {

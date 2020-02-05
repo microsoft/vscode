@@ -7,15 +7,15 @@ import * as assert from 'assert';
 import { LRUMemory, NoMemory, PrefixMemory, Memory } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
 import { createSuggestItem } from 'vs/editor/contrib/suggest/test/completionModel.test';
 import { IPosition } from 'vs/editor/common/core/position';
+import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 
 suite('SuggestMemories', function () {
 
 	let pos: IPosition;
 	let buffer: ITextModel;
-	let items: ICompletionItem[];
+	let items: CompletionItem[];
 
 	setup(function () {
 		pos = { lineNumber: 1, column: 1 };
@@ -29,7 +29,7 @@ suite('SuggestMemories', function () {
 	test('AbstractMemory, select', function () {
 
 		const mem = new class extends Memory {
-			memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
+			memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
 				throw new Error('Method not implemented.');
 			} toJSON(): object {
 				throw new Error('Method not implemented.');
@@ -43,9 +43,9 @@ suite('SuggestMemories', function () {
 		let item2 = createSuggestItem('bazz', 0);
 		let item3 = createSuggestItem('bazz', 0);
 		let item4 = createSuggestItem('bazz', 0);
-		item1.suggestion.preselect = false;
-		item2.suggestion.preselect = true;
-		item3.suggestion.preselect = true;
+		item1.completion.preselect = false;
+		item2.completion.preselect = true;
+		item3.completion.preselect = true;
 
 		assert.equal(mem.select(buffer, pos, [item1, item2, item3, item4]), 1);
 	});
@@ -55,9 +55,9 @@ suite('SuggestMemories', function () {
 		let item2 = createSuggestItem('bazz', 0);
 		let item3 = createSuggestItem('bazz', 0);
 		let item4 = createSuggestItem('bazz', 0);
-		item1.suggestion.preselect = false;
-		item2.suggestion.preselect = true;
-		item3.suggestion.preselect = true;
+		item1.completion.preselect = false;
+		item2.completion.preselect = true;
+		item3.completion.preselect = true;
 		let items = [item1, item2, item3, item4];
 
 
@@ -74,7 +74,7 @@ suite('SuggestMemories', function () {
 		assert.equal(mem.select(buffer, pos, []), 0);
 
 		mem.memorize(buffer, pos, items[0]);
-		mem.memorize(buffer, pos, null);
+		mem.memorize(buffer, pos, null!);
 	});
 
 	test('LRUMemory', () => {
@@ -99,6 +99,29 @@ suite('SuggestMemories', function () {
 			createSuggestItem('new1', 0),
 			createSuggestItem('new2', 0)
 		]), 0);
+	});
+
+	test('`"editor.suggestSelection": "recentlyUsed"` should be a little more sticky #78571', function () {
+
+		let item1 = createSuggestItem('gamma', 0);
+		let item2 = createSuggestItem('game', 0);
+		items = [item1, item2];
+
+		let mem = new LRUMemory();
+		buffer.setValue('    foo.');
+		mem.memorize(buffer, { lineNumber: 1, column: 1 }, item2);
+
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 2 }, items), 0); // leading whitespace -> ignore recent items
+
+		mem.memorize(buffer, { lineNumber: 1, column: 9 }, item2);
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 9 }, items), 1); // foo.
+
+		buffer.setValue('    foo.g');
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 1); // foo.g, 'gamma' and 'game' have the same score
+
+		item1.score = [10, 0, 0];
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 0); // foo.g, 'gamma' has higher score
+
 	});
 
 	test('intellisense is not showing top options first #43429', function () {

@@ -17,14 +17,14 @@ set CODE=".build\electron\%NAMESHORT%"
 node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
-:: Manage build-in extensions
+:: Manage built-in extensions
 if "%1"=="--builtin" goto builtin
 
 :: Sync built-in extensions
 node build\lib\builtInExtensions.js
 
 :: Build
-if not exist out node .\node_modules\gulp\bin\gulp.js compile
+if not exist out yarn compile
 
 :: Configuration
 set ELECTRON_RUN_AS_NODE=1

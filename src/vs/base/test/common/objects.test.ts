@@ -193,13 +193,13 @@ suite('Objects', () => {
 			three: {
 				3: true
 			},
-			four: void 0
+			four: undefined
 		};
 
 		diff = objects.distinct(base, obj);
 		assert.deepEqual(diff, {
 			one: null,
-			four: void 0
+			four: undefined
 		});
 
 		obj = {

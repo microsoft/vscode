@@ -1,1 +1,3 @@
-<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg"><title>Layer 1</title><rect height="11" width="3" y="3" x="7" fill="#424242"/><rect height="3" width="11" y="7" x="3" fill="#424242"/></svg>
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M14 7V8H8V14H7V8H1V7H7V1H8V7H14Z" fill="#424242"/>
+</svg>

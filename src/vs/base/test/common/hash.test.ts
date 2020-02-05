@@ -17,7 +17,7 @@ suite('Hash', () => {
 	});
 
 	test('number', () => {
-		assert.equal(hash(1), hash(1.0));
+		assert.equal(hash(1), hash(1));
 		assert.notEqual(hash(0), hash(1));
 		assert.notEqual(hash(1), hash(-1));
 		assert.notEqual(hash(0x12345678), hash(0x123456789));
@@ -39,8 +39,18 @@ suite('Hash', () => {
 	test('object', () => {
 		assert.equal(hash({}), hash({}));
 		assert.equal(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar' }));
-		assert.equal(hash({ 'foo': 'bar', 'foo2': void 0 }), hash({ 'foo2': void 0, 'foo': 'bar' }));
+		assert.equal(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
 		assert.notEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
 		assert.notEqual(hash({}), hash([]));
 	});
+
+	test('array - unexpected collision', function () {
+		this.skip();
+		const a = hash([undefined, undefined, undefined, undefined, undefined]);
+		const b = hash([undefined, undefined, 'HHHHHH', [{ line: 0, character: 0 }, { line: 0, character: 0 }], undefined]);
+		// console.log(a);
+		// console.log(b);
+		assert.notEqual(a, b);
+	});
+
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, ITheme, DARK, IIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, DARK, IIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 export class TestTheme implements ITheme {
@@ -12,16 +12,24 @@ export class TestTheme implements ITheme {
 	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
 	}
 
-	getColor(color: string, useDefault?: boolean): Color | null {
+	getColor(color: string, useDefault?: boolean): Color | undefined {
 		let value = this.colors[color];
 		if (value) {
 			return Color.fromHex(value);
 		}
-		return null;
+		return undefined;
 	}
 
 	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
+	}
+
+	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
+		return undefined;
+	}
+
+	get tokenColorMap(): string[] {
+		return [];
 	}
 }
 
@@ -33,7 +41,7 @@ export class TestIconTheme implements IIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	_theme: ITheme;
 	_iconTheme: IIconTheme;
 	_onThemeChange = new Emitter<ITheme>();

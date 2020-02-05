@@ -12,6 +12,7 @@ const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
 	type: 'object',
 	allowComments: true,
+	allowTrailingCommas: true,
 	definitions: {
 		folderExpanded: {
 			type: 'string',
@@ -218,7 +219,7 @@ const schema: IJSONSchema = {
 	}
 };
 
-export function register() {
+export function registerFileIconThemeSchemas() {
 	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(schemaId, schema);
 }

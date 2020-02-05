@@ -5,8 +5,9 @@
 'use strict';
 
 function createModuleDescription(name, exclude) {
-	var result = {};
-	var excludes = ['vs/css', 'vs/nls'];
+	const result = {};
+
+	let excludes = ['vs/css', 'vs/nls'];
 	result.name = name;
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);

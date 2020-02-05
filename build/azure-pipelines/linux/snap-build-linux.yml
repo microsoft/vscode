@@ -1,0 +1,52 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "12.13.0"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.x"
+
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- task: DownloadPipelineArtifact@0
+  displayName: 'Download Pipeline Artifact'
+  inputs:
+    artifactName: snap-x64
+    targetPath: .build/linux/snap-tarball
+
+- script: |
+    set -e
+
+    # Get snapcraft version
+    snapcraft --version
+
+    # Make sure we get latest packages
+    sudo apt-get update
+    sudo apt-get upgrade -y
+
+    # Define variables
+    REPO="$(pwd)"
+    SNAP_ROOT="$REPO/.build/linux/snap/x64"
+
+    # Install build dependencies
+    (cd build && yarn)
+
+    # Unpack snap tarball artifact, in order to preserve file perms
+    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-x64.tar.gz"
+    (cd .build/linux && tar -xzf $SNAP_TARBALL_PATH)
+
+    # Create snap package
+    BUILD_VERSION="$(date +%s)"
+    SNAP_FILENAME="code-$VSCODE_QUALITY-$BUILD_VERSION.snap"
+    SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
+    (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --output "$SNAP_PATH")
+
+    # Publish snap package
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    node build/azure-pipelines/common/createAsset.js "linux-snap-x64" package "$SNAP_FILENAME" "$SNAP_PATH"

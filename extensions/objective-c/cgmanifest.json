@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/cpp-textmate-grammar",
+					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
+					"commitHash": "d62c0002b4c36c1c5add356ecc6f478bc2d416e1"
+				}
+			},
+			"license": "MIT",
+			"version": "1.12.11",
+			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the language package https://github.com/jeff-hykin/cpp-textmate-grammar."
+		}
+	],
+	"version": 1
+}

@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -17,6 +17,7 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
@@ -123,6 +124,16 @@ export const enum MetadataConsts {
 	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+
+	ITALIC_MASK = 0b00000000000000000000100000000000,
+	BOLD_MASK = 0b00000000000000000001000000000000,
+	UNDERLINE_MASK = 0b00000000000000000010000000000000,
+
+	SEMANTIC_USE_ITALIC = 0b00000000000000000000000000000001,
+	SEMANTIC_USE_BOLD = 0b00000000000000000000000000000010,
+	SEMANTIC_USE_UNDERLINE = 0b00000000000000000000000000000100,
+	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000001000,
+	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000010000,
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
@@ -286,7 +297,7 @@ export const enum CompletionItemKind {
 /**
  * @internal
  */
-export let completionKindToCssClass = (function () {
+export const completionKindToCssClass = (function () {
 	let data = Object.create(null);
 	data[CompletionItemKind.Method] = 'method';
 	data[CompletionItemKind.Function] = 'function';
@@ -323,11 +334,14 @@ export let completionKindToCssClass = (function () {
 /**
  * @internal
  */
-export let completionKindFromLegacyString = (function () {
-	let data = Object.create(null);
+export let completionKindFromString: {
+	(value: string): CompletionItemKind;
+	(value: string, strict: true): CompletionItemKind | undefined;
+} = (function () {
+	let data: Record<string, CompletionItemKind> = Object.create(null);
 	data['method'] = CompletionItemKind.Method;
 	data['function'] = CompletionItemKind.Function;
-	data['constructor'] = CompletionItemKind.Constructor;
+	data['constructor'] = <any>CompletionItemKind.Constructor;
 	data['field'] = CompletionItemKind.Field;
 	data['variable'] = CompletionItemKind.Variable;
 	data['class'] = CompletionItemKind.Class;
@@ -342,6 +356,7 @@ export let completionKindFromLegacyString = (function () {
 	data['constant'] = CompletionItemKind.Constant;
 	data['enum'] = CompletionItemKind.Enum;
 	data['enum-member'] = CompletionItemKind.EnumMember;
+	data['enumMember'] = CompletionItemKind.EnumMember;
 	data['keyword'] = CompletionItemKind.Keyword;
 	data['snippet'] = CompletionItemKind.Snippet;
 	data['text'] = CompletionItemKind.Text;
@@ -351,11 +366,42 @@ export let completionKindFromLegacyString = (function () {
 	data['customcolor'] = CompletionItemKind.Customcolor;
 	data['folder'] = CompletionItemKind.Folder;
 	data['type-parameter'] = CompletionItemKind.TypeParameter;
+	data['typeParameter'] = CompletionItemKind.TypeParameter;
 
-	return function (value: string) {
-		return data[value] || 'property';
+	return function (value: string, strict?: true) {
+		let res = data[value];
+		if (typeof res === 'undefined' && !strict) {
+			res = CompletionItemKind.Property;
+		}
+		return res;
 	};
 })();
+
+export interface CompletionItemLabel {
+	/**
+	 * The function or variable. Rendered leftmost.
+	 */
+	name: string;
+
+	/**
+	 * The signature without the return type. Render after `name`.
+	 */
+	signature?: string;
+
+	/**
+	 * The fully qualified name, like package name or file path. Rendered after `signature`.
+	 */
+	qualifier?: string;
+
+	/**
+	 * The return-type of a function or type of a property/variable. Rendered rightmost.
+	 */
+	type?: string;
+}
+
+export const enum CompletionItemTag {
+	Deprecated = 1
+}
 
 export const enum CompletionItemInsertTextRule {
 	/**
@@ -380,12 +426,17 @@ export interface CompletionItem {
 	 * this is also the text that is inserted when selecting
 	 * this completion.
 	 */
-	label: string;
+	label: string | CompletionItemLabel;
 	/**
 	 * The kind of this completion item. Based on the kind
 	 * an icon is chosen by the editor.
 	 */
 	kind: CompletionItemKind;
+	/**
+	 * A modifier to the `kind` which affect how the item
+	 * is rendered, e.g. Deprecated is rendered with a strikeout
+	 */
+	tags?: ReadonlyArray<CompletionItemTag>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
@@ -415,7 +466,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion.
+	 * this completion. When `falsy` the [label](#CompletionItem.label)
 	 * is used.
 	 */
 	insertText: string;
@@ -433,7 +484,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range?: IRange;
+	range: IRange | { insert: IRange, replace: IRange };
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -451,12 +502,10 @@ export interface CompletionItem {
 	 */
 	command?: Command;
 
-	/**@internal*/
-	_labelLow?: string;
-	/**@internal*/
-	_sortTextLow?: string;
-	/**@internal*/
-	_filterTextLow?: string;
+	/**
+	 * @internal
+	 */
+	_id?: [number, number];
 }
 
 export interface CompletionList {
@@ -502,6 +551,11 @@ export interface CompletionContext {
  */
 export interface CompletionItemProvider {
 
+	/**
+	 * @internal
+	 */
+	_debugDisplayName?: string;
+
 	triggerCharacters?: string[];
 	/**
 	 * Provide completion items for the given position and document.
@@ -523,13 +577,15 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
+	isPreferred?: boolean;
+	disabled?: string;
 }
 
 /**
  * @internal
  */
-export const enum CodeActionTrigger {
-	Automatic = 1,
+export const enum CodeActionTriggerType {
+	Auto = 1,
 	Manual = 2,
 }
 
@@ -538,7 +594,11 @@ export const enum CodeActionTrigger {
  */
 export interface CodeActionContext {
 	only?: string;
-	trigger: CodeActionTrigger;
+	trigger: CodeActionTriggerType;
+}
+
+export interface CodeActionList extends IDisposable {
+	readonly actions: ReadonlyArray<CodeAction>;
 }
 
 /**
@@ -550,12 +610,17 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 
 	/**
-	 * Optional list of of CodeActionKinds that this provider returns.
+	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
+
+	/**
+	 * @internal
+	 */
+	_getAdditionalMenuItems?(context: CodeActionContext, actions: readonly CodeAction[]): Command[];
 }
 
 /**
@@ -615,16 +680,21 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
-export enum SignatureHelpTriggerReason {
+export interface SignatureHelpResult extends IDisposable {
+	value: SignatureHelp;
+}
+
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	readonly triggerReason: SignatureHelpTriggerReason;
+	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelp;
 }
 
 /**
@@ -639,7 +709,7 @@ export interface SignatureHelpProvider {
 	/**
 	 * Provide help for the signature at the given position and document.
 	 */
-	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
 }
 
 /**
@@ -672,7 +742,7 @@ export interface DocumentHighlight {
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
-	kind: DocumentHighlightKind;
+	kind?: DocumentHighlightKind;
 }
 /**
  * The document highlight provider interface defines the contract between extensions and
@@ -721,19 +791,41 @@ export interface Location {
 	 */
 	range: IRange;
 }
-/**
- * The definition of a symbol represented as one or many [locations](#Location).
- * For most programming languages there is only one location at which a symbol is
- * defined.
- */
-export type Definition = Location | Location[];
 
-export interface DefinitionLink {
-	origin?: IRange;
+export interface LocationLink {
+	/**
+	 * A range to select where this link originates from.
+	 */
+	originSelectionRange?: IRange;
+
+	/**
+	 * The target uri this link points to.
+	 */
 	uri: URI;
+
+	/**
+	 * The full range this link points to.
+	 */
 	range: IRange;
-	selectionRange?: IRange;
+
+	/**
+	 * A range to select this link points to. Must be contained
+	 * in `LocationLink.range`.
+	 */
+	targetSelectionRange?: IRange;
 }
+
+/**
+ * @internal
+ */
+export function isLocationLink(thing: any): thing is LocationLink {
+	return thing
+		&& URI.isUri((thing as LocationLink).uri)
+		&& Range.isIRange((thing as LocationLink).range)
+		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
+}
+
+export type Definition = Location | Location[] | LocationLink[];
 
 /**
  * The definition provider interface defines the contract between extensions and
@@ -744,7 +836,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -756,7 +848,7 @@ export interface DeclarationProvider {
 	/**
 	 * Provide the declaration of the symbol at the given position and document.
 	 */
-	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -767,7 +859,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -778,7 +870,7 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -813,49 +905,95 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+export const enum SymbolTag {
+	Deprecated = 1,
+}
 
 /**
  * @internal
  */
-export const symbolKindToCssClass = (function () {
+export namespace SymbolKinds {
 
-	const _fromMapping: { [n: number]: string } = Object.create(null);
-	_fromMapping[SymbolKind.File] = 'file';
-	_fromMapping[SymbolKind.Module] = 'module';
-	_fromMapping[SymbolKind.Namespace] = 'namespace';
-	_fromMapping[SymbolKind.Package] = 'package';
-	_fromMapping[SymbolKind.Class] = 'class';
-	_fromMapping[SymbolKind.Method] = 'method';
-	_fromMapping[SymbolKind.Property] = 'property';
-	_fromMapping[SymbolKind.Field] = 'field';
-	_fromMapping[SymbolKind.Constructor] = 'constructor';
-	_fromMapping[SymbolKind.Enum] = 'enum';
-	_fromMapping[SymbolKind.Interface] = 'interface';
-	_fromMapping[SymbolKind.Function] = 'function';
-	_fromMapping[SymbolKind.Variable] = 'variable';
-	_fromMapping[SymbolKind.Constant] = 'constant';
-	_fromMapping[SymbolKind.String] = 'string';
-	_fromMapping[SymbolKind.Number] = 'number';
-	_fromMapping[SymbolKind.Boolean] = 'boolean';
-	_fromMapping[SymbolKind.Array] = 'array';
-	_fromMapping[SymbolKind.Object] = 'object';
-	_fromMapping[SymbolKind.Key] = 'key';
-	_fromMapping[SymbolKind.Null] = 'null';
-	_fromMapping[SymbolKind.EnumMember] = 'enum-member';
-	_fromMapping[SymbolKind.Struct] = 'struct';
-	_fromMapping[SymbolKind.Event] = 'event';
-	_fromMapping[SymbolKind.Operator] = 'operator';
-	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
+	const byName = new Map<string, SymbolKind>();
+	byName.set('file', SymbolKind.File);
+	byName.set('module', SymbolKind.Module);
+	byName.set('namespace', SymbolKind.Namespace);
+	byName.set('package', SymbolKind.Package);
+	byName.set('class', SymbolKind.Class);
+	byName.set('method', SymbolKind.Method);
+	byName.set('property', SymbolKind.Property);
+	byName.set('field', SymbolKind.Field);
+	byName.set('constructor', SymbolKind.Constructor);
+	byName.set('enum', SymbolKind.Enum);
+	byName.set('interface', SymbolKind.Interface);
+	byName.set('function', SymbolKind.Function);
+	byName.set('variable', SymbolKind.Variable);
+	byName.set('constant', SymbolKind.Constant);
+	byName.set('string', SymbolKind.String);
+	byName.set('number', SymbolKind.Number);
+	byName.set('boolean', SymbolKind.Boolean);
+	byName.set('array', SymbolKind.Array);
+	byName.set('object', SymbolKind.Object);
+	byName.set('key', SymbolKind.Key);
+	byName.set('null', SymbolKind.Null);
+	byName.set('enum-member', SymbolKind.EnumMember);
+	byName.set('struct', SymbolKind.Struct);
+	byName.set('event', SymbolKind.Event);
+	byName.set('operator', SymbolKind.Operator);
+	byName.set('type-parameter', SymbolKind.TypeParameter);
 
-	return function toCssClassName(kind: SymbolKind): string {
-		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
-	};
-})();
+	const byKind = new Map<SymbolKind, string>();
+	byKind.set(SymbolKind.File, 'file');
+	byKind.set(SymbolKind.Module, 'module');
+	byKind.set(SymbolKind.Namespace, 'namespace');
+	byKind.set(SymbolKind.Package, 'package');
+	byKind.set(SymbolKind.Class, 'class');
+	byKind.set(SymbolKind.Method, 'method');
+	byKind.set(SymbolKind.Property, 'property');
+	byKind.set(SymbolKind.Field, 'field');
+	byKind.set(SymbolKind.Constructor, 'constructor');
+	byKind.set(SymbolKind.Enum, 'enum');
+	byKind.set(SymbolKind.Interface, 'interface');
+	byKind.set(SymbolKind.Function, 'function');
+	byKind.set(SymbolKind.Variable, 'variable');
+	byKind.set(SymbolKind.Constant, 'constant');
+	byKind.set(SymbolKind.String, 'string');
+	byKind.set(SymbolKind.Number, 'number');
+	byKind.set(SymbolKind.Boolean, 'boolean');
+	byKind.set(SymbolKind.Array, 'array');
+	byKind.set(SymbolKind.Object, 'object');
+	byKind.set(SymbolKind.Key, 'key');
+	byKind.set(SymbolKind.Null, 'null');
+	byKind.set(SymbolKind.EnumMember, 'enum-member');
+	byKind.set(SymbolKind.Struct, 'struct');
+	byKind.set(SymbolKind.Event, 'event');
+	byKind.set(SymbolKind.Operator, 'operator');
+	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	/**
+	 * @internal
+	 */
+	export function fromString(value: string): SymbolKind | undefined {
+		return byName.get(value);
+	}
+	/**
+	 * @internal
+	 */
+	export function toString(kind: SymbolKind): string | undefined {
+		return byKind.get(kind);
+	}
+	/**
+	 * @internal
+	 */
+	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
+	}
+}
 
 export interface DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags: ReadonlyArray<SymbolTag>;
 	containerName?: string;
 	range: IRange;
 	selectionRange: IRange;
@@ -864,7 +1002,7 @@ export interface DocumentSymbol {
 
 /**
  * The document symbol provider interface defines the contract between extensions and
- * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+ * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
  */
 export interface DocumentSymbolProvider {
 
@@ -896,6 +1034,14 @@ export interface FormattingOptions {
  * the formatting-feature.
  */
 export interface DocumentFormattingEditProvider {
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
+	readonly displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -906,6 +1052,13 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
+	readonly displayName?: string;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -920,7 +1073,15 @@ export interface DocumentRangeFormattingEditProvider {
  * the formatting-feature.
  */
 export interface OnTypeFormattingEditProvider {
+
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	autoFormatTriggerCharacters: string[];
+
 	/**
 	 * Provide formatting edits after a character has been typed.
 	 *
@@ -944,13 +1105,19 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url?: string;
+	url?: URI | string;
+	tooltip?: string;
+}
+
+export interface ILinksList {
+	links: ILink[];
+	dispose?(): void;
 }
 /**
  * A provider of links.
  */
 export interface LinkProvider {
-	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILink[]>;
+	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
 }
 
@@ -1031,6 +1198,18 @@ export interface DocumentColorProvider {
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
+
+export interface SelectionRange {
+	range: IRange;
+}
+
+export interface SelectionRangeProvider {
+	/**
+	 * Provide ranges that should be selected from the given position.
+	 */
+	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
+}
+
 export interface FoldingContext {
 }
 /**
@@ -1090,31 +1269,57 @@ export class FoldingRangeKind {
 /**
  * @internal
  */
-export function isResourceFileEdit(thing: any): thing is ResourceFileEdit {
-	return isObject(thing) && (Boolean((<ResourceFileEdit>thing).newUri) || Boolean((<ResourceFileEdit>thing).oldUri));
+export namespace WorkspaceFileEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceFileEdit {
+		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
+	}
 }
 
 /**
  * @internal
  */
-export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
-	return isObject(thing) && (<ResourceTextEdit>thing).resource && Array.isArray((<ResourceTextEdit>thing).edits);
+export namespace WorkspaceTextEdit {
+	/**
+	 * @internal
+	 */
+	export function is(thing: any): thing is WorkspaceTextEdit {
+		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
+	}
 }
 
-export interface ResourceFileEdit {
-	oldUri: URI;
-	newUri: URI;
-	options: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+export interface WorkspaceEditMetadata {
+	needsConfirmation: boolean;
+	label: string;
+	description?: string;
+	iconPath?: { id: string } | { light: URI, dark: URI };
 }
 
-export interface ResourceTextEdit {
+export interface WorkspaceFileEditOptions {
+	overwrite?: boolean;
+	ignoreIfNotExists?: boolean;
+	ignoreIfExists?: boolean;
+	recursive?: boolean;
+}
+
+export interface WorkspaceFileEdit {
+	oldUri?: URI;
+	newUri?: URI;
+	options?: WorkspaceFileEditOptions;
+	metadata?: WorkspaceEditMetadata;
+}
+
+export interface WorkspaceTextEdit {
 	resource: URI;
+	edit: TextEdit;
 	modelVersionId?: number;
-	edits: TextEdit[];
+	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits?: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
 }
 
 export interface Rejection {
@@ -1130,6 +1335,14 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+/**
+ * @internal
+ */
+export interface AuthenticationSession {
+	id: string;
+	accessToken: string;
+	accountName: string;
+}
 
 export interface Command {
 	id: string;
@@ -1141,10 +1354,21 @@ export interface Command {
 /**
  * @internal
  */
+export interface CommentThreadTemplate {
+	controllerHandle: number;
+	label: string;
+	acceptInputCommand?: Command;
+	additionalCommands?: Command[];
+	deleteCommand?: Command;
+}
+
+/**
+ * @internal
+ */
 export interface CommentInfo {
+	extensionId?: string;
 	threads: CommentThread[];
-	commentingRanges?: IRange[];
-	reply?: Command;
+	commentingRanges: CommentingRanges;
 }
 
 /**
@@ -1161,37 +1385,89 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
+
+
 /**
  * @internal
  */
-export interface CommentThread {
-	threadId: string;
-	resource: string;
-	range: IRange;
-	comments: Comment[];
-	collapsibleState?: CommentThreadCollapsibleState;
-	reply?: Command;
+export interface CommentWidget {
+	commentThread: CommentThread;
+	comment?: Comment;
+	input: string;
+	onDidChangeInput: Event<string>;
 }
 
 /**
  * @internal
  */
-export interface NewCommentAction {
+export interface CommentInput {
+	value: string;
+	uri: URI;
+}
+
+/**
+ * @internal
+ */
+export interface CommentThread {
+	commentThreadHandle: number;
+	controllerHandle: number;
+	extensionId?: string;
+	threadId: string;
+	resource: string | null;
+	range: IRange;
+	label: string | undefined;
+	contextValue: string | undefined;
+	comments: Comment[] | undefined;
+	onDidChangeComments: Event<Comment[] | undefined>;
+	collapsibleState?: CommentThreadCollapsibleState;
+	input?: CommentInput;
+	onDidChangeInput: Event<CommentInput | undefined>;
+	onDidChangeRange: Event<IRange>;
+	onDidChangeLabel: Event<string | undefined>;
+	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	isDisposed: boolean;
+}
+
+/**
+ * @internal
+ */
+
+export interface CommentingRanges {
+	readonly resource: URI;
 	ranges: IRange[];
-	actions: Command[];
+}
+
+/**
+ * @internal
+ */
+export interface CommentReaction {
+	readonly label?: string;
+	readonly iconPath?: UriComponents;
+	readonly count?: number;
+	readonly hasReacted?: boolean;
+	readonly canEdit?: boolean;
+}
+
+/**
+ * @internal
+ */
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
 }
 
 /**
  * @internal
  */
 export interface Comment {
-	readonly commentId: string;
+	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath: string;
-	readonly canEdit?: boolean;
-	readonly canDelete?: boolean;
-	readonly command?: Command;
+	readonly userIconPath?: string;
+	readonly contextValue?: string;
+	readonly commentReactions?: CommentReaction[];
+	readonly label?: string;
+	readonly mode?: CommentMode;
 }
 
 /**
@@ -1217,32 +1493,77 @@ export interface CommentThreadChangedEvent {
 /**
  * @internal
  */
-export interface DocumentCommentProvider {
-	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+export interface IWebviewPortMapping {
+	webviewPort: number;
+	extensionHostPort: number;
 }
 
 /**
  * @internal
  */
-export interface WorkspaceCommentProvider {
-	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 
-export interface ICodeLensSymbol {
+/**
+ * @internal
+ */
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+}
+
+
+export interface CodeLens {
 	range: IRange;
 	id?: string;
 	command?: Command;
 }
+
+export interface CodeLensList {
+	lenses: CodeLens[];
+	dispose(): void;
+}
+
 export interface CodeLensProvider {
 	onDidChange?: Event<this>;
-	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<ICodeLensSymbol[]>;
-	resolveCodeLens?(model: model.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
+	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
+	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+}
+
+export interface SemanticTokensLegend {
+	readonly tokenTypes: string[];
+	readonly tokenModifiers: string[];
+}
+
+export interface SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+}
+
+export interface SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
+}
+
+export interface SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+}
+
+export interface DocumentSemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseDocumentSemanticTokens(resultId: string | undefined): void;
+}
+
+export interface DocumentRangeSemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
 
 // --- feature registries ------
@@ -1340,7 +1661,22 @@ export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorPr
 /**
  * @internal
  */
+export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
+
+/**
+ * @internal
+ */
 export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
+
+/**
+ * @internal
+ */
+export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
+
+/**
+ * @internal
+ */
+export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
 
 /**
  * @internal
@@ -1376,13 +1712,13 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns null if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.

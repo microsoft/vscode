@@ -94,4 +94,33 @@ suite('CancellationToken', function () {
 		source.cancel();
 		assert.equal(count, 0);
 	});
+
+	test('dispose calls no listeners (unless told to cancel)', function () {
+
+		let count = 0;
+
+		let source = new CancellationTokenSource();
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
+
+		source.dispose(true);
+		// source.cancel();
+		assert.equal(count, 1);
+	});
+
+	test('parent cancels child', function () {
+
+		let parent = new CancellationTokenSource();
+		let child = new CancellationTokenSource(parent.token);
+
+		let count = 0;
+		child.token.onCancellationRequested(() => count += 1);
+
+		parent.cancel();
+
+		assert.equal(count, 1);
+		assert.equal(child.token.isCancellationRequested, true);
+		assert.equal(parent.token.isCancellationRequested, true);
+	});
 });

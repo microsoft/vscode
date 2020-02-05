@@ -10,6 +10,7 @@ import { nulToken } from '../utils/cancellation';
 import { Command } from '../utils/commandManager';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile, openOrCreateConfigFile } from '../utils/tsconfig';
+import { ServerResponse } from '../typescriptService';
 
 const localize = nls.loadMessageBundle();
 
@@ -68,19 +69,20 @@ async function goToProjectConfig(
 		return;
 	}
 
-	let res: protocol.ProjectInfoResponse | undefined;
+	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {
 		// noop
 	}
-	if (!res || !res.body) {
+
+	if (res?.type !== 'response' || !res.body) {
 		vscode.window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
 		return;
 	}
 
 	const { configFileName } = res.body;
-	if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+	if (!isImplicitProjectConfigFile(configFileName)) {
 		const doc = await vscode.workspace.openTextDocument(configFileName);
 		vscode.window.showTextDocument(doc, vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined);
 		return;
@@ -101,11 +103,11 @@ async function goToProjectConfig(
 			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
 			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
 		), {
-			title: isTypeScriptProject
-				? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
-				: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
-			id: ProjectConfigAction.CreateConfig,
-		});
+		title: isTypeScriptProject
+			? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
+			: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+		id: ProjectConfigAction.CreateConfig,
+	});
 
 	switch (selected && selected.id) {
 		case ProjectConfigAction.CreateConfig:
