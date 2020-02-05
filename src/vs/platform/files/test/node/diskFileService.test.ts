@@ -440,7 +440,7 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - invalid symbolic link does not break', async () => {
+	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
 		if (isWindows) {
 			return; // not reliable on windows
 		}
@@ -450,7 +450,13 @@ suite('Disk File Service', function () {
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
-		assert.equal(resolved.children!.length, 8);
+		assert.equal(resolved.children!.length, 9);
+
+		const resolvedLink = resolved.children?.filter(child => child.name === 'bar' && child.isSymbolicLink)[0];
+		assert.ok(resolvedLink);
+
+		assert.ok(!resolvedLink?.isDirectory);
+		assert.ok(!resolvedLink?.isFile);
 	});
 
 	test('deleteFile', async () => {
