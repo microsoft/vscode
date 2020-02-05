@@ -19,6 +19,7 @@ const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('run', 'only run tests matching <file_pattern>').alias('run', 'glob').string('runGlob')
 	.describe('build', 'run with build output (out-build)').boolean('build')
+	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
 	.describe('tfs', 'tfs').string('tfs')
@@ -26,7 +27,6 @@ const optimist = require('optimist')
 
 // logic
 const argv = optimist.argv;
-
 
 const Reporter = (function () {
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
@@ -161,11 +161,11 @@ class EchoRunner extends events.EventEmitter {
 }
 
 testModules.then(async modules => {
-	await Promise.all([
-		runTestsInBrowser(modules, 'chromium'),
-		runTestsInBrowser(modules, 'webkit'),
-		// runTestsInBrowser(modules, 'firefox'),
-	]);
+
+	const browserTypes = Array.isArray(argv.browser) ? argv.browser : [argv.browser];
+	const promises = browserTypes.map(browserType => runTestsInBrowser(modules, browserType));
+	await Promise.all(promises);
+
 }).catch(err => {
 	console.error(err);
 });
