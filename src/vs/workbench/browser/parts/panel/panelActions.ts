@@ -182,10 +182,9 @@ export class PanelActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Promise<any> {
-		this.panelService.openPanel(this.activity.id, true);
+	async run(event: any): Promise<any> {
+		await this.panelService.openPanel(this.activity.id, true);
 		this.activate();
-		return Promise.resolve();
 	}
 
 	setActivity(activity: IActivity): void {
@@ -225,11 +224,11 @@ export class SwitchPanelViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): Promise<any> {
+	async run(offset: number): Promise<any> {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
-			return Promise.resolve();
+			return;
 		}
 		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
@@ -239,9 +238,8 @@ export class SwitchPanelViewAction extends Action {
 			}
 		}
 		if (typeof targetPanelId === 'string') {
-			this.panelService.openPanel(targetPanelId, true);
+			await this.panelService.openPanel(targetPanelId, true);
 		}
-		return Promise.resolve();
 	}
 }
 

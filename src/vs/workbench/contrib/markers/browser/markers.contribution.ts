@@ -56,8 +56,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: undefined,
-	handler: (accessor, args: any) => {
-		accessor.get(IPanelService).openPanel(Constants.MARKERS_PANEL_ID);
+	handler: async (accessor, args: any) => {
+		await accessor.get(IPanelService).openPanel(Constants.MARKERS_PANEL_ID);
 	}
 });
 
@@ -314,13 +314,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 4
 });
 
-CommandsRegistry.registerCommand('workbench.actions.view.toggleProblems', accessor => {
+CommandsRegistry.registerCommand('workbench.actions.view.toggleProblems', async (accessor) => {
 	const panelService = accessor.get(IPanelService);
 	const panel = accessor.get(IPanelService).getActivePanel();
 	if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
 		panelService.hideActivePanel();
 	} else {
-		panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+		await panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 	}
 });
 
