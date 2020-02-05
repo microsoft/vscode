@@ -26,7 +26,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	_serviceBrand: undefined;
 
-	protected readonly url: string | undefined;
+	protected url: string | undefined;
 
 	private _state: State = State.Uninitialized;
 
@@ -49,7 +49,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
-	) {
+	) { }
+
+	/**
+	 * This must be called before any other call. This is a performance
+	 * optimization, to avoid using extra CPU cycles before first window open.
+	 * https://github.com/microsoft/vscode/issues/89784
+	 */
+	initialize(): void {
 		if (!this.environmentService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
@@ -173,6 +180,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!this.url) {
 			return Promise.resolve(undefined);
 		}
+
 		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.

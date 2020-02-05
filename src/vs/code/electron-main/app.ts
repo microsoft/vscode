@@ -391,7 +391,7 @@ export class CodeApplication extends Disposable {
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
 
 		// Post Open Windows Tasks
-		this.afterWindowOpen();
+		appInstantiationService.invokeFunction(this.afterWindowOpen.bind(this));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentService.args.trace) {
@@ -708,13 +708,18 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private afterWindowOpen(): void {
-
+	private afterWindowOpen(accessor: ServicesAccessor): void {
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();
+
+		// Initialize update service
+		const updateService = accessor.get(IUpdateService);
+		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
+			updateService.initialize();
+		}
 	}
 
 	private handleRemoteAuthorities(): void {
