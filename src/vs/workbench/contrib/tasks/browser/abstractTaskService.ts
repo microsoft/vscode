@@ -413,12 +413,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return this.runShowTasks();
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => {
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', async () => {
 			const panel = this.panelService.getActivePanel();
 			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
 				this.layoutService.setPanelHidden(true);
 			} else {
-				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+				await this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 			}
 		});
 

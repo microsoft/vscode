@@ -68,7 +68,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 			if (onTaskErrors === 'showErrors') {
-				this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+				await this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 
@@ -97,7 +97,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 
-			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+			await this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
 			await onError(err.message, [this.taskService.configureAction()]);

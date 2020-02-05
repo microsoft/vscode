@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { generateUuid } from 'vs/base/common/uuid';
 import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

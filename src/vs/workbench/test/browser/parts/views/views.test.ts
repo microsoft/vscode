@@ -9,7 +9,7 @@ import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';

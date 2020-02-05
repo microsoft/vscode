@@ -413,10 +413,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public showPanel(focus?: boolean): Promise<void> {
-		return new Promise<void>((complete) => {
+		return new Promise<void>(async (complete) => {
 			const panel = this._panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				this._panelService.openPanel(TERMINAL_PANEL_ID, focus);
+				await this._panelService.openPanel(TERMINAL_PANEL_ID, focus);
 				if (focus) {
 					// Do the focus call asynchronously as going through the
 					// command palette will force editor focus

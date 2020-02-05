@@ -98,7 +98,18 @@ export class DiskFileSystemProvider extends Disposable implements
 				try {
 					let type: FileType;
 					if (child.isSymbolicLink()) {
-						type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
+						try {
+							type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
+						} catch (error) {
+							if (error.code !== FileSystemProviderErrorCode.FileNotFound) {
+								throw error; // any error that is not file not found is unexpected
+							}
+
+							// a symbolic link can point to a target that does
+							// not exist on the file system. in that case we
+							// still want to return the element as UNKNOWN.
+							type = FileType.SymbolicLink | FileType.Unknown;
+						}
 					} else {
 						type = this.toType(child);
 					}
@@ -116,11 +127,12 @@ export class DiskFileSystemProvider extends Disposable implements
 	}
 
 	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
+		let type = entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
 		if (isSymbolicLink) {
-			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+			type |= FileType.SymbolicLink;
 		}
 
-		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
+		return type;
 	}
 
 	//#endregion

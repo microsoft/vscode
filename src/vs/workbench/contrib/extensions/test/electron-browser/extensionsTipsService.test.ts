@@ -22,7 +22,8 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestLifecycleService, TestSharedProcessService, productService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestLifecycleService, productService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -34,7 +35,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
