@@ -569,6 +569,82 @@ suite('TypeScript Completions', () => {
 				`Config: ${config}`);
 		});
 	});
+
+	test('Accepting a completion for async property in `insert` mode should insert and add await', async () => {
+		await updateConfig({ [Config.insertMode]: 'insert' });
+
+		await createTestEditor(testDocumentUri,
+			`class A {`,
+			`  xyz = Promise.resolve({ 'abc': 1 });`,
+			`  async foo() {`,
+			`    this.xyz.ab$0c`,
+			`  }`,
+			`}`,
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`class A {`,
+				`  xyz = Promise.resolve({ 'abc': 1 });`,
+				`  async foo() {`,
+				`    (await this.xyz).abcc`,
+				`  }`,
+				`}`,
+			));
+	});
+
+	test('Accepting a completion for async property in `replace` mode should replace and add await', async () => {
+		await updateConfig({ [Config.insertMode]: 'replace' });
+
+		await createTestEditor(testDocumentUri,
+			`class A {`,
+			`  xyz = Promise.resolve({ 'abc': 1 });`,
+			`  async foo() {`,
+			`    this.xyz.ab$0c`,
+			`  }`,
+			`}`,
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`class A {`,
+				`  xyz = Promise.resolve({ 'abc': 1 });`,
+				`  async foo() {`,
+				`    (await this.xyz).abc`,
+				`  }`,
+				`}`,
+			));
+	});
+
+	test.skip('Accepting a completion for async string property should add await plus brackets', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  xyz = Promise.resolve({ 'ab c': 1 });`,
+				`  async foo() {`,
+				`    this.xyz.ab$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  xyz = Promise.resolve({ 'abc': 1 });`,
+					`  async foo() {`,
+					`    (await this.xyz)["ab c"]`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
+	});
 });
 
 async function enumerateConfig(configKey: string, values: readonly string[], f: (message: string) => Promise<void>): Promise<void> {
