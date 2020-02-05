@@ -575,7 +575,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		if (location === ViewContainerLocation.Sidebar) {
 			return this.viewletService.openViewlet(compositeId, focus);
 		} else if (location === ViewContainerLocation.Panel) {
-			return this.panelService.openPanel(compositeId, focus) as IPaneComposite;
+			return this.panelService.openPanel(compositeId, focus) as Promise<IPaneComposite>;
 		}
 		return undefined;
 	}

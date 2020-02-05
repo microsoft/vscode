@@ -520,11 +520,7 @@ export class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	openPanel(id: string, focus?: boolean): undefined {
-		return undefined;
-	}
-
-	async openPanelAsync(id?: string, focus?: boolean): Promise<undefined> {
+	async openPanel(id?: string, focus?: boolean): Promise<undefined> {
 		return undefined;
 	}
 
