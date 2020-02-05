@@ -111,6 +111,21 @@ async function runTestsInBrowser(testModules, browserType) {
 
 	withReporter(new EchoRunner(emitter, browserType.toUpperCase()));
 
+	// collection failures for console printing
+	const fails = [];
+	emitter.on('fail', (test, err) => {
+		if (err.stack) {
+			const regex = /(vs\/.*\.test)\.js/;
+			for (let line of String(err.stack).split('\n')) {
+				const match = regex.exec(line);
+				if (match) {
+					fails.push(match[1]);
+					break;
+				}
+			}
+		}
+	});
+
 	try {
 		// @ts-ignore
 		await page.evaluate(modules => loadAndRun(modules), testModules);
@@ -118,6 +133,10 @@ async function runTestsInBrowser(testModules, browserType) {
 		console.error(err);
 	}
 	await browser.close();
+
+	if (fails.length > 0) {
+		return `to DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${fails.map(module => `m=${module}`).join('&')}`;
+	}
 }
 
 class EchoRunner extends events.EventEmitter {
@@ -174,7 +193,13 @@ testModules.then(async modules => {
 
 	const browserTypes = Array.isArray(argv.browser) ? argv.browser : [argv.browser];
 	const promises = browserTypes.map(browserType => runTestsInBrowser(modules, browserType));
-	await Promise.all(promises);
+	const messages = await Promise.all(promises);
+
+	for (let msg of messages) {
+		if (msg) {
+			console.log(msg);
+		}
+	}
 
 }).catch(err => {
 	console.error(err);
