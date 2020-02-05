@@ -116,11 +116,12 @@ export class DiskFileSystemProvider extends Disposable implements
 	}
 
 	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
+		let type = entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
 		if (isSymbolicLink) {
-			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+			type |= FileType.SymbolicLink;
 		}
 
-		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
+		return type;
 	}
 
 	//#endregion
