@@ -72,8 +72,7 @@ suite('Debug', function () {
 		const capabilitiesPromise = new Promise<void>(resolve => capabilitiesReceived = resolve);
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
-		const success = await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
-		assert.equal(success, true);
+		await commands.executeCommand('workbench.action.debug.start');
 		await capabilitiesPromise;
 		await initializedPromise;
 		await configurationDonePromise;
