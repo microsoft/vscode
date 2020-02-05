@@ -15,7 +15,7 @@ import { CharCode } from 'vs/base/common/charCode';
  * - forEach() over the result to get the lines
  */
 export class LineDecoder {
-	private stringDecoder: sd.NodeStringDecoder;
+	private stringDecoder: sd.StringDecoder;
 	private remaining: string | null;
 
 	constructor(encoding: string = 'utf8') {

@@ -236,28 +236,28 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(undefined, 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => undefined, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(null!, 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => null!, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('', 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => '', 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'CLIPBOARD', 'foo');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'CLIPBOARD', 'foo');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'foo', undefined);
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'cLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'foo', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1', 1, 2, true), 'CLIPBOARD', 'line1');
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1', 1, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
-		resolver = new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true);
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
+		resolver = new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, true);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
 	});
 
 
@@ -296,7 +296,7 @@ suite('Snippet Variables Resolver', function () {
 		assert.equal(snippet.toString(), 'It is not line 10');
 	});
 
-	test('Add workspace name variable for snippets #68261', function () {
+	test('Add workspace name and folder variables for snippets #68261', function () {
 
 		let workspace: IWorkspace;
 		let resolver: VariableResolver;
@@ -319,14 +319,21 @@ suite('Snippet Variables Resolver', function () {
 		// empty workspace
 		workspace = new Workspace('');
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', undefined);
+		assertVariableResolve(resolver, 'WORKSPACE_FOLDER', undefined);
 
 		// single folder workspace without config
 		workspace = new Workspace('', [toWorkspaceFolder(URI.file('/folderName'))]);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/folderName');
+		}
 
 		// workspace with config
 		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
 		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');
+		}
 	});
 });

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
 import * as semver from 'semver-umd';
 
@@ -29,7 +28,7 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -46,7 +45,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -350,7 +349,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 

@@ -6,4 +6,5 @@
 .monaco-editor .accessibilityHelpWidget {
 	padding: 10px;
 	vertical-align: middle;
+	overflow: auto;
 }

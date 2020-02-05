@@ -28,8 +28,8 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		super(user, container, delegate, renderers, options);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
-		return this.model.splice(location, deleteCount, toInsert);
+	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): void {
+		this.model.splice(location, deleteCount, toInsert);
 	}
 
 	rerender(location?: number[]): void {

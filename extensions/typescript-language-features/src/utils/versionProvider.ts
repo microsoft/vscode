@@ -12,8 +12,17 @@ import { RelativeWorkspacePathResolver } from './relativePathResolver';
 
 const localize = nls.loadMessageBundle();
 
+export const enum TypeScriptVersionSource {
+	Bundled = 'bundled',
+	TsNightlyExtension = 'ts-nightly-extension',
+	NodeModules = 'node-modules',
+	UserSetting = 'user-setting',
+	WorkspaceSetting = 'workspace-setting',
+}
+
 export class TypeScriptVersion {
 	constructor(
+		public readonly source: TypeScriptVersionSource,
 		public readonly path: string,
 		private readonly _pathLabel?: string
 	) { }
@@ -23,7 +32,7 @@ export class TypeScriptVersion {
 	}
 
 	public get pathLabel(): string {
-		return typeof this._pathLabel === 'undefined' ? this.path : this._pathLabel;
+		return this._pathLabel ?? this.path;
 	}
 
 	public get isValid(): boolean {
@@ -45,9 +54,9 @@ export class TypeScriptVersion {
 		return undefined;
 	}
 
-	public get versionString(): string {
+	public get displayName(): string {
 		const version = this.apiVersion;
-		return version ? version.versionString : localize(
+		return version ? version.displayName : localize(
 			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}
 
@@ -103,7 +112,7 @@ export class TypeScriptVersionProvider {
 
 	public get globalVersion(): TypeScriptVersion | undefined {
 		if (this.configuration.globalTsdk) {
-			const globals = this.loadVersionsFromSetting(this.configuration.globalTsdk);
+			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
 			if (globals && globals.length) {
 				return globals[0];
 			}
@@ -137,7 +146,7 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get bundledVersion(): TypeScriptVersion {
-		const version = this.getContributedVersion('vscode.typescript-language-features', ['..', 'node_modules']);
+		const version = this.getContributedVersion(TypeScriptVersionSource.Bundled, 'vscode.typescript-language-features', ['..', 'node_modules']);
 		if (version) {
 			return version;
 		}
@@ -149,15 +158,15 @@ export class TypeScriptVersionProvider {
 	}
 
 	private get contributedTsNextVersion(): TypeScriptVersion | undefined {
-		return this.getContributedVersion('ms-vscode.vscode-typescript-next', ['node_modules']);
+		return this.getContributedVersion(TypeScriptVersionSource.TsNightlyExtension, 'ms-vscode.vscode-typescript-next', ['node_modules']);
 	}
 
-	private getContributedVersion(extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
+	private getContributedVersion(source: TypeScriptVersionSource, extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
 		try {
 			const extension = vscode.extensions.getExtension(extensionId);
 			if (extension) {
 				const typescriptPath = path.join(extension.extensionPath, ...pathToTs, 'typescript', 'lib');
-				const bundledVersion = new TypeScriptVersion(typescriptPath, '');
+				const bundledVersion = new TypeScriptVersion(source, typescriptPath, '');
 				if (bundledVersion.isValid) {
 					return bundledVersion;
 				}
@@ -170,28 +179,28 @@ export class TypeScriptVersionProvider {
 
 	private get localTsdkVersions(): TypeScriptVersion[] {
 		const localTsdk = this.configuration.localTsdk;
-		return localTsdk ? this.loadVersionsFromSetting(localTsdk) : [];
+		return localTsdk ? this.loadVersionsFromSetting(TypeScriptVersionSource.WorkspaceSetting, localTsdk) : [];
 	}
 
-	private loadVersionsFromSetting(tsdkPathSetting: string): TypeScriptVersion[] {
+	private loadVersionsFromSetting(source: TypeScriptVersionSource, tsdkPathSetting: string): TypeScriptVersion[] {
 		if (path.isAbsolute(tsdkPathSetting)) {
-			return [new TypeScriptVersion(tsdkPathSetting)];
+			return [new TypeScriptVersion(source, tsdkPathSetting)];
 		}
 
 		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
 		if (workspacePath !== undefined) {
-			return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
+			return [new TypeScriptVersion(source, workspacePath, tsdkPathSetting)];
 		}
 
-		return this.loadTypeScriptVersionsFromPath(tsdkPathSetting);
+		return this.loadTypeScriptVersionsFromPath(source, tsdkPathSetting);
 	}
 
 	private get localNodeModulesVersions(): TypeScriptVersion[] {
-		return this.loadTypeScriptVersionsFromPath(path.join('node_modules', 'typescript', 'lib'))
+		return this.loadTypeScriptVersionsFromPath(TypeScriptVersionSource.NodeModules, path.join('node_modules', 'typescript', 'lib'))
 			.filter(x => x.isValid);
 	}
 
-	private loadTypeScriptVersionsFromPath(relativePath: string): TypeScriptVersion[] {
+	private loadTypeScriptVersionsFromPath(source: TypeScriptVersionSource, relativePath: string): TypeScriptVersion[] {
 		if (!vscode.workspace.workspaceFolders) {
 			return [];
 		}
@@ -203,7 +212,7 @@ export class TypeScriptVersionProvider {
 				label = path.join(root.name, relativePath);
 			}
 
-			versions.push(new TypeScriptVersion(path.join(root.uri.fsPath, relativePath), label));
+			versions.push(new TypeScriptVersion(source, path.join(root.uri.fsPath, relativePath), label));
 		}
 		return versions;
 	}

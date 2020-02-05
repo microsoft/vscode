@@ -52,7 +52,7 @@ export class ToolBar extends Disposable {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 
 				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
@@ -65,7 +65,7 @@ export class ToolBar extends Disposable {
 						this.options.actionViewItemProvider,
 						this.actionRunner,
 						this.options.getKeyBinding,
-						'toolbar-toggle-more',
+						'codicon-more',
 						this.options.anchorAlignmentProvider
 					);
 					this.toggleMenuActionViewItem.value.setActionContext(this.actionBar.context);
@@ -129,9 +129,9 @@ export class ToolBar extends Disposable {
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : undefined;
+		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key && key.getLabel());
+		return withNullAsUndefined(key?.getLabel());
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {

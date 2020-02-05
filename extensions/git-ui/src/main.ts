@@ -41,12 +41,12 @@ export function exec(command: string, options: cp.ExecOptions & { stdin?: string
 			(error ? reject : resolve)({ error, stdout, stderr });
 		});
 		if (options.stdin) {
-			child.stdin.write(options.stdin, (err: any) => {
+			child.stdin!.write(options.stdin, (err: any) => {
 				if (err) {
 					reject(err);
 					return;
 				}
-				child.stdin.end((err: any) => {
+				child.stdin!.end((err: any) => {
 					if (err) {
 						reject(err);
 					}

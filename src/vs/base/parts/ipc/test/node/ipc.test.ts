@@ -5,18 +5,21 @@
 
 import * as assert from 'assert';
 import { IChannel, IServerChannel, IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 class QueueProtocol implements IMessagePassingProtocol {
 
 	private buffering = true;
 	private buffers: VSBuffer[] = [];
 
-	private _onMessage = new Emitter<VSBuffer>({
+	private readonly _onMessage = new Emitter<VSBuffer>({
 		onFirstListenerDidAdd: () => {
 			for (const buffer of this.buffers) {
 				this._onMessage.fire(buffer);
@@ -57,7 +60,7 @@ function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol
 
 class TestIPCClient extends IPCClient<string> {
 
-	private _onDidDisconnect = new Emitter<void>();
+	private readonly _onDidDisconnect = new Emitter<void>();
 	readonly onDidDisconnect = this._onDidDisconnect.event;
 
 	constructor(protocol: IMessagePassingProtocol, id: string) {
@@ -101,14 +104,16 @@ interface ITestService {
 	neverComplete(): Promise<void>;
 	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
 	buffersLength(buffers: Buffer[]): Promise<number>;
+	marshall(uri: URI): Promise<URI>;
+	context(): Promise<unknown>;
 
-	pong: Event<string>;
+	onPong: Event<string>;
 }
 
 class TestService implements ITestService {
 
-	private _pong = new Emitter<string>();
-	readonly pong = this._pong.event;
+	private readonly _onPong = new Emitter<string>();
+	readonly onPong = this._onPong.event;
 
 	marco(): Promise<string> {
 		return Promise.resolve('polo');
@@ -135,7 +140,15 @@ class TestService implements ITestService {
 	}
 
 	ping(msg: string): void {
-		this._pong.fire(msg);
+		this._onPong.fire(msg);
+	}
+
+	marshall(uri: URI): Promise<URI> {
+		return Promise.resolve(uri);
+	}
+
+	context(context?: unknown): Promise<unknown> {
+		return Promise.resolve(context);
 	}
 }
 
@@ -156,7 +169,7 @@ class TestChannel implements IServerChannel {
 
 	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'pong': return this.service.pong;
+			case 'onPong': return this.service.onPong;
 			default: throw new Error('not implemented');
 		}
 	}
@@ -164,8 +177,8 @@ class TestChannel implements IServerChannel {
 
 class TestChannelClient implements ITestService {
 
-	get pong(): Event<string> {
-		return this.channel.listen('pong');
+	get onPong(): Event<string> {
+		return this.channel.listen('onPong');
 	}
 
 	constructor(private channel: IChannel) { }
@@ -188,6 +201,14 @@ class TestChannelClient implements ITestService {
 
 	buffersLength(buffers: Buffer[]): Promise<number> {
 		return this.channel.call('buffersLength', buffers);
+	}
+
+	marshall(uri: URI): Promise<URI> {
+		return this.channel.call('marshall', uri);
+	}
+
+	context(): Promise<unknown> {
+		return this.channel.call('context');
 	}
 }
 
@@ -281,7 +302,7 @@ suite('Base IPC', function () {
 		test('listen to events', async function () {
 			const messages: string[] = [];
 
-			ipcService.pong(msg => messages.push(msg));
+			ipcService.onPong(msg => messages.push(msg));
 			await timeout(0);
 
 			assert.deepEqual(messages, []);
@@ -298,6 +319,176 @@ suite('Base IPC', function () {
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
 			return assert.equal(r, 5);
+		});
+	});
+
+	suite('one to one (proxy)', function () {
+		let server: IPCServer;
+		let client: IPCClient;
+		let service: TestService;
+		let ipcService: ITestService;
+
+		setup(function () {
+			service = new TestService();
+			const testServer = new TestIPCServer();
+			server = testServer;
+
+			server.registerChannel(TestChannelId, createChannelReceiver(service));
+
+			client = testServer.createConnection('client1');
+			ipcService = createChannelSender(client.getChannel(TestChannelId));
+		});
+
+		teardown(function () {
+			client.dispose();
+			server.dispose();
+		});
+
+		test('call success', async function () {
+			const r = await ipcService.marco();
+			return assert.equal(r, 'polo');
+		});
+
+		test('call error', async function () {
+			try {
+				await ipcService.error('nice error');
+				return assert.fail('should not reach here');
+			} catch (err) {
+				return assert.equal(err.message, 'nice error');
+			}
+		});
+
+		test('listen to events', async function () {
+			const messages: string[] = [];
+
+			ipcService.onPong(msg => messages.push(msg));
+			await timeout(0);
+
+			assert.deepEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+
+			assert.deepEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+
+			assert.deepEqual(messages, ['hello', 'world']);
+		});
+
+		test('marshalling uri', async function () {
+			const uri = URI.file('foobar');
+			const r = await ipcService.marshall(uri);
+			assert.ok(r instanceof URI);
+			return assert.ok(isEqual(r, uri));
+		});
+
+		test('buffers in arrays', async function () {
+			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			return assert.equal(r, 5);
+		});
+	});
+
+	suite('one to one (proxy, extra context)', function () {
+		let server: IPCServer;
+		let client: IPCClient;
+		let service: TestService;
+		let ipcService: ITestService;
+
+		setup(function () {
+			service = new TestService();
+			const testServer = new TestIPCServer();
+			server = testServer;
+
+			server.registerChannel(TestChannelId, createChannelReceiver(service));
+
+			client = testServer.createConnection('client1');
+			ipcService = createChannelSender(client.getChannel(TestChannelId), { context: 'Super Context' });
+		});
+
+		teardown(function () {
+			client.dispose();
+			server.dispose();
+		});
+
+		test('call extra context', async function () {
+			const r = await ipcService.context();
+			return assert.equal(r, 'Super Context');
+		});
+	});
+
+	suite('one to many', function () {
+		test('all clients get pinged', async function () {
+			const service = new TestService();
+			const channel = new TestChannel(service);
+			const server = new TestIPCServer();
+			server.registerChannel('channel', channel);
+
+			let client1GotPinged = false;
+			const client1 = server.createConnection('client1');
+			const ipcService1 = new TestChannelClient(client1.getChannel('channel'));
+			ipcService1.onPong(() => client1GotPinged = true);
+
+			let client2GotPinged = false;
+			const client2 = server.createConnection('client2');
+			const ipcService2 = new TestChannelClient(client2.getChannel('channel'));
+			ipcService2.onPong(() => client2GotPinged = true);
+
+			await timeout(1);
+			service.ping('hello');
+
+			await timeout(1);
+			assert(client1GotPinged, 'client 1 got pinged');
+			assert(client2GotPinged, 'client 2 got pinged');
+
+			client1.dispose();
+			client2.dispose();
+			server.dispose();
+		});
+
+		test('server gets pings from all clients (broadcast channel)', async function () {
+			const server = new TestIPCServer();
+
+			const client1 = server.createConnection('client1');
+			const clientService1 = new TestService();
+			const clientChannel1 = new TestChannel(clientService1);
+			client1.registerChannel('channel', clientChannel1);
+
+			const pings: string[] = [];
+			const channel = server.getChannel('channel');
+			const service = new TestChannelClient(channel);
+			service.onPong(msg => pings.push(msg));
+
+			await timeout(1);
+			clientService1.ping('hello 1');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1']);
+
+			const client2 = server.createConnection('client2');
+			const clientService2 = new TestService();
+			const clientChannel2 = new TestChannel(clientService2);
+			client2.registerChannel('channel', clientChannel2);
+
+			await timeout(1);
+			clientService2.ping('hello 2');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1', 'hello 2']);
+
+			client1.dispose();
+			clientService1.ping('hello 1');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1', 'hello 2']);
+
+			await timeout(1);
+			clientService2.ping('hello again 2');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1', 'hello 2', 'hello again 2']);
+
+			client2.dispose();
+			server.dispose();
 		});
 	});
 });

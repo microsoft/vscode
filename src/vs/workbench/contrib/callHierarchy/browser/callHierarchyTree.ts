@@ -3,86 +3,79 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
-import { hash } from 'vs/base/common/hash';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { SymbolKinds, Location } from 'vs/editor/common/modes';
+import * as dom from 'vs/base/browser/dom';
+import { compare } from 'vs/base/common/strings';
+import { Range } from 'vs/editor/common/core/range';
 
 export class Call {
 	constructor(
 		readonly item: CallHierarchyItem,
-		readonly locations: Location[],
+		readonly locations: Location[] | undefined,
+		readonly model: CallHierarchyModel,
 		readonly parent: Call | undefined
 	) { }
+
+	static compare(a: Call, b: Call): number {
+		let res = compare(a.item.uri.toString(), b.item.uri.toString());
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a.item.range, b.item.range);
+		}
+		return res;
+	}
 }
 
-export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchyItem, Call> {
+export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
 
 	constructor(
-		public provider: CallHierarchyProvider,
-		public getDirection: () => CallHierarchyDirection
+		public getDirection: () => CallHierarchyDirection,
 	) { }
 
 	hasChildren(): boolean {
 		return true;
 	}
 
-	async getChildren(element: CallHierarchyItem | Call): Promise<Call[]> {
-		if (element instanceof Call) {
-			const results: Call[] = [];
-			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-				await this._getCallsFrom(element, results);
-			} else {
-				await this._getCallsTo(element, results);
-			}
-			return results;
+	async getChildren(element: CallHierarchyModel | Call): Promise<Call[]> {
+		if (element instanceof CallHierarchyModel) {
+			return element.roots.map(root => new Call(root, undefined, element, undefined));
+		}
+
+		const { model, item } = element;
+
+		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
+			return (await model.resolveOutgoingCalls(item, CancellationToken.None)).map(call => {
+				return new Call(
+					call.to,
+					call.fromRanges.map(range => ({ range, uri: item.uri })),
+					model,
+					element
+				);
+			});
+
 		} else {
-			// 'root'
-			return [new Call(element, [], undefined)];
+			return (await model.resolveIncomingCalls(item, CancellationToken.None)).map(call => {
+				return new Call(
+					call.from,
+					call.fromRanges.map(range => ({ range, uri: call.from.uri })),
+					model,
+					element
+				);
+			});
 		}
 	}
+}
 
-	private async _getCallsFrom(source: Call, bucket: Call[]): Promise<void> {
-		try {
-			const callsFrom = await this.provider.provideOutgoingCalls(source.item, CancellationToken.None);
-			if (!callsFrom) {
-				return;
-			}
-			for (const callFrom of callsFrom) {
-				bucket.push(new Call(
-					callFrom.target,
-					callFrom.sourceRanges.map(range => ({ range, uri: source.item.uri })),
-					source
-				));
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
-		}
+export class Sorter implements ITreeSorter<Call> {
+
+	compare(element: Call, otherElement: Call): number {
+		return Call.compare(element, otherElement);
 	}
-
-	private async _getCallsTo(target: Call, bucket: Call[]): Promise<void> {
-		try {
-			const callsTo = await this.provider.provideIncomingCalls(target.item, CancellationToken.None);
-			if (!callsTo) {
-				return;
-			}
-			for (const callTo of callsTo) {
-				bucket.push(new Call(
-					callTo.source,
-					callTo.sourceRanges.map(range => ({ range, uri: callTo.source.uri })),
-					target
-				));
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
-		}
-	}
-
 }
 
 export class IdentityProvider implements IIdentityProvider<Call> {
@@ -92,42 +85,46 @@ export class IdentityProvider implements IIdentityProvider<Call> {
 	) { }
 
 	getId(element: Call): { toString(): string; } {
-		return this.getDirection() + hash(element.item.uri.toString(), hash(JSON.stringify(element.item.range))).toString() + (element.parent ? this.getId(element.parent) : '');
+		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
+		if (element.parent) {
+			res += this.getId(element.parent);
+		}
+		return res;
 	}
 }
 
 class CallRenderingTemplate {
 	constructor(
-		readonly iconLabel: IconLabel
+		readonly icon: HTMLDivElement,
+		readonly label: IconLabel
 	) { }
 }
 
 export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderingTemplate> {
 
-	static id = 'CallRenderer';
+	static readonly id = 'CallRenderer';
 
 	templateId: string = CallRenderer.id;
 
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
-		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		return new CallRenderingTemplate(iconLabel);
+		dom.addClass(container, 'callhierarchy-element');
+		let icon = document.createElement('div');
+		container.appendChild(icon);
+		const label = new IconLabel(container, { supportHighlights: true });
+		return new CallRenderingTemplate(icon, label);
 	}
 
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
-
-		template.iconLabel.setLabel(
+		template.icon.className = SymbolKinds.toCssClassName(element.item.kind, true);
+		template.label.setLabel(
 			element.item.name,
 			element.item.detail,
-			{
-				labelEscapeNewLines: true,
-				matches: createMatches(filterData),
-				extraClasses: [symbolKindToCssClass(element.item.kind, true)]
-			}
+			{ labelEscapeNewLines: true, matches: createMatches(filterData) }
 		);
 	}
 	disposeTemplate(template: CallRenderingTemplate): void {
-		template.iconLabel.dispose();
+		template.label.dispose();
 	}
 }
 

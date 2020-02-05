@@ -7,9 +7,10 @@
 import * as assert from 'assert';
 import { MarkdownString, LogLevel } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
-import { size } from 'vs/base/common/collections';
+import { size, forEach } from 'vs/base/common/collections';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
+import { URI } from 'vs/base/common/uri';
 
 suite('ExtHostTypeConverter', function () {
 
@@ -57,6 +58,20 @@ suite('ExtHostTypeConverter', function () {
 		assert.equal(size(data.uris!), 2);
 		assert.ok(!!data.uris!['file:///somepath/here']);
 		assert.ok(!!data.uris!['file:///somepath/here2']);
+	});
+
+	test('NPM script explorer running a script from the hover does not work #65561', function () {
+
+		let data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
+		// assert that both uri get extracted but that the latter is only decoded once...
+		assert.equal(size(data.uris!), 2);
+		forEach(data.uris!, entry => {
+			if (entry.value.scheme === 'file') {
+				assert.ok(URI.revive(entry.value).toString().indexOf('file:///c%3A') === 0);
+			} else {
+				assert.equal(entry.value.scheme, 'command');
+			}
+		});
 	});
 
 	test('LogLevel', () => {

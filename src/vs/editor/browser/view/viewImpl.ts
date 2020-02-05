@@ -11,14 +11,13 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
-import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
-import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
+import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
@@ -39,6 +38,7 @@ import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -49,19 +49,18 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 
 
 export interface IContentWidgetData {
-	widget: editorBrowser.IContentWidget;
-	position: editorBrowser.IContentWidgetPosition | null;
+	widget: IContentWidget;
+	position: IContentWidgetPosition | null;
 }
 
 export interface IOverlayWidgetData {
-	widget: editorBrowser.IOverlayWidget;
-	position: editorBrowser.IOverlayWidgetPosition | null;
+	widget: IOverlayWidget;
+	position: IOverlayWidgetPosition | null;
 }
-
-const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class View extends ViewEventHandler {
 
@@ -247,8 +246,10 @@ export class View extends ViewEventHandler {
 				this.focus();
 			},
 
-			getLastViewCursorsRenderData: () => {
-				return this.viewCursors.getLastRenderData() || [];
+			getLastRenderData: (): PointerHandlerLastRenderData => {
+				const lastViewCursorsRenderData = this.viewCursors.getLastRenderData() || [];
+				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
@@ -261,7 +262,7 @@ export class View extends ViewEventHandler {
 				return this.viewLines.getPositionFromDOMInfo(spanNode, offset);
 			},
 
-			visibleRangeForPosition2: (lineNumber: number, column: number) => {
+			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
 				return this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
 			},
@@ -308,6 +309,10 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 		return false;
 	}
+	public onContentSizeChanged(e: viewEvents.ViewContentSizeChangedEvent): boolean {
+		this.outgoingEvents.emitContentSizeChange(e);
+		return false;
+	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this.domNode.setClassName(this.getEditorClassName());
 		this._context.model.setHasFocus(e.isFocused);
@@ -349,7 +354,7 @@ export class View extends ViewEventHandler {
 		super.dispose();
 	}
 
-	private _renderOnce(callback: () => any): any {
+	private _renderOnce<T>(callback: () => T): T {
 		const r = safeInvokeNoArg(callback);
 		this._scheduleRender();
 		return r;
@@ -459,50 +464,27 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
-		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
+		const mouseTarget = this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		if (!mouseTarget) {
+			return null;
+		}
+		return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {
 		return new OverviewRuler(this._context, cssClassName);
 	}
 
-	public change(callback: (changeAccessor: editorBrowser.IViewZoneChangeAccessor) => any): boolean {
-		let zonesHaveChanged = false;
-
-		this._renderOnce(() => {
-			const changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone: editorBrowser.IViewZone): string => {
-					zonesHaveChanged = true;
-					return this.viewZones.addZone(zone);
-				},
-				removeZone: (id: string): void => {
-					if (!id) {
-						return;
-					}
-					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
-				},
-				layoutZone: (id: string): void => {
-					if (!id) {
-						return;
-					}
-					zonesHaveChanged = this.viewZones.layoutZone(id) || zonesHaveChanged;
-				}
-			};
-
-			safeInvoke1Arg(callback, changeAccessor);
-
-			// Invalidate changeAccessor
-			changeAccessor.addZone = invalidFunc;
-			changeAccessor.removeZone = invalidFunc;
-			changeAccessor.layoutZone = invalidFunc;
-
+	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
+		return this._renderOnce(() => {
+			const zonesHaveChanged = this.viewZones.changeViewZones(callback);
 			if (zonesHaveChanged) {
 				this._context.viewLayout.onHeightMaybeChanged();
 				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
+			return zonesHaveChanged;
 		});
-		return zonesHaveChanged;
 	}
 
 	public render(now: boolean, everything: boolean): void {
@@ -529,6 +511,14 @@ export class View extends ViewEventHandler {
 		return this._textAreaHandler.isFocused();
 	}
 
+	public refreshFocusState() {
+		this._textAreaHandler.refreshFocusState();
+	}
+
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		this._textAreaHandler.setAriaOptions(options);
+	}
+
 	public addContentWidget(widgetData: IContentWidgetData): void {
 		this.contentWidgets.addWidget(widgetData.widget);
 		this.layoutContentWidget(widgetData);
@@ -536,10 +526,15 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
-		const newPosition = widgetData.position ? widgetData.position.position : null;
-		const newRange = widgetData.position ? widgetData.position.range || null : null;
+		let newRange = widgetData.position ? widgetData.position.range || null : null;
+		if (newRange === null) {
+			const newPosition = widgetData.position ? widgetData.position.position : null;
+			if (newPosition !== null) {
+				newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
+			}
+		}
 		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
+		this.contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
 		this._scheduleRender();
 	}
 
@@ -574,14 +569,6 @@ export class View extends ViewEventHandler {
 function safeInvokeNoArg(func: Function): any {
 	try {
 		return func();
-	} catch (e) {
-		onUnexpectedError(e);
-	}
-}
-
-function safeInvoke1Arg(func: Function, arg1: any): any {
-	try {
-		return func(arg1);
 	} catch (e) {
 		onUnexpectedError(e);
 	}

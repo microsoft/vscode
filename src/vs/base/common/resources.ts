@@ -182,7 +182,7 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
 		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
 	} else {
 		const p = resource.path;
-		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
+		return (p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath)); // ignore the slash at offset 0
 	}
 }
 
@@ -191,6 +191,7 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
 export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
 	if (hasTrailingPathSeparator(resource, sep)) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
@@ -246,7 +247,8 @@ export function relativePath(from: URI, to: URI, ignoreCase = hasToIgnoreCase(fr
 }
 
 /**
- * Resolves a absolute or relative path against a base URI.
+ * Resolves an absolute or relative path against a base URI.
+ * The path can be relative or absolute posix or a Windows path
  */
 export function resolvePath(base: URI, path: string): URI {
 	if (base.scheme === Schemas.file) {
@@ -255,6 +257,12 @@ export function resolvePath(base: URI, path: string): URI {
 			authority: newURI.authority,
 			path: newURI.path
 		});
+	}
+	if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
+		path = extpath.toSlashes(path);
+		if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
+			path = '/' + path;
+		}
 	}
 	return base.with({
 		path: paths.posix.resolve(base.path, path)

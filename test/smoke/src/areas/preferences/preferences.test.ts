@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ActivityBarPosition } from 'vscode-automation';
+import { Application, ActivityBarPosition } from '../../../../automation';
 
 export function setup() {
 	describe('Preferences', () => {

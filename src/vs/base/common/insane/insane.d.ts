@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export as namespace insane;
-
-export = insane;
-
-declare function insane(
+export function insane(
 	html: string,
 	options?: {
 		readonly allowedSchemes?: readonly string[],
@@ -16,5 +12,3 @@ declare function insane(
 	},
 	strict?: boolean,
 ): string;
-
-declare namespace insane { }

@@ -34,7 +34,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		});
 	});
 
-	return new class implements CancelablePromise<T> {
+	return <CancelablePromise<T>>new class {
 		cancel() {
 			source.cancel();
 		}
@@ -184,13 +184,14 @@ export class Delayer<T> implements IDisposable {
 	private timeout: any;
 	private completionPromise: Promise<any> | null;
 	private doResolve: ((value?: any | Promise<any>) => void) | null;
-	private doReject?: (err: any) => void;
+	private doReject: ((err: any) => void) | null;
 	private task: ITask<T | Promise<T>> | null;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
 		this.completionPromise = null;
 		this.doResolve = null;
+		this.doReject = null;
 		this.task = null;
 	}
 
@@ -205,16 +206,20 @@ export class Delayer<T> implements IDisposable {
 			}).then(() => {
 				this.completionPromise = null;
 				this.doResolve = null;
-				const task = this.task!;
-				this.task = null;
-
-				return task();
+				if (this.task) {
+					const task = this.task;
+					this.task = null;
+					return task();
+				}
+				return undefined;
 			});
 		}
 
 		this.timeout = setTimeout(() => {
 			this.timeout = null;
-			this.doResolve!(null);
+			if (this.doResolve) {
+				this.doResolve(null);
+			}
 		}, delay);
 
 		return this.completionPromise;
@@ -228,7 +233,9 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.doReject!(errors.canceled());
+			if (this.doReject) {
+				this.doReject(errors.canceled());
+			}
 			this.completionPromise = null;
 		}
 	}
@@ -474,8 +481,9 @@ export class Queue<T> extends Limiter<T> {
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
-export class ResourceQueue {
-	private queues: Map<string, Queue<void>> = new Map();
+export class ResourceQueue implements IDisposable {
+
+	private readonly queues = new Map<string, Queue<void>>();
 
 	queueFor(resource: URI): Queue<void> {
 		const key = resource.toString();
@@ -490,6 +498,11 @@ export class ResourceQueue {
 		}
 
 		return this.queues.get(key)!;
+	}
+
+	dispose(): void {
+		this.queues.forEach(queue => queue.dispose());
+		this.queues.clear();
 	}
 }
 
@@ -661,7 +674,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 
 export interface IdleDeadline {
 	readonly didTimeout: boolean;
-	timeRemaining(): DOMHighResTimeStamp;
+	timeRemaining(): number;
 }
 /**
  * Execute the callback the next time the browser is idle
@@ -764,5 +777,5 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 		}
 	}
 
-	return Promise.reject(lastError);
+	throw lastError;
 }

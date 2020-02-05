@@ -7,13 +7,13 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
-import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
+import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/node/files';
 import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): ParsedArgs {
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
-			console.warn(localize('unknownOption', "Option '{0}' is unknown. Ignoring.", id));
+			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
 		},
 		onMultipleValues: (id, val) => {
 			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
@@ -68,4 +68,18 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
 	}
 
 	return parseAndValidate(args, true);
+}
+
+export function addArg(argv: string[], ...args: string[]): string[] {
+	const endOfArgsMarkerIndex = argv.indexOf('--');
+	if (endOfArgsMarkerIndex === -1) {
+		argv.push(...args);
+	} else {
+		// if the we have an argument "--" (end of argument marker)
+		// we cannot add arguments at the end. rather, we add
+		// arguments before the "--" marker.
+		argv.splice(endOfArgsMarkerIndex, 0, ...args);
+	}
+
+	return argv;
 }

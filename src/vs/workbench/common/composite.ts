@@ -4,8 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 
 export interface IComposite {
+
+	/**
+	 * An event when the composite gained focus.
+	 */
+	readonly onDidFocus: Event<void>;
+
+	/**
+	 * An event when the composite lost focus.
+	 */
+	readonly onDidBlur: Event<void>;
 
 	/**
 	 * Returns the unique identifier of this composite.

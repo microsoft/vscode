@@ -1080,7 +1080,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
             resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
             this.queue(translatedMainFile);
             for (let extension in extensionsPacks) {
-                const translatedExtFile = createI18nFile(`.build/extensions/${extension}`, extensionsPacks[extension]);
+                const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
                 this.queue(translatedExtFile);
                 const externalExtensionId = externalExtensions[extension];
                 if (externalExtensionId) {

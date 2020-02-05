@@ -24,4 +24,4 @@ export * from './statusbar';
 export * from './terminal';
 export * from './viewlet';
 export * from './workbench';
-export * from '../src/driver';
+export * from './driver';

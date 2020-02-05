@@ -189,8 +189,10 @@ function _loadIconThemeDocument(fileService: IFileService, location: URI): Promi
 	return fileService.readFile(location).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);
-		if (errors.length > 0 || !contentValue) {
+		if (errors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
+		} else if (Json.getNodeType(contentValue) !== 'object') {
+			return Promise.reject(new Error(nls.localize('error.invalidformat', "Invalid format for file icons theme file: Object expected.")));
 		}
 		return Promise.resolve(contentValue);
 	});

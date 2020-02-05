@@ -6,10 +6,11 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { CharacterPair, EnterAction, IndentAction, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export interface IOnEnterSupportOptions {
 	brackets?: CharacterPair[];
-	regExpRules?: OnEnterRule[];
+	onEnterRules?: OnEnterRule[];
 }
 
 interface IProcessedBracketPair {
@@ -24,7 +25,7 @@ export class OnEnterSupport {
 	private readonly _brackets: IProcessedBracketPair[];
 	private readonly _regExpRules: OnEnterRule[];
 
-	constructor(opts?: IOnEnterSupportOptions) {
+	constructor(opts: IOnEnterSupportOptions) {
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
 			['(', ')'],
@@ -45,49 +46,54 @@ export class OnEnterSupport {
 				});
 			}
 		});
-		this._regExpRules = opts.regExpRules || [];
+		this._regExpRules = opts.onEnterRules || [];
 	}
 
-	public onEnter(oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
 		// (1): `regExpRules`
-		for (let i = 0, len = this._regExpRules.length; i < len; i++) {
-			let rule = this._regExpRules[i];
-			const regResult = [{
-				reg: rule.beforeText,
-				text: beforeEnterText
-			}, {
-				reg: rule.afterText,
-				text: afterEnterText
-			}, {
-				reg: rule.oneLineAboveText,
-				text: oneLineAboveText
-			}].every((obj): boolean => {
-				return obj.reg ? obj.reg.test(obj.text) : true;
-			});
+		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
+			for (let i = 0, len = this._regExpRules.length; i < len; i++) {
+				let rule = this._regExpRules[i];
+				const regResult = [{
+					reg: rule.beforeText,
+					text: beforeEnterText
+				}, {
+					reg: rule.afterText,
+					text: afterEnterText
+				}, {
+					reg: rule.oneLineAboveText,
+					text: oneLineAboveText
+				}].every((obj): boolean => {
+					return obj.reg ? obj.reg.test(obj.text) : true;
+				});
 
-			if (regResult) {
-				return rule.action;
+				if (regResult) {
+					return rule.action;
+				}
 			}
 		}
 
-
 		// (2): Special indent-outdent
-		if (beforeEnterText.length > 0 && afterEnterText.length > 0) {
-			for (let i = 0, len = this._brackets.length; i < len; i++) {
-				let bracket = this._brackets[i];
-				if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
-					return { indentAction: IndentAction.IndentOutdent };
+		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
+			if (beforeEnterText.length > 0 && afterEnterText.length > 0) {
+				for (let i = 0, len = this._brackets.length; i < len; i++) {
+					let bracket = this._brackets[i];
+					if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
+						return { indentAction: IndentAction.IndentOutdent };
+					}
 				}
 			}
 		}
 
 
 		// (4): Open bracket based logic
-		if (beforeEnterText.length > 0) {
-			for (let i = 0, len = this._brackets.length; i < len; i++) {
-				let bracket = this._brackets[i];
-				if (bracket.openRegExp.test(beforeEnterText)) {
-					return { indentAction: IndentAction.Indent };
+		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
+			if (beforeEnterText.length > 0) {
+				for (let i = 0, len = this._brackets.length; i < len; i++) {
+					let bracket = this._brackets[i];
+					if (bracket.openRegExp.test(beforeEnterText)) {
+						return { indentAction: IndentAction.Indent };
+					}
 				}
 			}
 		}

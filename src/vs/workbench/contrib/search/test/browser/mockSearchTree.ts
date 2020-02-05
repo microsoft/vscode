@@ -68,10 +68,6 @@ class ArrayNavigator<T> implements ITreeNavigator<T> {
 		return this.elements[--this.index];
 	}
 
-	parent(): T | null {
-		throw new Error('not implemented');
-	}
-
 	first(): T | null {
 		this.index = 0;
 		return this.elements[this.index];

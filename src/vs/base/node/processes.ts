@@ -40,7 +40,7 @@ function getWindowsCode(status: number): TerminateResponseCode {
 	}
 }
 
-export function terminateProcess(process: cp.ChildProcess, cwd?: string): TerminateResponse {
+function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<TerminateResponse> {
 	if (Platform.isWindows) {
 		try {
 			const options: any = {
@@ -49,24 +49,41 @@ export function terminateProcess(process: cp.ChildProcess, cwd?: string): Termin
 			if (cwd) {
 				options.cwd = cwd;
 			}
-			cp.execFileSync('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			return new Promise((resolve, reject) => {
+				killProcess.once('error', (err) => {
+					resolve({ success: false, error: err });
+				});
+				killProcess.once('exit', (code, signal) => {
+					if (code === 0) {
+						resolve({ success: true });
+					} else {
+						resolve({ success: false, code: code !== null ? code : TerminateResponseCode.Unknown });
+					}
+				});
+			});
 		} catch (err) {
-			return { success: false, error: err, code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown };
+			return Promise.resolve({ success: false, error: err, code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown });
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
 			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
-			const result = cp.spawnSync(cmd, [process.pid.toString()]);
-			if (result.error) {
-				return { success: false, error: result.error };
-			}
+			return new Promise((resolve, reject) => {
+				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
+					if (err) {
+						resolve({ success: false, error: err });
+					} else {
+						resolve({ success: true });
+					}
+				});
+			});
 		} catch (err) {
-			return { success: false, error: err };
+			return Promise.resolve({ success: false, error: err });
 		}
 	} else {
 		process.kill('SIGKILL');
 	}
-	return { success: true };
+	return Promise.resolve({ success: true });
 }
 
 export function getWindowsShell(): string {
@@ -122,6 +139,7 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 
 		this.childProcess = null;
+		this.childProcessPromise = null;
 		this.terminateRequested = false;
 
 		if (this.options.env) {
@@ -288,11 +306,12 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 		return this.childProcessPromise.then((childProcess) => {
 			this.terminateRequested = true;
-			const result = terminateProcess(childProcess, this.options.cwd);
-			if (result.success) {
-				this.childProcess = null;
-			}
-			return result;
+			return terminateProcess(childProcess, this.options.cwd).then(response => {
+				if (response.success) {
+					this.childProcess = null;
+				}
+				return response;
+			});
 		}, (err) => {
 			return { success: true };
 		});
@@ -316,13 +335,16 @@ export abstract class AbstractProcess<TProgressData> {
 
 export class LineProcess extends AbstractProcess<LineData> {
 
-	private stdoutLineDecoder: LineDecoder;
-	private stderrLineDecoder: LineDecoder;
+	private stdoutLineDecoder: LineDecoder | null;
+	private stderrLineDecoder: LineDecoder | null;
 
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
 		super(<any>arg1, arg2, <any>arg3, arg4);
+
+		this.stdoutLineDecoder = null;
+		this.stderrLineDecoder = null;
 	}
 
 	protected handleExec(cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, error: Error, stdout: Buffer, stderr: Buffer) {
@@ -341,24 +363,30 @@ export class LineProcess extends AbstractProcess<LineData> {
 	}
 
 	protected handleSpawn(childProcess: cp.ChildProcess, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback, sync: boolean): void {
-		this.stdoutLineDecoder = new LineDecoder();
-		this.stderrLineDecoder = new LineDecoder();
-		childProcess.stdout.on('data', (data: Buffer) => {
-			const lines = this.stdoutLineDecoder.write(data);
+		const stdoutLineDecoder = new LineDecoder();
+		const stderrLineDecoder = new LineDecoder();
+		childProcess.stdout!.on('data', (data: Buffer) => {
+			const lines = stdoutLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stdout }));
 		});
-		childProcess.stderr.on('data', (data: Buffer) => {
-			const lines = this.stderrLineDecoder.write(data);
+		childProcess.stderr!.on('data', (data: Buffer) => {
+			const lines = stderrLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stderr }));
 		});
+
+		this.stdoutLineDecoder = stdoutLineDecoder;
+		this.stderrLineDecoder = stderrLineDecoder;
 	}
 
 	protected handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
-		[this.stdoutLineDecoder.end(), this.stderrLineDecoder.end()].forEach((line, index) => {
-			if (line) {
-				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
-			}
-		});
+		const stdoutLine = this.stdoutLineDecoder ? this.stdoutLineDecoder.end() : null;
+		if (stdoutLine) {
+			pp({ line: stdoutLine, source: Source.stdout });
+		}
+		const stderrLine = this.stderrLineDecoder ? this.stderrLineDecoder.end() : null;
+		if (stderrLine) {
+			pp({ line: stderrLine, source: Source.stderr });
+		}
 	}
 }
 
@@ -426,6 +454,14 @@ export namespace win32 {
 		if (paths === undefined || paths.length === 0) {
 			return path.join(cwd, command);
 		}
+
+		async function fileExists(path: string): Promise<boolean> {
+			if (await promisify(fs.exists)(path)) {
+				return !((await promisify(fs.stat)(path)).isDirectory);
+			}
+			return false;
+		}
+
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
 		for (let pathEntry of paths) {
@@ -436,15 +472,15 @@ export namespace win32 {
 			} else {
 				fullPath = path.join(cwd, pathEntry, command);
 			}
-			if (await promisify(fs.exists)(fullPath)) {
+			if (await fileExists(fullPath)) {
 				return fullPath;
 			}
 			let withExtension = fullPath + '.com';
-			if (await promisify(fs.exists)(withExtension)) {
+			if (await fileExists(withExtension)) {
 				return withExtension;
 			}
 			withExtension = fullPath + '.exe';
-			if (await promisify(fs.exists)(withExtension)) {
+			if (await fileExists(withExtension)) {
 				return withExtension;
 			}
 		}

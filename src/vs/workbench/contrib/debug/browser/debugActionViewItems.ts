@@ -36,7 +36,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private selected = 0;
 
 	constructor(
-		private context: any,
+		private context: unknown,
 		private action: IAction,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -69,7 +69,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		dom.addClass(container, 'start-debug-action-item');
-		this.start = dom.append(container, $('.icon'));
+		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;
@@ -122,8 +122,8 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			}
 		}));
 		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
-			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 		}));
 
 		this.updateOptions();
@@ -157,25 +157,33 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.selected = 0;
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
-		const launches = manager.getLaunches();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		launches.forEach(launch =>
-			launch.getConfigurationNames().forEach(name => {
-				if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
-					this.selected = this.options.length;
+		let lastGroup: string | undefined;
+		const disabledIdxs: number[] = [];
+		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
+			if (lastGroup !== presentation?.group) {
+				lastGroup = presentation?.group;
+				if (this.options.length) {
+					this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+					disabledIdxs.push(this.options.length - 1);
 				}
-				const label = inWorkspace ? `${name} (${launch.name})` : name;
-				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
-			}));
+			}
+			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
+				this.selected = this.options.length;
+			}
+
+			const label = inWorkspace ? `${name} (${launch.name})` : name;
+			this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
+		});
 
 		if (this.options.length === 0) {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
 		} else {
 			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+			disabledIdxs.push(this.options.length - 1);
 		}
 
-		const disabledIdx = this.options.length - 1;
-		launches.filter(l => !l.hidden).forEach(l => {
+		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
@@ -185,7 +193,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
+		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
 	}
 }
 
@@ -202,7 +210,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
-			const session = this.debugService.getViewModel().focusedSession;
+			const session = this.getSelectedSession();
 			if (session) {
 				const index = this.getSessions().indexOf(session);
 				this.select(index);
@@ -222,11 +230,11 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 	}
 
 	protected getActionContext(_: string, index: number): any {
-		return this.debugService.getModel().getSessions()[index];
+		return this.getSessions()[index];
 	}
 
 	private update() {
-		const session = this.debugService.getViewModel().focusedSession;
+		const session = this.getSelectedSession();
 		const sessions = this.getSessions();
 		const names = sessions.map(s => {
 			const label = s.getLabel();
@@ -240,10 +248,23 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
 	}
 
+	private getSelectedSession(): IDebugSession | undefined {
+		const session = this.debugService.getViewModel().focusedSession;
+		return session ? this.mapFocusedSessionToSelected(session) : undefined;
+	}
+
 	protected getSessions(): ReadonlyArray<IDebugSession> {
 		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 		const sessions = this.debugService.getModel().getSessions();
 
 		return showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
+	}
+
+	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
+		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
+		while (focusedSession.parentSession && !showSubSessions) {
+			focusedSession = focusedSession.parentSession;
+		}
+		return focusedSession;
 	}
 }

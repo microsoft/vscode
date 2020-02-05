@@ -577,7 +577,7 @@ suite('KeybindingsEditorModel test', () => {
 
 	function registerCommandWithTitle(command: string, title: string): void {
 		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(AnAction, command, title, { primary: 0 }), '');
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(AnAction, command, title, { primary: 0 }), '');
 	}
 
 	function assertKeybindingItems(actual: ResolvedKeybindingItem[], expected: ResolvedKeybindingItem[]) {

@@ -117,3 +117,24 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 
 	return result;
 }
+
+export interface IBuiltInExtension {
+	name: string;
+	version: string;
+	repo: string;
+	forQualities?: ReadonlyArray<string>;
+	metadata: any;
+}
+
+/**
+ * Parses the built-in extension JSON data and filters it down to the
+ * extensions built into this product quality.
+ */
+export function parseBuiltInExtensions(rawJson: string, productQuality: string | undefined) {
+	const parsed: IBuiltInExtension[] = JSON.parse(rawJson);
+	if (!productQuality) {
+		return parsed;
+	}
+
+	return parsed.filter(ext => ext.forQualities?.indexOf?.(productQuality) !== -1);
+}

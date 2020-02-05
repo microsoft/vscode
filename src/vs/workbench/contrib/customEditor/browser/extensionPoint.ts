@@ -5,7 +5,7 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
-import { CustomEditorDiscretion, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
@@ -13,14 +13,14 @@ namespace WebviewEditorContribution {
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const selector = 'selector';
-	export const discretion = 'discretion';
+	export const priority = 'priority';
 }
 
 interface IWebviewEditorsExtensionPoint {
 	readonly [WebviewEditorContribution.viewType]: string;
 	readonly [WebviewEditorContribution.displayName]: string;
 	readonly [WebviewEditorContribution.selector]?: readonly CustomEditorSelector[];
-	readonly [WebviewEditorContribution.discretion]?: CustomEditorDiscretion;
+	readonly [WebviewEditorContribution.priority]?: CustomEditorPriority;
 }
 
 const webviewEditorsContribution: IJSONSchema = {
@@ -41,7 +41,7 @@ const webviewEditorsContribution: IJSONSchema = {
 			},
 			[WebviewEditorContribution.displayName]: {
 				type: 'string',
-				description: nls.localize('contributes.displayName', 'Name of the custom editor displayed to users.'),
+				description: nls.localize('contributes.displayName', 'Human readable name of the custom editor. This is displayed to users when selecting which editor to use.'),
 			},
 			[WebviewEditorContribution.selector]: {
 				type: 'array',
@@ -53,23 +53,21 @@ const webviewEditorsContribution: IJSONSchema = {
 							type: 'string',
 							description: nls.localize('contributes.selector.filenamePattern', 'Glob that the custom editor is enabled for.'),
 						},
-						scheme: {
-							type: 'string',
-							description: nls.localize('contributes.selector.scheme', 'File scheme that the custom editor is enabled for.'),
-						}
 					}
 				}
 			},
-			[WebviewEditorContribution.discretion]: {
+			[WebviewEditorContribution.priority]: {
 				type: 'string',
-				description: nls.localize('contributes.discretion', 'Controls when the custom editor is used. May be overridden by users.'),
+				description: nls.localize('contributes.priority', 'Controls when the custom editor is used. May be overridden by users.'),
 				enum: [
-					CustomEditorDiscretion.default,
-					CustomEditorDiscretion.option
+					CustomEditorPriority.default,
+					CustomEditorPriority.option,
+					CustomEditorPriority.builtin,
 				],
 				enumDescriptions: [
-					nls.localize('contributes.discretion.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
-					nls.localize('contributes.discretion.option', 'Editor is not automatically used but can be selected by a user.'),
+					nls.localize('contributes.priority.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
+					nls.localize('contributes.priority.option', 'Editor is not automatically used but can be selected by a user.'),
+					nls.localize('contributes.priority.builtin', 'Editor automatically used if no other `default` or `builtin` editors are registered for the resource.'),
 				],
 				default: 'default'
 			}

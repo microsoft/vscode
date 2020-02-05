@@ -18,7 +18,10 @@
 			color: white;
 			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 			font-weight: bold;
-			font-size: 30px;
+			font-size: 20px;
+			display: flex;
+			justify-content: center;
+			align-items: center;
 		}
 	</style>
 </head>
@@ -65,9 +68,8 @@
 						this.setVisible(true);
 					}
 
-					layout(width, height, orientation) {
-						console.log(`layout@${this.label}`);
-						this.element.style.lineHeight = `${height}px`;
+					layout(width, height, top, left) {
+						this.element.innerHTML = `(${top}, ${left})<br />(${width}, ${height})`;
 					}
 
 					setVisible(visible) {

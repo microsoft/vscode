@@ -6,11 +6,11 @@
 import { URI as uri } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { CompletionItem } from 'vs/editor/common/modes';
 import Severity from 'vs/base/common/severity';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 
 export class MockDebugService implements IDebugService {
 
@@ -40,7 +40,8 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public focusStackFrame(focusedStackFrame: IStackFrame): void {
+	public focusStackFrame(focusedStackFrame: IStackFrame): Promise<void> {
+		throw new Error('not implemented');
 	}
 
 	sendAllBreakpoints(session?: IDebugSession): Promise<any> {
@@ -102,7 +103,7 @@ export class MockDebugService implements IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean> {
+	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -132,6 +133,11 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]> {
+		throw new Error('Method not implemented.');
+	}
+
 	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; }> {
 		throw new Error('Method not implemented.');
 	}
@@ -152,6 +158,10 @@ export class MockSession implements IDebugSession {
 
 	getReplElements(): IReplElement[] {
 		return [];
+	}
+
+	hasSeparateRepl(): boolean {
+		return true;
 	}
 
 	removeReplExpressions(): void { }
@@ -226,8 +236,8 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve([]);
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
-		return Promise.resolve([]);
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<DebugProtocol.CompletionsResponse> {
+		throw new Error('not implemented');
 	}
 
 	clearThreads(removeThreads: boolean, reference?: number): void { }
@@ -264,7 +274,7 @@ export class MockSession implements IDebugSession {
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
 		throw new Error('Method not implemented.');
 	}
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
 		throw new Error('Method not implemented.');
 	}
 	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {
@@ -453,4 +463,68 @@ export class MockRawSession {
 	}
 
 	public readonly onDidStop: Event<DebugProtocol.StoppedEvent> = null!;
+}
+
+export class MockDebugAdapter extends AbstractDebugAdapter {
+	private seq = 0;
+
+	startSession(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	stopSession(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
+		setTimeout(() => {
+			if (message.type === 'request') {
+				const request = message as DebugProtocol.Request;
+				switch (request.command) {
+					case 'evaluate':
+						this.evaluate(request, request.arguments);
+						return;
+				}
+				this.sendResponseBody(request, {});
+				return;
+			}
+		}, 0);
+	}
+
+	sendResponseBody(request: DebugProtocol.Request, body: any) {
+		const response: DebugProtocol.Response = {
+			seq: ++this.seq,
+			type: 'response',
+			request_seq: request.seq,
+			command: request.command,
+			success: true,
+			body
+		};
+		this.acceptMessage(response);
+	}
+
+	sendEventBody(event: string, body: any) {
+		const response: DebugProtocol.Event = {
+			seq: ++this.seq,
+			type: 'event',
+			event,
+			body
+		};
+		this.acceptMessage(response);
+	}
+
+	evaluate(request: DebugProtocol.Request, args: DebugProtocol.EvaluateArguments) {
+		if (args.expression.indexOf('before.') === 0) {
+			this.sendEventBody('output', { output: args.expression });
+		}
+
+		this.sendResponseBody(request, {
+			result: '=' + args.expression,
+			variablesReference: 0
+		});
+
+		if (args.expression.indexOf('after.') === 0) {
+			this.sendEventBody('output', { output: args.expression });
+		}
+	}
 }

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { escapeRegExp } from '../utils/regexp';
 import { TypeScriptVersion } from '../utils/versionProvider';
+
 
 export class TypeScriptServerError extends Error {
 	public static create(
@@ -14,7 +15,7 @@ export class TypeScriptServerError extends Error {
 		response: Proto.Response
 	): TypeScriptServerError {
 		const parsedResult = TypeScriptServerError.parseErrorText(version, response);
-		return new TypeScriptServerError(serverId, version, response, parsedResult ? parsedResult.message : undefined, parsedResult ? parsedResult.stack : undefined);
+		return new TypeScriptServerError(serverId, version, response, parsedResult?.message, parsedResult?.stack);
 	}
 
 	private constructor(
@@ -24,12 +25,29 @@ export class TypeScriptServerError extends Error {
 		public readonly serverMessage: string | undefined,
 		public readonly serverStack: string | undefined
 	) {
-		super(`<${serverId}> TypeScript Server Error (${version.versionString})\n${serverMessage}\n${serverStack}`);
+		super(`<${serverId}> TypeScript Server Error (${version.displayName})\n${serverMessage}\n${serverStack}`);
 	}
 
 	public get serverErrorText() { return this.response.message; }
 
 	public get serverCommand() { return this.response.command; }
+
+	public get telemetry() {
+		/* __GDPR__FRAGMENT__
+			"TypeScriptRequestErrorProperties" : {
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		return {
+			command: this.serverCommand,
+			message: this.serverMessage || '',
+			stack: this.serverStack || '',
+			errortext: this.serverErrorText || '',
+		} as const;
+	}
 
 	/**
 	 * Given a `errorText` from a tsserver request indicating failure in handling a request,

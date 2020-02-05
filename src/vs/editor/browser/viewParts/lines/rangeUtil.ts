@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 class FloatHorizontalRange {

@@ -7,7 +7,7 @@ import 'vs/css!./media/processExplorer';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import * as browser from 'vs/base/browser/browser';
@@ -18,7 +18,6 @@ import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-
 
 let mapPidToWindowTitle = new Map<number, string>();
 
@@ -374,9 +373,20 @@ function requestProcessList(totalWaitTime: number): void {
 	}, 200);
 }
 
+function createCloseListener(): void {
+	// Cmd/Ctrl + w closes process explorer
+	window.addEventListener('keydown', e => {
+		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+		if (cmdOrCtrlKey && e.keyCode === 87) {
+			ipcRenderer.send('vscode:closeProcessExplorer');
+		}
+	});
+}
+
 export function startup(data: ProcessExplorerData): void {
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
+	createCloseListener();
 
 	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
 	ipcRenderer.on('vscode:windowsInfoResponse', (_event: unknown, windows: any[]) => {

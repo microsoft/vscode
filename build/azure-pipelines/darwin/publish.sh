@@ -5,28 +5,20 @@ set -e
 zip -d ../VSCode-darwin.zip "*.pkg"
 
 # publish the build
-PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
-VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
-node build/azure-pipelines/common/publish.js \
-	"$VSCODE_QUALITY" \
+node build/azure-pipelines/common/createAsset.js \
 	darwin \
 	archive \
 	"VSCode-darwin-$VSCODE_QUALITY.zip" \
-	$VERSION \
-	true \
 	../VSCode-darwin.zip
 
 # package Remote Extension Host
 pushd .. && mv vscode-reh-darwin vscode-server-darwin && zip -Xry vscode-server-darwin.zip vscode-server-darwin && popd
 
 # publish Remote Extension Host
-node build/azure-pipelines/common/publish.js \
-	"$VSCODE_QUALITY" \
+node build/azure-pipelines/common/createAsset.js \
 	server-darwin \
 	archive-unsigned \
 	"vscode-server-darwin.zip" \
-	$VERSION \
-	true \
 	../vscode-server-darwin.zip
 
 # publish hockeyapp symbols

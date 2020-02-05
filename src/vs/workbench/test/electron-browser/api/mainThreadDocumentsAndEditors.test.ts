@@ -13,13 +13,15 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -42,14 +44,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
-			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+			files = <any>{
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();
@@ -59,7 +61,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onAfterOperation = Event.None;
 		};
 
-		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
@@ -68,9 +69,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null!,
 			fileService,
-			null!,
 			null!,
 			editorGroupService,
 			null!,
@@ -79,12 +78,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
-					return null;
+					return undefined;
 				}
 			},
 			TestEnvironmentService
 		);
-		/* tslint:enable */
 	});
 
 

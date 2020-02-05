@@ -51,10 +51,10 @@ export class DeferredPromise<T> {
 
 export function toResource(this: any, path: string) {
 	if (isWindows) {
-		return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+		return URI.file(join('C:\\', btoa(this.test.fullTitle()), path));
 	}
 
-	return URI.file(join('/', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('/', btoa(this.test.fullTitle()), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ProblemSeverity, Problems } from 'vscode-automation';
+import { Application, ProblemSeverity, Problems } from '../../../../automation';
 
 export function setup() {
 	describe('CSS', () => {
@@ -28,9 +28,6 @@ export function setup() {
 		});
 
 		it('verifies that warning becomes an error once setting changed', async function () {
-			// settings might take a while to update?
-			this.timeout(40000);
-
 			const app = this.app as Application;
 			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 			await app.workbench.quickopen.openFile('style.css');

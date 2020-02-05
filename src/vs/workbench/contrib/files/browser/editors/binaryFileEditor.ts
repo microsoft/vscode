@@ -13,12 +13,10 @@ import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
- * An implementation of editor for binary files like images.
+ * An implementation of editor for binary files that cannot be displayed.
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
@@ -30,9 +28,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
-		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -42,10 +38,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			},
 			telemetryService,
 			themeService,
-			fileService,
 			environmentService,
-			storageService,
-			instantiationService,
+			storageService
 		);
 	}
 
@@ -57,7 +51,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		}
 	}
 
-	getTitle(): string | undefined {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

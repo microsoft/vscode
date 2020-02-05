@@ -43,4 +43,14 @@ suite('Hash', () => {
 		assert.notEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
 		assert.notEqual(hash({}), hash([]));
 	});
+
+	test('array - unexpected collision', function () {
+		this.skip();
+		const a = hash([undefined, undefined, undefined, undefined, undefined]);
+		const b = hash([undefined, undefined, 'HHHHHH', [{ line: 0, character: 0 }, { line: 0, character: 0 }], undefined]);
+		// console.log(a);
+		// console.log(b);
+		assert.notEqual(a, b);
+	});
+
 });

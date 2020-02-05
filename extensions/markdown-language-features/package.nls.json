@@ -10,8 +10,6 @@
 	"markdown.preview.markEditorSelection.desc": "Mark the current editor selection in the markdown preview.",
 	"markdown.preview.scrollEditorWithPreview.desc": "When a markdown preview is scrolled, update the view of the editor.",
 	"markdown.preview.scrollPreviewWithEditor.desc": "When a markdown editor is scrolled, update the view of the preview.",
-	"markdown.preview.scrollPreviewWithEditorSelection.desc": "[Deprecated] Scrolls the markdown preview to reveal the currently selected line from the editor.",
-	"markdown.preview.scrollPreviewWithEditorSelection.deprecationMessage": "This setting has been replaced by 'markdown.preview.scrollPreviewWithEditor' and no longer has any effect.",
 	"markdown.preview.title": "Open Preview",
 	"markdown.previewSide.title": "Open Preview to the Side",
 	"markdown.showLockedPreviewToSide.title": "Open Locked Preview to the Side",

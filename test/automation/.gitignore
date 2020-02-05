@@ -5,3 +5,4 @@ node_modules/
 out/
 keybindings.*.json
 src/driver.d.ts
+*.tgz

@@ -14,10 +14,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 export class NodeDebugHelperService implements IDebugHelperService {
 	_serviceBrand: undefined;
 
-	constructor(
-	) {
-	}
-
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 
 		const client = new TelemetryClient(

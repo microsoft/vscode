@@ -365,7 +365,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 
 class BufferedContent {
 
-	private static MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+	private static readonly MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
 
 	private data: string[] = [];
 	private dataIds: number[] = [];

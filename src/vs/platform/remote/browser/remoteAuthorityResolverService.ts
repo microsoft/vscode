@@ -5,14 +5,14 @@
 
 import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorities } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
 	_serviceBrand: undefined;
 
 	constructor(
-		resourceUriProvider: ((uri: URI) => UriComponents) | undefined
+		resourceUriProvider: ((uri: URI) => URI) | undefined
 	) {
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);

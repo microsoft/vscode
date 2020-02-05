@@ -7,11 +7,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
 
-export interface IContextViewService {
+export interface IContextViewService extends IContextViewProvider {
 
 	_serviceBrand: undefined;
 

@@ -67,7 +67,7 @@ jobs:
   - template: linux/product-build-linux-multiarch.yml
 
 - job: LinuxArm64
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -102,7 +102,7 @@ jobs:
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
   pool:
-    vmImage: macOS 10.13
+    vmImage: macOS-latest
   dependsOn:
   - Compile
   steps:
@@ -118,6 +118,7 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxArm64
   - LinuxAlpine
   - macOS
   steps:
@@ -133,6 +134,7 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxArm64
   - LinuxAlpine
   - LinuxWeb
   - macOS

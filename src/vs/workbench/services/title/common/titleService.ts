@@ -14,6 +14,7 @@ export interface ITitleProperties {
 }
 
 export interface ITitleService {
+
 	_serviceBrand: undefined;
 
 	/**

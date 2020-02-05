@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainContext, MainThreadLanguagesShape, IMainContext } from './extHost.protocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 
 export class ExtHostLanguages {

@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IFoundBracket } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
@@ -25,8 +25,8 @@ suite('TextModelWithTokens', () => {
 			}
 			return {
 				range: a.range.toString(),
-				open: a.open,
-				close: a.close,
+				open: a.open[0],
+				close: a.close[0],
 				isOpen: a.isOpen
 			};
 		}
@@ -57,8 +57,8 @@ suite('TextModelWithTokens', () => {
 				let ch = lineText.charAt(charIndex);
 				if (charIsBracket[ch]) {
 					expectedBrackets.push({
-						open: openForChar[ch],
-						close: closeForChar[ch],
+						open: [openForChar[ch]],
+						close: [closeForChar[ch]],
 						isOpen: charIsOpenBracket[ch],
 						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
 					});
@@ -145,17 +145,17 @@ suite('TextModelWithTokens', () => {
 	});
 });
 
+function assertIsNotBracket(model: TextModel, lineNumber: number, column: number) {
+	const match = model.matchBracket(new Position(lineNumber, column));
+	assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
+}
+
+function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
+	const actual = model.matchBracket(testPosition);
+	assert.deepEqual(actual, expected, 'matches brackets at ' + testPosition);
+}
+
 suite('TextModelWithTokens - bracket matching', () => {
-
-	function isNotABracket(model: TextModel, lineNumber: number, column: number) {
-		let match = model.matchBracket(new Position(lineNumber, column));
-		assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
-	}
-
-	function isBracket2(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
-		let actual = model.matchBracket(testPosition);
-		assert.deepEqual(actual, expected, 'matches brackets at ' + testPosition);
-	}
 
 	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
 	let registration: IDisposable;
@@ -180,21 +180,21 @@ suite('TextModelWithTokens - bracket matching', () => {
 			')]}{[(';
 		let model = TextModel.createFromString(text, undefined, languageIdentifier);
 
-		isNotABracket(model, 1, 1);
-		isNotABracket(model, 1, 2);
-		isNotABracket(model, 1, 3);
-		isBracket2(model, new Position(1, 4), [new Range(1, 4, 1, 5), new Range(2, 3, 2, 4)]);
-		isBracket2(model, new Position(1, 5), [new Range(1, 5, 1, 6), new Range(2, 2, 2, 3)]);
-		isBracket2(model, new Position(1, 6), [new Range(1, 6, 1, 7), new Range(2, 1, 2, 2)]);
-		isBracket2(model, new Position(1, 7), [new Range(1, 6, 1, 7), new Range(2, 1, 2, 2)]);
+		assertIsNotBracket(model, 1, 1);
+		assertIsNotBracket(model, 1, 2);
+		assertIsNotBracket(model, 1, 3);
+		assertIsBracket(model, new Position(1, 4), [new Range(1, 4, 1, 5), new Range(2, 3, 2, 4)]);
+		assertIsBracket(model, new Position(1, 5), [new Range(1, 5, 1, 6), new Range(2, 2, 2, 3)]);
+		assertIsBracket(model, new Position(1, 6), [new Range(1, 6, 1, 7), new Range(2, 1, 2, 2)]);
+		assertIsBracket(model, new Position(1, 7), [new Range(1, 6, 1, 7), new Range(2, 1, 2, 2)]);
 
-		isBracket2(model, new Position(2, 1), [new Range(2, 1, 2, 2), new Range(1, 6, 1, 7)]);
-		isBracket2(model, new Position(2, 2), [new Range(2, 2, 2, 3), new Range(1, 5, 1, 6)]);
-		isBracket2(model, new Position(2, 3), [new Range(2, 3, 2, 4), new Range(1, 4, 1, 5)]);
-		isBracket2(model, new Position(2, 4), [new Range(2, 3, 2, 4), new Range(1, 4, 1, 5)]);
-		isNotABracket(model, 2, 5);
-		isNotABracket(model, 2, 6);
-		isNotABracket(model, 2, 7);
+		assertIsBracket(model, new Position(2, 1), [new Range(2, 1, 2, 2), new Range(1, 6, 1, 7)]);
+		assertIsBracket(model, new Position(2, 2), [new Range(2, 2, 2, 3), new Range(1, 5, 1, 6)]);
+		assertIsBracket(model, new Position(2, 3), [new Range(2, 3, 2, 4), new Range(1, 4, 1, 5)]);
+		assertIsBracket(model, new Position(2, 4), [new Range(2, 3, 2, 4), new Range(1, 4, 1, 5)]);
+		assertIsNotBracket(model, 2, 5);
+		assertIsNotBracket(model, 2, 6);
+		assertIsNotBracket(model, 2, 7);
 
 		model.dispose();
 	});
@@ -238,7 +238,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
 		for (let i = 0, len = brackets.length; i < len; i++) {
 			let [testPos, b1, b2] = brackets[i];
-			isBracket2(model, testPos, [b1, b2]);
+			assertIsBracket(model, testPos, [b1, b2]);
 			isABracket[testPos.lineNumber][testPos.column] = true;
 		}
 
@@ -246,12 +246,164 @@ suite('TextModelWithTokens - bracket matching', () => {
 			let line = model.getLineContent(i);
 			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
 				if (!isABracket[i].hasOwnProperty(<any>j)) {
-					isNotABracket(model, i, j);
+					assertIsNotBracket(model, i, j);
 				}
 			}
 		}
 
 		model.dispose();
+	});
+});
+
+suite('TextModelWithTokens', () => {
+
+	test('bracket matching 3', () => {
+
+		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
+		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
+			brackets: [
+				['if', 'end if'],
+				['loop', 'end loop'],
+				['begin', 'end']
+			],
+		});
+
+		const text = [
+			'begin',
+			'    loop',
+			'        if then',
+			'        end if;',
+			'    end loop;',
+			'end;',
+			'',
+			'begin',
+			'    loop',
+			'        if then',
+			'        end ifa;',
+			'    end loop;',
+			'end;',
+		].join('\n');
+
+		const model = TextModel.createFromString(text, undefined, languageIdentifier);
+
+		// <if> ... <end ifa> is not matched
+		assertIsNotBracket(model, 10, 9);
+
+		// <if> ... <end if> is matched
+		assertIsBracket(model, new Position(3, 9), [new Range(3, 9, 3, 11), new Range(4, 9, 4, 15)]);
+		assertIsBracket(model, new Position(4, 9), [new Range(4, 9, 4, 15), new Range(3, 9, 3, 11)]);
+
+		// <loop> ... <end loop> is matched
+		assertIsBracket(model, new Position(2, 5), [new Range(2, 5, 2, 9), new Range(5, 5, 5, 13)]);
+		assertIsBracket(model, new Position(5, 5), [new Range(5, 5, 5, 13), new Range(2, 5, 2, 9)]);
+
+		// <begin> ... <end> is matched
+		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 6), new Range(6, 1, 6, 4)]);
+		assertIsBracket(model, new Position(6, 1), [new Range(6, 1, 6, 4), new Range(1, 1, 1, 6)]);
+
+		model.dispose();
+		registration.dispose();
+	});
+
+	test('bracket matching 4', () => {
+
+		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
+		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
+			brackets: [
+				['recordbegin', 'endrecord'],
+				['simplerecordbegin', 'endrecord'],
+			],
+		});
+
+		const text = [
+			'recordbegin',
+			'  simplerecordbegin',
+			'  endrecord',
+			'endrecord',
+		].join('\n');
+
+		const model = TextModel.createFromString(text, undefined, languageIdentifier);
+
+		// <recordbegin> ... <endrecord> is matched
+		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
+		assertIsBracket(model, new Position(4, 1), [new Range(4, 1, 4, 10), new Range(1, 1, 1, 12)]);
+
+		// <simplerecordbegin> ... <endrecord> is matched
+		assertIsBracket(model, new Position(2, 3), [new Range(2, 3, 2, 20), new Range(3, 3, 3, 12)]);
+		assertIsBracket(model, new Position(3, 3), [new Range(3, 3, 3, 12), new Range(2, 3, 2, 20)]);
+
+		model.dispose();
+		registration.dispose();
+	});
+
+	test('issue #88075: TypeScript brace matching is incorrect in `${}` strings', () => {
+		const mode = new LanguageIdentifier('testMode', 3);
+		const otherMetadata = (
+			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		) >>> 0;
+		const stringMetadata = (
+			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.String << MetadataConsts.TOKEN_TYPE_OFFSET)
+		) >>> 0;
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NULL_STATE,
+			tokenize: undefined!,
+			tokenize2: (line, state) => {
+				switch (line) {
+					case 'function hello() {': {
+						const tokens = new Uint32Array([
+							0, otherMetadata
+						]);
+						return new TokenizationResult2(tokens, state);
+					}
+					case '    console.log(`${100}`);': {
+						const tokens = new Uint32Array([
+							0, otherMetadata,
+							16, stringMetadata,
+							19, otherMetadata,
+							22, stringMetadata,
+							24, otherMetadata,
+						]);
+						return new TokenizationResult2(tokens, state);
+					}
+					case '}': {
+						const tokens = new Uint32Array([
+							0, otherMetadata
+						]);
+						return new TokenizationResult2(tokens, state);
+					}
+				}
+				throw new Error(`Unexpected`);
+			}
+		};
+
+		const registration1 = TokenizationRegistry.register(mode.language, tokenizationSupport);
+		const registration2 = LanguageConfigurationRegistry.register(mode, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			],
+		});
+
+		const model = TextModel.createFromString([
+			'function hello() {',
+			'    console.log(`${100}`);',
+			'}'
+		].join('\n'), undefined, mode);
+
+		model.forceTokenization(1);
+		model.forceTokenization(2);
+		model.forceTokenization(3);
+
+		assert.deepEqual(model.matchBracket(new Position(2, 23)), null);
+		assert.deepEqual(model.matchBracket(new Position(2, 20)), null);
+
+		model.dispose();
+		registration1.dispose();
+		registration2.dispose();
 	});
 });
 

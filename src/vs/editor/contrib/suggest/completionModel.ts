@@ -160,7 +160,7 @@ export class CompletionModel {
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
-			const overwriteBefore = item.position.column - item.completion.range.startColumn;
+			const overwriteBefore = item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -192,6 +192,7 @@ export class CompletionModel {
 					}
 				}
 
+				const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
@@ -206,19 +207,19 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+					if (compareIgnoreCase(item.completion.filterText, textLabel) === 0) {
 						// filterText and label are actually the same -> use good highlights
 						item.score = match;
 					} else {
 						// re-run the scorer on the label in the hope of a result BUT use the rank
 						// of the filterText-match
-						item.score = anyScore(word, wordLow, wordPos, item.completion.label, item.labelLow, 0);
+						item.score = anyScore(word, wordLow, wordPos, textLabel, item.labelLow, 0);
 						item.score[0] = match[0]; // use score from filterText
 					}
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, textLabel, item.labelLow, 0, false);
 					if (!match) {
 						continue; // NO match
 					}

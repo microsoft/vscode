@@ -488,6 +488,38 @@ declare module DebugProtocol {
 	export interface TerminateResponse extends Response {
 	}
 
+	/** BreakpointLocations request; value of command field is 'breakpointLocations'.
+		The 'breakpointLocations' request returns all possible locations for source breakpoints in a given range.
+	*/
+	export interface BreakpointLocationsRequest extends Request {
+		// command: 'breakpointLocations';
+		arguments?: BreakpointLocationsArguments;
+	}
+
+	/** Arguments for 'breakpointLocations' request. */
+	export interface BreakpointLocationsArguments {
+		/** The source location of the breakpoints; either 'source.path' or 'source.reference' must be specified. */
+		source: Source;
+		/** Start line of range to search possible breakpoint locations in. If only the line is specified, the request returns all possible locations in that line. */
+		line: number;
+		/** Optional start column of range to search possible breakpoint locations in. If no start column is given, the first column in the start line is assumed. */
+		column?: number;
+		/** Optional end line of range to search possible breakpoint locations in. If no end line is given, then the end line is assumed to be the start line. */
+		endLine?: number;
+		/** Optional end column of range to search possible breakpoint locations in. If no end column is given, then it is assumed to be in the last column of the end line. */
+		endColumn?: number;
+	}
+
+	/** Response to 'breakpointLocations' request.
+		Contains possible locations for source breakpoints.
+	*/
+	export interface BreakpointLocationsResponse extends Response {
+		body: {
+			/** Sorted set of possible breakpoint locations. */
+			breakpoints: BreakpointLocation[];
+		};
+	}
+
 	/** SetBreakpoints request; value of command field is 'setBreakpoints'.
 		Sets multiple breakpoints for a single source and clears all previous breakpoints in that source.
 		To clear all breakpoint for a source, specify an empty array.
@@ -1365,6 +1397,8 @@ declare module DebugProtocol {
 		supportsDisassembleRequest?: boolean;
 		/** The debug adapter supports the 'cancel' request. */
 		supportsCancelRequest?: boolean;
+		/** The debug adapter supports the 'breakpointLocations' request. */
+		supportsBreakpointLocationsRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1610,6 +1644,18 @@ declare module DebugProtocol {
 			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
 		*/
 		visibility?: string;
+	}
+
+	/** Properties of a breakpoint location returned from the 'breakpointLocations' request. */
+	export interface BreakpointLocation {
+		/** Start line of breakpoint location. */
+		line: number;
+		/** Optional start column of breakpoint location. */
+		column?: number;
+		/** Optional end line of breakpoint location if the location covers a range. */
+		endLine?: number;
+		/** Optional end column of breakpoint location if the location covers a range. */
+		endColumn?: number;
 	}
 
 	/** Properties of a breakpoint or logpoint passed to the setBreakpoints request. */

@@ -6,7 +6,8 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -14,10 +15,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 
 	// Workbench
 	registry.registerConfiguration({
-		'id': 'workbench',
-		'order': 7,
-		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
-		'type': 'object',
+		...workbenchConfigurationNodeBase,
 		'properties': {
 			'workbench.editor.showTabs': {
 				'type': 'boolean',
@@ -60,6 +58,16 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				],
 				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
 			},
+			'workbench.editor.splitSizing': {
+				'type': 'string',
+				'enum': ['distribute', 'split'],
+				'default': 'distribute',
+				'enumDescriptions': [
+					nls.localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
+					nls.localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
+				],
+				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor groups when splitting them.")
+			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
 				'description': nls.localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
@@ -77,7 +85,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
+				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
 				'default': true
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -110,8 +118,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
 				'description': nls.localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
-				'default': true,
-				'included': !isMacintosh
+				'default': true
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -122,6 +129,22 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'type': 'boolean',
 				'default': true,
 				'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+			},
+			'workbench.editor.limit.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors that are not dirty will close to make space for newly opening editors.")
+			},
+			'workbench.editor.limit.value': {
+				'type': 'number',
+				'default': 10,
+				'exclusiveMinimum': 0,
+				'markdownDescription': nls.localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
+			},
+			'workbench.editor.limit.perEditorGroup': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
@@ -166,7 +189,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
-				'enum': ['bottom', 'right'],
+				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
 				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
 			},
@@ -185,6 +208,11 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'default': false,
 				'description': nls.localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
 			},
+			'workbench.view.experimental.allowMovingToNewContainer': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('movingViewContainer', "Controls whether specific views will have a context menu entry allowing them to be moved to a new container. Currently, this setting only affects the outline view and views contributed by extensions.")
+			},
 			'workbench.fontAliasing': {
 				'type': 'string',
 				'enum': ['default', 'antialiased', 'none', 'auto'],
@@ -199,24 +227,6 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				],
 				'included': isMacintosh
 			},
-			'workbench.settings.enableNaturalLanguageSearch': {
-				'type': 'boolean',
-				'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
-				'default': true,
-				'scope': ConfigurationScope.WINDOW,
-				'tags': ['usesOnlineServices']
-			},
-			'workbench.settings.settingsSearchTocBehavior': {
-				'type': 'string',
-				'enum': ['hide', 'filter'],
-				'enumDescriptions': [
-					nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
-					nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
-				],
-				'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
-				'default': 'filter',
-				'scope': ConfigurationScope.WINDOW
-			},
 			'workbench.settings.editor': {
 				'type': 'string',
 				'enum': ['ui', 'json'],
@@ -227,23 +237,6 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
-			},
-			'workbench.enableExperiments': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-				'default': true,
-				'tags': ['usesOnlineServices']
-			},
-			'workbench.useExperimentalGridLayout': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION
-			},
-			'workbench.octiconsUpdate.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
 	});
@@ -263,6 +256,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 		nls.localize('rootName', "`\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace)."),
 		nls.localize('rootPath', "`\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace)."),
 		nls.localize('appName', "`\${appName}`: e.g. VS Code."),
+		nls.localize('remoteName', "`\${remoteName}`: e.g. SSH"),
 		nls.localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
 		nls.localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
@@ -275,19 +269,31 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 		'properties': {
 			'window.title': {
 				'type': 'string',
-				'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
+				'default': (() => {
+					if (isMacintosh && isNative) {
+						return '${activeEditorShort}${separator}${rootName}'; // macOS has native dirty indicator
+					}
+
+					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
+					if (isWeb) {
+						return base + '${separator}${remoteName}'; // Web: always show remote indicator
+					}
+
+					return base;
+				})(),
 				'markdownDescription': windowTitleDescription
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
-				'enum': ['default', 'visible', 'toggle', 'hidden'],
+				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
 				'enumDescriptions': [
 					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
-					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
+					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
+					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when 'window.titleBarStyle' is 'native'.")
 				],
-				'default': 'default',
+				'default': isWeb ? 'compact' : 'default',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
 				'included': isWindows || isLinux || isWeb
@@ -305,6 +311,23 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': nls.localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
 				'included': isWindows || isLinux || isWeb
+			},
+			'window.openFilesInNewWindow': {
+				'type': 'string',
+				'enum': ['on', 'off', 'default'],
+				'enumDescriptions': [
+					nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
+					nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
+					isMacintosh ?
+						nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
+						nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
+				],
+				'default': 'off',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription':
+					isMacintosh ?
+						nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+						nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',
@@ -362,6 +385,11 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'type': 'boolean',
 				'default': false,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
+			},
+			'zenMode.silentNotifications': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
 			}
 		}
 	});

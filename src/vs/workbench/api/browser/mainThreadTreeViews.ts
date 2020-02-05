@@ -12,6 +12,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -23,13 +24,16 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		extHostContext: IExtHostContext,
 		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean }): void {
+		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
+
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			this._dataProviders.set(treeViewId, dataProvider);
@@ -49,6 +53,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
+		this.logService.trace('MainThreadTreeViews#$reveal', treeViewId, item, parentChain, options);
+
 		return this.viewsService.openView(treeViewId, options.focus)
 			.then(() => {
 				const viewer = this.getTreeView(treeViewId);
@@ -60,6 +66,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	$refresh(treeViewId: string, itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
+		this.logService.trace('MainThreadTreeViews#$refresh', treeViewId, itemsToRefreshByHandle);
+
 		const viewer = this.getTreeView(treeViewId);
 		const dataProvider = this._dataProviders.get(treeViewId);
 		if (viewer && dataProvider) {
@@ -70,6 +78,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	$setMessage(treeViewId: string, message: string): void {
+		this.logService.trace('MainThreadTreeViews#$setMessage', treeViewId, message);
+
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.message = message;
@@ -77,6 +87,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	$setTitle(treeViewId: string, title: string): void {
+		this.logService.trace('MainThreadTreeViews#$setTitle', treeViewId, title);
+
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.title = title;

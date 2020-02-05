@@ -6,25 +6,32 @@
 import { equals, flatten, isNonEmptyArray, mergeSort } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
-import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+
+export const codeActionCommandId = 'editor.action.codeAction';
+export const refactorCommandId = 'editor.action.refactor';
+export const sourceActionCommandId = 'editor.action.sourceAction';
+export const organizeImportsCommandId = 'editor.action.organizeImports';
+export const fixAllCommandId = 'editor.action.fixAll';
 
 export interface CodeActionSet extends IDisposable {
-	readonly actions: readonly CodeAction[];
+	readonly validActions: readonly modes.CodeAction[];
+	readonly allActions: readonly modes.CodeAction[];
 	readonly hasAutoFix: boolean;
 }
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
-	private static codeActionsComparator(a: CodeAction, b: CodeAction): number {
+	private static codeActionsComparator(a: modes.CodeAction, b: modes.CodeAction): number {
 		if (isNonEmptyArray(a.diagnostics)) {
 			if (isNonEmptyArray(b.diagnostics)) {
 				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
@@ -38,16 +45,18 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 		}
 	}
 
-	public readonly actions: readonly CodeAction[];
+	public readonly validActions: readonly modes.CodeAction[];
+	public readonly allActions: readonly modes.CodeAction[];
 
-	public constructor(actions: readonly CodeAction[], disposables: DisposableStore) {
+	public constructor(actions: readonly modes.CodeAction[], disposables: DisposableStore) {
 		super();
 		this._register(disposables);
-		this.actions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
+		this.allActions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
+		this.validActions = this.allActions.filter(action => !action.disabled);
 	}
 
 	public get hasAutoFix() {
-		return this.actions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+		return this.validActions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
 	}
 }
 
@@ -59,34 +68,34 @@ export function getCodeActions(
 ): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
 
-	const codeActionContext: CodeActionContext = {
-		only: filter.kind ? filter.kind.value : undefined,
-		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
+	const codeActionContext: modes.CodeActionContext = {
+		only: filter.include?.value,
+		trigger: trigger.type,
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
 	const providers = getCodeActionProviders(model, filter);
 
 	const disposables = new DisposableStore();
-	const promises = providers.map(provider => {
-		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token)).then(providedCodeActions => {
+	const promises = providers.map(async provider => {
+		try {
+			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
 			if (cts.token.isCancellationRequested || !providedCodeActions) {
 				return [];
 			}
 			disposables.add(providedCodeActions);
 			return providedCodeActions.actions.filter(action => action && filtersAction(filter, action));
-		}, (err): CodeAction[] => {
+		} catch (err) {
 			if (isPromiseCanceledError(err)) {
 				throw err;
 			}
-
 			onUnexpectedExternalError(err);
 			return [];
-		});
+		}
 	});
 
-	const listener = CodeActionProviderRegistry.onDidChange(() => {
-		const newProviders = CodeActionProviderRegistry.all(model);
+	const listener = modes.CodeActionProviderRegistry.onDidChange(() => {
+		const newProviders = modes.CodeActionProviderRegistry.all(model);
 		if (!equals(newProviders, providers)) {
 			cts.cancel();
 		}
@@ -105,7 +114,7 @@ function getCodeActionProviders(
 	model: ITextModel,
 	filter: CodeActionFilter
 ) {
-	return CodeActionProviderRegistry.all(model)
+	return modes.CodeActionProviderRegistry.all(model)
 		// Don't include providers that we know will not return code actions of interest
 		.filter(provider => {
 			if (!provider.providedCodeActionKinds) {
@@ -116,7 +125,7 @@ function getCodeActionProviders(
 		});
 }
 
-registerLanguageCommand('_executeCodeActionProvider', async function (accessor, args): Promise<ReadonlyArray<CodeAction>> {
+registerLanguageCommand('_executeCodeActionProvider', async function (accessor, args): Promise<ReadonlyArray<modes.CodeAction>> {
 	const { resource, rangeOrSelection, kind } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
@@ -140,9 +149,9 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 	const codeActionSet = await getCodeActions(
 		model,
 		validatedRangeOrSelection,
-		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
+		{ type: modes.CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
 	setTimeout(() => codeActionSet.dispose(), 100);
-	return codeActionSet.actions;
+	return codeActionSet.validActions;
 });

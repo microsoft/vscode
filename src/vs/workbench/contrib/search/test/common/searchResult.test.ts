@@ -33,16 +33,16 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		const fileMatch = aFileMatch('folder/file.txt', null!);
-		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
-		assert.equal(lineMatch.text(), 'foo bar');
+		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5));
+		assert.equal(lineMatch.text(), '0 foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
 		assert.equal(lineMatch.range().endLineNumber, 2);
 		assert.equal(lineMatch.range().startColumn, 1);
-		assert.equal(lineMatch.range().endColumn, 4);
-		assert.equal('file:///folder/file.txt>[2,1 -> 2,4]foo', lineMatch.id());
+		assert.equal(lineMatch.range().endColumn, 6);
+		assert.equal(lineMatch.id(), 'file:///folder/file.txt>[2,1 -> 2,6]foo');
 
 		assert.equal(lineMatch.fullMatchText(), 'foo');
-		assert.equal(lineMatch.fullMatchText(true), 'foo bar');
+		assert.equal(lineMatch.fullMatchText(true), '0 foo bar');
 	});
 
 	test('Line Match - Remove', function () {

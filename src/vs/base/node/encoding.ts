@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as iconv from 'iconv-lite';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { exec } from 'child_process';
 import { Readable, Writable } from 'stream';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -24,9 +22,10 @@ export const UTF16be_BOM = [0xFE, 0xFF];
 export const UTF16le_BOM = [0xFF, 0xFE];
 export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
 
-const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
-const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
-const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
+const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; 	// number of bytes to look at to decide about a file being binary or not
+const NO_ENCODING_GUESS_MIN_BYTES = 512; 			// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_ENCODING_GUESS_MIN_BYTES = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
+const AUTO_ENCODING_GUESS_MAX_BYTES = 512 * 128; 	// set an upper limit for the number of bytes we pass on to jschardet
 
 export interface IDecodeStreamOptions {
 	guessEncoding: boolean;
@@ -42,7 +41,7 @@ export interface IDecodeStreamResult {
 
 export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	if (!options.minBytesRequiredForDetection) {
-		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
+		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
 	}
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
@@ -111,7 +110,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				});
 			}
 
-			_final(callback: (error: Error | null) => void) {
+			_final(callback: () => void) {
 
 				// normal finish
 				if (this.decodeStream) {
@@ -122,7 +121,11 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				// detection. thus, wrap up starting the stream even
 				// without all the data to get things going
 				else {
-					this._startDecodeStream(() => this.decodeStream!.end(callback));
+					this._startDecodeStream(() => {
+						if (this.decodeStream) {
+							this.decodeStream.end(callback);
+						}
+					});
 				}
 			}
 		};
@@ -140,7 +143,7 @@ export function decode(buffer: Buffer, encoding: string): string {
 }
 
 export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
-	return iconv.encode(content, toNodeEncoding(encoding), options);
+	return iconv.encode(content as string /* TODO report into upstream typings */, toNodeEncoding(encoding), options);
 }
 
 export function encodingExists(encoding: string): boolean {
@@ -163,7 +166,7 @@ function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): typeof UTF8_with_bom | typeof UTF16le | typeof UTF16be | null {
 	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
@@ -189,14 +192,18 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 
 	// UTF-8
 	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
-		return UTF8;
+		return UTF8_with_bom;
 	}
 
 	return null;
 }
 
-const MINIMUM_THRESHOLD = 0.2;
-const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
+// we explicitly ignore a specific set of encodings from auto guessing
+// - ASCII: we never want this encoding (most UTF-8 files would happily detect as
+//          ASCII files and then you could not type non-ASCII characters anymore)
+// - UTF-16: we have our own detection logic for UTF-16
+// - UTF-32: we do not support this encoding in VSCode
+const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 
 /**
  * Guesses the encoding from buffer.
@@ -204,19 +211,14 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
-
-	const guessed = jschardet.detect(buffer);
+	const guessed = jschardet.detect(buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES)); // ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();
-
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
 	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
-		return null;
+		return null; // see comment above why we ignore some encodings
 	}
 
 	return toIconvLiteEncoding(guessed.encoding);
@@ -349,88 +351,4 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 	}
 
 	return { seemsBinary, encoding };
-}
-
-// https://ss64.com/nt/chcp.html
-const windowsTerminalEncodings = {
-	'437': 'cp437', // United States
-	'850': 'cp850', // Multilingual(Latin I)
-	'852': 'cp852', // Slavic(Latin II)
-	'855': 'cp855', // Cyrillic(Russian)
-	'857': 'cp857', // Turkish
-	'860': 'cp860', // Portuguese
-	'861': 'cp861', // Icelandic
-	'863': 'cp863', // Canadian - French
-	'865': 'cp865', // Nordic
-	'866': 'cp866', // Russian
-	'869': 'cp869', // Modern Greek
-	'936': 'cp936', // Simplified Chinese
-	'1252': 'cp1252' // West European Latin
-};
-
-export async function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
-	let rawEncodingPromise: Promise<string>;
-
-	// Support a global environment variable to win over other mechanics
-	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
-	if (cliEncodingEnv) {
-		if (verbose) {
-			console.log(`Found VSCODE_CLI_ENCODING variable: ${cliEncodingEnv}`);
-		}
-
-		rawEncodingPromise = Promise.resolve(cliEncodingEnv);
-	}
-
-	// Linux/Mac: use "locale charmap" command
-	else if (isLinux || isMacintosh) {
-		rawEncodingPromise = new Promise<string>(resolve => {
-			if (verbose) {
-				console.log('Running "locale charmap" to detect terminal encoding...');
-			}
-
-			exec('locale charmap', (err, stdout, stderr) => resolve(stdout));
-		});
-	}
-
-	// Windows: educated guess
-	else {
-		rawEncodingPromise = new Promise<string>(resolve => {
-			if (verbose) {
-				console.log('Running "chcp" to detect terminal encoding...');
-			}
-
-			exec('chcp', (err, stdout, stderr) => {
-				if (stdout) {
-					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
-					for (const key of windowsTerminalEncodingKeys) {
-						if (stdout.indexOf(key) >= 0) {
-							return resolve(windowsTerminalEncodings[key]);
-						}
-					}
-				}
-
-				return resolve(undefined);
-			});
-		});
-	}
-
-	const rawEncoding = await rawEncodingPromise;
-	if (verbose) {
-		console.log(`Detected raw terminal encoding: ${rawEncoding}`);
-	}
-
-	if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
-		return UTF8;
-	}
-
-	const iconvEncoding = toIconvLiteEncoding(rawEncoding);
-	if (iconv.encodingExists(iconvEncoding)) {
-		return iconvEncoding;
-	}
-
-	if (verbose) {
-		console.log('Unsupported terminal encoding, falling back to UTF-8.');
-	}
-
-	return UTF8;
 }

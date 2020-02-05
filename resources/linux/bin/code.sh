@@ -30,7 +30,7 @@ if [ ! -L $0 ]; then
 	# if path is not a symlink, find relatively
 	VSCODE_PATH="$(dirname $0)/.."
 else
-	if which readlink >/dev/null; then
+	if command -v readlink >/dev/null; then
 		# if readlink exists, follow the symlink and find relatively
 		VSCODE_PATH="$(dirname $(readlink -f $0))/.."
 	else

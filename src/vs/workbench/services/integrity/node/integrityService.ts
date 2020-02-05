@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -82,7 +82,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _prompt(): void {
 		const storedData = this._storage.get();
-		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
+		if (storedData?.dontShowPrompt && storedData.commit === product.commit) {
 			return; // Do not prompt
 		}
 

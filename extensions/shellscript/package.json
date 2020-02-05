@@ -23,6 +23,12 @@
 			"language": "shellscript",
 			"scopeName": "source.shell",
 			"path": "./syntaxes/shell-unix-bash.tmLanguage.json"
-		}]
+		}],
+		"configurationDefaults": {
+			"[shellscript]": {
+				"files.eol": "\n"
+			}
+		}
+
 	}
 }

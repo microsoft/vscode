@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { Application } from 'vscode-automation';
+import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Search', () => {

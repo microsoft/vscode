@@ -790,6 +790,12 @@ export namespace Config {
 		*    the current working directory. This is the default.
 		*  - ["relative", "path value"]: the filename is always
 		*    treated relative to the given path value.
+		*  - "autodetect": the filename is treated relative to
+		*    the current workspace directory, and if the file
+		*    does not exist, it is treated as absolute.
+		*  - ["autodetect", "path value"]: the filename is treated
+		*    relative to the given path value, and if it does not
+		*    exist, it is treated as absolute.
 		*/
 		fileLocation?: string | string[];
 
