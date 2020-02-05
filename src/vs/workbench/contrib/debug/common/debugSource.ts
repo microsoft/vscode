@@ -13,6 +13,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ITextEditor } from 'vs/workbench/common/editor';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 
 export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -101,7 +102,7 @@ export class Source {
 				preserveFocus,
 				selection,
 				revealIfOpened: true,
-				revealInCenterIfOutsideViewport: true,
+				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 				pinned: pinned || (!preserveFocus && !this.inMemory)
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);

@@ -10,7 +10,7 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1110,9 +1110,9 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	editorViewState: IEditorViewState | undefined;
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Option to control the text editor selection reveal type.
 	 */
-	revealInCenterIfOutsideViewport: boolean | undefined;
+	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
@@ -1151,8 +1151,8 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
-			this.revealInCenterIfOutsideViewport = options.revealInCenterIfOutsideViewport;
+		if (typeof options.selectionRevealType !== 'undefined') {
+			this.selectionRevealType = options.selectionRevealType;
 		}
 
 		return this;
@@ -1162,7 +1162,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 * Returns if this options object has objects defined for the editor.
 	 */
 	hasOptionsDefined(): boolean {
-		return !!this.editorViewState || !!this.revealInCenterIfOutsideViewport || !!this.selection;
+		return !!this.editorViewState || !!this.selectionRevealType || !!this.selection;
 	}
 
 	/**
@@ -1202,7 +1202,9 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 			editor.setSelection(range);
 
-			if (this.revealInCenterIfOutsideViewport) {
+			if (this.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
+				editor.revealRangeNearTop(range, scrollType);
+			} else if (this.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
 				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 			} else {
 				editor.revealRangeInCenter(range, scrollType);

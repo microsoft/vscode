@@ -27,7 +27,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
@@ -630,7 +630,7 @@ export class OutlinePane extends ViewPane {
 			options: {
 				preserveFocus: !focus,
 				selection: Range.collapseToStart(element.symbol.selectionRange),
-				revealInCenterIfOutsideViewport: true
+				selectionRevealType: TextEditorSelectionRevealType.NearTop,
 			}
 		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}

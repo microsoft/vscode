@@ -76,7 +76,7 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextEditor } from 'vs/workbench/common/editor';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -968,7 +968,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					pinned: false,
 					forceReload: true, // because content might have changed
 					selection,
-					revealInCenterIfOutsideViewport: !!selection
+					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 				}
 			});
 		});
