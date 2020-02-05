@@ -589,21 +589,22 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (boxEndY - boxStartY > viewportHeight) {
 			// the box is larger than the viewport ... scroll to its top
 			newScrollTop = boxStartY;
-		} else if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport || verticalType === viewEvents.VerticalRevealType.Definition) {
+		} else if (verticalType === viewEvents.VerticalRevealType.Definition) {
+			// We want a gap that is 20% of the viewport, but with a minimum of 5 lines
+			const desiredGapAbove = Math.max(5 * this._lineHeight, viewportHeight * 0.2);
+			// Try to scroll just above the box with the desired gap
+			const desiredScrollTop = boxStartY - desiredGapAbove;
+			// But ensure that the box is not pushed out of viewport
+			const minScrollTop = boxEndY - viewportHeight;
+			newScrollTop = Math.max(minScrollTop, desiredScrollTop);
+		} else if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport) {
 			if (verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
 				// Box is already in the viewport... do nothing
 				newScrollTop = viewportStartY;
 			} else {
 				// Box is outside the viewport... center it
 				const boxMiddleY = (boxStartY + boxEndY) / 2;
-				let delta = viewportHeight * 0.5;
-				if (verticalType === viewEvents.VerticalRevealType.Definition) {
-					// Definition scrolls to 20% from the top of the viewport, but ensures a minimum amount of space from the top
-					// and never scrolls beyond the center.
-					const minSpace = 100;
-					delta = Math.min(delta, Math.max(minSpace, viewportHeight * 0.2));
-				}
-				newScrollTop = Math.max(0, boxMiddleY - delta);
+				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
 			}
 		} else {
 			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
