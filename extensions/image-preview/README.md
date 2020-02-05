@@ -13,5 +13,4 @@ Supported image formats:
 - `*.bmp`
 - `*.gif`
 - `*.ico`
-- `*.tga`
 - `*.webp`

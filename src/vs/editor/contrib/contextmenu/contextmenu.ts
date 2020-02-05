@@ -148,19 +148,29 @@ export class ContextMenuController implements IEditorContribution {
 		// translate them into other actions
 		for (let group of groups) {
 			const [, actions] = group;
+			let addedItems = 0;
 			for (const action of actions) {
 				if (action instanceof SubmenuItemAction) {
 					const subActions = this._getMenuActions(model, action.item.submenu);
 					if (subActions.length > 0) {
 						result.push(new ContextSubMenu(action.label, subActions));
+						addedItems++;
 					}
 				} else {
 					result.push(action);
+					addedItems++;
 				}
 			}
-			result.push(new Separator());
+
+			if (addedItems) {
+				result.push(new Separator());
+			}
 		}
-		result.pop(); // remove last separator
+
+		if (result.length) {
+			result.pop(); // remove last separator
+		}
+
 		return result;
 	}
 

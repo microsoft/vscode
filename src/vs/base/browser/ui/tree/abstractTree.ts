@@ -190,7 +190,13 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			},
 			getPosInSet(node) {
 				return node.visibleChildIndex + 1;
-			}
+			},
+			isChecked: options.ariaProvider && options.ariaProvider.isChecked ? (node) => {
+				return options.ariaProvider!.isChecked!(node.element);
+			} : undefined,
+			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
+				return options.ariaProvider!.getRole!(node.element);
+			} : undefined
 		}
 	};
 }
@@ -1298,7 +1304,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onDidModelSplice(() => null, null, this.disposables);
 
 		// Active nodes can change when the model changes or when focus or selection change.
-		// We debouce it with 0 delay since these events may fire in the same stack and we only
+		// We debounce it with 0 delay since these events may fire in the same stack and we only
 		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
 		// a nice to have UI feature.
 		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))
@@ -1579,7 +1585,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	open(elements: TRef[], browserEvent?: UIEvent): void {
-		const indexes = elements.map(e => this.model.getListIndex(e));
+		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i >= 0);
 		this.view.open(indexes, browserEvent);
 	}
 

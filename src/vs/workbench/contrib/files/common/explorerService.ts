@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, SortOrder, IContextProvider } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -41,8 +41,8 @@ export class ExplorerService implements IExplorerService {
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
-	private fileSystemProviderSchemes = new Set<string>();
 	private contextProvider: IContextProvider | undefined;
+	private model: ExplorerModel;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -53,6 +53,25 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService,
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
+
+		this.model = new ExplorerModel(this.contextService, this.fileService);
+		this.disposables.add(this.model);
+		this.disposables.add(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.disposables.add(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
+		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(e => {
+			let affected = false;
+			this.model.roots.forEach(r => {
+				if (r.resource.scheme === e.scheme) {
+					affected = true;
+					r.forgetChildren();
+				}
+			});
+			if (affected) {
+				this._onDidChangeItem.fire({ recursive: true });
+			}
+		}));
+		this.disposables.add(this.model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -107,26 +126,6 @@ export class ExplorerService implements IExplorerService {
 		return fileEventsFilter;
 	}
 
-	@memoize get model(): ExplorerModel {
-		const model = new ExplorerModel(this.contextService);
-		this.disposables.add(model);
-		this.disposables.add(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.disposables.add(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.add(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
-				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
-				this.model.roots.forEach(r => r.forgetChildren());
-				this._onDidChangeItem.fire({ recursive: true });
-			} else {
-				this.fileSystemProviderSchemes.add(e.scheme);
-			}
-		}));
-		this.disposables.add(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
-
-		return model;
-	}
-
 	// IExplorerService methods
 
 	findClosest(resource: URI): ExplorerItem | null {
@@ -174,7 +173,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === SortOrder.Modified };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		if (workspaceFolder === null) {
 			return Promise.resolve(undefined);
@@ -348,7 +347,7 @@ export class ExplorerService implements IExplorerService {
 				}
 
 				// Handle updated files/folders if we sort by modified
-				if (this._sortOrder === SortOrderConfiguration.MODIFIED) {
+				if (this._sortOrder === SortOrder.Modified) {
 					const updated = e.getUpdated();
 
 					// Check updated: Refresh if updated file/folder part of resolved root
@@ -374,7 +373,7 @@ export class ExplorerService implements IExplorerService {
 
 	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrderConfiguration.MODIFIED) {
+			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrder.Modified) {
 				return false; // we only are about updated if we sort by modified time
 			}
 

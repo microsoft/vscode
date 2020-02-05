@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { FileKind } from 'vs/platform/files/common/files';
 
@@ -24,6 +24,9 @@ suite('Breadcrumb Model', function () {
 				return 'on';
 			}
 			return super.getValue(...args);
+		}
+		updateValue() {
+			return Promise.resolve();
 		}
 	};
 

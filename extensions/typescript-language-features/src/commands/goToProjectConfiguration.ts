@@ -75,13 +75,14 @@ async function goToProjectConfig(
 	} catch {
 		// noop
 	}
-	if (!res || res.type !== 'response' || !res.body) {
+
+	if (res?.type !== 'response' || !res.body) {
 		vscode.window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
 		return;
 	}
 
 	const { configFileName } = res.body;
-	if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+	if (!isImplicitProjectConfigFile(configFileName)) {
 		const doc = await vscode.workspace.openTextDocument(configFileName);
 		vscode.window.showTextDocument(doc, vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined);
 		return;

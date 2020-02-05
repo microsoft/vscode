@@ -157,15 +157,6 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async isWindowFocused(windowId: number | undefined): Promise<boolean> {
-		const window = this.windowById(windowId);
-		if (window) {
-			return window.win.isFocused();
-		}
-
-		return false;
-	}
-
 	async focusWindow(windowId: number | undefined, options?: { windowId?: number; }): Promise<void> {
 		if (options && typeof options.windowId === 'number') {
 			windowId = options.windowId;
@@ -367,15 +358,13 @@ export class ElectronMainService implements IElectronMainService {
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		return new Promise(resolve => {
-			const window = this.windowById(windowId);
-			const session = window?.win?.webContents?.session;
-			if (session) {
-				session.resolveProxy(url, proxy => resolve(proxy));
-			} else {
-				resolve();
-			}
-		});
+		const window = this.windowById(windowId);
+		const session = window?.win?.webContents?.session;
+		if (session) {
+			return session.resolveProxy(url);
+		} else {
+			return undefined;
+		}
 	}
 
 	//#endregion

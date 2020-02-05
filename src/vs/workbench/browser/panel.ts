@@ -12,8 +12,11 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 export abstract class Panel extends Composite implements IPanel { }
+
+export abstract class PaneCompositePanel extends PaneComposite implements IPanel { }
 
 /**
  * A panel descriptor is a leightweight descriptor of a panel in the workbench.
@@ -98,14 +101,12 @@ export abstract class TogglePanelAction extends Action {
 		super(id, label, cssClass);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		if (this.isPanelFocused()) {
 			this.layoutService.setPanelHidden(true);
 		} else {
-			this.panelService.openPanel(this.panelId, true);
+			await this.panelService.openPanel(this.panelId, true);
 		}
-
-		return Promise.resolve();
 	}
 
 	private isPanelActive(): boolean {

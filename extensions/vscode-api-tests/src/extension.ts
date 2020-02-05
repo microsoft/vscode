@@ -13,9 +13,13 @@
 //
 
 import * as vscode from 'vscode';
+import { URL } from 'url';
+import { TextEncoder, TextDecoder } from 'util';
 
 const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
+
+declare const window: unknown;
 
 export function activate(context: vscode.ExtensionContext) {
 	if (typeof window !== 'undefined') {	// do not run under node.js
@@ -2819,7 +2823,7 @@ export class ProtocolServer implements vscode.DebugAdapter {
 	onError: vscode.Event<Error> = this.error.event;
 
 	private sendMessage = new vscode.EventEmitter<DebugProtocol.ProtocolMessage>();
-	readonly onSendMessage: vscode.Event<DebugProtocol.ProtocolMessage> = this.sendMessage.event;
+	readonly onDidSendMessage: vscode.Event<DebugProtocol.ProtocolMessage> = this.sendMessage.event;
 
 	private _sequence: number = 1;
 	private _pendingRequests = new Map<number, (response: DebugProtocol.Response) => void>();

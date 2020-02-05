@@ -15,11 +15,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
-	private lastKnownDirtyCount: number | undefined;
-
-	private get hasDirtyCount(): boolean {
-		return typeof this.lastKnownDirtyCount === 'number' && this.lastKnownDirtyCount > 0;
-	}
+	private lastKnownDirtyCount = 0;
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -29,13 +25,15 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
+		this.updateActivityBadge();
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
 		// Working copy dirty indicator
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.onWorkingCopyDidChangeDirty(c)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onWorkingCopyDidChangeDirty(workingCopy)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -43,18 +41,17 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
 		const gotDirty = workingCopy.isDirty();
-		if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 
-		if (gotDirty || this.hasDirtyCount) {
+		if (gotDirty || this.lastKnownDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
 
 	private updateActivityBadge(): void {
-		const dirtyCount = this.workingCopyService.dirtyCount;
-		this.lastKnownDirtyCount = dirtyCount;
+		const dirtyCount = this.lastKnownDirtyCount = this.workingCopyService.dirtyCount;
 
 		// Indicate dirty count in badge if any
 		if (dirtyCount > 0) {

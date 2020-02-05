@@ -90,7 +90,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 	run(mode: Mode, context: IEntryRunContext): boolean {
 
-		// resolve this type bearing if neccessary
+		// resolve this type bearing if necessary
 		if (!this.bearingResolve && typeof this.provider.resolveWorkspaceSymbol === 'function' && !this.bearing.location.range) {
 			this.bearingResolve = Promise.resolve(this.provider.resolveWorkspaceSymbol(this.bearing, CancellationToken.None)).then(result => {
 				this.bearing = result || this.bearing;
@@ -119,13 +119,10 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		const input: IResourceInput = {
 			resource: this.bearing.location.uri,
 			options: {
-				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen,
+				selection: this.bearing.location.range ? Range.collapseToStart(this.bearing.location.range) : undefined
 			}
 		};
-
-		if (this.bearing.location.range) {
-			input.options!.selection = Range.collapseToStart(this.bearing.location.range);
-		}
 
 		return input;
 	}

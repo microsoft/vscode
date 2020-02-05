@@ -41,7 +41,9 @@ export interface Commit {
 	readonly hash: string;
 	readonly message: string;
 	readonly parents: string[];
-	readonly authorEmail?: string | undefined;
+	readonly authorDate?: Date;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
 }
 
 export interface Submodule {
@@ -119,6 +121,14 @@ export interface LogOptions {
 	readonly maxEntries?: number;
 }
 
+export interface CommitOptions {
+	all?: boolean | 'tracked';
+	amend?: boolean;
+	signoff?: boolean;
+	signCommit?: boolean;
+	empty?: boolean;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;
@@ -174,6 +184,8 @@ export interface Repository {
 
 	blame(path: string): Promise<string>;
 	log(options?: LogOptions): Promise<Commit[]>;
+
+	commit(message: string, opts?: CommitOptions): Promise<void>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';
@@ -187,6 +199,7 @@ export interface API {
 	readonly onDidCloseRepository: Event<Repository>;
 
 	toGitUri(uri: Uri, ref: string): Uri;
+	getRepository(uri: Uri): Repository | null;
 }
 
 export interface GitExtension {

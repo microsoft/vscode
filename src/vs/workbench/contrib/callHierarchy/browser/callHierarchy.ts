@@ -45,7 +45,7 @@ export interface OutgoingCall {
 }
 
 export interface CallHierarchySession {
-	root: CallHierarchyItem;
+	roots: CallHierarchyItem[];
 	dispose(): void;
 }
 
@@ -92,15 +92,19 @@ export class CallHierarchyModel {
 		if (!session) {
 			return undefined;
 		}
-		return new CallHierarchyModel(session.root._sessionId, provider, session.root, new RefCountedDisposabled(session));
+		return new CallHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposabled(session));
 	}
+
+	readonly root: CallHierarchyItem;
 
 	private constructor(
 		readonly id: string,
 		readonly provider: CallHierarchyProvider,
-		readonly root: CallHierarchyItem,
+		readonly roots: CallHierarchyItem[],
 		readonly ref: RefCountedDisposabled,
-	) { }
+	) {
+		this.root = roots[0];
+	}
 
 	dispose(): void {
 		this.ref.release();
@@ -110,7 +114,7 @@ export class CallHierarchyModel {
 		const that = this;
 		return new class extends CallHierarchyModel {
 			constructor() {
-				super(that.id, that.provider, item, that.ref.acquire());
+				super(that.id, that.provider, [item], that.ref.acquire());
 			}
 		};
 	}

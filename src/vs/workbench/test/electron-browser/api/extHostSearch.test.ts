@@ -15,11 +15,11 @@ import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extH
 import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
-import * as vscode from 'vscode';
+import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import type * as vscode from 'vscode';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { mock } from 'vs/workbench/test/browser/api/mock';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';

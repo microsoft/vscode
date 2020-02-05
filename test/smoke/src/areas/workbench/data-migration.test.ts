@@ -8,7 +8,6 @@ import { join } from 'path';
 
 export function setup(stableCodePath: string, testDataPath: string) {
 
-
 	describe('Data Migration: This test MUST run before releasing by providing the --stable-build command line argument', () => {
 		it(`verifies opened editors are restored`, async function () {
 			if (!stableCodePath) {
@@ -66,7 +65,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await stableApp.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Untitled Code';
+			const textToTypeInUntitled = 'Hello from Untitled';
 			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';
@@ -86,7 +85,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
-			await insidersApp.workbench.editors.selectTab(untitled, true);
+			await insidersApp.workbench.editors.selectTab(untitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();

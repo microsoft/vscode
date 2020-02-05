@@ -91,6 +91,9 @@ export function toDisposable(fn: () => void): IDisposable {
 }
 
 export class DisposableStore implements IDisposable {
+
+	static DISABLE_DISPOSED_WARNING = false;
+
 	private _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
@@ -127,7 +130,9 @@ export class DisposableStore implements IDisposable {
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
+				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			}
 		} else {
 			this._toDispose.add(t);
 		}
@@ -163,7 +168,7 @@ export abstract class Disposable implements IDisposable {
 /**
  * Manages the lifecycle of a disposable value that may be changed.
  *
- * This ensures that when the the disposable value is changed, the previously held disposable is disposed of. You can
+ * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
  * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
  */
 export class MutableDisposable<T extends IDisposable> implements IDisposable {

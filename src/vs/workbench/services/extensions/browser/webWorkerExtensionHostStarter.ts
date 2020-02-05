@@ -17,9 +17,13 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { joinPath } from 'vs/base/common/resources';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { localize } from 'vs/nls';
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
@@ -29,6 +33,8 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
 	private readonly _onDidExit = new Emitter<[number, string | null]>();
 	readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
+
+	private readonly _extensionHostLogFile: URI;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -41,7 +47,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 	) {
-
+		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
 	async start(): Promise<IMessagePassingProtocol> {
@@ -89,6 +95,9 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			await Event.toPromise(Event.filter(protocol.onMessage, msg => isMessageOfType(msg, MessageType.Ready)));
 			protocol.send(VSBuffer.fromString(JSON.stringify(await this._createExtHostInitData())));
 			await Event.toPromise(Event.filter(protocol.onMessage, msg => isMessageOfType(msg, MessageType.Initialized)));
+
+			// Register log channel for web worker exthost log
+			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'webWorkerExtHostLog', label: localize('name', "Worker Extension Host"), file: this._extensionHostLogFile, log: true });
 
 			this._protocol = protocol;
 		}
@@ -149,6 +158,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,
+			logFile: this._extensionHostLogFile,
 			autoStart: this._autoStart,
 			remote: {
 				authority: this._environmentService.configuration.remoteAuthority,

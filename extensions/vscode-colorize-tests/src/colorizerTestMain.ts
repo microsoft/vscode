@@ -8,13 +8,15 @@ import * as jsoncParser from 'jsonc-parser';
 
 export function activate(context: vscode.ExtensionContext): any {
 
-	const tokenTypes = ['types', 'structs', 'classes', 'interfaces', 'enums', 'parameterTypes', 'functions', 'variables'];
-	const tokenModifiers = ['static', 'abstract', 'deprecated', 'declaration', 'documentation', 'member', 'async'];
+	const tokenTypes = ['type', 'struct', 'class', 'interface', 'enum', 'parameterType', 'function', 'variable', 'testToken'];
+	const tokenModifiers = ['static', 'abstract', 'deprecated', 'declaration', 'documentation', 'member', 'async', 'testModifier'];
 
 	const legend = new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 
-	const semanticHighlightProvider: vscode.SemanticTokensProvider = {
-		provideSemanticTokens(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticTokens> {
+	const outputChannel = vscode.window.createOutputChannel('Semantic Tokens Test');
+
+	const documentSemanticHighlightProvider: vscode.DocumentSemanticTokensProvider = {
+		provideDocumentSemanticTokens(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticTokens> {
 			const builder = new vscode.SemanticTokensBuilder();
 
 			function addToken(value: string, startLine: number, startCharacter: number, length: number) {
@@ -35,7 +37,12 @@ export function activate(context: vscode.ExtensionContext): any {
 
 
 				builder.push(startLine, startCharacter, length, tokenType, tokenModifiers);
+
+				const selectedModifiers = legend.tokenModifiers.filter((_val, bit) => tokenModifiers & (1 << bit)).join(' ');
+				outputChannel.appendLine(`line: ${startLine}, character: ${startCharacter}, length ${length}, ${legend.tokenTypes[tokenType]} (${tokenType}), ${selectedModifiers} ${tokenModifiers.toString(2)}`);
 			}
+
+			outputChannel.appendLine('---');
 
 			const visitor: jsoncParser.JSONVisitor = {
 				onObjectProperty: (property: string, _offset: number, _length: number, startLine: number, startCharacter: number) => {
@@ -54,6 +61,6 @@ export function activate(context: vscode.ExtensionContext): any {
 	};
 
 
-	context.subscriptions.push(vscode.languages.registerSemanticTokensProvider({ pattern: '**/*semantic-test.json' }, semanticHighlightProvider, legend));
+	context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ pattern: '**/*semantic-test.json' }, documentSemanticHighlightProvider, legend));
 
 }

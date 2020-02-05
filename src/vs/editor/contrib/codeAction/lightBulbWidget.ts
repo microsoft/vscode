@@ -18,6 +18,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Gesture } from 'vs/base/browser/touch';
+import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 
 namespace LightBulbState {
 
@@ -33,6 +34,7 @@ namespace LightBulbState {
 
 		constructor(
 			public readonly actions: CodeActionSet,
+			public readonly trigger: CodeActionTrigger,
 			public readonly editorPosition: IPosition,
 			public readonly widgetPosition: IContentWidgetPosition,
 		) { }
@@ -48,7 +50,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private readonly _domNode: HTMLDivElement;
 
-	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet; }>());
+	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet; trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
@@ -95,7 +97,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this._onClick.fire({
 				x: e.posx,
 				y: top + height + pad,
-				actions: this.state.actions
+				actions: this.state.actions,
+				trigger: this.state.trigger,
 			});
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
@@ -107,7 +110,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// showings until mouse is released
 			this.hide();
 			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
-			monitor.startMonitoring(standardMouseMoveMerger, () => { }, () => {
+			monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, () => { }, () => {
 				monitor.dispose();
 			});
 		}));
@@ -139,7 +142,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._state.type === LightBulbState.Type.Showing ? this._state.widgetPosition : null;
 	}
 
-	public update(actions: CodeActionSet, atPosition: IPosition) {
+	public update(actions: CodeActionSet, trigger: CodeActionTrigger, atPosition: IPosition) {
 		if (actions.validActions.length <= 0) {
 			return this.hide();
 		}
@@ -177,7 +180,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}
 
-		this.state = new LightBulbState.Showing(actions, atPosition, {
+		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		});
@@ -225,8 +228,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
 	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .contentWidgets .codicon-lightbulb,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+		.monaco-editor .contentWidgets .codicon-lightbulb {
 			color: ${editorLightBulbForegroundColor};
 		}`);
 	}
@@ -235,8 +237,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
 	if (editorLightBulbAutoFixForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .contentWidgets .codicon-lightbulb-autofix,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+		.monaco-editor .contentWidgets .codicon-lightbulb-autofix {
 			color: ${editorLightBulbAutoFixForegroundColor};
 		}`);
 	}

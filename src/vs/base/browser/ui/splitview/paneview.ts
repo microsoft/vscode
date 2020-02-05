@@ -230,7 +230,7 @@ export abstract class Pane extends Disposable implements IView {
 		toggleClass(this.header, 'expanded', expanded);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
-		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
+		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : '';
 		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
 		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : '';
 		this._dropBackground = this.styles.dropBackground;

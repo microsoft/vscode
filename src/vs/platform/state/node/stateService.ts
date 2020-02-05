@@ -11,16 +11,16 @@ import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILogService } from 'vs/platform/log/common/log';
 
-type StorageDatebase = { [key: string]: any; };
+type StorageDatabase = { [key: string]: any; };
 
 export class FileStorage {
 
-	private _database: StorageDatebase | null = null;
+	private _database: StorageDatabase | null = null;
 	private lastFlushedSerializedDatabase: string | null = null;
 
 	constructor(private dbPath: string, private onError: (error: Error) => void) { }
 
-	private get database(): StorageDatebase {
+	private get database(): StorageDatabase {
 		if (!this._database) {
 			this._database = this.loadSync();
 		}
@@ -42,7 +42,7 @@ export class FileStorage {
 		this._database = database;
 	}
 
-	private loadSync(): StorageDatebase {
+	private loadSync(): StorageDatabase {
 		try {
 			this.lastFlushedSerializedDatabase = fs.readFileSync(this.dbPath).toString();
 
@@ -56,7 +56,7 @@ export class FileStorage {
 		}
 	}
 
-	private async loadAsync(): Promise<StorageDatebase> {
+	private async loadAsync(): Promise<StorageDatabase> {
 		try {
 			this.lastFlushedSerializedDatabase = (await readFile(this.dbPath)).toString();
 

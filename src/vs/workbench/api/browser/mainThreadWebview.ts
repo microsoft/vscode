@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
@@ -12,6 +13,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,7 +22,7 @@ import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } fr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
@@ -95,6 +97,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _customEditorModels = new Map<ICustomEditorModel, { referenceCount: number }>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,
@@ -106,6 +109,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -252,7 +256,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._revivers.delete(viewType);
 	}
 
-	public $registerEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void {
+	public $registerEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
@@ -270,15 +274,16 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
+				const resource = webviewInput.getResource();
 
-				const model = await this.getModel(webviewInput);
+				const model = await this.retainCustomEditorModel(webviewInput, resource, viewType, capabilities);
 				webviewInput.onDisposeWebview(() => {
-					this._customEditorService.models.disposeModel(model);
+					this.releaseCustomEditorModel(model);
 				});
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
-						{ resource: webviewInput.getResource(), edits: model.currentEdits },
+						resource,
 						handle,
 						viewType,
 						webviewInput.getTitle(),
@@ -302,45 +307,84 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		provider.dispose();
 		this._editorProviders.delete(viewType);
+
+		this._customEditorService.models.disposeAllModelsForView(viewType);
 	}
 
-	public async $registerCapabilities(handle: extHostProtocol.WebviewPanelHandle, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): Promise<void> {
-		const webviewInput = this.getWebviewInput(handle);
-		const model = await this.getModel(webviewInput);
+	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
+		const model = await this._customEditorService.models.resolve(webviewInput.getResource(), webviewInput.viewType);
+
+		const existingEntry = this._customEditorModels.get(model);
+		if (existingEntry) {
+			++existingEntry.referenceCount;
+			// no need to hook up listeners again
+			return model;
+		}
+
+		this._customEditorModels.set(model, { referenceCount: 1 });
 
 		const capabilitiesSet = new Set(capabilities);
-		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
-			model.onUndo(edits => { this._proxy.$undoEdits(handle, edits.map(x => x.data)); });
+		const isEditable = capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable);
+		if (isEditable) {
+			model.onUndo(e => {
+				this._proxy.$undoEdits(resource, viewType, e.edits);
+			});
 
-			model.onApplyEdit(edits => {
-				const editsToApply = edits.filter(x => x.source !== webviewInput).map(x => x.data);
-				if (editsToApply.length) {
-					this._proxy.$applyEdits(handle, editsToApply);
+			model.onDisposeEdits(e => {
+				this._proxy.$disposeEdits(e.edits);
+			});
+
+			model.onApplyEdit(e => {
+				if (e.trigger !== model) {
+					this._proxy.$applyEdits(resource, viewType, e.edits);
 				}
 			});
 
-			model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
+			model.onWillSave(e => {
+				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
+			});
+		}
 
-			model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
+		// Save as should always be implemented even if the model is readonly
+		model.onWillSaveAs(e => {
+			if (isEditable) {
+				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
+			} else {
+				// Since the editor is readonly, just copy the file over
+				e.waitUntil(this._fileService.copy(e.resource, e.targetResource, false /* overwrite */));
+			}
+		});
+
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SupportsHotExit)) {
+			model.onBackup(() => {
+				return createCancelablePromise(token =>
+					this._proxy.$backup(model.resource.toJSON(), viewType, token));
+			});
+		}
+
+		return model;
+	}
+
+	private async releaseCustomEditorModel(model: ICustomEditorModel) {
+		const entry = this._customEditorModels.get(model);
+		if (!entry) {
+			return;
+		}
+
+		--entry.referenceCount;
+		if (entry.referenceCount <= 0) {
+			this._customEditorService.models.disposeModel(model);
+			this._customEditorModels.delete(model);
 		}
 	}
 
-	private getModel(webviewInput: WebviewInput) {
-		return this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
-	}
-
-	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editData: any): void {
-		const webview = this.getWebviewInput(handle);
-		if (!(webview instanceof CustomFileEditorInput)) {
-			throw new Error('Webview is not a webview editor');
-		}
-
-		const model = this._customEditorService.models.get(webview.getResource(), webview.viewType);
+	public $onEdit(resource: UriComponents, viewType: string, editId: number): void {
+		const model = this._customEditorService.models.get(URI.revive(resource), viewType);
 		if (!model) {
 			throw new Error('Could not find model for webview editor');
 		}
 
-		model.makeEdit({ source: webview, data: editData });
+		model.pushEdit(editId, model);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
