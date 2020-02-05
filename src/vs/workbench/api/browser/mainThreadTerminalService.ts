@@ -309,9 +309,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return true;
 	}
 
-	private _onRequestAvailableShells(request: IAvailableShellsRequest): void {
+	private async _onRequestAvailableShells(callback: IAvailableShellsRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestAvailableShells().then(e => request(e));
+			callback(await this._proxy.$getAvailableShells());
 		}
 	}
 

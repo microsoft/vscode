@@ -200,7 +200,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 
-	public $requestAvailableShells(): Promise<IShellDefinitionDto[]> {
+	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
 		return detectAvailableShells();
 	}
 
