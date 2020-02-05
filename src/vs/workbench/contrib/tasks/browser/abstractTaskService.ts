@@ -34,7 +34,7 @@ import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platfor
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -1349,34 +1349,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet> {
 		return new Promise<TaskSet>(async (resolve, reject) => {
-			let isDone = false;
 			provider.provideTasks(validTypes).then((value) => {
-				isDone = true;
 				resolve(value);
 			}, (e) => {
-				isDone = true;
 				reject(e);
 			});
-			let settingValue: boolean | string[] = this.configurationService.getValue('task.slowProviderWarning');
-			if ((settingValue === true) || (Types.isStringArray(settingValue) && (settingValue.indexOf(type) < 0))) {
-				setTimeout(() => {
-					if (!isDone) {
-						const settings: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.settings', "Settings"), run: () => this.preferencesService.openSettings(false, undefined) };
-						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', 'off') };
-						const dontShow: IPromptChoice = {
-							label: nls.localize('TaskSystem.slowProvider.dontShow', "Don't warn again for {0} tasks", type), run: () => {
-								if (!Types.isStringArray(settingValue)) {
-									settingValue = [];
-								}
-								settingValue.push(type);
-								return this.configurationService.updateValue('task.slowProviderWarning', settingValue);
-							}
-						};
-						this.notificationService.prompt(Severity.Warning, nls.localize('TaskSystem.slowProvider', "The {0} task provider is slow. The extension that provides {0} tasks may provide a setting to disable it, or you can disable all tasks providers", type),
-							[settings, disableAll, dontShow]);
-					}
-				}, 4000);
-			}
 		});
 	}
 
