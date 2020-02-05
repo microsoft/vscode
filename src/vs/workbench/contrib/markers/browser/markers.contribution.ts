@@ -28,7 +28,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -229,7 +229,7 @@ registerAction2(class extends Action2 {
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.has(`${Constants.MARKERS_VIEW_ID}.visible`)
+				when: ContextKeyExpr.has(getVisbileViewContextKey(Constants.MARKERS_VIEW_ID))
 			}
 		});
 	}
@@ -248,7 +248,7 @@ registerAction2(class extends Action2 {
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.has(`${Constants.MARKERS_VIEW_ID}.visible`)
+				when: ContextKeyExpr.has(getVisbileViewContextKey(Constants.MARKERS_VIEW_ID))
 			}
 		});
 	}

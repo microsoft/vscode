@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -512,7 +512,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private getOrCreateActiveViewContextKey(view: IView): IContextKey<boolean> {
-		const visibleContextKeyId = `${view.id}.visible`;
+		const visibleContextKeyId = getVisbileViewContextKey(view.id);
 		let contextKey = this.visibleViewContextKeys.get(visibleContextKeyId);
 		if (!contextKey) {
 			contextKey = new RawContextKey(visibleContextKeyId, false).bindTo(this.contextKeyService);
