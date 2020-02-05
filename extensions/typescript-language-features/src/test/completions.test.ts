@@ -293,7 +293,7 @@ suite('TypeScript Completions', () => {
 		});
 	});
 
-	test('Member completions for string properties should insert `this.` and use brackets', async () => {
+	test('Member completions for string property name should insert `this.` and use brackets', async () => {
 		await enumerateConfig(Config.insertMode, insertModes, async config => {
 			await createTestEditor(testDocumentUri,
 				`class A {`,
@@ -319,7 +319,33 @@ suite('TypeScript Completions', () => {
 		});
 	});
 
-	test('Accepting a completion in word using insert mode should insert', async () => {
+	test('Member completions for string property name already using `this.` should add brackets', async () => {
+		await enumerateConfig(Config.insertMode, insertModes, async config => {
+			await createTestEditor(testDocumentUri,
+				`class A {`,
+				`  ['xyz 123'] = 1`,
+				`  foo() {`,
+				`    this.xyz$0`,
+				`  }`,
+				`}`,
+			);
+
+			const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`class A {`,
+					`  ['xyz 123'] = 1`,
+					`  foo() {`,
+					`    this["xyz 123"]`,
+					`  }`,
+					`}`,
+				),
+				`Config: ${config}`);
+		});
+	});
+
+	test('Accepting a completion in word using `insert` mode should insert', async () => {
 		await updateConfig({ [Config.insertMode]: 'insert' });
 
 		await createTestEditor(testDocumentUri,
@@ -336,7 +362,7 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting a completion in word using replace mode should replace', async () => {
+	test('Accepting a completion in word using `replace` mode should replace', async () => {
 		await updateConfig({ [Config.insertMode]: 'replace' });
 
 		await createTestEditor(testDocumentUri,
@@ -353,7 +379,7 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting a member completion in word using insert mode add `this.` and insert', async () => {
+	test('Accepting a member completion in word using `insert` mode add `this.` and insert', async () => {
 		await updateConfig({ [Config.insertMode]: 'insert' });
 
 		await createTestEditor(testDocumentUri,
@@ -378,7 +404,7 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting a member completion in word using replace mode should add `this.` and replace', async () => {
+	test('Accepting a member completion in word using `replace` mode should add `this.` and replace', async () => {
 		await updateConfig({ [Config.insertMode]: 'replace' });
 
 		await createTestEditor(testDocumentUri,
@@ -403,7 +429,7 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting string completion inside string using insert mode should insert', async () => {
+	test('Accepting string completion inside string using `insert` mode should insert', async () => {
 		await updateConfig({ [Config.insertMode]: 'insert' });
 
 		await createTestEditor(testDocumentUri,

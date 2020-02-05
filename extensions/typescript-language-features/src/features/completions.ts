@@ -66,17 +66,37 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		if (tsEntry.replacementSpan) {
-			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+			let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 			// Make sure we only replace a single line at most
-			if (!this.range.isSingleLine) {
-				this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
+			if (!replaceRange.isSingleLine) {
+				replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, line.length);
 			}
+			this.range = {
+				inserting: new vscode.Range(replaceRange.start, position),
+				replacing: replaceRange,
+			};
 		}
 
-		this.insertText = tsEntry.insertText;
-		// Set filterText for intelliCode and bracket accessors , but not for `this.` completions since it results in
-		// them being overly prioritized. #74164
-		this.filterText = tsEntry.insertText && !/^this\./.test(tsEntry.insertText) ? tsEntry.insertText : undefined;
+		if (tsEntry.insertText) {
+			this.insertText = tsEntry.insertText;
+
+			// Set filterText for intelliCode and bracket accessors , but not for `this.` completions since it results in
+			// them being overly prioritized. #74164
+			this.filterText = !(/^this\./).test(tsEntry.insertText) ? tsEntry.insertText : undefined;
+
+			// Handle the case:
+			//
+			// ```
+			// const xyz = { 'ab c': 1 };
+			// xyz.ab|
+			// ```
+			//
+			// In which case we want to insert a bracket accessor but should use `.abc` as the filter text instead of
+			// the bracketed insert text.
+			if (tsEntry.insertText[0] === '[') {
+				this.filterText = tsEntry.insertText.replace(/^\[['"](.+)[['"]\]$/, '.$1');
+			}
+		}
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
