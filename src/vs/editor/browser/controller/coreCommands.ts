@@ -270,8 +270,7 @@ export namespace RevealLine_ {
 	export const RawAtArgument = {
 		Top: 'top',
 		Center: 'center',
-		Bottom: 'bottom',
-		Definition: 'definition',
+		Bottom: 'bottom'
 	};
 }
 
@@ -1477,9 +1476,6 @@ export namespace CoreNavigationCommands {
 						break;
 					case RevealLine_.RawAtArgument.Bottom:
 						revealAt = VerticalRevealType.Bottom;
-						break;
-					case RevealLine_.RawAtArgument.Definition:
-						revealAt = VerticalRevealType.Definition;
 						break;
 					default:
 						break;

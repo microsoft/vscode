@@ -224,8 +224,7 @@ export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
 	InCenterIfOutsideViewport = 2,
-	AtTop = 3,
-	AtDefinition = 4,
+	AtTop = 3
 }
 
 export interface IUndoStopOptions {

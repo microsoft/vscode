@@ -710,12 +710,7 @@ declare module 'vscode' {
 		/**
 		 * The range will always be revealed at the top of the viewport.
 		 */
-		AtTop = 3,
-		/**
-		 * The range will always be revealed close to the top of the viewport,
-		 * optimized for viewing a code definition.
-		 */
-		AtDefinition = 4,
+		AtTop = 3
 	}
 
 	/**

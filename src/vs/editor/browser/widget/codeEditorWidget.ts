@@ -765,15 +765,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	public revealRangeNearTop(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealRange(
-			range,
-			VerticalRevealType.Definition,
-			true,
-			scrollType
-		);
-	}
-
 	private _revealRange(range: IRange, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		if (!Range.isIRange(range)) {
 			throw new Error('Invalid arguments');
