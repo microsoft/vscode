@@ -7,20 +7,34 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
-import { createTestEditor, joinLines, wait } from './testUtils';
 import { acceptFirstSuggestion } from './suggestTestHelpers';
+import { Config, createTestEditor, joinLines, updateConfig, VsCodeConfiguration, wait } from './testUtils';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
 suite('JSDoc Completions', () => {
 	const _disposables: vscode.Disposable[] = [];
 
+	const configDefaults: VsCodeConfiguration = Object.freeze({
+		[Config.snippetSuggestions]: 'inline',
+	});
+
+	let oldConfig: { [key: string]: any } = {};
+
 	setup(async () => {
 		await wait(100);
+
+		// Save off config and apply defaults
+		oldConfig = await updateConfig(testDocumentUri, configDefaults);
 	});
 
 	teardown(async () => {
 		disposeAll(_disposables);
+
+		// Restore config
+		await updateConfig(testDocumentUri, oldConfig);
+
+		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
 	test('Should complete jsdoc inside single line comment', async () => {

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import { join } from 'path';
+import * as vscode from 'vscode';
 
 function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
@@ -80,4 +81,50 @@ export async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
 	}
 
 	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
+	return activeEditor;
 }
+
+export function assertEditorContents(editor: vscode.TextEditor, expectedDocContent: string, message?: string): void {
+	const cursorIndex = expectedDocContent.indexOf(CURSOR);
+
+	assert.strictEqual(
+		editor.document.getText(),
+		expectedDocContent.replace(CURSOR, ''),
+		message);
+
+	if (cursorIndex >= 0) {
+		const expectedCursorPos = editor.document.positionAt(cursorIndex);
+		assert.strictEqual(
+			editor.selection.active.line,
+			expectedCursorPos.line
+		);
+		assert.strictEqual(
+			editor.selection.active.character,
+			expectedCursorPos.character
+		);
+
+	}
+}
+
+export type VsCodeConfiguration = { [key: string]: any };
+
+export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
+	const oldConfig: VsCodeConfiguration = {};
+	const config = vscode.workspace.getConfiguration(undefined, documentUri);
+	for (const configKey of Object.keys(newConfig)) {
+		oldConfig[configKey] = config.get(configKey);
+		await new Promise((resolve, reject) =>
+			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
+				.then(() => resolve(), reject));
+	}
+	return oldConfig;
+}
+
+
+export const Config = Object.freeze({
+	autoClosingBrackets: 'editor.autoClosingBrackets',
+	completeFunctionCalls: 'typescript.suggest.completeFunctionCalls',
+	insertMode: 'editor.suggest.insertMode',
+	snippetSuggestions: 'editor.snippetSuggestions',
+	suggestSelection: 'editor.suggestSelection',
+} as const);
