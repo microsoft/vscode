@@ -59,21 +59,21 @@ interface ActiveTerminalData {
 }
 
 class InstanceManager {
-	private currentInstances: number = 0;
-	private counter: number = 0;
+	private _currentInstances: number = 0;
+	private _counter: number = 0;
 
 	addInstance() {
-		this.currentInstances++;
-		this.counter++;
+		this._currentInstances++;
+		this._counter++;
 	}
 	removeInstance() {
-		this.currentInstances--;
+		this._currentInstances--;
 	}
-	getInstances() {
-		return this.currentInstances;
+	get instances() {
+		return this._currentInstances;
 	}
-	getCounter() {
-		return this.counter;
+	get counter() {
+		return this._counter;
 	}
 }
 
@@ -227,13 +227,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		let commonKey = task._id.split('|')[0];
-		let validInstance = task.runOptions && task.runOptions.instances && this.instances[commonKey] && this.instances[commonKey].getInstances() < task.runOptions.instances;
-		let instance = this.instances[commonKey] ? this.instances[commonKey].getInstances() : 0;
+		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[commonKey] && this.instances[commonKey].instances < task.runOptions.instanceLimit;
+		let instance = this.instances[commonKey] ? this.instances[commonKey].instances : 0;
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
 		let taskClone = undefined;
 		if (instance > 0) {
 			taskClone = task.clone();
-			taskClone._id += '|' + this.instances[commonKey].getCounter().toString();
+			taskClone._id += '|' + this.instances[commonKey].counter.toString();
 		}
 		let taskToExecute = taskClone ?? task;
 		let lastTaskInstance = this.getLastInstance(task);
@@ -372,7 +372,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let commonKey = task._id.split('|')[0];
 		if (this.instances[commonKey]) {
 			this.instances[commonKey].removeInstance();
-			if (this.instances[commonKey].getInstances() === 0) {
+			if (this.instances[commonKey].instances === 0) {
 				delete this.instances[commonKey];
 			}
 		}

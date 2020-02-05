@@ -330,7 +330,7 @@ const runOptions: IJSONSchema = {
 		},
 		instanceLimit: {
 			type: 'number',
-			description: nls.localize('JsonSchema.tasks.instances', 'How many instances of a task can run simultaneously.'),
+			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
 			default: 1
 		},
 	},

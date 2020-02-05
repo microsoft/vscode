@@ -523,11 +523,11 @@ export enum RunOnOptions {
 export interface RunOptions {
 	reevaluateOnRerun?: boolean;
 	runOn?: RunOnOptions;
-	instances?: number;
+	instanceLimit?: number;
 }
 
 export namespace RunOptions {
-	export const defaults: RunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instances: 1 };
+	export const defaults: RunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1 };
 }
 
 export abstract class CommonTask {
