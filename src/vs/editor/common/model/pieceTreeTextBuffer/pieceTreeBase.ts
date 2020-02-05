@@ -670,7 +670,7 @@ export class PieceTreeBase {
 		if (searcher._wordSeparators) {
 			searchText = buffer.buffer.substring(start, end);
 			offsetInBuffer = (offset: number) => offset + start;
-			searcher.reset(-1);
+			searcher.reset(0);
 		} else {
 			searchText = buffer.buffer;
 			offsetInBuffer = (offset: number) => offset;
