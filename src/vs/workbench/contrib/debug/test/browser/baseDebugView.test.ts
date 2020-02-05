@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { replaceWhitespace, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
 import { Expression, Variable, Scope, StackFrame, Thread, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
@@ -29,13 +29,6 @@ suite('Debug - Base Debug View', () => {
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
 
-	test('replace whitespace', () => {
-		assert.equal(replaceWhitespace('hey there'), 'hey there');
-		assert.equal(replaceWhitespace('hey there\n'), 'hey there\\n');
-		assert.equal(replaceWhitespace('hey \r there\n\t'), 'hey \\r there\\n\\t');
-		assert.equal(replaceWhitespace('hey \r\t\n\t\t\n there'), 'hey \\r\\t\\n\\t\\t\\n there');
-	});
-
 	test('render view tree', () => {
 		const container = $('.container');
 		const treeContainer = renderViewTree(container);
@@ -48,7 +41,7 @@ suite('Debug - Base Debug View', () => {
 
 	test('render expression value', () => {
 		let container = $('.container');
-		renderExpressionValue('render \n me', container, { showHover: true, preserveWhitespace: true });
+		renderExpressionValue('render \n me', container, { showHover: true });
 		assert.equal(container.className, 'value');
 		assert.equal(container.title, 'render \n me');
 		assert.equal(container.textContent, 'render \n me');
