@@ -29,26 +29,31 @@ const optimist = require('optimist')
 // logic
 const argv = optimist.argv;
 
-const Reporter = (function () {
+const withReporter = (function () {
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
-	let Reporter;
+	let ctor;
 
 	try {
-		Reporter = require(reporterPath);
+		ctor = require(reporterPath);
 	} catch (err) {
 		try {
-			Reporter = require(argv.reporter);
+			ctor = require(argv.reporter);
 		} catch (err) {
-			Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-			console.warn(`could not load reporter: ${argv.reporter}, using ${Reporter.name}`);
+			ctor = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
+			console.warn(`could not load reporter: ${argv.reporter}, using ${ctor.name}`);
 		}
 	}
 
-	// let reporterOptions = argv['reporter-options'];
-	// reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-	// reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+	function parseReporterOption(value) {
+		let r = /^([^=]+)=(.*)$/.exec(value);
+		return r ? { [r[1]]: r[2] } : {};
+	}
 
-	return Reporter
+	let reporterOptions = argv['reporter-options'];
+	reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
+	reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+
+	return (runner) => new ctor(runner, { reporterOptions })
 })()
 
 const outdir = argv.build ? 'out-build' : 'out';
@@ -104,7 +109,7 @@ async function runTestsInBrowser(testModules, browserType) {
 		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	new Reporter(new EchoRunner(emitter, browserType.toUpperCase()));
+	withReporter(new EchoRunner(emitter, browserType.toUpperCase()));
 
 	try {
 		// @ts-ignore

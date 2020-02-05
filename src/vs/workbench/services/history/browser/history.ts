@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, IResourceInput, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -351,7 +351,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true, // support to navigate across editor groups,
 			selection: location.selection,
-			revealInCenterIfOutsideViewport: !!location.selection
+			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 		};
 
 		if (location.input instanceof EditorInput) {

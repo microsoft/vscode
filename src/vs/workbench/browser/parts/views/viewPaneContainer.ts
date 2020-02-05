@@ -310,6 +310,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.map(i => i.pane);
 	}
 
+	get views(): IView[] {
+		return this.panes;
+	}
+
 	get length(): number {
 		return this.paneItems.length;
 	}

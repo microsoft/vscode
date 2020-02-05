@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { debug, workspace, commands, window, Disposable } from 'vscode';
 import { basename } from 'path';
-import { disposeAll, createRandomFile } from '../utils';
+import { disposeAll } from '../utils';
 
 suite('Debug', function () {
 
@@ -14,13 +14,9 @@ suite('Debug', function () {
 		assert.equal(debug.breakpoints.length, 0);
 		let onDidChangeBreakpointsCounter = 0;
 		const toDispose: Disposable[] = [];
-		let onBreakpointsChange: () => void;
 
 		toDispose.push(debug.onDidChangeBreakpoints(() => {
 			onDidChangeBreakpointsCounter++;
-			if (onBreakpointsChange) {
-				onBreakpointsChange();
-			}
 		}));
 
 		debug.addBreakpoints([{ id: '1', enabled: true }, { id: '2', enabled: false, condition: '2 < 5' }]);
@@ -36,21 +32,6 @@ suite('Debug', function () {
 
 		debug.removeBreakpoints([{ id: '2', enabled: false }]);
 		assert.equal(onDidChangeBreakpointsCounter, 3);
-		assert.equal(debug.breakpoints.length, 0);
-
-		const file = await createRandomFile('let i = 5;', undefined, '.js');
-		const doc = await workspace.openTextDocument(file);
-		await window.showTextDocument(doc, undefined, false);
-		const breakpointsChanged = new Promise<void>(resolve => onBreakpointsChange = resolve);
-		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
-		await breakpointsChanged;
-		assert.equal(debug.breakpoints.length, 1);
-		assert.equal(debug.breakpoints[0].enabled, true);
-
-		await window.showTextDocument(doc, undefined, false);
-		const breakpointsChangedSecond = new Promise<void>(resolve => onBreakpointsChange = resolve);
-		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
-		await breakpointsChangedSecond;
 		assert.equal(debug.breakpoints.length, 0);
 
 		disposeAll(toDispose);

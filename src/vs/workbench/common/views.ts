@@ -21,7 +21,6 @@ import { flatten } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
@@ -358,6 +357,7 @@ export interface IViewsViewlet extends IViewlet {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 
 export interface IViewsService {
+
 	_serviceBrand: undefined;
 
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
@@ -371,6 +371,12 @@ export interface IViewsService {
 	closeView(id: string): void;
 
 }
+
+/**
+ * View Contexts
+ */
+export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
+export function getVisbileViewContextKey(viewId: string): string { return `${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
@@ -529,7 +535,7 @@ export interface IViewPaneContainer {
 	onDidRemoveViews: Event<IView[]>;
 	onDidChangeViewVisibility: Event<IView>;
 
-	readonly length: number;
+	readonly views: IView[];
 
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;
