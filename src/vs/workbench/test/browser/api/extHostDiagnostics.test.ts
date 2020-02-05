@@ -9,7 +9,7 @@ import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/commo
 import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/common/extHostTypes';
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { mock } from 'vs/workbench/test/browser/api/mock';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
 

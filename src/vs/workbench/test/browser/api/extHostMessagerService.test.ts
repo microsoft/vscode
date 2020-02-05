@@ -8,8 +8,9 @@ import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMes
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { mock } from 'vs/workbench/test/browser/api/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 
 const emptyDialogService = new class implements IDialogService {
 	_serviceBrand: undefined;
@@ -97,7 +98,7 @@ suite('ExtHostMessageService', function () {
 
 		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.equal(notification.actions!.primary!.length, 1);
-			setImmediate(() => notification.actions!.primary![0].run());
+			platform.setImmediate(() => notification.actions!.primary![0].run());
 		}), emptyCommandService, emptyDialogService);
 
 		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);

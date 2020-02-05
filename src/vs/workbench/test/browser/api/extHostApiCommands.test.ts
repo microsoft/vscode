@@ -30,7 +30,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { mock } from 'vs/workbench/test/browser/api/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -85,6 +85,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			async activateByEvent() {
 
 			}
+
 		});
 		services.set(ICommandService, new SyncDescriptor(class extends mock<ICommandService>() {
 

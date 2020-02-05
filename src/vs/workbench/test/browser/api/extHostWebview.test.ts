@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -10,8 +11,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import type * as vscode from 'vscode';
+import { mock } from 'vs/workbench/test/browser/api/mock';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
 suite('ExtHostWebview', () => {
