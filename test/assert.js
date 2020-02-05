@@ -468,7 +468,10 @@ assert.doesNotThrow = function(block, /*optional*/message) {
   _throws.apply(this, [false].concat(pSlice.call(arguments)));
 };
 
-assert.ifError = function(err) { if (err) {throw err;}};
+// VSCODE-CHANGE, todo@joh this isn't correct!!
+assert.deepStrictEqual = assert.deepEqual;
+
+assert.ifError = function (err) { if (err) { throw err; } };
 
 return assert;
 });
