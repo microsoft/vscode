@@ -310,7 +310,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.map(i => i.pane);
 	}
 
-	protected get length(): number {
+	get length(): number {
 		return this.paneItems.length;
 	}
 
@@ -532,7 +532,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	protected updateTitleArea(): void {
 		this._onTitleAreaUpdate.fire();
-
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {

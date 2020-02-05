@@ -10,7 +10,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel } from 'vs/workbench/browser/panel';
@@ -28,9 +28,9 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
+async function getBulkEditPane(panelService: IPanelService): Promise<BulkEditPane | undefined> {
 	let view: ViewPane | undefined;
-	const activePanel = panelService.openPanel(BulkEditPane.ID, true);
+	const activePanel = await panelService.openPanel(BulkEditPane.ID, true);
 	if (activePanel instanceof PaneCompositePanel) {
 		view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
 	}
@@ -51,11 +51,11 @@ class UXState {
 		this._activePanel = _panelService.getActivePanel()?.getId();
 	}
 
-	restore(): void {
+	async restore(): Promise<void> {
 
 		// (1) restore previous panel
 		if (typeof this._activePanel === 'string') {
-			this._panelService.openPanel(this._activePanel);
+			await this._panelService.openPanel(this._activePanel);
 		} else {
 			this._panelService.hideActivePanel();
 		}
@@ -124,7 +124,7 @@ class BulkEditPreviewContribution {
 
 		// the actual work...
 		try {
-			const view = getBulkEditPane(this._panelService);
+			const view = await getBulkEditPane(this._panelService);
 			if (!view) {
 				return edit;
 			}
@@ -139,7 +139,7 @@ class BulkEditPreviewContribution {
 		} finally {
 			// restore UX state
 			if (this._activeSession === session) {
-				this._activeSession.uxState.restore();
+				await this._activeSession.uxState.restore();
 				this._activeSession.cts.dispose();
 				this._ctxEnabled.set(false);
 				this._activeSession = undefined;
@@ -168,15 +168,15 @@ registerAction2(class ApplyAction extends Action2 {
 			}],
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
-				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, ContextKeyExpr.equals('activePanel', BulkEditPane.ID), ContextKeyExpr.has('panelFocus')),
+				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, FocusedViewContext.isEqualTo(BulkEditPane.ID)),
 				primary: KeyMod.Shift + KeyCode.Enter,
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): any {
+	async run(accessor: ServicesAccessor): Promise<any> {
 		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+		const view = await getBulkEditPane(panelService);
 		if (view) {
 			view.accept();
 		}
@@ -203,9 +203,9 @@ registerAction2(class DiscardAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+		const view = await getBulkEditPane(panelService);
 		if (view) {
 			view.discard();
 		}
@@ -234,9 +234,9 @@ registerAction2(class ToggleAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+		const view = await getBulkEditPane(panelService);
 		if (view) {
 			view.toggleChecked();
 		}
@@ -263,9 +263,9 @@ registerAction2(class GroupByFile extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+		const view = await getBulkEditPane(panelService);
 		if (view) {
 			view.groupByFile();
 		}
@@ -290,9 +290,9 @@ registerAction2(class GroupByType extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+		const view = await getBulkEditPane(panelService);
 		if (view) {
 			view.groupByType();
 		}
@@ -316,9 +316,9 @@ registerAction2(class ToggleGrouping extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+		const view = await getBulkEditPane(panelService);
 		if (view) {
 			view.toggleGrouping();
 		}

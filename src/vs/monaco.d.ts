@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+declare let MonacoEnvironment: monaco.Environment | undefined;
+
 declare namespace monaco {
 
-	// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
-
 	export type Thenable<T> = PromiseLike<T>;
+
+	export interface Environment {
+		baseUrl?: string;
+		getWorker?(workerId: string, label: string): Worker;
+		getWorkerUrl?(workerId: string, label: string): string;
+	}
 
 	export interface IDisposable {
 		dispose(): void;
@@ -1046,7 +1052,7 @@ declare namespace monaco.editor {
 		 * Method that will be executed when the action is triggered.
 		 * @param editor The editor instance is passed in as a convenience
 		 */
-		run(editor: ICodeEditor): void | Promise<void>;
+		run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
 	}
 
 	/**
@@ -1459,20 +1465,6 @@ declare namespace monaco.editor {
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
 		CRLF = 1
-	}
-
-	/**
-	 * An identifier for a single edit operation.
-	 */
-	export interface ISingleEditOperationIdentifier {
-		/**
-		 * Identifier major
-		 */
-		major: number;
-		/**
-		 * Identifier minor
-		 */
-		minor: number;
 	}
 
 	/**
@@ -2373,23 +2365,6 @@ declare namespace monaco.editor {
 	export interface IModelDecorationsChangedEvent {
 	}
 
-	/**
-	 * An event describing that some ranges of lines have been tokenized (their tokens have changed).
-	 */
-	export interface IModelTokensChangedEvent {
-		readonly tokenizationSupportChanged: boolean;
-		readonly ranges: {
-			/**
-			 * The start of the range (inclusive)
-			 */
-			readonly fromLineNumber: number;
-			/**
-			 * The end of the range (inclusive)
-			 */
-			readonly toLineNumber: number;
-		}[];
-	}
-
 	export interface IModelOptionsChangedEvent {
 		readonly tabSize: boolean;
 		readonly indentSize: boolean;
@@ -2538,7 +2513,7 @@ declare namespace monaco.editor {
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
 		 */
-		rulers?: number[];
+		rulers?: (number | IRulerOption)[];
 		/**
 		 * A string containing the word separators used when doing word navigation.
 		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
@@ -3089,6 +3064,7 @@ declare namespace monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export class ConfigurationChangedEvent {
+		hasChanged(id: EditorOption): boolean;
 	}
 
 	/**
@@ -3237,17 +3213,6 @@ declare namespace monaco.editor {
 	}
 
 	export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
-
-	/**
-	 * Configuration options for semantic highlighting
-	 */
-	export interface IEditorSemanticHighlightingOptions {
-		/**
-		 * Enable semantic highlighting.
-		 * Defaults to true.
-		 */
-		enabled?: boolean;
-	}
 
 	/**
 	 * A description for the overview ruler position.
@@ -3443,6 +3408,11 @@ declare namespace monaco.editor {
 	export interface InternalEditorRenderLineNumbersOptions {
 		readonly renderType: RenderLineNumbersType;
 		readonly renderFn: ((lineNumber: number) => string) | null;
+	}
+
+	export interface IRulerOption {
+		readonly column: number;
+		readonly color: string | null;
 	}
 
 	/**
@@ -3785,32 +3755,31 @@ declare namespace monaco.editor {
 		selectionClipboard = 82,
 		selectionHighlight = 83,
 		selectOnLineNumbers = 84,
-		semanticHighlighting = 85,
-		showFoldingControls = 86,
-		showUnused = 87,
-		snippetSuggestions = 88,
-		smoothScrolling = 89,
-		stopRenderingLineAfter = 90,
-		suggest = 91,
-		suggestFontSize = 92,
-		suggestLineHeight = 93,
-		suggestOnTriggerCharacters = 94,
-		suggestSelection = 95,
-		tabCompletion = 96,
-		useTabStops = 97,
-		wordSeparators = 98,
-		wordWrap = 99,
-		wordWrapBreakAfterCharacters = 100,
-		wordWrapBreakBeforeCharacters = 101,
-		wordWrapColumn = 102,
-		wordWrapMinified = 103,
-		wrappingIndent = 104,
-		wrappingStrategy = 105,
-		editorClassName = 106,
-		pixelRatio = 107,
-		tabFocusMode = 108,
-		layoutInfo = 109,
-		wrappingInfo = 110
+		showFoldingControls = 85,
+		showUnused = 86,
+		snippetSuggestions = 87,
+		smoothScrolling = 88,
+		stopRenderingLineAfter = 89,
+		suggest = 90,
+		suggestFontSize = 91,
+		suggestLineHeight = 92,
+		suggestOnTriggerCharacters = 93,
+		suggestSelection = 94,
+		tabCompletion = 95,
+		useTabStops = 96,
+		wordSeparators = 97,
+		wordWrap = 98,
+		wordWrapBreakAfterCharacters = 99,
+		wordWrapBreakBeforeCharacters = 100,
+		wordWrapColumn = 101,
+		wordWrapMinified = 102,
+		wrappingIndent = 103,
+		wrappingStrategy = 104,
+		editorClassName = 105,
+		pixelRatio = 106,
+		tabFocusMode = 107,
+		layoutInfo = 108,
+		wrappingInfo = 109
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3898,7 +3867,6 @@ declare namespace monaco.editor {
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
-		semanticHighlighting: IEditorOption<EditorOption.semanticHighlighting, any>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
@@ -4907,6 +4875,16 @@ declare namespace monaco.languages {
 	 * Register a selection range provider
 	 */
 	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
+
+	/**
+	 * Register a document semantic tokens provider
+	 */
+	export function registerDocumentSemanticTokensProvider(languageId: string, provider: DocumentSemanticTokensProvider): IDisposable;
+
+	/**
+	 * Register a document range semantic tokens provider
+	 */
+	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 
 	/**
 	 * Contains additional diagnostic information about the context in which

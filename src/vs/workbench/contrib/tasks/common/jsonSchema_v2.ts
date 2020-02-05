@@ -316,6 +316,7 @@ const identifier: IJSONSchema = {
 
 const runOptions: IJSONSchema = {
 	type: 'object',
+	additionalProperties: false,
 	properties: {
 		reevaluateOnRerun: {
 			type: 'boolean',

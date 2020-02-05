@@ -143,6 +143,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (sessions.length === 1) {
+			this.logAuthenticatedEvent(sessions[0]);
 			this.activeAccount = sessions[0];
 			return;
 		}
@@ -155,8 +156,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}), { canPickMany: false });
 
 		if (selectedAccount) {
-			this.activeAccount = sessions.filter(account => selectedAccount.id === account.id)[0];
+			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
+			this.logAuthenticatedEvent(selected);
+			this.activeAccount = selected;
 		}
+	}
+
+	private logAuthenticatedEvent(session: AuthenticationSession): void {
+		type UserAuthenticatedClassification = {
+			id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
+		};
+
+		type UserAuthenticatedEvent = {
+			id: string;
+		};
+
+		const id = session.id.split('/')[1];
+		this.telemetryService.publicLog2<UserAuthenticatedEvent, UserAuthenticatedClassification>('user.authenticated', { id });
 	}
 
 	get activeAccount(): AuthenticationSession | undefined {

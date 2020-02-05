@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -201,6 +201,10 @@ export class ApiRepository implements Repository {
 
 	log(options?: LogOptions): Promise<Commit[]> {
 		return this._repository.log(options);
+	}
+
+	commit(message: string, opts?: CommitOptions): Promise<void> {
+		return this._repository.commit(message, opts);
 	}
 }
 

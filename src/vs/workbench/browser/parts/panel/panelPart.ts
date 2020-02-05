@@ -128,7 +128,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			openComposite: (compositeId: string) => Promise.resolve(this.openPanel(compositeId, true)),
+			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
@@ -355,7 +355,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel | undefined {
+	doOpenPanel(id: string, focus?: boolean): Panel | undefined {
 		if (this.blockOpeningPanel) {
 			return undefined; // Workaround against a potential race condition
 		}
@@ -373,15 +373,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.openComposite(id, focus);
 	}
 
-	async	openPanelAsync(id?: string, focus?: boolean): Promise<Panel | undefined> {
+	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {
 		if (typeof id === 'string' && this.getPanel(id)) {
-			return this.openPanel(id, focus);
+			return this.doOpenPanel(id, focus);
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
 		if (typeof id === 'string' && this.getPanel(id)) {
-			return this.openPanel(id, focus);
+			return this.doOpenPanel(id, focus);
 		}
 
 		return undefined;

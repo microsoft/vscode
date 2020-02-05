@@ -33,6 +33,7 @@ interface ITokenClaims {
 	unique_name?: string;
 	oid?: string;
 	altsecid?: string;
+	ipd?: string;
 	scp: string;
 }
 
@@ -360,7 +361,7 @@ export class AzureActiveDirectoryService {
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,
-			sessionId: claims.tid + (claims.oid || claims.altsecid) + scope,
+			sessionId: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${scope}`,
 			displayName: claims.email || claims.unique_name || 'user@example.com'
 		};
 	}

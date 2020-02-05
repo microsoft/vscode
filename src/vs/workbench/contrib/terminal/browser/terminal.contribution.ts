@@ -343,6 +343,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.unicodeVersion': {
+			type: 'string',
+			enum: ['6', '11'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.unicodeVersion.six', "Version 6 of unicode, this is an older version which should work better on older systems."),
+				nls.localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode, this version provides better support on modern systems that use modern versions of unicode.")
+			],
+			default: '11',
+			description: nls.localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		}
 	}
 });
