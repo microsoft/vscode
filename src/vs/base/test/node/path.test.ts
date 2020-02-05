@@ -176,8 +176,8 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('dirname', () => {
-		assert.strictEqual(path.dirname(path.normalize(__filename)).substr(-11),
-			isWindows ? 'test\\common' : 'test/common');
+		assert.strictEqual(path.dirname(path.normalize(__filename)).substr(-9),
+			isWindows ? 'test\\node' : 'test/node');
 
 		assert.strictEqual(path.posix.dirname('/a/b/'), '/a');
 		assert.strictEqual(path.posix.dirname('/a/b'), '/a');
