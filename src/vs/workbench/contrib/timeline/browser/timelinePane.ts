@@ -47,7 +47,7 @@ export class TimelinePane extends ViewPane {
 
 	// private _excludedSources: Set<string> | undefined;
 	private _items: TimelineItemWithSource[] = [];
-	private _loadingMessageTimer: NodeJS.Timeout | undefined;
+	private _loadingMessageTimer: any | undefined;
 	private _pendingRequests = new Map<string, TimelineRequest>();
 	private _uri: URI | undefined;
 
