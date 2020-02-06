@@ -11,7 +11,14 @@ steps:
     $(macos-developer-certificate)
     EOF
     base64 -D > $(agent.tempdirectory)/cert.p12
-    security import $(agent.tempdirectory)/cert.p12 -k ~/Library/Keychains/login.keychain -P "$(macos-developer-certificate-key)"
+
+    # import the certificate to a newly created keychain
+    security create-keychain -p pwd build
+    security default-keychain -s build
+    security unlock-keychain -p pwd build
+    security import $(agent.tempdirectory)/cert.p12 -k ~/Library/Keychains/${KEYCHAIN} -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd build
+
     curl -o $(agent.tempdirectory)/VSCode-darwin.zip https://vscode.blob.core.windows.net/public/VSCode-darwin.zip
     unzip $(agent.tempdirectory)/VSCode-darwin.zip -d $(agent.tempdirectory)
     codesign -s 99FM488X57 --deep --force --options runtime --entitlements build/azure-pipelines/darwin/entitlements.plist $(agent.tempdirectory)/Visual\ Studio\ Code\ -\ Insiders.app
