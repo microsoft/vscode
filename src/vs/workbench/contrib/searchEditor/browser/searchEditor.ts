@@ -324,23 +324,23 @@ export class SearchEditor extends BaseEditor {
 		const searchModel = this.instantiationService.createInstance(SearchModel);
 		this.searchOperation.start(500);
 		await searchModel.search(query).finally(() => this.searchOperation.stop());
-		if (this.input !== startInput) {
+		const input = this.getInput();
+		if (!input || input !== startInput) {
 			searchModel.dispose();
 			return;
 		}
 
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
-
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
-		const { header, body } = await this.getInput()!.getModels();
+		const { header, body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		header.setValue(serializeSearchConfiguration(config));
 
-		this.getInput()?.setDirty(this.getInput()?.resource.scheme !== 'search-editor');
-		body.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
-		this.getInput()?.saveHighlights(body.getAllDecorations());
+		input.setDirty(input.resource.scheme !== 'search-editor');
+		input.setHighlights(results.matchRanges.map(range =>
+			({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 
 		searchModel.dispose();
 	}

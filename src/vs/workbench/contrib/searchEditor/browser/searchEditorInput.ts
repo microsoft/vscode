@@ -59,6 +59,7 @@ export class SearchEditorInput extends EditorInput {
 	viewState: SearchEditorViewState = { focused: 'input' };
 
 	private _highlights: IModelDeltaDecoration[] | undefined;
+	private oldDecorationsIDs: string[] = [];
 
 	constructor(
 		public readonly resource: URI,
@@ -123,6 +124,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		if ((await this.headerModel).isDisposed() || (await this.contentsModel).isDisposed()) { return; }
 
 		if (this.isUntitled()) {
 			return this.saveAs(group, options);
@@ -244,12 +246,7 @@ export class SearchEditorInput extends EditorInput {
 
 	public async setHighlights(value: IModelDeltaDecoration[]) {
 		if (!value) { return; }
-		const model = await this.contentsModel;
-		model.deltaDecorations([], value);
-		this._highlights = value;
-	}
-
-	public saveHighlights(value: IModelDeltaDecoration[]) {
+		this.oldDecorationsIDs = (await this.contentsModel).deltaDecorations(this.oldDecorationsIDs, value);
 		this._highlights = value;
 	}
 
