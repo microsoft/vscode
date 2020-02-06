@@ -61,7 +61,7 @@ export class KeyboardMapperFactory {
 	private static _isUSStandard(_kbInfo: nativeKeymap.IKeyboardLayoutInfo): boolean {
 		if (OS === OperatingSystem.Linux) {
 			const kbInfo = <nativeKeymap.ILinuxKeyboardLayoutInfo>_kbInfo;
-			return (kbInfo && kbInfo.layout === 'us');
+			return (kbInfo && (kbInfo.layout === 'us' || /^us,/.test(kbInfo.layout)));
 		}
 
 		if (OS === OperatingSystem.Macintosh) {

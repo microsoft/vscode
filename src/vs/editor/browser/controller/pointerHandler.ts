@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
@@ -18,7 +19,7 @@ interface IThrottledGestureEvent {
 	translationY: number;
 }
 
-function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEvent: MSGestureEvent): IThrottledGestureEvent {
+function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent | null, currentEvent: MSGestureEvent): IThrottledGestureEvent {
 	const r = {
 		translationY: currentEvent.translationY,
 		translationX: currentEvent.translationX
@@ -53,7 +54,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
-				this.viewHelper.linesContentDomNode.addEventListener('MSPointerDown', (e: MSPointerEvent) => {
+				this.viewHelper.linesContentDomNode.addEventListener(<any>'MSPointerDown', (e: MSPointerEvent) => {
 					// Circumvent IE11 breaking change in e.pointerType & TypeScript's stale definitions
 					const pointerType = <any>e.pointerType;
 					if (pointerType === ((<any>e).MSPOINTER_TYPE_MOUSE || 'mouse')) {
@@ -67,7 +68,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent, MSGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
 				this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
@@ -132,7 +133,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
-				this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: MSPointerEvent) => {
+				this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: PointerEvent) => {
 					const pointerType = <any>e.pointerType;
 					if (pointerType === 'mouse') {
 						this._lastPointerType = 'mouse';
@@ -145,7 +146,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent, MSGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
 				this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
@@ -201,7 +202,7 @@ export class PointerEventHandler extends MouseHandler {
 
 		this._lastPointerType = 'mouse';
 
-		this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: any) => {
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
 			const pointerType = <any>e.pointerType;
 			if (pointerType === 'mouse') {
 				this._lastPointerType = 'mouse';
@@ -211,7 +212,7 @@ export class PointerEventHandler extends MouseHandler {
 			} else {
 				this._lastPointerType = 'pen';
 			}
-		});
+		}));
 
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
@@ -225,12 +226,30 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private onTap(event: GestureEvent): void {
+		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(<any>event.initialTarget)) {
+			return;
+		}
+
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
-			this.viewController.moveTo(target.position);
+			// this.viewController.moveTo(target.position);
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: target.position.column,
+				startedOnLineNumbers: false,
+				mouseDownCount: event.tapCount,
+				inSelectionMode: false,
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				shiftKey: false,
+
+				leftButton: false,
+				middleButton: false,
+			});
 		}
 	}
 
@@ -241,9 +260,11 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	public _onMouseDown(e: EditorMouseEvent): void {
-		if (this._lastPointerType !== 'touch') {
-			super._onMouseDown(e);
+		if (e.target && this.viewHelper.linesContentDomNode.contains(e.target) && this._lastPointerType === 'touch') {
+			return;
 		}
+
+		super._onMouseDown(e);
 	}
 }
 
@@ -283,7 +304,7 @@ export class PointerHandler extends Disposable {
 		super();
 		if (window.navigator.msPointerEnabled) {
 			this.handler = this._register(new MsPointerHandler(context, viewController, viewHelper));
-		} else if (((<any>window).PointerEvent && BrowserFeatures.pointerEvents)) {
+		} else if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if ((<any>window).TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));

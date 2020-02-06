@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IWhitespaceChangeAccessor, IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -73,20 +74,29 @@ export class ViewZones extends ViewPart {
 	// ---- begin view event handlers
 
 	private _recomputeWhitespacesProps(): boolean {
-		let hadAChange = false;
-
-		const keys = Object.keys(this._zones);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const id = keys[i];
-			const zone = this._zones[id];
-			const props = this._computeWhitespaceProps(zone.delegate);
-			if (this._context.viewLayout.changeWhitespace(id, props.afterViewLineNumber, props.heightInPx)) {
-				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-				hadAChange = true;
-			}
+		const whitespaces = this._context.viewLayout.getWhitespaces();
+		const oldWhitespaces = new Map<string, IEditorWhitespace>();
+		for (const whitespace of whitespaces) {
+			oldWhitespaces.set(whitespace.id, whitespace);
 		}
+		return this._context.viewLayout.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+			let hadAChange = false;
 
-		return hadAChange;
+			const keys = Object.keys(this._zones);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				const id = keys[i];
+				const zone = this._zones[id];
+				const props = this._computeWhitespaceProps(zone.delegate);
+				const oldWhitespace = oldWhitespaces.get(id);
+				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.height !== props.heightInPx)) {
+					whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
+					this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
+					hadAChange = true;
+				}
+			}
+
+			return hadAChange;
+		});
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
@@ -190,40 +200,42 @@ export class ViewZones extends ViewPart {
 
 	public changeViewZones(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
 
-		let zonesHaveChanged = false;
+		return this._context.viewLayout.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+			let zonesHaveChanged = false;
 
-		const changeAccessor: IViewZoneChangeAccessor = {
-			addZone: (zone: IViewZone): string => {
-				zonesHaveChanged = true;
-				return this.addZone(zone);
-			},
-			removeZone: (id: string): void => {
-				if (!id) {
-					return;
+			const changeAccessor: IViewZoneChangeAccessor = {
+				addZone: (zone: IViewZone): string => {
+					zonesHaveChanged = true;
+					return this._addZone(whitespaceAccessor, zone);
+				},
+				removeZone: (id: string): void => {
+					if (!id) {
+						return;
+					}
+					zonesHaveChanged = this._removeZone(whitespaceAccessor, id) || zonesHaveChanged;
+				},
+				layoutZone: (id: string): void => {
+					if (!id) {
+						return;
+					}
+					zonesHaveChanged = this._layoutZone(whitespaceAccessor, id) || zonesHaveChanged;
 				}
-				zonesHaveChanged = this.removeZone(id) || zonesHaveChanged;
-			},
-			layoutZone: (id: string): void => {
-				if (!id) {
-					return;
-				}
-				zonesHaveChanged = this.layoutZone(id) || zonesHaveChanged;
-			}
-		};
+			};
 
-		safeInvoke1Arg(callback, changeAccessor);
+			safeInvoke1Arg(callback, changeAccessor);
 
-		// Invalidate changeAccessor
-		changeAccessor.addZone = invalidFunc;
-		changeAccessor.removeZone = invalidFunc;
-		changeAccessor.layoutZone = invalidFunc;
+			// Invalidate changeAccessor
+			changeAccessor.addZone = invalidFunc;
+			changeAccessor.removeZone = invalidFunc;
+			changeAccessor.layoutZone = invalidFunc;
 
-		return zonesHaveChanged;
+			return zonesHaveChanged;
+		});
 	}
 
-	public addZone(zone: IViewZone): string {
+	private _addZone(whitespaceAccessor: IWhitespaceChangeAccessor, zone: IViewZone): string {
 		const props = this._computeWhitespaceProps(zone);
-		const whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
+		const whitespaceId = whitespaceAccessor.insertWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
 
 		const myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
@@ -257,11 +269,11 @@ export class ViewZones extends ViewPart {
 		return myZone.whitespaceId;
 	}
 
-	public removeZone(id: string): boolean {
+	private _removeZone(whitespaceAccessor: IWhitespaceChangeAccessor, id: string): boolean {
 		if (this._zones.hasOwnProperty(id)) {
 			const zone = this._zones[id];
 			delete this._zones[id];
-			this._context.viewLayout.removeWhitespace(zone.whitespaceId);
+			whitespaceAccessor.removeWhitespace(zone.whitespaceId);
 
 			zone.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.domNode.removeAttribute('monaco-view-zone');
@@ -280,21 +292,20 @@ export class ViewZones extends ViewPart {
 		return false;
 	}
 
-	public layoutZone(id: string): boolean {
-		let changed = false;
+	private _layoutZone(whitespaceAccessor: IWhitespaceChangeAccessor, id: string): boolean {
 		if (this._zones.hasOwnProperty(id)) {
 			const zone = this._zones[id];
 			const props = this._computeWhitespaceProps(zone.delegate);
 			// const newOrdinal = this._getZoneOrdinal(zone.delegate);
-			changed = this._context.viewLayout.changeWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
+			whitespaceAccessor.changeOneWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx);
 			// TODO@Alex: change `newOrdinal` too
 
-			if (changed) {
-				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-				this.setShouldRender();
-			}
+			this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
+			this.setShouldRender();
+
+			return true;
 		}
-		return changed;
+		return false;
 	}
 
 	public shouldSuppressMouseDownOnViewZone(id: string): boolean {

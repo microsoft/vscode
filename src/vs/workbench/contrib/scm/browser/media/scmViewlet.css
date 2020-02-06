@@ -15,7 +15,7 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-panel-view {
+.scm-viewlet.empty .monaco-pane-view {
 	display: none;
 }
 
@@ -42,16 +42,19 @@
 	text-overflow: ellipsis;
 	display: flex;
 	align-items: center;
+	min-width: 14px;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 14px; /* minimum size of icons */
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
 	vertical-align: sub;
+	display: inline-flex;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {
@@ -111,7 +114,7 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
+.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
 	text-decoration: line-through;
 }
 
@@ -135,6 +138,7 @@
 .scm-viewlet .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
+	max-width: fit-content;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row:hover .resource-group > .actions,
@@ -169,20 +173,48 @@
 	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox {
+.scm-viewlet .scm-editor-container {
+	padding: 1px;
+	position: relative;
+	outline-offset: -1px;
+}
+
+.scm-viewlet .scm-editor-container > .scm-editor-validation {
+	position: absolute;
 	width: 100%;
+	z-index: 10;
+	left: 0px;
+	box-sizing: border-box;
+	font-size: 0.9em;
+	padding: 1px 3px;
+	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
+.scm-viewlet .scm-editor-container.synthetic-focus > .scm-editor-validation {
+	display: block;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > textarea.input {
-	min-height: 26px;
+.scm-viewlet .scm-editor-placeholder {
+	position: absolute;
+	pointer-events: none;
+	z-index: 1;
+	margin: 1px;
+	padding: 3px 4px;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
-.scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
-	overflow-y: scroll;
+.scm-viewlet .scm-editor-placeholder.hidden {
+	display: none;
+}
+
+.scm-viewlet .scm-editor-container .monaco-editor-background,
+.scm-viewlet .scm-editor-container .monaco-editor,
+.scm-viewlet .scm-editor-container .mtk1 {
+	color: inherit;
 }
 
 .scm-viewlet .list-view-mode .monaco-tl-twistie:not(.force-twistie):not(.collapsible) {

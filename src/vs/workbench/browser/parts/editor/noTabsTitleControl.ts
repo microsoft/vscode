@@ -100,13 +100,21 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
 
-		// Close editor on middle mouse click
-		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+		if (e instanceof MouseEvent) {
+			// Close editor on middle mouse click
+			if (e.button === 1 /* Middle Button */) {
+				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
-			if (this.group.activeEditor) {
-				this.group.closeEditor(this.group.activeEditor);
+				if (this.group.activeEditor) {
+					this.group.closeEditor(this.group.activeEditor);
+				}
 			}
+		} else {
+			// @rebornix
+			// gesture tap should open the quick open
+			// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
+			// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
+			setTimeout(() => this.quickOpenService.show(), 50);
 		}
 	}
 
@@ -158,9 +166,14 @@ export class NoTabsTitleControl extends TitleControl {
 	updateEditorDirty(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => {
 			const titleContainer = assertIsDefined(this.titleContainer);
-			if (editor.isDirty()) {
+
+			// Signal dirty (unless saving)
+			if (editor.isDirty() && !editor.isSaving()) {
 				addClass(titleContainer, 'dirty');
-			} else {
+			}
+
+			// Otherwise, clear dirty
+			else {
 				removeClass(titleContainer, 'dirty');
 			}
 		});
@@ -267,9 +280,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 			editorLabel.setResource({ name, description, resource }, { title: typeof title === 'string' ? title : undefined, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
-				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
+				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
 			} else {
-				editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+				editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
 			}
 
 			// Update Editor Actions Toolbar

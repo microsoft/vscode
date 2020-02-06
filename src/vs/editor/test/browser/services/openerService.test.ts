@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
 
 suite('OpenerService', function () {
 	const editorService = new TestCodeEditorService();
@@ -28,27 +29,27 @@ suite('OpenerService', function () {
 		lastCommand = undefined;
 	});
 
-	test('delegate to editorService, scheme:///fff', function () {
+	test('delegate to editorService, scheme:///fff', async function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
-		openerService.open(URI.parse('another:///somepath'));
+		await openerService.open(URI.parse('another:///somepath'));
 		assert.equal(editorService.lastInput!.options!.selection, undefined);
 	});
 
-	test('delegate to editorService, scheme:///fff#L123', function () {
+	test('delegate to editorService, scheme:///fff#L123', async function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
-		openerService.open(URI.parse('file:///somepath#L23'));
+		await openerService.open(URI.parse('file:///somepath#L23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
 		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 1);
 		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
 		assert.equal(editorService.lastInput!.options!.selection!.endColumn, undefined);
 		assert.equal(editorService.lastInput!.resource.fragment, '');
 
-		openerService.open(URI.parse('another:///somepath#L23'));
+		await openerService.open(URI.parse('another:///somepath#L23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
 		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 1);
 
-		openerService.open(URI.parse('another:///somepath#L23,45'));
+		await openerService.open(URI.parse('another:///somepath#L23,45'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
 		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 45);
 		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
@@ -56,17 +57,17 @@ suite('OpenerService', function () {
 		assert.equal(editorService.lastInput!.resource.fragment, '');
 	});
 
-	test('delegate to editorService, scheme:///fff#123,123', function () {
+	test('delegate to editorService, scheme:///fff#123,123', async function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
-		openerService.open(URI.parse('file:///somepath#23'));
+		await openerService.open(URI.parse('file:///somepath#23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
 		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 1);
 		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
 		assert.equal(editorService.lastInput!.options!.selection!.endColumn, undefined);
 		assert.equal(editorService.lastInput!.resource.fragment, '');
 
-		openerService.open(URI.parse('file:///somepath#23,45'));
+		await openerService.open(URI.parse('file:///somepath#23,45'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
 		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 45);
 		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
@@ -74,22 +75,22 @@ suite('OpenerService', function () {
 		assert.equal(editorService.lastInput!.resource.fragment, '');
 	});
 
-	test('delegate to commandsService, command:someid', function () {
+	test('delegate to commandsService, command:someid', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 
 		const id = `aCommand${Math.random()}`;
 		CommandsRegistry.registerCommand(id, function () { });
 
-		openerService.open(URI.parse('command:' + id));
+		await openerService.open(URI.parse('command:' + id));
 		assert.equal(lastCommand!.id, id);
 		assert.equal(lastCommand!.args.length, 0);
 
-		openerService.open(URI.parse('command:' + id).with({ query: '123' }));
+		await openerService.open(URI.parse('command:' + id).with({ query: '123' }));
 		assert.equal(lastCommand!.id, id);
 		assert.equal(lastCommand!.args.length, 1);
 		assert.equal(lastCommand!.args[0], '123');
 
-		openerService.open(URI.parse('command:' + id).with({ query: JSON.stringify([12, true]) }));
+		await openerService.open(URI.parse('command:' + id).with({ query: JSON.stringify([12, true]) }));
 		assert.equal(lastCommand!.id, id);
 		assert.equal(lastCommand!.args.length, 2);
 		assert.equal(lastCommand!.args[0], 12);
@@ -198,5 +199,19 @@ suite('OpenerService', function () {
 		assert.equal(openCount, 0);
 		assert.equal(v1, 2);
 		assert.equal(v2, 0);
+	});
+
+	test('matchesScheme', function () {
+		assert.ok(matchesScheme('https://microsoft.com', 'https'));
+		assert.ok(matchesScheme('http://microsoft.com', 'http'));
+		assert.ok(matchesScheme('hTTPs://microsoft.com', 'https'));
+		assert.ok(matchesScheme('httP://microsoft.com', 'http'));
+		assert.ok(matchesScheme(URI.parse('https://microsoft.com'), 'https'));
+		assert.ok(matchesScheme(URI.parse('http://microsoft.com'), 'http'));
+		assert.ok(matchesScheme(URI.parse('hTTPs://microsoft.com'), 'https'));
+		assert.ok(matchesScheme(URI.parse('httP://microsoft.com'), 'http'));
+		assert.ok(!matchesScheme(URI.parse('https://microsoft.com'), 'http'));
+		assert.ok(!matchesScheme(URI.parse('htt://microsoft.com'), 'http'));
+		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
 	});
 });

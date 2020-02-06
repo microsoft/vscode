@@ -17,7 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class WorkspaceWatcher extends Disposable {
 
-	private watches = new ResourceMap<IDisposable>();
+	private readonly watches = new ResourceMap<IDisposable>();
 
 	constructor(
 		@IFileService private readonly fileService: FileService,

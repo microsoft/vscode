@@ -13,7 +13,7 @@ import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
@@ -41,7 +41,7 @@ export class Viewport {
 
 export interface IViewLayout {
 
-	readonly scrollable: Scrollable;
+	getScrollable(): Scrollable;
 
 	onMaxLineWidthChanged(width: number): void;
 
@@ -61,7 +61,7 @@ export interface IViewLayout {
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
-	getWhitespaces(): EditorWhitespace[];
+	getWhitespaces(): IEditorWhitespace[];
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -69,20 +69,8 @@ export interface IViewLayout {
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	// --------------- Begin vertical whitespace management
+	changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T;
 
-	/**
-	 * Reserve rendering space.
-	 * @return an identifier that can be later used to remove or change the whitespace.
-	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): string;
-	/**
-	 * Change the properties of a whitespace.
-	 */
-	changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean;
-	/**
-	 * Remove rendering space
-	 */
-	removeWhitespace(id: string): boolean;
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
@@ -150,8 +138,8 @@ export interface IViewModel {
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getEOL(): string;
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
-	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | null;
+	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
+	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
 }
 
 export class MinimapLinesRenderingData {
@@ -187,6 +175,10 @@ export class ViewLineData {
 	 */
 	public readonly maxColumn: number;
 	/**
+	 * The visible column at the start of the line (after the fauxIndent).
+	 */
+	public readonly startVisibleColumn: number;
+	/**
 	 * The tokens at this view line.
 	 */
 	public readonly tokens: IViewLineTokens;
@@ -196,12 +188,14 @@ export class ViewLineData {
 		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
+		startVisibleColumn: number,
 		tokens: IViewLineTokens
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
+		this.startVisibleColumn = startVisibleColumn;
 		this.tokens = tokens;
 	}
 }
@@ -243,6 +237,10 @@ export class ViewLineRenderingData {
 	 * The tab size for this view model.
 	 */
 	public readonly tabSize: number;
+	/**
+	 * The visible column at the start of the line (after the fauxIndent)
+	 */
+	public readonly startVisibleColumn: number;
 
 	constructor(
 		minColumn: number,
@@ -253,7 +251,8 @@ export class ViewLineRenderingData {
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
-		tabSize: number
+		tabSize: number,
+		startVisibleColumn: number
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -266,6 +265,7 @@ export class ViewLineRenderingData {
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
+		this.startVisibleColumn = startVisibleColumn;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {

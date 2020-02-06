@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalChildProcess, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
@@ -32,6 +32,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
+	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -268,8 +269,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
-			this._pty.onDidClose((e: number | undefined = undefined) => {
-				this._onProcessExit.fire(e);
+			this._pty.onDidClose((e: number | void = undefined) => {
+				this._onProcessExit.fire(e === void 0 ? undefined : e);
 			});
 		}
 		if (this._pty.onDidOverrideDimensions) {
@@ -277,6 +278,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 
 		this._pty.open(initialDimensions ? initialDimensions : undefined);
+		this._onProcessReady.fire({ pid: -1, cwd: '' });
 	}
 }
 
@@ -288,6 +290,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
+	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
@@ -309,9 +312,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
-		this._bufferer = new TerminalDataBufferer();
-
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
+		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
@@ -321,6 +323,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
 	public abstract createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
 	public abstract getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
+	public abstract getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
 	public abstract $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void>;
 	public abstract $requestAvailableShells(): Promise<IShellDefinitionDto[]>;
 	public abstract $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
@@ -437,22 +440,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	public performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
-		// TODO: Use await this._getTerminalByIdEventually(id);
-		let terminal = this._getTerminalById(id);
-		if (terminal) {
-			callback(terminal);
-		} else {
-			// Retry one more time in case the terminal has not yet been initialized.
-			setTimeout(() => {
-				terminal = this._getTerminalById(id);
-				if (terminal) {
-					callback(terminal);
-				}
-			}, EXT_HOST_CREATION_DELAY * 2);
-		}
-	}
-
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
@@ -478,17 +465,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		await openPromise;
 
-		// Processes should be initialized here for normal virtual process terminals, however for
-		// tasks they are responsible for attaching the virtual process to a terminal so this
-		// function may be called before tasks is able to attach to the terminal.
-		let retries = 5;
-		while (retries-- > 0) {
-			if (this._terminalProcesses[id]) {
-				(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
-				return;
-			}
-			await timeout(50);
+		if (this._terminalProcesses[id]) {
+			(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
+		} else {
+			// Defer startSendingEvents call to when _setupExtHostProcessListeners is called
+			this._extensionTerminalAwaitingStart[id] = { initialDimensions };
 		}
+
 	}
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
@@ -496,13 +479,19 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		this._bufferer.startBuffering(id, p.onProcessData, this._proxy.$sendProcessData);
+		this._bufferer.startBuffering(id, p.onProcessData);
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
 
 		if (p.onProcessOverrideDimensions) {
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
 		this._terminalProcesses[id] = p;
+
+		const awaitingStart = this._extensionTerminalAwaitingStart[id];
+		if (awaitingStart && p instanceof ExtHostPseudoterminal) {
+			p.startSendingEvents(awaitingStart.initialDimensions);
+			delete this._extensionTerminalAwaitingStart[id];
+		}
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
@@ -541,6 +530,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 		// Remove process reference
 		delete this._terminalProcesses[id];
+		delete this._extensionTerminalAwaitingStart[id];
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
@@ -550,10 +540,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal | undefined> {
 		if (!this._getTerminalPromises[id]) {
 			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
-		} else {
-			this._getTerminalPromises[id].then(c => {
-				return this._createGetTerminalPromise(id, retries);
-			});
 		}
 		return this._getTerminalPromises[id];
 	}
@@ -571,7 +557,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				timeout(200).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
+				timeout(EXT_HOST_CREATION_DELAY * 2).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
 			}
 		});
 	}
@@ -609,6 +595,10 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
+		throw new Error('Not implemented');
+	}
+
+	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
 		throw new Error('Not implemented');
 	}
 

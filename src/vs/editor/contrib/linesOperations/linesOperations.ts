@@ -37,12 +37,36 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignore: false }));
+		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		// Remove selections that would result in copying the same line
+		let prev = selections[0];
+		for (let i = 1; i < selections.length; i++) {
+			const curr = selections[i];
+			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
+				// these two selections would copy the same line
+				if (prev.index < curr.index) {
+					// prev wins
+					curr.ignore = true;
+				} else {
+					// curr wins
+					prev.ignore = true;
+					prev = curr;
+				}
+			}
+		}
 
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections() || [];
-
 		for (const selection of selections) {
-			commands.push(new CopyLinesCommand(selection, this.down));
+			if (selection.ignore) {
+				continue;
+			}
+			commands.push(new CopyLinesCommand(selection.selection, this.down));
 		}
 
 		editor.pushUndoStop();
@@ -64,7 +88,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
@@ -87,7 +111,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
@@ -105,7 +129,7 @@ export class DuplicateSelectionAction extends EditorAction {
 			label: nls.localize('duplicateSelection', "Duplicate Selection"),
 			alias: 'Duplicate Selection',
 			precondition: EditorContextKeys.writable,
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
@@ -178,7 +202,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
@@ -201,7 +225,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),

@@ -25,6 +25,7 @@ export interface IBaseOpenWindowsOptions {
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	forceNewWindow?: boolean;
+	preferNewWindow?: boolean;
 
 	noRecentEntry?: boolean;
 }
@@ -90,7 +91,7 @@ export interface IWindowSettings {
 	titleBarStyle: 'native' | 'custom';
 	autoDetectHighContrast: boolean;
 	menuBarVisibility: MenuBarVisibility;
-	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
+	newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;

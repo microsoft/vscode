@@ -13,6 +13,31 @@
 	height: 100%;
 }
 
+.debug-viewlet .debug-start-view {
+	padding: 0 20px 0 20px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button,
+.debug-viewlet .debug-start-view .section {
+	margin-top: 20px;
+}
+
+.debug-viewlet .debug-start-view .top-section {
+	margin-top: 10px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
+.debug-viewlet .debug-start-view .click {
+	cursor: pointer;
+	color: #007ACC;
+}
+
 .monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;
@@ -78,8 +103,12 @@
 	color: #666;
 }
 
+.debug-viewlet .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 .debug-viewlet .disabled {
-	opacity: 0.35;
+	opacity: 0.65;
 }
 
 /* Call stack */
@@ -144,11 +173,19 @@
 	display: none;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file .line-number {
+	visibility: hidden;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .monaco-action-bar {
+	position: absolute;
+	right: 2px;
+}
+
 .debug-viewlet .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .monaco-action-bar,
 .debug-viewlet .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
 	display: initial;
 }
@@ -333,10 +370,13 @@
 	flex-shrink: 0;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon {
 	width: 19px;
 	height: 19px;
 	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
@@ -351,14 +391,4 @@
 .debug-viewlet .debug-breakpoints .breakpoint .name {
 	overflow: hidden;
 	text-overflow: ellipsis
-}
-
-/* No workspace view */
-
-.debug-viewlet > .noworkspace-view {
-	padding: 0 20px 0 20px;
-}
-
-.debug-viewlet > .noworkspace-view > p {
-	line-height: 1.5em;
 }

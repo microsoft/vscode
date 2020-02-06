@@ -28,6 +28,10 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	matches(other: unknown): boolean {
+		if (super.matches(other) === true) {
+			return true;
+		}
+
 		if (!(other instanceof ExtensionsInput)) {
 			return false;
 		}

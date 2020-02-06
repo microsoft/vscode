@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vscode';
+import { Event, Disposable } from 'vscode';
 import { dirname, sep } from 'path';
 import { Readable } from 'stream';
-import * as fs from 'fs';
+import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
 
 export function log(...args: any[]): void {
@@ -33,15 +33,15 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 export const EmptyDisposable = toDisposable(() => null);
 
 export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(_ => (listener as any).call(thisArgs), null, disposables);
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
+	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
 export function latchEvent<T>(event: Event<T>): Event<T> {
@@ -57,7 +57,7 @@ export function latchEvent<T>(event: Event<T>): Event<T> {
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
 		if (disposables) {
@@ -73,7 +73,7 @@ export function done<T>(promise: Promise<T>): Promise<void> {
 }
 
 export function onceEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = event(e => {
 			result.dispose();
 			return listener.call(thisArgs, e);
@@ -84,7 +84,7 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 }
 
 export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		let timer: NodeJS.Timer;
 		return event(e => {
 			clearTimeout(timer);
@@ -140,25 +140,14 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
-export function denodeify<A, B, C, R>(fn: Function): (a: A, b: B, c: C) => Promise<R>;
-export function denodeify<A, B, R>(fn: Function): (a: A, b: B) => Promise<R>;
-export function denodeify<A, R>(fn: Function): (a: A) => Promise<R>;
-export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R>;
-export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
-	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
-}
-
-export function nfcall<R>(fn: Function, ...args: any[]): Promise<R> {
-	return new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
-}
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 	const mkdir = async () => {
 		try {
-			await nfcall(fs.mkdir, path, mode);
+			await fs.mkdir(path, mode);
 		} catch (err) {
 			if (err.code === 'EEXIST') {
-				const stat = await nfcall<fs.Stats>(fs.stat, path);
+				const stat = await fs.stat(path);
 
 				if (stat.isDirectory()) {
 					return;
@@ -232,7 +221,7 @@ export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
 
 export async function grep(filename: string, pattern: RegExp): Promise<boolean> {
 	return new Promise<boolean>((c, e) => {
-		const fileStream = fs.createReadStream(filename, { encoding: 'utf8' });
+		const fileStream = createReadStream(filename, { encoding: 'utf8' });
 		const stream = byline(fileStream);
 		stream.on('data', (line: string) => {
 			if (pattern.test(line)) {

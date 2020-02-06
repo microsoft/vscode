@@ -108,6 +108,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
+	has(location: TRef): boolean;
+
 	getListIndex(location: TRef): number;
 	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;

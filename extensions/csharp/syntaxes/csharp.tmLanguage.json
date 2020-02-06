@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/ad7514e8d78542a6ee37f6187091cd4102eb3797",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/572697a2c2267430010b3534281f73337144e94f",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -2498,7 +2498,7 @@
 		},
 		"interpolation": {
 			"name": "meta.interpolation.cs",
-			"begin": "(?<=[^\\{])((?:\\{\\{)*)(\\{)(?=[^\\{])",
+			"begin": "(?<=[^\\{]|^)((?:\\{\\{)*)(\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
 					"name": "string.quoted.double.cs"

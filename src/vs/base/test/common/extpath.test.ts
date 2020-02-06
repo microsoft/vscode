@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
@@ -28,7 +29,6 @@ suite('Paths', () => {
 		assert.equal(extpath.getRoot('http://www/'), 'http://www/');
 		assert.equal(extpath.getRoot('file:///foo'), 'file:///');
 		assert.equal(extpath.getRoot('file://foo'), '');
-
 	});
 
 	test('isUNC', () => {

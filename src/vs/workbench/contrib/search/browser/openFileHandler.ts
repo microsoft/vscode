@@ -21,7 +21,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -121,11 +120,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -187,11 +185,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private async getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
-		const detildifiedQuery = untildify(query.original, this.environmentService.userHome);
+		const detildifiedQuery = untildify(query.original, (await this.remotePathService.userHome).path);
 		if ((await this.remotePathService.path).isAbsolute(detildifiedQuery)) {
 			const resource = toLocalResource(
 				await this.remotePathService.fileURI(detildifiedQuery),
-				this.workbenchEnvironmentService.configuration.remoteAuthority);
+				this.workbenchEnvironmentService.configuration.remoteAuthority
+			);
 
 			try {
 				const stat = await this.fileService.resolve(resource);

@@ -9,7 +9,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -38,16 +37,57 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		});
 	}
 
-	sync(_continue?: boolean): Promise<boolean> {
-		return this.channel.call('sync', [_continue]);
+	pull(): Promise<void> {
+		return this.channel.call('pull');
 	}
 
-	stop(): void {
-		this.channel.call('stop');
+	push(): Promise<void> {
+		return this.channel.call('push');
 	}
 
-	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
-		return this.channel.call('removeExtension', [identifier]);
+	sync(): Promise<void> {
+		return this.channel.call('sync');
+	}
+
+	accept(source: SyncSource, content: string): Promise<void> {
+		return this.channel.call('accept', [source, content]);
+	}
+
+	reset(): Promise<void> {
+		return this.channel.call('reset');
+	}
+
+	resetLocal(): Promise<void> {
+		return this.channel.call('resetLocal');
+	}
+
+	stop(): Promise<void> {
+		return this.channel.call('stop');
+	}
+
+	async restart(): Promise<void> {
+		const status = await this.channel.call<SyncStatus>('restart');
+		await this.updateStatus(status);
+	}
+
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
+	}
+
+	hasRemoteData(): Promise<boolean> {
+		return this.channel.call('hasRemoteData');
+	}
+
+	hasLocalData(): Promise<boolean> {
+		return this.channel.call('hasLocalData');
+	}
+
+	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [source, preview]);
+	}
+
+	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncAndHasUserData');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

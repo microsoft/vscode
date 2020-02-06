@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -18,7 +19,6 @@ export const VS_HC_THEME = 'hc-black';
 export const HC_THEME_ID = 'Default High Contrast';
 
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
-export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
@@ -102,6 +102,7 @@ export interface ExtensionData {
 	extensionPublisher: string;
 	extensionName: string;
 	extensionIsBuiltin: boolean;
+	extensionLocation: URI;
 }
 
 export interface IThemeExtensionPoint {

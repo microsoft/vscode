@@ -17,7 +17,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 
@@ -51,11 +51,11 @@ export interface ICompositeBar {
 
 export class ActivityAction extends Action {
 
-	private readonly _onDidChangeActivity = new Emitter<this>();
-	readonly onDidChangeActivity: Event<this> = this._onDidChangeActivity.event;
+	private readonly _onDidChangeActivity = this._register(new Emitter<ActivityAction>());
+	readonly onDidChangeActivity = this._onDidChangeActivity.event;
 
-	private readonly _onDidChangeBadge = new Emitter<this>();
-	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
+	private readonly _onDidChangeBadge = this._register(new Emitter<ActivityAction>());
+	readonly onDidChangeBadge = this._onDidChangeBadge.event;
 
 	private badge: IBadge | undefined;
 	private clazz: string | undefined;
@@ -158,20 +158,17 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				// TODO @misolori find a cleaner way to do this
-				const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
-				if (!isExtension) {
-					// Apply foreground color to activity bar items (codicons)
-					this.label.style.color = foreground ? foreground.toString() : '';
-				} else {
-					// Apply background color to extensions + remote explorer (svgs)
-
+				if (this.activity.iconUrl) {
+					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				} else {
+					// Apply foreground color to activity bar items provided with codicons
+					this.label.style.color = foreground ? foreground.toString() : '';
 				}
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
-				this.label.style.color = foreground ? foreground.toString() : null;
+				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
 		}
@@ -182,7 +179,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			const badgeBackground = colors.badgeBackground;
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
-			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
+			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
 
 			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
@@ -242,6 +239,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateLabel();
 		this.updateTitle(this.activity.name);
 		this.updateBadge();
+		this.updateStyles();
 	}
 
 	protected updateBadge(): void {
@@ -319,13 +317,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			// TODO @misolori find a cleaner way to do this
-			const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
-			if (this.options.icon && !isExtension) {
-				// Only apply icon class to activity bar items (exclude extensions + remote explorer)
-				dom.addClass(this.label, 'codicon');
-			}
 			dom.addClass(this.label, this.activity.cssClass);
+		}
+
+		if (this.options.icon && !this.activity.iconUrl) {
+			// Only apply codicon class to activity bar icon items without iconUrl
+			dom.addClass(this.label, 'codicon');
 		}
 
 		if (!this.options.icon) {
@@ -466,6 +463,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
+		private compositeContextMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
@@ -496,11 +494,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				activityName = this.compositeActivityAction.activity.name;
 			}
 
-			this.compositeActivity = {
-				id: this.compositeActivityAction.activity.id,
-				cssClass: this.compositeActivityAction.activity.cssClass,
-				name: activityName
-			};
+			this.compositeActivity = { ...this.compositeActivityAction.activity, ... { name: activityName } };
 		}
 
 		return this.compositeActivity;
@@ -603,6 +597,12 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private showContextMenu(container: HTMLElement): void {
 		const actions: Action[] = [this.toggleCompositePinnedAction];
+
+		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
+		if (compositeContextMenuActions.length) {
+			actions.push(...compositeContextMenuActions);
+		}
+
 		if ((<any>this.compositeActivityAction.activity).extensionId) {
 			actions.push(new Separator());
 			actions.push(CompositeActionViewItem.manageExtensionAction);

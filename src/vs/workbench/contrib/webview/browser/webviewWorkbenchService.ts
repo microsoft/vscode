@@ -6,16 +6,14 @@
 import { equals } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
-import { IDisposable, toDisposable, UnownedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
 import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewExtensionDescription, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from './webviewEditorInput';
@@ -59,7 +57,7 @@ export interface IWebviewWorkbenchService {
 		id: string,
 		viewType: string,
 		title: string,
-		iconPath: { light: URI, dark: URI } | undefined,
+		iconPath: WebviewIcons | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
@@ -108,11 +106,11 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		id: string,
 		viewType: string,
 		name: string,
-		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		webview: Lazy<WebviewEditorOverlay>,
+		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@ILifecycleService lifeCycleService: ILifecycleService,
 	) {
-		super(id, viewType, name, webview, lifeCycleService);
+		super(id, viewType, name, webview, webviewService);
 	}
 
 	@memoize
@@ -140,6 +138,7 @@ class RevivalPool {
 	}
 }
 
+
 export class WebviewEditorService implements IWebviewWorkbenchService {
 	_serviceBrand: undefined;
 
@@ -161,7 +160,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = new Lazy(() => new UnownedDisposable(this.createWebiew(id, extension, options)));
+		const webview = new Lazy(() => this.createWebiew(id, extension, options));
 		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
@@ -197,7 +196,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		id: string,
 		viewType: string,
 		title: string,
-		iconPath: { light: URI, dark: URI } | undefined,
+		iconPath: WebviewIcons | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
@@ -206,7 +205,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		const webview = new Lazy(() => {
 			const webview = this.createWebiew(id, extension, options);
 			webview.state = state;
-			return new UnownedDisposable(webview);
+			return webview;
 		});
 
 		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, id, viewType, title, webview);

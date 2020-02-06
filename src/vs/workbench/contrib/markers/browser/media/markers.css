@@ -78,7 +78,6 @@
 .markers-panel .markers-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
-	height: 100%;
 }
 
 .markers-panel .markers-panel-container .message-box-container .messageAction {
@@ -134,6 +133,14 @@
 	display: flex;
 }
 
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link {
+	color: inherit;
+}
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .monaco-highlighted-label {
+	text-decoration: underline;
+	text-underline-position: under;
+}
+
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {
 	content: '(';
 }
@@ -152,10 +159,6 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-}
-
-.markers-panel .monaco-tl-contents .actions .action-item {
-	margin-right: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,

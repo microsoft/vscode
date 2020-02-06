@@ -15,7 +15,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,6 +23,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ITextModel } from 'vs/editor/common/model';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -128,7 +129,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Find actions available for menu
-		const menuActions = this._getMenuActions(this._editor.getModel());
+		const menuActions = this._getMenuActions(this._editor.getModel(), MenuId.EditorContext);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -136,19 +137,40 @@ export class ContextMenuController implements IEditorContribution {
 		}
 	}
 
-	private _getMenuActions(model: ITextModel): ReadonlyArray<IAction> {
+	private _getMenuActions(model: ITextModel, menuId: MenuId): IAction[] {
 		const result: IAction[] = [];
 
-		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions({ arg: model.uri });
-		contextMenu.dispose();
+		// get menu groups
+		const menu = this._menuService.createMenu(menuId, this._contextKeyService);
+		const groups = menu.getActions({ arg: model.uri });
+		menu.dispose();
 
+		// translate them into other actions
 		for (let group of groups) {
 			const [, actions] = group;
-			result.push(...actions);
-			result.push(new Separator());
+			let addedItems = 0;
+			for (const action of actions) {
+				if (action instanceof SubmenuItemAction) {
+					const subActions = this._getMenuActions(model, action.item.submenu);
+					if (subActions.length > 0) {
+						result.push(new ContextSubMenu(action.label, subActions));
+						addedItems++;
+					}
+				} else {
+					result.push(action);
+					addedItems++;
+				}
+			}
+
+			if (addedItems) {
+				result.push(new Separator());
+			}
 		}
-		result.pop(); // remove last separator
+
+		if (result.length) {
+			result.pop(); // remove last separator
+		}
+
 		return result;
 	}
 

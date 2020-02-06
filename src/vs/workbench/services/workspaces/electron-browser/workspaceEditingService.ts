@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, isUntitledWorkspace, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, isUntitledWorkspace, IWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -124,18 +124,21 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			// Save: save workspace, but do not veto unload if path provided
 			case ConfirmResult.SAVE: {
 				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath) {
+				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
 					return true; // keep veto if no target was provided
 				}
 
 				try {
 					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
+					// Make sure to add the new workspace to the history to find it again
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+					this.workspacesService.addRecentlyOpened([{
+						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
+						workspace: newWorkspaceIdentifier
+					}]);
 
-					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.workspacesService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
-
+					// Delete the untitled one
 					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
 					// ignore

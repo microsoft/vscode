@@ -10,8 +10,7 @@ import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform
 import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -26,6 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -90,7 +90,10 @@ class BrowserMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
+		const viewport = platform.isIOS && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			workbench.layout();
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
@@ -240,8 +243,7 @@ class BrowserMain extends Disposable {
 		if (connection) {
 
 			// Remote file system
-			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 
 			if (!this.configuration.userDataProvider) {

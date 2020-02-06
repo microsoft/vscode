@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
@@ -21,6 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -127,12 +127,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					try {
-						const uri = URI.parse(content);
-						this.openerService.open(uri).catch(onUnexpectedError);
-					} catch (err) {
-						// ignore
-					}
+					this.openerService.open(content).catch(onUnexpectedError);
 				},
 				disposeables: disposables
 			}
@@ -206,6 +201,9 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				},
 				collapseByDefault: () => {
 					return false;
+				},
+				overrideStyles: {
+					listBackground: PANEL_BACKGROUND
 				}
 			},
 			contextKeyService,

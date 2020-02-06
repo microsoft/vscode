@@ -26,9 +26,13 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
+import { ExtHostTunnelService } from 'vs/workbench/api/node/extHostTunnelService';
+import { IExtHostApiDeprecationService, ExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 // register singleton services
 registerSingleton(ILogService, ExtHostLogService);
+registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostDecorations, ExtHostDecorations);
@@ -42,3 +46,4 @@ registerSingleton(IExtHostSearch, NativeExtHostSearch);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
 registerSingleton(IExtHostStorage, ExtHostStorage);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService);

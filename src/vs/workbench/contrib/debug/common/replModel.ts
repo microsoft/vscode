@@ -98,8 +98,21 @@ export class ReplEvaluationInput implements IReplElement {
 }
 
 export class ReplEvaluationResult extends ExpressionContainer implements IReplElement {
+	private _available = true;
+
+	get available(): boolean {
+		return this._available;
+	}
+
 	constructor() {
 		super(undefined, undefined, 0, generateUuid());
+	}
+
+	async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
+		const result = await super.evaluateExpression(expression, session, stackFrame, context);
+		this._available = result;
+
+		return result;
 	}
 
 	toString(): string {
@@ -136,6 +149,7 @@ export class ReplModel {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
 			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
 				previousElement.value += data;
+				this._onDidChangeElements.fire();
 			} else {
 				const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
 				this.addReplElement(element);

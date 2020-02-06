@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
+import { TextDocument, Position, LanguageService, TokenType, Range } from './languageModes';
 
 export interface LanguageRange extends Range {
 	languageId: string | undefined;
@@ -58,6 +58,8 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
 					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
+					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'typescript';
 					} else {
 						languageIdFromType = undefined;
 					}

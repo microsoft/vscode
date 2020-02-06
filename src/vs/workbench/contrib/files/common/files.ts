@@ -16,9 +16,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
-import { Schemas } from 'vs/base/common/network';
+import { IEditableData } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -31,16 +29,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
 
-/**
- * Explorer viewlet container.
- */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
-
-export interface IEditableData {
-	validationMessage: (value: string) => string | null;
-	onFinish: (value: string, success: boolean) => void;
-}
-
 export interface IExplorerService {
 	_serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
@@ -51,6 +39,7 @@ export interface IExplorerService {
 	readonly onDidSelectResource: Event<{ resource?: URI, reveal?: boolean }>;
 	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
 	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
@@ -66,7 +55,14 @@ export interface IExplorerService {
 	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
 	select(resource: URI, reveal?: boolean): Promise<void>;
+
+	registerContextProvider(contextProvider: IContextProvider): void;
 }
+
+export interface IContextProvider {
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
+}
+
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 /**
@@ -83,6 +79,11 @@ export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExpl
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false);
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true);
 export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true);
+
+// compressed nodes
+export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true);
+export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true);
+export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true);
 
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
@@ -125,15 +126,13 @@ export interface IFileResource {
 	isDirectory?: boolean;
 }
 
-export const SortOrderConfiguration = {
-	DEFAULT: 'default',
-	MIXED: 'mixed',
-	FILES_FIRST: 'filesFirst',
-	TYPE: 'type',
-	MODIFIED: 'modified'
-};
-
-export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+export const enum SortOrder {
+	Default = 'default',
+	Mixed = 'mixed',
+	FilesFirst = 'filesFirst',
+	Type = 'type',
+	Modified = 'modified'
+}
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
 	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
@@ -241,14 +240,6 @@ export class OpenEditor implements IEditorIdentifier {
 
 	isPreview(): boolean {
 		return this._group.previewEditor === this.editor;
-	}
-
-	isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.untitled });
-	}
-
-	isDirty(): boolean {
-		return this.editor.isDirty();
 	}
 
 	getResource(): URI | undefined {

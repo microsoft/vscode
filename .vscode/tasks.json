@@ -46,14 +46,6 @@
 			}
 		},
 		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint5"
-			]
-		},
-		{
 			"label": "Run tests",
 			"type": "shell",
 			"command": "./scripts/test.sh",
@@ -90,7 +82,6 @@
 			"command": "yarn web -- --no-launch",
 			"label": "Run web",
 			"isBackground": true,
-			// This section to make error go away when launching the debug config
 			"problemMatcher": {
 				"pattern": {
 					"regexp": ""
@@ -104,5 +95,13 @@
 				"reveal": "never"
 			}
 		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
+		}
 	]
 }

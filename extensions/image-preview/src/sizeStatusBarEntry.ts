@@ -4,36 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from './dispose';
 import * as nls from 'vscode-nls';
+import { PreviewStatusBarEntry } from './ownedStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
-export class SizeStatusBarEntry extends Disposable {
-	private readonly _entry: vscode.StatusBarItem;
-
-	private _showingOwner: string | undefined;
+export class SizeStatusBarEntry extends PreviewStatusBarEntry {
 
 	constructor() {
-		super();
-		this._entry = this._register(vscode.window.createStatusBarItem({
+		super({
 			id: 'imagePreview.size',
 			name: localize('sizeStatusBar.name', "Image Size"),
 			alignment: vscode.StatusBarAlignment.Right,
 			priority: 101 /* to the left of editor status (100) */,
-		}));
+		});
 	}
 
 	public show(owner: string, text: string) {
-		this._showingOwner = owner;
-		this._entry.text = text;
-		this._entry.show();
-	}
-
-	public hide(owner: string) {
-		if (owner === this._showingOwner) {
-			this._entry.hide();
-			this._showingOwner = undefined;
-		}
+		this.showItem(owner, text);
 	}
 }

@@ -86,7 +86,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 2] = background.b;
 			imageData.data[4 * i + 3] = 255;
 		}
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 2, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -116,7 +116,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 1, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {

@@ -13,17 +13,15 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actions';
-import { ShowViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
-	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED,
+	IDebugService, VIEWLET_ID, DEBUG_PANEL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST,
 } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { StartAction, AddFunctionBreakpointAction, ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import * as service from 'vs/workbench/contrib/debug/browser/debugService';
@@ -31,11 +29,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { DebugViewlet } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -47,8 +44,14 @@ import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchEx
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
-import { DebugCallStackContribution } from 'vs/workbench/contrib/debug/browser/debugCallStackContribution';
+import { StartView } from 'vs/workbench/contrib/debug/browser/startView';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { DebugViewPaneContainer, OpenDebugPanelAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
+import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -65,28 +68,13 @@ class OpenDebugViewletAction extends ShowViewletAction {
 	}
 }
 
-class OpenDebugPanelAction extends TogglePanelAction {
-	public static readonly ID = 'workbench.debug.action.toggleRepl';
-	public static readonly LABEL = nls.localize('toggleDebugPanel', "Debug Console");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPanelService panelService: IPanelService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label, REPL_ID, panelService, layoutService);
-	}
-}
-
-// register viewlet
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
-	DebugViewlet,
-	VIEWLET_ID,
-	nls.localize('debug', "Debug"),
-	'codicon-debug',
-	3
-));
+const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: VIEWLET_ID,
+	name: nls.localize('runAndDebug', "Run and Debug"),
+	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
+	icon: 'codicon-debug-alt',
+	order: 3
+}, ViewContainerLocation.Sidebar);
 
 const openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D
@@ -96,22 +84,32 @@ const openPanelKb: IKeybindings = {
 };
 
 // register repl panel
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-	Repl,
-	REPL_ID,
-	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
-	'repl',
-	30,
-	OpenDebugPanelAction.ID
-));
+
+const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: DEBUG_PANEL_ID,
+	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	focusCommand: {
+		id: OpenDebugPanelAction.ID,
+		keybindings: openPanelKb
+	}
+}, ViewContainerLocation.Panel);
+
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: REPL_VIEW_ID,
+	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
+	canToggleVisibility: false,
+	ctorDescriptor: new SyncDescriptor(Repl),
+}], VIEW_CONTAINER);
 
 // Register default debug views
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctorDescriptor: { ctor: VariablesView }, order: 10, weight: 40, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' } }], VIEW_CONTAINER);
-viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctorDescriptor: { ctor: WatchExpressionsView }, order: 20, weight: 10, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' } }], VIEW_CONTAINER);
-viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctorDescriptor: { ctor: CallStackView }, order: 30, weight: 30, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' } }], VIEW_CONTAINER);
-viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctorDescriptor: { ctor: BreakpointsView }, order: 40, weight: 20, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' } }], VIEW_CONTAINER);
-viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctorDescriptor: { ctor: LoadedScriptsView }, order: 35, weight: 5, canToggleVisibility: true, collapsed: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }], VIEW_CONTAINER);
+viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
+viewsRegistry.registerViews([{ id: StartView.ID, name: StartView.LABEL, ctorDescriptor: new SyncDescriptor(StartView), order: 10, weight: 40, canToggleVisibility: true, when: CONTEXT_DEBUG_UX.isEqualTo('simple') }], viewContainer);
+viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
 
 registerCommands();
 
@@ -120,7 +118,6 @@ const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryEx
 registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugPanelAction, OpenDebugPanelAction.ID, OpenDebugPanelAction.LABEL, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
 registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugViewletAction, OpenDebugViewletAction.ID, OpenDebugViewletAction.LABEL, openViewletKb), 'View: Show Debug', nls.localize('view', "View"));
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugCallStackContribution, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugToolBar, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
@@ -213,6 +210,11 @@ configurationRegistry.registerConfiguration({
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+		'debug.console.closeOnEnd': {
+			type: 'boolean',
+			description: nls.localize('debug.console.closeOnEnd', "Controls if the debug console should be automatically closed when the debug session ends."),
+			default: false
+		},
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnSessionStart',
@@ -269,6 +271,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showBreakpointsInOverviewRuler' }, "Controls whether breakpoints should be shown in the overview ruler."),
 			default: false
+		},
+		'debug.showInlineBreakpointCandidates': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInlineBreakpointCandidates' }, "Controls whether inline breakpoints candidate decorations should be shown in the editor while debugging."),
+			default: true
 		}
 	}
 });
@@ -278,7 +285,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Debug toolbar
 
-const registerDebugToolBarItem = (id: string, title: string, iconLightUri: URI, iconDarkUri: URI, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugToolBarItem = (id: string, title: string, order: number, icon: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,
@@ -286,25 +293,22 @@ const registerDebugToolBarItem = (id: string, title: string, iconLightUri: URI, 
 		command: {
 			id,
 			title,
-			iconLocation: {
-				light: iconLightUri,
-				dark: iconDarkUri
-			},
+			icon,
 			precondition
 		}
 	});
 };
 
-registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-dark.svg')), 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-dark.svg')), 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
-registerDebugToolBarItem(STOP_ID, STOP_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-dark.svg')), 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
-registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/disconnect-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/disconnect-dark.svg')), 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
-registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-over-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-over-dark.svg')), 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-into-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-into-dark.svg')), 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-out-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-out-dark.svg')), 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-dark.svg')), 60);
-registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-back-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-back-dark.svg')), 50, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/reverse-continue-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/reverse-continue-dark.svg')), 60, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, { id: 'codicon/debug-continue' }, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, { id: 'codicon/debug-pause' }, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
+registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, { id: 'codicon/debug-stop' }, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, { id: 'codicon/debug-disconnect' }, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, { id: 'codicon/debug-step-over' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, { id: 'codicon/debug-step-into' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, { id: 'codicon/debug-step-out' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, { id: 'codicon/debug-restart' });
+registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 50, { id: 'codicon/debug-step-back' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, { id: 'codicon/debug-reverse-continue' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
 const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {
@@ -329,6 +333,11 @@ registerDebugCallstackItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, CONTEXT_CALLSTACK_IT
 registerDebugCallstackItem(TERMINATE_THREAD_ID, nls.localize('terminateThread', "Terminate Thread"), 10, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), undefined, 'termination');
 registerDebugCallstackItem(RESTART_FRAME_ID, nls.localize('restartFrame', "Restart Frame"), 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_RESTART_FRAME_SUPPORTED));
 registerDebugCallstackItem(COPY_STACK_TRACE_ID, nls.localize('copyStackTrace', "Copy Call Stack"), 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'));
+
+// Editor contributions
+
+registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
+registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);
 
 // View menu
 
@@ -365,7 +374,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
 		id: RunAction.ID,
-		title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging")
+		title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "Run &&Without Debugging")
 	},
 	order: 2
 });
@@ -549,7 +558,7 @@ if (isMacintosh) {
 			command: {
 				id,
 				title,
-				iconLocation: { dark: iconUri }
+				icon: { dark: iconUri }
 			},
 			when,
 			group: '9_debug',

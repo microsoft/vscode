@@ -44,7 +44,7 @@ import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapIn
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
+import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 
@@ -143,6 +143,24 @@ const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<Contribute
 	}
 });
 
+const NUMPAD_PRINTABLE_SCANCODES = [
+	ScanCode.NumpadDivide,
+	ScanCode.NumpadMultiply,
+	ScanCode.NumpadSubtract,
+	ScanCode.NumpadAdd,
+	ScanCode.Numpad1,
+	ScanCode.Numpad2,
+	ScanCode.Numpad3,
+	ScanCode.Numpad4,
+	ScanCode.Numpad5,
+	ScanCode.Numpad6,
+	ScanCode.Numpad7,
+	ScanCode.Numpad8,
+	ScanCode.Numpad9,
+	ScanCode.Numpad0,
+	ScanCode.NumpadDecimal
+];
+
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _keyboardMapper: IKeyboardMapper;
@@ -193,13 +211,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
-			type CustomKeybindingsChangedClassification = {
-				keyCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true }
-			};
-
-			this._telemetryService.publicLog2<{ keyCount: number }, CustomKeybindingsChangedClassification>('customKeybindingsChanged', {
-				keyCount: this.userKeybindings.keybindings.length
-			});
 			this.updateResolver({
 				source: KeybindingSource.User,
 				keybindings: this.userKeybindings.keybindings
@@ -229,6 +240,28 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}));
 
 		let data = this.keymapService.getCurrentKeyboardLayout();
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		/* __GDPR__
 			"keyboardLayout" : {
 				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
@@ -323,7 +356,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				}
 
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (const resolvedKeybinding of resolvedKeybindings) {
+				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
+					const resolvedKeybinding = resolvedKeybindings[i];
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
@@ -543,6 +577,21 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 		const code = ScanCodeUtils.toEnum(event.code);
+
+		if (NUMPAD_PRINTABLE_SCANCODES.indexOf(code) !== -1) {
+			// This is a numpad key that might produce a printable character based on NumLock.
+			// Let's check if NumLock is on or off based on the event's keyCode.
+			// e.g.
+			// - when NumLock is off, ScanCode.Numpad4 produces KeyCode.LeftArrow
+			// - when NumLock is on, ScanCode.Numpad4 produces KeyCode.NUMPAD_4
+			// However, ScanCode.NumpadAdd always produces KeyCode.NUMPAD_ADD
+			if (event.keyCode === IMMUTABLE_CODE_TO_KEY_CODE[code]) {
+				// NumLock is on or this is /, *, -, + on the numpad
+				return true;
+			}
+			return false;
+		}
+
 		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
 		if (keycode !== -1) {
 			// https://github.com/microsoft/vscode/issues/74934
@@ -729,7 +778,6 @@ const keyboardConfiguration: IConfigurationNode = {
 	'order': 15,
 	'type': 'object',
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'overridable': true,
 	'properties': {
 		'keyboard.dispatch': {
 			'type': 'string',

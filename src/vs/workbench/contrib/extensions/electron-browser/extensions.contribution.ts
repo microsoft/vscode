@@ -44,6 +44,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(runtimeExtensionsEditorDescriptor, [new SyncDescriptor(RuntimeExtensionsInput)]);
 
 class RuntimeExtensionsInputFactory implements IEditorInputFactory {
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
 	serialize(editorInput: EditorInput): string {
 		return '';
 	}
@@ -102,7 +105,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
-		iconLocation: {
+		icon: {
 			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
 			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
 		}
@@ -115,7 +118,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
-		iconLocation: {
+		icon: {
 			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
 			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
 		}
@@ -128,7 +131,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
-		iconLocation: {
+		icon: {
 			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
 			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
 		}
@@ -141,7 +144,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
-		iconLocation: {
+		icon: {
 			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
 			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
 		},

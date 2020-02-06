@@ -16,6 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -231,9 +232,9 @@ class DomListener implements IDisposable {
 
 export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
-	return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
+	return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 
 export interface IAddStandardDisposableListenerSignature {
@@ -266,10 +267,27 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+
+export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+}
+
+export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
+}
+
+export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
+}
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -284,7 +302,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -443,7 +461,7 @@ export interface DOMEvent {
 }
 
 const MINIMUM_TIME_MS = 16;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent, currentEvent: DOMEvent) {
+const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
 
@@ -490,6 +508,20 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with DOM clientWidth / clientHeight
 	if (element !== document.body) {
 		return new Dimension(element.clientWidth, element.clientHeight);
+	}
+
+	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+	if (platform.isIOS && (<any>window).visualViewport) {
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+				? (20 + 4) // + 4px for body margin
+				: 0
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -596,11 +628,17 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
-	let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
+	let offsetParent = element.offsetParent;
+	let top = element.offsetTop;
+	let left = element.offsetLeft;
 
-	while ((element = <HTMLElement>element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
+	while (
+		(element = <HTMLElement>element.parentNode) !== null
+		&& element !== document.body
+		&& element !== document.documentElement
+	) {
 		top -= element.scrollTop;
-		let c = getComputedStyle(element);
+		const c = isShadowRoot(element) ? null : getComputedStyle(element);
 		if (c) {
 			left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
 		}
@@ -761,7 +799,7 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 }
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
@@ -786,6 +824,27 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 
 export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+}
+
+export function isShadowRoot(node: Node): node is ShadowRoot {
+	return (
+		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+	);
+}
+
+export function isInShadowDOM(domNode: Node): boolean {
+	return !!getShadowRoot(domNode);
+}
+
+export function getShadowRoot(domNode: Node): ShadowRoot | null {
+	while (domNode.parentNode) {
+		if (domNode === document.body) {
+			// reached the body
+			return null;
+		}
+		domNode = domNode.parentNode;
+	}
+	return isShadowRoot(domNode) ? domNode : null;
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
@@ -869,6 +928,7 @@ export const EventType = {
 	MOUSE_LEAVE: 'mouseleave',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
+	POINTER_MOVE: 'pointermove',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -939,6 +999,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
+	refreshState?(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -967,6 +1028,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _refreshStateHandler: () => void;
+
 	constructor(element: HTMLElement | Window) {
 		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
@@ -993,8 +1056,23 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
+		this._refreshStateHandler = () => {
+			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			if (currentNodeHasFocus !== hasFocus) {
+				if (hasFocus) {
+					onBlur();
+				} else {
+					onFocus();
+				}
+			}
+		};
+
 		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
 		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+	}
+
+	refreshState() {
+		this._refreshStateHandler();
 	}
 }
 
@@ -1046,6 +1124,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
+
+		if (typeof value === 'undefined') {
+			return;
+		}
+
 		if (/^on\w+$/.test(name)) {
 			(<any>result)[name] = value;
 		} else if (name === 'selected') {
@@ -1111,7 +1194,7 @@ export function hide(...elements: HTMLElement[]): void {
 }
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}
@@ -1230,7 +1313,22 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
-export function triggerDownload(uri: URI, name: string): void {
+
+export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
+
+	// If the data is provided as Buffer, we create a
+	// blog URL out of it to produce a valid link
+	let url: string;
+	if (URI.isUri(dataOrUri)) {
+		url = dataOrUri.toString(true);
+	} else {
+		const blob = new Blob([dataOrUri]);
+		url = URL.createObjectURL(blob);
+
+		// Ensure to free the data from DOM eventually
+		setTimeout(() => URL.revokeObjectURL(url));
+	}
+
 	// In order to download from the browser, the only way seems
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
@@ -1238,7 +1336,7 @@ export function triggerDownload(uri: URI, name: string): void {
 	const anchor = document.createElement('a');
 	document.body.appendChild(anchor);
 	anchor.download = name;
-	anchor.href = uri.toString(true);
+	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually

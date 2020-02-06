@@ -12,7 +12,7 @@ import { EditorAction, registerEditorAction, registerEditorContribution, Service
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -26,7 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-class FormatOnType implements editorCommon.IEditorContribution {
+class FormatOnType implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.autoFormat';
 
@@ -138,7 +138,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			}
 
 			if (isNonEmptyArray(edits)) {
-				FormattingEdit.execute(this._editor, edits);
+				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
 
@@ -149,7 +149,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
-class FormatOnPaste implements editorCommon.IEditorContribution {
+class FormatOnPaste implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.formatOnPaste';
 
@@ -191,7 +191,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this._callOnModel.add(this.editor.onDidPaste(range => this._trigger(range)));
+		this._callOnModel.add(this.editor.onDidPaste(({ range }) => this._trigger(range)));
 	}
 
 	private _trigger(range: Range): void {
@@ -219,7 +219,7 @@ class FormatDocumentAction extends EditorAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				when: EditorContextKeys.hasDocumentFormattingProvider,
 				group: '1_modification',
 				order: 1.3
@@ -248,7 +248,7 @@ class FormatSelectionAction extends EditorAction {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				when: ContextKeyExpr.and(EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
 				group: '1_modification',
 				order: 1.31

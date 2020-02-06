@@ -226,26 +226,24 @@ export class TextAreaState {
 }
 
 export class PagedScreenReaderStrategy {
-	private static readonly _LINES_PER_PAGE = 10;
-
-	private static _getPageOfLine(lineNumber: number): number {
-		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);
+	private static _getPageOfLine(lineNumber: number, linesPerPage: number): number {
+		return Math.floor((lineNumber - 1) / linesPerPage);
 	}
 
-	private static _getRangeForPage(page: number): Range {
-		const offset = page * PagedScreenReaderStrategy._LINES_PER_PAGE;
+	private static _getRangeForPage(page: number, linesPerPage: number): Range {
+		const offset = page * linesPerPage;
 		const startLineNumber = offset + 1;
-		const endLineNumber = offset + PagedScreenReaderStrategy._LINES_PER_PAGE;
+		const endLineNumber = offset + linesPerPage;
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, trimLongText: boolean): TextAreaState {
+	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): TextAreaState {
 
-		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber);
-		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage);
+		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber, linesPerPage);
+		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage, linesPerPage);
 
-		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber);
-		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage);
+		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber, linesPerPage);
+		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
 
 		const pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
 		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);

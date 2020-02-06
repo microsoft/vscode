@@ -59,12 +59,12 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.strictEqual(e.trigger.type, 'auto');
+			assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
 				model.dispose();
-				assert.equal(fixes.actions.length, 1);
+				assert.equal(fixes.validActions.length, 1);
 				done();
 			}, done);
 		}));
@@ -100,11 +100,11 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, 'auto');
+				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
 					model.dispose();
-					assert.equal(fixes.actions.length, 1);
+					assert.equal(fixes.validActions.length, 1);
 					resolve(undefined);
 				}, reject);
 			}));
@@ -138,7 +138,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, 'auto');
+				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
 				assert.deepEqual(selection.selectionStartColumn, 1);
@@ -163,7 +163,7 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.equal(e.trigger.type, 'auto');
+			assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
 			++triggerCount;
 
 			// give time for second trigger before completing test

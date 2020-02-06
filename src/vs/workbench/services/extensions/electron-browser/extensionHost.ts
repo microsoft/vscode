@@ -36,9 +36,12 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { joinPath } from 'vs/base/common/resources';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -64,6 +67,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
 	private _messageProtocol: Promise<PersistentProtocol> | null;
+
+	private readonly _extensionHostLogFile: URI;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -95,6 +100,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
+		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
+
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
@@ -112,7 +119,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
 		this._toDispose.add(toDisposable(() => {
-			process.removeListener('exit', globalExitListener);
+			process.removeListener('exit' as 'loaded', globalExitListener); // https://github.com/electron/electron/issues/21475
 		}));
 	}
 
@@ -158,6 +165,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						'--nolazy',
 						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
 					];
+				} else {
+					opts.execArgv = ['--inspect-port=0'];
 				}
 
 				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
@@ -190,7 +199,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				onDebouncedOutput(output => {
 					const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 					if (inspectorUrlMatch) {
-						if (!this._environmentService.isBuilt) {
+						if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
 							console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
 						}
 						if (!this._inspectPort) {
@@ -198,9 +207,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 							this._onDidSetInspectPort.fire();
 						}
 					} else {
-						console.group('Extension Host');
-						console.log(output.data, ...output.format);
-						console.groupEnd();
+						if (!this._isExtensionDevTestFromCli) {
+							console.group('Extension Host');
+							console.log(output.data, ...output.format);
+							console.groupEnd();
+						}
 					}
 				});
 
@@ -283,22 +294,22 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		const expected = this._environmentService.debugExtensionHost.port;
 		const port = await findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
 
-		if (!port) {
-			console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
-			return 0;
+		if (!this._isExtensionDevTestFromCli) {
+			if (!port) {
+				console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
+			} else {
+				if (port !== expected) {
+					console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
+				}
+				if (this._isExtensionDevDebugBrk) {
+					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
+				} else {
+					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
+				}
+			}
 		}
 
-		if (port !== expected) {
-			console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
-		}
-		if (this._isExtensionDevDebugBrk) {
-			console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
-		} else {
-			console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
-		}
-		return port;
-
-
+		return port || 0;
 	}
 
 	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
@@ -371,6 +382,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						// stop listening for messages here
 						disposable.dispose();
 
+						// Register log channel for exthost log
+						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+
 						// release this promise
 						resolve(protocol);
 						return;
@@ -422,6 +436,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
+					logFile: this._extensionHostLogFile,
 					autoStart: this._autoStart,
 					uiKind: UIKind.Desktop
 				};
