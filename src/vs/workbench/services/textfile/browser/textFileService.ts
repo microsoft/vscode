@@ -35,6 +35,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { suggestFilename } from 'vs/base/common/mime';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { resolve } from 'vs/base/common/path';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -587,7 +588,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Finally fallback to suggest just the file name
-		return toLocalResource(resource.with({ path: suggestedFilename }), remoteAuthority);
+		// Since we do not have a default file path to
+		// put, we use path.resolve() to make sure the path
+		// is absolute.
+		return toLocalResource(resource.with({ path: resolve(suggestedFilename) }), remoteAuthority);
 	}
 
 	//#endregion
