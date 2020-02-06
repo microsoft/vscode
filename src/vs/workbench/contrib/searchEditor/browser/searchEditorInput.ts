@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { isEqual, joinPath, toLocalResource } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
@@ -27,6 +27,7 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { ITextFileSaveOptions, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 
 export type SearchConfiguration = {
@@ -76,6 +77,7 @@ export class SearchEditorInput extends EditorInput {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IModeService readonly modeService: IModeService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService
 	) {
 		super();
 
@@ -272,12 +274,7 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		const defaultFilePath = this.fileDialogService.defaultFilePath(schemeFilter);
-		if (defaultFilePath) {
-			return joinPath(defaultFilePath, searchFileName);
-		}
-
-		return toLocalResource(URI.from({ scheme: schemeFilter, path: searchFileName }), remoteAuthority);
+		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.remotePathService.userHome), searchFileName);
 	}
 }
 
