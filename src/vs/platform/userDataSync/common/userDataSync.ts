@@ -130,6 +130,7 @@ export enum UserDataSyncErrorCode {
 	Rejected = 'Rejected',
 	TooLarge = 'TooLarge',
 	TooManyFailures = 'TooManyFailures',
+	NoRef = 'NoRef',
 	Unknown = 'Unknown',
 }
 
