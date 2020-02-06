@@ -34,7 +34,6 @@ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/browser/editorExtensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
@@ -60,6 +59,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -1397,60 +1397,69 @@ export class ExtensionEditor extends BaseEditor {
 }
 
 const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus'));
-class ShowExtensionEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+registerAction2(class ShowExtensionEditorFindAction extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.extensioneditor.showfind',
+			title: localize('find', "Find"),
+			keybinding: {
+				when: contextKeyExpr,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
 		if (extensionEditor) {
 			extensionEditor.showFind();
 		}
 	}
-}
-(new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.showfind',
-	precondition: contextKeyExpr,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-		weight: KeybindingWeight.EditorContrib
-	}
-})).register();
+});
 
-class StartExtensionEditorFindNextCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+registerAction2(class StartExtensionEditorFindNextAction extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.extensioneditor.findNext',
+			title: localize('find next', "Find Next"),
+			keybinding: {
+				when: ContextKeyExpr.and(
+					contextKeyExpr,
+					KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
 		if (extensionEditor) {
 			extensionEditor.runFindAction(false);
 		}
 	}
-}
-(new StartExtensionEditorFindNextCommand({
-	id: 'editor.action.extensioneditor.findNext',
-	precondition: ContextKeyExpr.and(
-		contextKeyExpr,
-		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-	kbOpts: {
-		primary: KeyCode.Enter,
-		weight: KeybindingWeight.EditorContrib
-	}
-})).register();
+});
 
-class StartExtensionEditorFindPreviousCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.extensioneditor.findPrevious',
+			title: localize('find previous', "Find Previous"),
+			keybinding: {
+				when: ContextKeyExpr.and(
+					contextKeyExpr,
+					KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+				primary: KeyMod.Shift | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
 		if (extensionEditor) {
 			extensionEditor.runFindAction(true);
 		}
 	}
-}
-(new StartExtensionEditorFindPreviousCommand({
-	id: 'editor.action.extensioneditor.findPrevious',
-	precondition: ContextKeyExpr.and(
-		contextKeyExpr,
-		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-	kbOpts: {
-		primary: KeyMod.Shift | KeyCode.Enter,
-		weight: KeybindingWeight.EditorContrib
-	}
-})).register();
+});
 
 function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
 	const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
