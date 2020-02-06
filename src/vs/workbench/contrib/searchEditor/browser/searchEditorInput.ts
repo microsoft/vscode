@@ -65,7 +65,6 @@ export class SearchEditorInput extends EditorInput {
 	constructor(
 		public readonly resource: URI,
 		getModel: () => Promise<{ contentsModel: ITextModel, headerModel: ITextModel }>,
-		startingConfig: Partial<SearchConfiguration> | undefined,
 		@IModelService private readonly modelService: IModelService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
@@ -300,8 +299,6 @@ export const getOrMakeSearchEditorInput = (
 		return existing;
 	}
 
-	const config = existingData.config ?? (existingData.text ? extractSearchQuery(existingData.text) : {});
-
 	const getModel = async () => {
 		let contents: string;
 
@@ -347,7 +344,7 @@ export const getOrMakeSearchEditorInput = (
 		return { contentsModel, headerModel };
 	};
 
-	const input = instantiationService.createInstance(SearchEditorInput, uri, getModel, config);
+	const input = instantiationService.createInstance(SearchEditorInput, uri, getModel);
 
 	inputs.set(uri.toString(), input);
 	input.onDispose(() => inputs.delete(uri.toString()));
