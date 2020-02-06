@@ -276,17 +276,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onAutoSyncError(code: UserDataSyncErrorCode, source?: SyncSource): void {
 		switch (code) {
-			case UserDataSyncErrorCode.TooManyFailures:
-				this.telemetryService.publicLog2('sync/errorTooMany');
-				this.disableSync();
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: localize('too many errors', "Turned off sync because of too many failure attempts. Please open Sync log to check the failures and turn on sync."),
-					actions: {
-						primary: [new Action('open sync log', localize('open log', "Show logs"), undefined, true, () => this.showSyncLog())]
-					}
-				});
-				return;
 			case UserDataSyncErrorCode.TooLarge:
 				this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source: source! });
 				if (source === SyncSource.Keybindings || source === SyncSource.Settings) {

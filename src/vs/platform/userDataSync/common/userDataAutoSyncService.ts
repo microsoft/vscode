@@ -15,7 +15,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 	private enabled: boolean = false;
 	private successiveFailures: number = 0;
-	private successiveUnhandledFailures: number = 0;
 	private readonly syncDelayer: Delayer<void>;
 
 	private readonly _onError: Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }> = this._register(new Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }>());
@@ -77,14 +76,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				this.resetFailures();
 			} catch (e) {
 				this.successiveFailures++;
-				if (this.isUnHandledError(e)) {
-					this.successiveUnhandledFailures++;
-				}
 				this.logService.error(e);
 				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
-			}
-			if (this.successiveUnhandledFailures > 5) {
-				this._onError.fire({ code: UserDataSyncErrorCode.TooManyFailures });
 			}
 			if (loop) {
 				await timeout(1000 * 60 * 5);
@@ -105,20 +98,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		return this.configurationService.getValue<boolean>('sync.enable')
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
 			&& !!(await this.userDataAuthTokenService.getToken());
-	}
-
-	private isUnHandledError(error: Error): boolean {
-		if (!(error instanceof UserDataSyncError)) {
-			return true;
-		}
-		switch (error.code) {
-			case UserDataSyncErrorCode.ConnectionRefused:
-			case UserDataSyncErrorCode.Forbidden:
-			case UserDataSyncErrorCode.Unauthorized:
-			case UserDataSyncErrorCode.Rejected:
-				return false;
-		}
-		return true;
 	}
 
 	private resetFailures(): void {
