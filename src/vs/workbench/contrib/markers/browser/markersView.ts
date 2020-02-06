@@ -686,7 +686,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.rangeHighlightDecorations.highlightRange(selection);
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		const element = e.element;
 		if (!element) {
 			return;
