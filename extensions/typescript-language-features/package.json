@@ -730,6 +730,12 @@
           "default": 3072,
           "description": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
+        },
+        "typescript.tsserver.experimental.enableProjectDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
+          "scope": "window"
         }
       }
     },
