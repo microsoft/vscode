@@ -1,0 +1,23 @@
+steps:
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- script: |
+    cat << EOF > $(agent.tempdirectory)/cert.p12
+    $(macos-developer-certificate)
+    EOF
+    security import $(agent.tempdirectory)/cert.p12 -P "$(macos-developer-certificate-key)"
+    curl -o $(agent.tempdirectory)/VSCode-darwin.zip https://vscode.blob.core.windows.net/public/VSCode-darwin.zip
+    unzip $(agent.tempdirectory)/VSCode-darwin.zip -d $(agent.tempdirectory)
+    codesign -s 99FM488X57 --deep --force --options runtime --entitlements build/azure-pipelines/darwin/entitlements.plist $(agent.tempdirectory)/Visual\ Studio\ Code\ -\ Insiders.app
+    zip -r -X -y $(agent.stagingdirectory)/VSCode-darwin.zip $(agent.tempdirectory)/Visual\ Studio\ Code\ -\ Insiders.app
+
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: darwin-hardened
+    targetPath: $(agent.stagingdirectory)/VSCode-darwin.zip
+
