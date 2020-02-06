@@ -158,7 +158,7 @@ CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAP
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);
-	return workspacesService.removeFromRecentlyOpened([uri]);
+	return workspacesService.removeRecentlyOpened([uri]);
 });
 
 export class RemoveFromRecentlyOpenedAPICommand {
