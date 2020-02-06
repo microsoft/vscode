@@ -6,9 +6,10 @@ steps:
     KeyVaultName: vscode
 
 - script: |
-    cat << EOF > $(agent.tempdirectory)/cert.p12
+    cat << EOF |
     $(macos-developer-certificate)
     EOF
+    base64 -d > $(agent.tempdirectory)/cert.p12
     security import $(agent.tempdirectory)/cert.p12 -P "$(macos-developer-certificate-key)"
     curl -o $(agent.tempdirectory)/VSCode-darwin.zip https://vscode.blob.core.windows.net/public/VSCode-darwin.zip
     unzip $(agent.tempdirectory)/VSCode-darwin.zip -d $(agent.tempdirectory)
