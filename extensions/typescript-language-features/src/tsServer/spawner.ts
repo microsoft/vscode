@@ -41,7 +41,7 @@ export class TypeScriptServerSpawner {
 		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
 			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
 			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
-			return new SyntaxRoutingTsServer(syntaxServer, semanticServer, delegate);
+			return new SyntaxRoutingTsServer({ syntax: syntaxServer, semantic: semanticServer }, delegate);
 		}
 
 		return this.spawnTsServer('main', version, configuration, pluginManager);

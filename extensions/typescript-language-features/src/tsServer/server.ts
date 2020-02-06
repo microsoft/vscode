@@ -298,21 +298,26 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 
 export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServer {
+	private readonly syntaxServer: ITypeScriptServer;
+	private readonly semanticServer: ITypeScriptServer;
+
 	public constructor(
-		private readonly syntaxServer: ITypeScriptServer,
-		private readonly semanticServer: ITypeScriptServer,
+		servers: { syntax: ITypeScriptServer, semantic: ITypeScriptServer },
 		private readonly _delegate: TsServerDelegate,
 	) {
 		super();
 
-		this._register(syntaxServer.onEvent(e => this._onEvent.fire(e)));
-		this._register(semanticServer.onEvent(e => this._onEvent.fire(e)));
+		this.syntaxServer = servers.syntax;
+		this.semanticServer = servers.semantic;
 
-		this._register(semanticServer.onExit(e => {
+		this._register(this.syntaxServer.onEvent(e => this._onEvent.fire(e)));
+		this._register(this.semanticServer.onEvent(e => this._onEvent.fire(e)));
+
+		this._register(this.semanticServer.onExit(e => {
 			this._onExit.fire(e);
 			this.syntaxServer.kill();
 		}));
-		this._register(semanticServer.onError(e => this._onError.fire(e)));
+		this._register(this.semanticServer.onError(e => this._onError.fire(e)));
 	}
 
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
@@ -424,6 +429,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		}
 	}
 }
+
 
 namespace RequestState {
 	export const enum Type { Unresolved, Resolved, Errored }
