@@ -74,8 +74,12 @@ export class SearchEditorInput extends EditorInput {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IModeService readonly modeService: IModeService,
 	) {
 		super();
+
+		// Dummy model to set file icon
+		this._register(modelService.createModel('', modeService.create('search-result'), this.resource));
 
 		const modelLoader = getModel()
 			.then(({ contentsModel, headerModel }) => {
