@@ -16,13 +16,12 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeObserver';
-import { NotebookHandler, CellRenderTemplate, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
+import { NotebookHandler, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
+import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -263,7 +262,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
-	private disposables: Map<HTMLElement, DisposableStore> = new Map();
+	private disposables: Map<CellViewModel, DisposableStore> = new Map();
+
 	private count = 0;
 
 	constructor(
@@ -313,76 +313,18 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		let width;
-		const listDimension = this.handler.getListDimension();
-		if (listDimension) {
-			width = listDimension.width - CELL_MARGIN * 2;
-		} else {
-			width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
+		if (templateData.outputContainer) {
+			templateData.outputContainer!.innerHTML = '';
 		}
 
-		const lineNum = element.lineCount;
-		const lineHeight = this.handler.getFontInfo()?.lineHeight ?? 18;
-		const totalHeight = lineNum * lineHeight;
-		const model = element.getTextModel();
-		templateData.editor?.setModel(model);
-		templateData.editor?.layout(
-			{
-				width: width,
-				height: totalHeight
-			}
-		);
-
-		let realContentHeight = templateData.editor?.getContentHeight();
-
-		if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
-			templateData.editor?.layout(
-				{
-					width: width,
-					height: realContentHeight
-				}
-			);
+		this.disposables.get(element)?.clear();
+		if (!this.disposables.has(element)) {
+			this.disposables.set(element, new DisposableStore());
 		}
 
-		let cellWidthResizeObserver = getResizesObserver(templateData.cellContainer, {
-			width: width,
-			height: totalHeight
-		}, () => {
-			let newWidth = cellWidthResizeObserver.getWidth();
-			let realContentHeight = templateData.editor!.getContentHeight();
-			templateData.editor?.layout(
-				{
-					width: newWidth,
-					height: realContentHeight
-				}
-			);
-		});
+		let elementDisposable = this.disposables.get(element);
 
-		cellWidthResizeObserver.startObserving();
-
-		let contentSizeChangeListener = templateData.editor?.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
-				let layout = templateData.editor!.getLayoutInfo();
-				if (layout.height !== e.contentHeight) {
-					templateData.editor?.layout(
-						{
-							width: layout.width,
-							height: e.contentHeight
-
-						}
-					);
-
-					if (element.outputs.length) {
-						let outputHeight = templateData.outputContainer!.clientHeight;
-						this.handler.layoutElement(element, e.contentHeight + 32 + outputHeight);
-					} else {
-						this.handler.layoutElement(element, e.contentHeight + 16);
-					}
-				}
-			}
-		});
-
-		let listener = DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
+		elementDisposable?.add(DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
 			let { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
 			e.preventDefault();
 
@@ -390,140 +332,15 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
 
 			this.showContextMenu(listIndex, element, e.posx, top + height);
-		});
+		}));
 
-		let rerenderOutput = element.onDidChangeOutputs(() => {
-			if (element.outputs.length > 0) {
-				let hasDynamicHeight = true;
-				for (let i = 0; i < element.outputs.length; i++) {
-					let result = MimeTypeRenderer.render(element.outputs[i], this.themeService, this.webviewService);
-					if (result) {
-						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
-						templateData.outputContainer?.appendChild(result.element);
-						if (result.shadowContent) {
-							hasDynamicHeight = false;
-							this.handler.createContentWidget(element, i, result.shadowContent, totalHeight + 8);
-						}
-					}
-				}
-
-				if (height !== undefined && hasDynamicHeight) {
-					let clientHeight = templateData.outputContainer!.clientHeight;
-					let listDimension = this.handler.getListDimension();
-					let dimension = listDimension ? {
-						width: listDimension.width - CELL_MARGIN * 2,
-						height: clientHeight
-					} : undefined;
-					const elementSizeObserver = getResizesObserver(templateData.outputContainer!, dimension, () => {
-						if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
-							let height = elementSizeObserver.getHeight();
-							if (clientHeight !== height) {
-								element.setDynamicHeight(totalHeight + 32 + height);
-								this.handler.layoutElement(element, totalHeight + 32 + height);
-							}
-
-							elementSizeObserver.dispose();
-						}
-					});
-					// const elementSizeObserver = new ElementSizeObserver();
-					elementSizeObserver.startObserving();
-					if (!hasDynamicHeight && clientHeight !== 0) {
-						element.setDynamicHeight(totalHeight + 32 + clientHeight);
-						this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
-					}
-
-					this.disposables.get(templateData.cellContainer)?.add(elementSizeObserver);
-				}
-			}
-		});
-
-		let menuStore = new DisposableStore();
-		menuStore.add(listener!);
-		this.disposables.set(templateData.menuContainer!, menuStore);
-
-		let cellStore = new DisposableStore();
-		cellStore.add(contentSizeChangeListener!);
-		cellStore.add(rerenderOutput);
-		cellStore.add(cellWidthResizeObserver);
-		this.disposables.set(templateData.cellContainer, cellStore);
-
-		if (templateData.outputContainer) {
-			templateData.outputContainer!.innerHTML = '';
-		}
-
-		if (element.outputs.length > 0) {
-			let hasDynamicHeight = true;
-			for (let i = 0; i < element.outputs.length; i++) {
-				let result = MimeTypeRenderer.render(element.outputs[i], this.themeService, this.webviewService);
-				if (result) {
-					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
-					templateData.outputContainer?.appendChild(result.element);
-					if (result.shadowContent) {
-						hasDynamicHeight = false;
-						this.handler.createContentWidget(element, i, result.shadowContent, totalHeight + 8);
-					}
-				}
-			}
-
-			if (height !== undefined && hasDynamicHeight) {
-				let clientHeight = templateData.outputContainer!.clientHeight;
-				let listDimension = this.handler.getListDimension();
-				let dimension = listDimension ? {
-					width: listDimension.width - CELL_MARGIN * 2,
-					height: clientHeight
-				} : undefined;
-				const elementSizeObserver = getResizesObserver(templateData.outputContainer!, dimension, () => {
-					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
-						let height = elementSizeObserver.getHeight();
-						if (clientHeight !== height) {
-							element.setDynamicHeight(totalHeight + 32 + height);
-							this.handler.layoutElement(element, totalHeight + 32 + height);
-						}
-
-						elementSizeObserver.dispose();
-					}
-				});
-				elementSizeObserver.startObserving();
-				if (!hasDynamicHeight && clientHeight !== 0) {
-					element.setDynamicHeight(totalHeight + 32 + clientHeight);
-					this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
-				}
-
-				this.disposables.get(templateData.cellContainer)?.add(elementSizeObserver);
-			}
-		}
-
+		elementDisposable?.add(new CodeCell(this.handler, element, templateData, this.themeService, this.webviewService, height));
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
-		// throw nerendererw Error('Method not implemented.');
 	}
 
-
 	disposeElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		let menuContainer = this.disposables.get(templateData.menuContainer!);
-
-		if (menuContainer) {
-			menuContainer.dispose();
-			this.disposables.delete(templateData.menuContainer!);
-		}
-
-		let cellDisposable = this.disposables.get(templateData.cellContainer);
-
-		if (cellDisposable) {
-			cellDisposable.dispose();
-			this.disposables.delete(templateData.cellContainer);
-		}
-
-		if (templateData.outputContainer) {
-			let outputDisposable = this.disposables.get(templateData.outputContainer!);
-
-			if (outputDisposable) {
-				outputDisposable.dispose();
-				this.disposables.delete(templateData.outputContainer!);
-			}
-		}
-
-		this.handler.disposeViewCell(element);
+		this.disposables.get(element)?.clear();
 	}
 }
