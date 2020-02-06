@@ -805,9 +805,7 @@ export class Repository {
 	}
 
 	spawn_pty(args: string[], options: PtySpawnOptions = {}): pty.IPty {
-		if (options.cwd === undefined) {
-			options.cwd = this.root;
-		}
+		options.cwd = options.cwd || this.root;
 
 		return this.git.spawn_pty(args, options);
 	}
