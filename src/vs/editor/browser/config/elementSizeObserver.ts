@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import * as dom from 'vs/base/browser/dom';
 
 export class ElementSizeObserver extends Disposable {
 
@@ -12,7 +13,8 @@ export class ElementSizeObserver extends Disposable {
 	private readonly changeCallback: () => void;
 	private width: number;
 	private height: number;
-	private resizeObserver: any;
+	private mutationObserver: MutationObserver | null;
+	private windowSizeListener: IDisposable | null;
 
 	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
 		super();
@@ -20,7 +22,8 @@ export class ElementSizeObserver extends Disposable {
 		this.changeCallback = changeCallback;
 		this.width = -1;
 		this.height = -1;
-		this.resizeObserver = null;
+		this.mutationObserver = null;
+		this.windowSizeListener = null;
 		this.measureReferenceDomElement(false, dimension);
 	}
 
@@ -38,23 +41,25 @@ export class ElementSizeObserver extends Disposable {
 	}
 
 	public startObserving(): void {
-		if (this.resizeObserver === null) {
-			this.resizeObserver = new MutationObserver(this.mutationObserve.bind(this));
-			this.resizeObserver.observe(this.referenceDomElement, {
+		if (!this.mutationObserver && this.referenceDomElement) {
+			this.mutationObserver = new MutationObserver(() => this._onDidMutate());
+			this.mutationObserver.observe(this.referenceDomElement, {
 				attributes: true,
-				childList: true,
-				characterData: true,
-				subtree: true
 			});
-			window.addEventListener('resize', this.windowObserve.bind(this));
+		}
+		if (!this.windowSizeListener) {
+			this.windowSizeListener = dom.addDisposableListener(window, 'resize', () => this._onDidResizeWindow());
 		}
 	}
 
 	public stopObserving(): void {
-		if (this.resizeObserver !== null) {
-			this.resizeObserver.disconnect();
-			this.resizeObserver = null;
-			window.removeEventListener('resize', this.windowObserve.bind(this));
+		if (this.mutationObserver) {
+			this.mutationObserver.disconnect();
+			this.mutationObserver = null;
+		}
+		if (this.windowSizeListener) {
+			this.windowSizeListener.dispose();
+			this.windowSizeListener = null;
 		}
 	}
 
@@ -62,11 +67,11 @@ export class ElementSizeObserver extends Disposable {
 		this.measureReferenceDomElement(true, dimension);
 	}
 
-	private mutationObserve(mutations: MutationRecord[], observer: MutationObserver): void {
+	private _onDidMutate(): void {
 		this.measureReferenceDomElement(true);
 	}
 
-	private windowObserve(): void {
+	private _onDidResizeWindow(): void {
 		this.measureReferenceDomElement(true);
 	}
 
