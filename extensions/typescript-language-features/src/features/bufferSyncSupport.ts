@@ -329,7 +329,7 @@ export default class BufferSyncSupport extends Disposable {
 
 	constructor(
 		client: ITypeScriptServiceClient,
-		modeIds: string[]
+		modeIds: readonly string[]
 	) {
 		super();
 		this.client = client;
