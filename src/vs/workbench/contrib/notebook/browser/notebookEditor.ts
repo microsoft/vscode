@@ -18,7 +18,7 @@ import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/w
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
@@ -32,6 +32,7 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebook } from 'vs/editor/common/modes';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookHandler, ViewCell, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { ViewCell } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import * as DOM from 'vs/base/browser/dom';
 import * as UUID from 'vs/base/common/uuid';
@@ -13,6 +13,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { URI } from 'vs/base/common/uri';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import * as path from 'vs/base/common/path';
+import { NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 
 
 export interface IDimentionMessage {

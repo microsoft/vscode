@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebook';
+import 'vs/css!../notebook';
 import * as DOM from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,12 +25,12 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import * as UUID from 'vs/base/common/uuid';
 import { ICell } from 'vs/editor/common/modes';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeObserver';
+import { NotebookHandler, CellRenderTemplate, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
+import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 
-export const CELL_MARGIN = 24;
 
 export class ViewCell extends Disposable {
 	private _textModel: ITextModel | null = null;
@@ -187,32 +187,7 @@ export class ViewCell extends Disposable {
 	}
 }
 
-export interface NotebookHandler {
-	viewType: string | undefined;
-	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
-	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
-	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
-	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
-	focusNotebookCell(cell: ViewCell, focusEditor: boolean): void;
-	getActiveCell(): ViewCell | undefined;
-	layoutElement(cell: ViewCell, height: number): void;
-	createContentWidget(cell: ViewCell, index: number, shadowContent: string, offset: number): void;
-	disposeViewCell(cell: ViewCell): void;
-	triggerWheel(event: IMouseWheelEvent): void;
-	getFontInfo(): BareFontInfo | undefined;
-	getListDimension(): DOM.Dimension | null;
-}
 
-export interface CellRenderTemplate {
-	container: HTMLElement;
-	cellContainer: HTMLElement;
-	menuContainer?: HTMLElement;
-	editingContainer?: HTMLElement;
-	outputContainer?: HTMLElement;
-	editor?: CodeEditorWidget;
-	model?: ITextModel;
-	index: number;
-}
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ViewCell> {
 	private _lineHeight: number;
@@ -371,138 +346,7 @@ class AbstractCellRenderer {
 	}
 }
 
-class StatefullMarkdownCell extends Disposable {
-	private editor: CodeEditorWidget | null = null;
-	private cellContainer: HTMLElement;
-	private menuContainer?: HTMLElement;
-	private editingContainer?: HTMLElement;
 
-	private localDisposables: DisposableStore;
-
-	constructor(
-		handler: NotebookHandler,
-		viewCell: ViewCell,
-		templateData: CellRenderTemplate,
-		editorOptions: IEditorOptions,
-		instantiationService: IInstantiationService
-	) {
-		super();
-
-		this.cellContainer = templateData.cellContainer;
-		this.menuContainer = templateData.menuContainer;
-		this.editingContainer = templateData.editingContainer;
-		this.localDisposables = new DisposableStore();
-		this._register(this.localDisposables);
-
-		const viewUpdate = () => {
-			if (viewCell.isEditing) {
-				// switch to editing mode
-				let width;
-				const listDimension = handler.getListDimension();
-				if (listDimension) {
-					width = listDimension.width - CELL_MARGIN * 2;
-				} else {
-					width = this.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
-				}
-
-				const lineNum = viewCell.lineCount;
-				const lineHeight = handler.getFontInfo()?.lineHeight ?? 18;
-				const totalHeight = Math.max(lineNum, 1) * lineHeight;
-
-				if (this.editor) {
-					// not first time, we don't need to create editor or bind listeners
-					this.editingContainer!.style.display = 'block';
-				} else {
-					this.editingContainer!.style.display = 'block';
-					this.editingContainer!.innerHTML = '';
-					this.editor = instantiationService.createInstance(CodeEditorWidget, this.editingContainer!, {
-						...editorOptions,
-						dimension: {
-							width: width,
-							height: totalHeight
-						}
-					}, {});
-
-					const model = viewCell.getTextModel();
-					this.editor.setModel(model);
-					let realContentHeight = this.editor!.getContentHeight();
-
-					if (realContentHeight !== totalHeight) {
-						this.editor!.layout(
-							{
-								width: width,
-								height: realContentHeight
-							}
-						);
-					}
-
-					this.localDisposables.add(model.onDidChangeContent(() => {
-						viewCell.setText(model.getLinesContent());
-						const clientHeight = this.cellContainer.clientHeight;
-						this.cellContainer.innerHTML = viewCell.getHTML() || '';
-						handler.layoutElement(viewCell, realContentHeight + 32 + clientHeight);
-					}));
-
-					this.localDisposables.add(this.editor.onDidContentSizeChange(e => {
-						let viewLayout = this.editor!.getLayoutInfo();
-
-						if (e.contentHeightChanged) {
-							this.editor!.layout(
-								{
-									width: viewLayout.width,
-									height: e.contentHeight
-								}
-							);
-							const clientHeight = this.cellContainer.clientHeight;
-							handler.layoutElement(viewCell, e.contentHeight + 32 + clientHeight);
-						}
-					}));
-
-					let cellWidthResizeObserver = getResizesObserver(templateData.editingContainer!, {
-						width: width,
-						height: totalHeight
-					}, () => {
-						let newWidth = cellWidthResizeObserver.getWidth();
-						let realContentHeight = this.editor!.getContentHeight();
-						this.editor!.layout(
-							{
-								width: newWidth,
-								height: realContentHeight
-							}
-						);
-					});
-
-					cellWidthResizeObserver.startObserving();
-					this.localDisposables.add(cellWidthResizeObserver);
-
-					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
-				}
-
-				const clientHeight = this.cellContainer.clientHeight;
-				handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
-				this.editor.focus();
-			} else {
-				if (this.editor) {
-					// switch from editing mode
-					this.editingContainer!.style.display = 'none';
-					const clientHeight = this.cellContainer.clientHeight;
-					handler.layoutElement(viewCell, clientHeight);
-				} else {
-					// first time, readonly mode
-					this.editingContainer!.style.display = 'none';
-					this.cellContainer.innerHTML = viewCell.getHTML() || '';
-				}
-			}
-		};
-
-		this._register(viewCell.onDidChangeEditingState(() => {
-			this.localDisposables.clear();
-			viewUpdate();
-		}));
-
-		viewUpdate();
-	}
-}
 
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';

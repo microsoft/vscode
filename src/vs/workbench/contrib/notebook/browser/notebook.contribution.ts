@@ -21,11 +21,11 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IActiveCodeEditor, isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey, InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
