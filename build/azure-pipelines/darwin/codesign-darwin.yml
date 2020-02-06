@@ -13,11 +13,11 @@ steps:
     curl -o $(agent.tempdirectory)/VSCode-darwin.zip https://vscode.blob.core.windows.net/public/VSCode-darwin.zip
     unzip $(agent.tempdirectory)/VSCode-darwin.zip -d $(agent.tempdirectory)
     codesign -s 99FM488X57 --deep --force --options runtime --entitlements build/azure-pipelines/darwin/entitlements.plist $(agent.tempdirectory)/Visual\ Studio\ Code\ -\ Insiders.app
-    zip -r -X -y $(agent.stagingdirectory)/VSCode-darwin.zip $(agent.tempdirectory)/Visual\ Studio\ Code\ -\ Insiders.app
+    zip -r -X -y $(build.stagingdirectory)/VSCode-darwin.zip $(agent.tempdirectory)/Visual\ Studio\ Code\ -\ Insiders.app
 
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
   inputs:
     artifactName: darwin-hardened
-    targetPath: $(agent.stagingdirectory)/VSCode-darwin.zip
+    targetPath: $(build.stagingdirectory)/VSCode-darwin.zip
 
