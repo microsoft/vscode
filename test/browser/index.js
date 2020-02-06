@@ -195,11 +195,15 @@ testModules.then(async modules => {
 	const promises = browserTypes.map(browserType => runTestsInBrowser(modules, browserType));
 	const messages = await Promise.all(promises);
 
+	// aftermath
+	let didFail = false;
 	for (let msg of messages) {
 		if (msg) {
+			didFail = true;
 			console.log(msg);
 		}
 	}
+	process.exit(didFail ? 1 : 0);
 
 }).catch(err => {
 	console.error(err);
