@@ -595,16 +595,15 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 	}
 
 	private static _normalizeArr(arr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
-		let expr: ContextKeyExpr[] = [];
+		const expr: ContextKeyExpr[] = [];
 
-		for (let i = 0, len = arr.length; i < len; i++) {
-			let e: ContextKeyExpr | null | undefined = arr[i];
+		for (const e of arr) {
 			if (!e) {
 				continue;
 			}
 
 			if (e instanceof ContextKeyAndExpr) {
-				expr = expr.concat(e.expr);
+				expr.push(...e.expr);
 				continue;
 			}
 
