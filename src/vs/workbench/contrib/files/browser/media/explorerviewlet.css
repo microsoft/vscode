@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
-	-webkit-mask: url('files-activity-bar.svg') no-repeat 50% 50%;
-}
-
 /* --- Explorer viewlet --- */
 .explorer-viewlet,
 .explorer-folders-view {
@@ -62,15 +57,18 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
 	visibility: hidden;
-}
-
-.explorer-viewlet .panel-header .count {
-	min-width: fit-content;
 	display: flex;
 	align-items: center;
 }
 
-.explorer-viewlet .panel-header .monaco-count-badge.hidden {
+.explorer-viewlet .pane-header .count {
+	min-width: fit-content;
+	min-width: -moz-fit-content;
+	display: flex;
+	align-items: center;
+}
+
+.explorer-viewlet .pane-header .monaco-count-badge.hidden {
 	display: none;
 }
 
@@ -84,9 +82,16 @@
 	display: block;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .close-editor-action {
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
+	color: inherit;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close {
 	width: 8px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
@@ -114,6 +119,13 @@
 	padding: 0 20px 0 20px;
 }
 
+.explorer-viewlet .explorer-empty-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
 .explorer-viewlet .explorer-item.nonexistent-root {
 	opacity: 0.5;
 }
@@ -121,6 +133,16 @@
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+}
+
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
+	padding: 1px;
+	border-radius: 3px;
+}
+
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
+.explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
+	text-decoration: underline;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,

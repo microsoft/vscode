@@ -10,8 +10,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -26,16 +25,16 @@ function getNixIPCHandle(userDataPath: string, type: string): string {
 
 	if (xdgRuntimeDir && !vscodePortable) {
 		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
-		return path.join(xdgRuntimeDir, `vscode-${scope}-${pkg.version}-${type}.sock`);
+		return path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
 	}
 
-	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
+	return path.join(userDataPath, `${product.version}-${type}.sock`);
 }
 
 function getWin32IPCHandle(userDataPath: string, type: string): string {
 	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
 
-	return `\\\\.\\pipe\\${scope}-${pkg.version}-${type}-sock`;
+	return `\\\\.\\pipe\\${scope}-${product.version}-${type}-sock`;
 }
 
 function getIPCHandle(userDataPath: string, type: string): string {
@@ -96,20 +95,12 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get userDataPath(): string {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
-
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'user-data');
 		}
 
 		return parseUserDataDir(this._args, process);
 	}
-
-	@memoize
-	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
-
-	get appNameLong(): string { return product.nameLong; }
-
-	get appQuality(): string | undefined { return product.quality; }
 
 	@memoize
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
@@ -119,6 +110,18 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
+
+	@memoize
+	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, '.sync'); }
+
+	@memoize
+	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'keybindings.json'); }
+
+	@memoize
+	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
 	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
@@ -139,7 +142,14 @@ export class EnvironmentService implements IEnvironmentService {
 	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
-	get localeResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'locale.json'); }
+	get argvResource(): URI {
+		const vscodePortable = process.env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return URI.file(path.join(vscodePortable, 'argv.json'));
+		}
+
+		return URI.file(path.join(this.userHome, product.dataFolderName, 'argv.json'));
+	}
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
@@ -180,7 +190,6 @@ export class EnvironmentService implements IEnvironmentService {
 		}
 
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
-
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'extensions');
 		}
@@ -232,6 +241,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }
@@ -285,7 +296,7 @@ function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | unde
 	return { port, break: brk, debugId };
 }
 
-function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
+export function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
 	if (!arg) {
 		return undefined;
 	}

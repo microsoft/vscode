@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { join } from 'vs/base/common/path';
 import { mkdirp, RimRafMode, rimraf } from 'vs/base/node/pfs';
@@ -18,7 +18,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 
 suite('Extension Gallery Service', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extensiongalleryservice');
@@ -51,12 +51,12 @@ suite('Extension Gallery Service', () => {
 
 	test('marketplace machine id', () => {
 		const args = ['--user-data-dir', marketplaceHome];
-		const environmentService = new EnvironmentService(parseArgs(args), process.execPath);
+		const environmentService = new EnvironmentService(parseArgs(args, OPTIONS), process.execPath);
 
-		return resolveMarketplaceHeaders(pkg.version, environmentService, fileService).then(headers => {
+		return resolveMarketplaceHeaders(product.version, environmentService, fileService).then(headers => {
 			assert.ok(isUUID(headers['X-Market-User-Id']));
 
-			return resolveMarketplaceHeaders(pkg.version, environmentService, fileService).then(headers2 => {
+			return resolveMarketplaceHeaders(product.version, environmentService, fileService).then(headers2 => {
 				assert.equal(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 			});
 		});

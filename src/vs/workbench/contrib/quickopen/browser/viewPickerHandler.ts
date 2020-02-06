@@ -9,14 +9,14 @@ import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/par
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { IViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+import { IViewsRegistry, ViewContainer, IViewDescriptorService, IViewContainersRegistry, Extensions as ViewExtensions, IViewsService } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -70,6 +70,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
@@ -196,9 +197,9 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 	private hasToShowViewlet(viewlet: ViewletDescriptor): boolean {
 		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
-		if (viewContainer && viewContainer.hideIfEmpty) {
-			const viewsCollection = this.viewsService.getViewDescriptors(viewContainer);
-			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
+		if (viewContainer?.hideIfEmpty) {
+			const viewsCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
+			return viewsCollection.activeViewDescriptors.length > 0;
 		}
 		return true;
 	}

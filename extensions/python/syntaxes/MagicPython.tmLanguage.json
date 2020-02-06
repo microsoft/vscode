@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/38422d302fe0b3e7716d26ce8cd7d0b9685f3a38",
+	"version": "https://github.com/MagicStack/MagicPython/commit/c0f8d514bbe6e9d3899f2b002bcd6971aef5e34b",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"patterns": [
@@ -374,6 +374,7 @@
 			]
 		},
 		"member-access": {
+			"name": "meta.member.access.python",
 			"begin": "(\\.)\\s*(?!\\.)",
 			"end": "(?x)\n  # stop when you've just read non-whitespace followed by non-word\n  # i.e. when finished reading an identifier or function call\n  (?<=\\S)(?=\\W) |\n  # stop when seeing the start of something that's not a word,\n  # i.e. when seeing a non-identifier\n  (^|(?<=\\s))(?=[^\\\\\\w\\s]) |\n  $\n",
 			"beginCaptures": {
@@ -1067,6 +1068,7 @@
 			}
 		},
 		"member-access-class": {
+			"name": "meta.member.access.python",
 			"begin": "(\\.)\\s*(?!\\.)",
 			"end": "(?<=\\S)(?=\\W)|$",
 			"beginCaptures": {

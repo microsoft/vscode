@@ -11,9 +11,9 @@ import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } f
 export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	constructor(
-		@IMainProcessService readonly windowService: IMainProcessService,
+		@IMainProcessService readonly mainProcessService: IMainProcessService
 	) {
-		super(windowService.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
+		super(mainProcessService.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
 	}
 }
 

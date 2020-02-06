@@ -182,6 +182,7 @@ export interface DidUninstallExtensionEvent {
 	error?: string;
 }
 
+export const INSTALL_ERROR_NOT_SUPPORTED = 'notsupported';
 export const INSTALL_ERROR_MALICIOUS = 'malicious';
 export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 
@@ -204,6 +205,22 @@ export interface IExtensionManagementService {
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
+}
+
+export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
+export const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
+export const IGlobalExtensionEnablementService = createDecorator<IGlobalExtensionEnablementService>('IGlobalExtensionEnablementService');
+
+export interface IGlobalExtensionEnablementService {
+	_serviceBrand: undefined;
+	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }>;
+
+	getDisabledExtensions(): IExtensionIdentifier[];
+	enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
+	disableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
+
+	// Async method until storage service is available in shared process
+	getDisabledExtensionsAsync(): Promise<IExtensionIdentifier[]>;
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

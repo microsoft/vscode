@@ -16,7 +16,7 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass, SymbolKind, SymbolTag } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, SymbolKinds, SymbolKind, SymbolTag } from 'vs/editor/common/modes';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
@@ -97,9 +97,11 @@ class OutlineModel extends QuickOpenModel {
 			}
 		});
 
-		this.entries.sort(SymbolEntry.compareByRank);
-
-
+		// select comparator based on the presence of the colon-prefix
+		this.entries.sort(searchValuePos === 0
+			? SymbolEntry.compareByRank
+			: SymbolEntry.compareByKindAndRank
+		);
 
 		// Mark all type groups
 		const visibleResults = <SymbolEntry[]>this.getEntries(true);
@@ -193,7 +195,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.deprecated ? { extraClasses: ['deprecated'] } : undefined;
 	}
 
-	getHighlights(): [IHighlight[], IHighlight[] | undefined, IHighlight[] | undefined] {
+	getHighlights(): [IHighlight[] | undefined, IHighlight[] | undefined, IHighlight[] | undefined] {
 		return [
 			this.deprecated ? [] : filters.createMatches(this.score),
 			undefined,
@@ -297,7 +299,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		const kindB = NLS_SYMBOL_KIND_CACHE[b.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
 		let r = kindA.localeCompare(kindB);
 		if (r === 0) {
-			r = this.compareByRank(a, b);
+			r = SymbolEntry.compareByRank(a, b);
 		}
 		return r;
 	}
@@ -423,7 +425,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Show parent scope as description
 			const description = element.containerName || '';
-			const icon = symbolKindToCssClass(element.kind);
+			const icon = SymbolKinds.toCssClassName(element.kind);
 
 			// Add
 			results.push(new SymbolEntry(i,

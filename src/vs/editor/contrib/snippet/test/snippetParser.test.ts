@@ -767,4 +767,17 @@ suite('SnippetParser', () => {
 		assert.equal((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
 		assert.equal((<FormatString>variable.transform!.children[0]).elseValue, undefined);
 	});
+
+	test('Snippet escape backslashes inside conditional insertion variable replacement #80394', function () {
+
+		let snippet = new SnippetParser().parse('${CURRENT_YEAR/(.+)/${1:+\\\\}/}');
+		let variable = <Variable>snippet.children[0];
+		assert.equal(snippet.children.length, 1);
+		assert.ok(variable instanceof Variable);
+		assert.ok(variable.transform);
+		assert.equal(variable.transform!.children.length, 1);
+		assert.ok(variable.transform!.children[0] instanceof FormatString);
+		assert.equal((<FormatString>variable.transform!.children[0]).ifValue, '\\');
+		assert.equal((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+	});
 });

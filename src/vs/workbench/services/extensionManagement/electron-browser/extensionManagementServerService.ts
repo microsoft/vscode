@@ -17,7 +17,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteExtensionManagementChannelClient } from 'vs/workbench/services/extensions/electron-browser/remoteExtensionManagementIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 const localExtensionManagementServerAuthority: string = 'vscode-local';
@@ -46,7 +46,8 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		if (remoteAgentConnection) {
 			const extensionManagementService = new RemoteExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer.extensionManagementService, galleryService, logService, configurationService, productService);
 			this.remoteExtensionManagementServer = {
-				authority: remoteAgentConnection.remoteAuthority, extensionManagementService,
+				authority: remoteAgentConnection.remoteAuthority,
+				extensionManagementService,
 				get label() { return labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
 			};
 		}

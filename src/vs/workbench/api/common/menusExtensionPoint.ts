@@ -12,7 +12,8 @@ import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } fr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 namespace schema {
 
@@ -39,8 +40,9 @@ namespace schema {
 			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
+			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/change/title': return MenuId.SCMChangeContext;
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
@@ -49,6 +51,7 @@ namespace schema {
 			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
 			case 'comments/comment/title': return MenuId.CommentTitle;
 			case 'comments/comment/context': return MenuId.CommentActions;
+			case 'extension/context': return MenuId.ExtensionContext;
 		}
 
 		return undefined;
@@ -207,6 +210,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'extension/context': {
+				description: localize('menus.extensionContext', "The extension context menu"),
+				type: 'array',
+				items: menuItem
+			},
 		}
 	};
 
@@ -296,7 +304,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
+				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -346,10 +354,11 @@ commandsExtensionPoint.setHandler(extensions => {
 
 		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
-		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
+		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+
 			} else {
 				absoluteIcon = {
 					dark: resources.joinPath(extension.description.extensionLocation, icon.dark),
@@ -366,7 +375,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
-			iconLocation: absoluteIcon
+			icon: absoluteIcon
 		});
 		_commandRegistrations.add(registration);
 	}
@@ -386,7 +395,7 @@ commandsExtensionPoint.setHandler(extensions => {
 	}
 });
 
-let _menuRegistrations: IDisposable[] = [];
+const _menuRegistrations = new DisposableStore();
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
@@ -394,7 +403,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 }).setHandler(extensions => {
 
 	// remove all previous menu registrations
-	_menuRegistrations = dispose(_menuRegistrations);
+	_menuRegistrations.clear();
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;
@@ -405,7 +414,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 			}
 
 			const menu = schema.parseMenuId(entry.key);
-			if (typeof menu !== 'number') {
+			if (typeof menu === 'undefined') {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
 			}
@@ -449,7 +458,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					order,
 					when: ContextKeyExpr.deserialize(item.when)
 				} as IMenuItem);
-				_menuRegistrations.push(registration);
+				_menuRegistrations.add(registration);
 			}
 		});
 	}

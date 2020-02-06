@@ -424,7 +424,7 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.CodeActionList | Promise<modes.CodeActionList> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
@@ -497,6 +497,20 @@ export function registerSelectionRangeProvider(languageId: string, provider: mod
 }
 
 /**
+ * Register a document semantic tokens provider
+ */
+export function registerDocumentSemanticTokensProvider(languageId: string, provider: modes.DocumentSemanticTokensProvider): IDisposable {
+	return modes.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a document range semantic tokens provider
+ */
+export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: modes.DocumentRangeSemanticTokensProvider): IDisposable {
+	return modes.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -521,7 +535,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.CodeActionList | Promise<modes.CodeActionList>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
 }
 
 /**
@@ -558,6 +572,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
 		registerDeclarationProvider: <any>registerDeclarationProvider,
 		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
+		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
+		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,

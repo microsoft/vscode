@@ -10,7 +10,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -19,21 +19,17 @@ import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/com
 import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class MessageController extends Disposable implements editorCommon.IEditorContribution {
+export class MessageController extends Disposable implements IEditorContribution {
 
-	private static readonly _id = 'editor.contrib.messageController';
+	public static readonly ID = 'editor.contrib.messageController';
 
-	static MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
+	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
 
 	static get(editor: ICodeEditor): MessageController {
-		return editor.getContribution<MessageController>(MessageController._id);
+		return editor.getContribution<MessageController>(MessageController.ID);
 	}
 
 	private readonly closeTimeout = 3000; // close after 3s
-
-	getId(): string {
-		return MessageController._id;
-	}
 
 	private readonly _editor: ICodeEditor;
 	private readonly _visible: IContextKey<boolean>;
@@ -148,7 +144,7 @@ class MessageWidget implements IContentWidget {
 	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
 
 		this._editor = editor;
-		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, editorCommon.ScrollType.Smooth);
+		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
 		this._position = { lineNumber, column: column - 1 };
 
 		this._domNode = document.createElement('div');
@@ -180,11 +176,11 @@ class MessageWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
+		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW] };
 	}
 }
 
-registerEditorContribution(MessageController);
+registerEditorContribution(MessageController.ID, MessageController);
 
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(inputValidationInfoBorder);

@@ -20,11 +20,6 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	pipeLoggingToParent();
 }
 
-// Disable IO if configured
-if (!process.env['VSCODE_ALLOW_IO']) {
-	disableSTDIO();
-}
-
 // Handle Exceptions
 if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
 	handleExceptions();
@@ -139,20 +134,6 @@ function pipeLoggingToParent() {
 	}
 
 	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
-}
-
-function disableSTDIO() {
-
-	// const stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
-	// error when we are inside a forked process and this process tries to access those channels.
-	const stream = require('stream');
-	const writable = new stream.Writable({
-		write: function () { /* No OP */ }
-	});
-
-	process['__defineGetter__']('stdout', function () { return writable; });
-	process['__defineGetter__']('stderr', function () { return writable; });
-	process['__defineGetter__']('stdin', function () { return writable; });
 }
 
 function handleExceptions() {

@@ -11,6 +11,7 @@
 	padding: 6px 10px;
 	white-space: pre-wrap;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title {

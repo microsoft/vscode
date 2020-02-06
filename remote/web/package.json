@@ -2,12 +2,13 @@
 	"name": "vscode-web",
 	"version": "0.0.0",
 	"dependencies": {
-		"@microsoft/applicationinsights-web": "^2.1.1",
-		"onigasm-umd": "^2.2.2",
-		"semver-umd": "^5.5.3",
-		"vscode-textmate": "^4.2.2",
-		"xterm": "3.15.0-beta107",
-		"xterm-addon-search": "0.2.0-beta5",
-		"xterm-addon-web-links": "0.1.0-beta10"
+		"onigasm-umd": "2.2.5",
+		"semver-umd": "^5.5.5",
+		"vscode-textmate": "4.4.0",
+		"xterm": "4.4.0",
+		"xterm-addon-search": "0.4.0",
+		"xterm-addon-unicode11": "0.1.1",
+		"xterm-addon-web-links": "0.2.1",
+		"xterm-addon-webgl": "0.5.0"
 	}
 }

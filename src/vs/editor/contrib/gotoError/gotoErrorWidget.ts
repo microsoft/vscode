@@ -6,7 +6,7 @@
 import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,13 +20,13 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
-import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
 import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class MessageWidget {
 
@@ -38,9 +38,16 @@ class MessageWidget {
 	private readonly _relatedBlock: HTMLDivElement;
 	private readonly _scrollable: ScrollableElement;
 	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables: DisposableStore = new DisposableStore();
 
-	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void) {
+	private _codeLink?: HTMLElement;
+
+	constructor(
+		parent: HTMLElement,
+		editor: ICodeEditor,
+		onRelatedInformation: (related: IRelatedInformation) => void,
+		private readonly _openerService: IOpenerService,
+	) {
 		this._editor = editor;
 
 		const domNode = document.createElement('div');
@@ -54,7 +61,7 @@ class MessageWidget {
 
 		this._relatedBlock = document.createElement('div');
 		domNode.appendChild(this._relatedBlock);
-		this._disposables.push(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
+		this._disposables.add(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
 			event.preventDefault();
 			const related = this._relatedDiagnostics.get(event.target);
 			if (related) {
@@ -70,11 +77,11 @@ class MessageWidget {
 			verticalScrollbarSize: 3
 		});
 		parent.appendChild(this._scrollable.getDomNode());
-		this._disposables.push(this._scrollable.onScroll(e => {
+		this._disposables.add(this._scrollable.onScroll(e => {
 			domNode.style.left = `-${e.scrollLeft}px`;
 			domNode.style.top = `-${e.scrollTop}px`;
 		}));
-		this._disposables.push(this._scrollable);
+		this._disposables.add(this._scrollable);
 	}
 
 	dispose(): void {
@@ -82,12 +89,20 @@ class MessageWidget {
 	}
 
 	update({ source, message, relatedInformation, code }: IMarker): void {
+		let sourceAndCodeLength = (source?.length || 0) + '()'.length;
+		if (code) {
+			if (typeof code === 'string') {
+				sourceAndCodeLength += code.length;
+			} else {
+				sourceAndCodeLength += code.value.length;
+			}
+		}
 
 		const lines = message.split(/\r\n|\r|\n/g);
 		this._lines = lines.length;
 		this._longestLineLength = 0;
 		for (const line of lines) {
-			this._longestLineLength = Math.max(line.length, this._longestLineLength);
+			this._longestLineLength = Math.max(line.length + sourceAndCodeLength, this._longestLineLength);
 		}
 
 		dom.clearNode(this._messageBlock);
@@ -112,10 +127,25 @@ class MessageWidget {
 				detailsElement.appendChild(sourceElement);
 			}
 			if (code) {
-				const codeElement = document.createElement('span');
-				codeElement.innerText = `(${code})`;
-				dom.addClass(codeElement, 'code');
-				detailsElement.appendChild(codeElement);
+				if (typeof code === 'string') {
+					const codeElement = document.createElement('span');
+					codeElement.innerText = `(${code})`;
+					dom.addClass(codeElement, 'code');
+					detailsElement.appendChild(codeElement);
+				} else {
+					this._codeLink = dom.$('a.code-link');
+					this._codeLink.setAttribute('href', `${code.link.toString()}`);
+
+					this._codeLink.onclick = (e) => {
+						this._openerService.open(code.link);
+						e.preventDefault();
+						e.stopPropagation();
+					};
+
+					const codeElement = dom.append(this._codeLink, dom.$('span'));
+					codeElement.innerText = code.value;
+					detailsElement.appendChild(this._codeLink);
+				}
 			}
 		}
 
@@ -173,7 +203,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
-	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+	private readonly _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -181,7 +211,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		private readonly actions: ReadonlyArray<IAction>,
-		private readonly _themeService: IThemeService
+		private readonly _themeService: IThemeService,
+		private readonly _openerService: IOpenerService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = MarkerSeverity.Warning;
@@ -229,7 +260,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget!.push(this.actions, { label: false, icon: true });
+		this._actionbarWidget!.push(this.actions, { label: false, icon: true, index: 0 });
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {
@@ -238,7 +269,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 
@@ -251,7 +282,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._container = document.createElement('div');
 		container.appendChild(this._container);
 
-		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
+		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService);
 		this._disposables.add(this._message);
 	}
 
@@ -283,9 +314,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
-		this._icon.className = SeverityIcon.className(MarkerSeverity.toSeverity(this._severity));
+		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
+		this.editor.focus();
 	}
 
 	updateMarker(marker: IMarker): void {
@@ -330,8 +362,9 @@ export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationI
 export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
 
 registerThemingParticipant((theme, collector) => {
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-editor .marker-widget a { color: ${link}; }`);
+	const linkFg = theme.getColor(textLinkForeground);
+	if (linkFg) {
+		collector.addRule(`.monaco-editor .marker-widget a { color: ${linkFg}; }`);
+		collector.addRule(`.monaco-editor .marker-widget a.code-link span:hover { color: ${linkFg}; }`);
 	}
 });

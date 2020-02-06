@@ -50,7 +50,6 @@ parts:
 apps:
   @@NAME@@:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
-    desktop: usr/share/applications/@@NAME@@.desktop
     common-id: @@NAME@@.desktop
     environment:
       DISABLE_WAYLAND: 1
@@ -58,7 +57,6 @@ apps:
 
   url-handler:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
-    desktop: usr/share/applications/@@NAME@@-url-handler.desktop
     environment:
       DISABLE_WAYLAND: 1
       GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas

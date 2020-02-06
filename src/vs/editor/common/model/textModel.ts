@@ -32,8 +32,9 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-import { TokensStore, MultilineTokens, countEOL } from 'vs/editor/common/model/tokensStore';
+import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
+import { Constants } from 'vs/base/common/uint';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -157,6 +158,17 @@ class TextModelSnapshot implements model.ITextSnapshot {
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
+const enum StringOffsetValidationType {
+	/**
+	 * Even allowed in surrogate pairs
+	 */
+	Relaxed = 0,
+	/**
+	 * Not allowed in surrogate pairs
+	 */
+	SurrogatePairs = 1,
+}
+
 export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
@@ -276,6 +288,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _languageIdentifier: LanguageIdentifier;
 	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: TokensStore;
+	private readonly _tokens2: TokensStore2;
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
@@ -339,6 +352,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._trimAutoWhitespaceLines = null;
 
 		this._tokens = new TokensStore();
+		this._tokens2 = new TokensStore2();
 		this._tokenization = new TextModelTokenization(this);
 	}
 
@@ -414,6 +428,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		// Flush all tokens
 		this._tokens.flush();
+		this._tokens2.flush();
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
@@ -669,7 +684,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
-		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
+		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, StringOffsetValidationType.Relaxed);
 		return this._buffer.getOffsetAt(position.lineNumber, position.column);
 	}
 
@@ -724,6 +739,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getValueLengthInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
 		this._assertNotDisposed();
 		return this._buffer.getValueLengthInRange(this.validateRange(rawRange), eol);
+	}
+
+	public getCharacterCountInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
+		this._assertNotDisposed();
+		return this._buffer.getCharacterCountInRange(this.validateRange(rawRange), eol);
 	}
 
 	public getLineCount(): number {
@@ -859,10 +879,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
-	/**
-	 * @param strict Do NOT allow a position inside a high-low surrogate pair
-	 */
-	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+	private _isValidPosition(lineNumber: number, column: number, validationType: StringOffsetValidationType): boolean {
 		if (typeof lineNumber !== 'number' || typeof column !== 'number') {
 			return false;
 		}
@@ -884,27 +901,27 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return false;
 		}
 
+		if (column === 1) {
+			return true;
+		}
+
 		const maxColumn = this.getLineMaxColumn(lineNumber);
 		if (column > maxColumn) {
 			return false;
 		}
 
-		if (strict) {
-			if (column > 1) {
-				const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
-				if (strings.isHighSurrogate(charCodeBefore)) {
-					return false;
-				}
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
+			// !!At this point, column > 1
+			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
+			if (strings.isHighSurrogate(charCodeBefore)) {
+				return false;
 			}
 		}
 
 		return true;
 	}
 
-	/**
-	 * @param strict Do NOT allow a position inside a high-low surrogate pair
-	 */
-	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
+	private _validatePosition(_lineNumber: number, _column: number, validationType: StringOffsetValidationType): Position {
 		const lineNumber = Math.floor((typeof _lineNumber === 'number' && !isNaN(_lineNumber)) ? _lineNumber : 1);
 		const column = Math.floor((typeof _column === 'number' && !isNaN(_column)) ? _column : 1);
 		const lineCount = this._buffer.getLineCount();
@@ -926,7 +943,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return new Position(lineNumber, maxColumn);
 		}
 
-		if (strict) {
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
 			// If the position would end up in the middle of a high-low surrogate pair,
 			// we move it to before the pair
 			// !!At this point, column > 1
@@ -940,35 +957,33 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public validatePosition(position: IPosition): Position {
+		const validationType = StringOffsetValidationType.SurrogatePairs;
 		this._assertNotDisposed();
 
 		// Avoid object allocation and cover most likely case
 		if (position instanceof Position) {
-			if (this._isValidPosition(position.lineNumber, position.column, true)) {
+			if (this._isValidPosition(position.lineNumber, position.column, validationType)) {
 				return position;
 			}
 		}
 
-		return this._validatePosition(position.lineNumber, position.column, true);
+		return this._validatePosition(position.lineNumber, position.column, validationType);
 	}
 
-	/**
-	 * @param strict Do NOT allow a range to have its boundaries inside a high-low surrogate pair
-	 */
-	private _isValidRange(range: Range, strict: boolean): boolean {
+	private _isValidRange(range: Range, validationType: StringOffsetValidationType): boolean {
 		const startLineNumber = range.startLineNumber;
 		const startColumn = range.startColumn;
 		const endLineNumber = range.endLineNumber;
 		const endColumn = range.endColumn;
 
-		if (!this._isValidPosition(startLineNumber, startColumn, false)) {
+		if (!this._isValidPosition(startLineNumber, startColumn, StringOffsetValidationType.Relaxed)) {
 			return false;
 		}
-		if (!this._isValidPosition(endLineNumber, endColumn, false)) {
+		if (!this._isValidPosition(endLineNumber, endColumn, StringOffsetValidationType.Relaxed)) {
 			return false;
 		}
 
-		if (strict) {
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
 			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
 			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
 
@@ -978,7 +993,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
 				return true;
 			}
-
 			return false;
 		}
 
@@ -986,50 +1000,55 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public validateRange(_range: IRange): Range {
+		const validationType = StringOffsetValidationType.SurrogatePairs;
 		this._assertNotDisposed();
 
 		// Avoid object allocation and cover most likely case
 		if ((_range instanceof Range) && !(_range instanceof Selection)) {
-			if (this._isValidRange(_range, true)) {
+			if (this._isValidRange(_range, validationType)) {
 				return _range;
 			}
 		}
 
-		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
-		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
+		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, StringOffsetValidationType.Relaxed);
+		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, StringOffsetValidationType.Relaxed);
 
 		const startLineNumber = start.lineNumber;
 		const startColumn = start.column;
 		const endLineNumber = end.lineNumber;
 		const endColumn = end.column;
 
-		const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
-		const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
+		if (validationType === StringOffsetValidationType.SurrogatePairs) {
+			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
 
-		const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
-		const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
 
-		if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
-			return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+				return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			}
+
+			if (startLineNumber === endLineNumber && startColumn === endColumn) {
+				// do not expand a collapsed range, simply move it to a valid location
+				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn - 1);
+			}
+
+			if (startInsideSurrogatePair && endInsideSurrogatePair) {
+				// expand range at both ends
+				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn + 1);
+			}
+
+			if (startInsideSurrogatePair) {
+				// only expand range at the start
+				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn);
+			}
+
+			// only expand range at the end
+			return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
 		}
 
-		if (startLineNumber === endLineNumber && startColumn === endColumn) {
-			// do not expand a collapsed range, simply move it to a valid location
-			return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn - 1);
-		}
-
-		if (startInsideSurrogatePair && endInsideSurrogatePair) {
-			// expand range at both ends
-			return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn + 1);
-		}
-
-		if (startInsideSurrogatePair) {
-			// only expand range at the start
-			return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn);
-		}
-
-		// only expand range at the end
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	public modifyPosition(rawPosition: IPosition, offset: number): Position {
@@ -1261,8 +1280,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount, firstLineLength] = countEOL(change.text);
+				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
 				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
+				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1716,6 +1736,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
+	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
+		this._tokens2.set(tokens);
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
+	}
+
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		startLineNumber = Math.max(1, startLineNumber);
 		endLineNumber = Math.min(this._buffer.getLineCount(), endLineNumber);
@@ -1730,6 +1759,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
 			}]
+		});
+	}
+
+	public clearSemanticTokens(): void {
+		this._tokens2.flush();
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
 
@@ -1771,7 +1809,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this.getLineContent(lineNumber);
-		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		const syntacticTokens = this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		return this._tokens2.addSemanticTokens(lineNumber, syntacticTokens);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {
@@ -1908,9 +1947,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _matchBracket(position: Position): [Range, Range] | null {
 		const lineNumber = position.lineNumber;
 		const lineTokens = this._getLineTokens(lineNumber);
+		const tokenCount = lineTokens.getCount();
 		const lineText = this._buffer.getLineContent(lineNumber);
 
-		let tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 		if (tokenIndex < 0) {
 			return null;
 		}
@@ -1919,15 +1959,24 @@ export class TextModel extends Disposable implements model.ITextModel {
 		// check that the token is not to be ignored
 		if (currentModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex))) {
 			// limit search to not go before `maxBracketLength`
-			let searchStartOffset = Math.max(lineTokens.getStartOffset(tokenIndex), position.column - 1 - currentModeBrackets.maxBracketLength);
+			let searchStartOffset = Math.max(0, position.column - 1 - currentModeBrackets.maxBracketLength);
+			for (let i = tokenIndex - 1; i >= 0; i--) {
+				const tokenEndOffset = lineTokens.getEndOffset(i);
+				if (tokenEndOffset <= searchStartOffset) {
+					break;
+				}
+				if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i))) {
+					searchStartOffset = tokenEndOffset;
+				}
+			}
 			// limit search to not go after `maxBracketLength`
-			const searchEndOffset = Math.min(lineTokens.getEndOffset(tokenIndex), position.column - 1 + currentModeBrackets.maxBracketLength);
+			const searchEndOffset = Math.min(lineText.length, position.column - 1 + currentModeBrackets.maxBracketLength);
 
 			// it might be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
 			// `bestResult` will contain the most right-side result
 			let bestResult: [Range, Range] | null = null;
 			while (true) {
-				let foundBracket = BracketsUtils.findNextBracketInToken(currentModeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				const foundBracket = BracketsUtils.findNextBracketInRange(currentModeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (!foundBracket) {
 					// there are no more brackets in this text
 					break;
@@ -1935,12 +1984,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				// check that we didn't hit a bracket too far away from position
 				if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
-					let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
-					foundBracketText = foundBracketText.toLowerCase();
-
-					let r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
-
-					// check that we can actually match this bracket
+					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
+					const r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
 					if (r) {
 						bestResult = r;
 					}
@@ -1956,24 +2001,29 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		// If position is in between two tokens, try also looking in the previous token
 		if (tokenIndex > 0 && lineTokens.getStartOffset(tokenIndex) === position.column - 1) {
-			const searchEndOffset = lineTokens.getStartOffset(tokenIndex);
-			tokenIndex--;
-			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(lineTokens.getLanguageId(tokenIndex));
+			const prevTokenIndex = tokenIndex - 1;
+			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(lineTokens.getLanguageId(prevTokenIndex));
 
 			// check that previous token is not to be ignored
-			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex))) {
+			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(prevTokenIndex))) {
 				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
-				const searchStartOffset = Math.max(lineTokens.getStartOffset(tokenIndex), position.column - 1 - prevModeBrackets.maxBracketLength);
-				const foundBracket = BracketsUtils.findPrevBracketInToken(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				const searchStartOffset = Math.max(0, position.column - 1 - prevModeBrackets.maxBracketLength);
+				let searchEndOffset = Math.min(lineText.length, position.column - 1 + prevModeBrackets.maxBracketLength);
+				for (let i = prevTokenIndex + 1; i < tokenCount; i++) {
+					const tokenStartOffset = lineTokens.getStartOffset(i);
+					if (tokenStartOffset >= searchEndOffset) {
+						break;
+					}
+					if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i))) {
+						searchEndOffset = tokenStartOffset;
+					}
+				}
+				const foundBracket = BracketsUtils.findPrevBracketInRange(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 
 				// check that we didn't hit a bracket too far away from position
 				if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
-					let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
-					foundBracketText = foundBracketText.toLowerCase();
-
-					let r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText]);
-
-					// check that we can actually match this bracket
+					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
+					const r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText]);
 					if (r) {
 						return r;
 					}
@@ -2011,54 +2061,76 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
+		const searchPrevMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null => {
+			while (true) {
+				const r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (!r) {
+					break;
+				}
+
+				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
+				if (bracket.isOpen(hitText)) {
+					count++;
+				} else if (bracket.isClose(hitText)) {
+					count--;
+				}
+
+				if (count === 0) {
+					return r;
+				}
+
+				searchEndOffset = r.startColumn - 1;
+			}
+
+			return null;
+		};
+
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = tokenCount - 1;
-			let searchStopOffset = -1;
+			let searchStartOffset = lineText.length;
+			let searchEndOffset = lineText.length;
 			if (lineNumber === position.lineNumber) {
 				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStopOffset = position.column - 1;
+				searchStartOffset = position.column - 1;
+				searchEndOffset = position.column - 1;
 			}
 
+			let prevSearchInToken = true;
 			for (; tokenIndex >= 0; tokenIndex--) {
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const searchInToken = (lineTokens.getLanguageId(tokenIndex) === languageId && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
 
-				if (searchStopOffset === -1) {
-					searchStopOffset = tokenEndOffset;
-				}
-
-				if (tokenLanguageId === languageId && !ignoreBracketsInToken(tokenType)) {
-
-					while (true) {
-						let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, tokenStartOffset, searchStopOffset);
-						if (!r) {
-							break;
-						}
-
-						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
-						hitText = hitText.toLowerCase();
-
-						if (hitText === bracket.open) {
-							count++;
-						} else if (hitText === bracket.close) {
-							count--;
-						}
-
-						if (count === 0) {
+				if (searchInToken) {
+					// this token should be searched
+					if (prevSearchInToken) {
+						// the previous token should be searched, simply extend searchStartOffset
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+					} else {
+						// the previous token should not be searched
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					}
+				} else {
+					// this token should not be searched
+					if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = searchPrevMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
 							return r;
 						}
-
-						searchStopOffset = r.startColumn - 1;
 					}
 				}
 
-				searchStopOffset = -1;
+				prevSearchInToken = searchInToken;
+			}
+
+			if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
+				const r = searchPrevMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (r) {
+					return r;
+				}
 			}
 		}
 
@@ -2072,53 +2144,77 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const bracketRegex = bracket.forwardRegex;
 		let count = 1;
 
-		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+		const searchNextMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null => {
+			while (true) {
+				const r = BracketsUtils.findNextBracketInRange(bracketRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (!r) {
+					break;
+				}
+
+				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
+				if (bracket.isOpen(hitText)) {
+					count++;
+				} else if (bracket.isClose(hitText)) {
+					count--;
+				}
+
+				if (count === 0) {
+					return r;
+				}
+
+				searchStartOffset = r.endColumn - 1;
+			}
+
+			return null;
+		};
+
+		const lineCount = this.getLineCount();
+		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = 0;
 			let searchStartOffset = 0;
+			let searchEndOffset = 0;
 			if (lineNumber === position.lineNumber) {
 				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 				searchStartOffset = position.column - 1;
+				searchEndOffset = position.column - 1;
 			}
 
+			let prevSearchInToken = true;
 			for (; tokenIndex < tokenCount; tokenIndex++) {
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const searchInToken = (lineTokens.getLanguageId(tokenIndex) === languageId && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
 
-				if (searchStartOffset === 0) {
-					searchStartOffset = tokenStartOffset;
-				}
-
-				if (tokenLanguageId === languageId && !ignoreBracketsInToken(tokenType)) {
-					while (true) {
-						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, searchStartOffset, tokenEndOffset);
-						if (!r) {
-							break;
-						}
-
-						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
-						hitText = hitText.toLowerCase();
-
-						if (hitText === bracket.open) {
-							count++;
-						} else if (hitText === bracket.close) {
-							count--;
-						}
-
-						if (count === 0) {
+				if (searchInToken) {
+					// this token should be searched
+					if (prevSearchInToken) {
+						// the previous token should be searched, simply extend searchEndOffset
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					} else {
+						// the previous token should not be searched
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					}
+				} else {
+					// this token should not be searched
+					if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = searchNextMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
 							return r;
 						}
-
-						searchStartOffset = r.endColumn - 1;
 					}
 				}
 
-				searchStartOffset = 0;
+				prevSearchInToken = searchInToken;
+			}
+
+			if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
+				const r = searchNextMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (r) {
+					return r;
+				}
 			}
 		}
 
@@ -2136,33 +2232,66 @@ export class TextModel extends Disposable implements model.ITextModel {
 			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = tokenCount - 1;
-			let searchStopOffset = -1;
+			let searchStartOffset = lineText.length;
+			let searchEndOffset = lineText.length;
 			if (lineNumber === position.lineNumber) {
 				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStopOffset = position.column - 1;
-			}
-
-			for (; tokenIndex >= 0; tokenIndex--) {
+				searchStartOffset = position.column - 1;
+				searchEndOffset = position.column - 1;
 				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-
-				if (searchStopOffset === -1) {
-					searchStopOffset = tokenEndOffset;
-				}
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
 				}
-				if (modeBrackets && !ignoreBracketsInToken(tokenType)) {
-					let r = BracketsUtils.findPrevBracketInToken(modeBrackets.reversedRegex, lineNumber, lineText, tokenStartOffset, searchStopOffset);
-					if (r) {
-						return this._toFoundBracket(modeBrackets, r);
+			}
+
+			let prevSearchInToken = true;
+			for (; tokenIndex >= 0; tokenIndex--) {
+				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+
+				if (languageId !== tokenLanguageId) {
+					// language id change!
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = BracketsUtils.findPrevBracketInRange(modeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return this._toFoundBracket(modeBrackets, r);
+						}
+						prevSearchInToken = false;
+					}
+					languageId = tokenLanguageId;
+					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+				}
+
+				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+
+				if (searchInToken) {
+					// this token should be searched
+					if (prevSearchInToken) {
+						// the previous token should be searched, simply extend searchStartOffset
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+					} else {
+						// the previous token should not be searched
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					}
+				} else {
+					// this token should not be searched
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = BracketsUtils.findPrevBracketInRange(modeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return this._toFoundBracket(modeBrackets, r);
+						}
 					}
 				}
 
-				searchStopOffset = -1;
+				prevSearchInToken = searchInToken;
+			}
+
+			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+				const r = BracketsUtils.findPrevBracketInRange(modeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (r) {
+					return this._toFoundBracket(modeBrackets, r);
+				}
 			}
 		}
 
@@ -2171,43 +2300,197 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public findNextBracket(_position: IPosition): model.IFoundBracket | null {
 		const position = this.validatePosition(_position);
+		const lineCount = this.getLineCount();
 
 		let languageId: LanguageId = -1;
 		let modeBrackets: RichEditBrackets | null = null;
-		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = 0;
 			let searchStartOffset = 0;
+			let searchEndOffset = 0;
 			if (lineNumber === position.lineNumber) {
 				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 				searchStartOffset = position.column - 1;
-			}
-
-			for (; tokenIndex < tokenCount; tokenIndex++) {
+				searchEndOffset = position.column - 1;
 				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-
-				if (searchStartOffset === 0) {
-					searchStartOffset = tokenStartOffset;
-				}
-
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
 				}
-				if (modeBrackets && !ignoreBracketsInToken(tokenType)) {
-					let r = BracketsUtils.findNextBracketInToken(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, tokenEndOffset);
-					if (r) {
-						return this._toFoundBracket(modeBrackets, r);
+			}
+
+			let prevSearchInToken = true;
+			for (; tokenIndex < tokenCount; tokenIndex++) {
+				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+
+				if (languageId !== tokenLanguageId) {
+					// language id change!
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return this._toFoundBracket(modeBrackets, r);
+						}
+						prevSearchInToken = false;
+					}
+					languageId = tokenLanguageId;
+					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+				}
+
+				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+				if (searchInToken) {
+					// this token should be searched
+					if (prevSearchInToken) {
+						// the previous token should be searched, simply extend searchEndOffset
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					} else {
+						// the previous token should not be searched
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					}
+				} else {
+					// this token should not be searched
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return this._toFoundBracket(modeBrackets, r);
+						}
 					}
 				}
 
-				searchStartOffset = 0;
+				prevSearchInToken = searchInToken;
+			}
+
+			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+				const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (r) {
+					return this._toFoundBracket(modeBrackets, r);
+				}
+			}
+		}
+
+		return null;
+	}
+
+	public findEnclosingBrackets(_position: IPosition, maxDuration = Constants.MAX_SAFE_SMALL_INTEGER): [Range, Range] | null {
+		const position = this.validatePosition(_position);
+		const lineCount = this.getLineCount();
+		const savedCounts = new Map<number, number[]>();
+
+		let counts: number[] = [];
+		const resetCounts = (languageId: number, modeBrackets: RichEditBrackets | null) => {
+			if (!savedCounts.has(languageId)) {
+				let tmp = [];
+				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
+					tmp[i] = 0;
+				}
+				savedCounts.set(languageId, tmp);
+			}
+			counts = savedCounts.get(languageId)!;
+		};
+		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null => {
+			while (true) {
+				const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (!r) {
+					break;
+				}
+
+				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
+				const bracket = modeBrackets.textIsBracket[hitText];
+				if (bracket) {
+					if (bracket.isOpen(hitText)) {
+						counts[bracket.index]++;
+					} else if (bracket.isClose(hitText)) {
+						counts[bracket.index]--;
+					}
+
+					if (counts[bracket.index] === -1) {
+						return this._matchFoundBracket(r, bracket, false);
+					}
+				}
+
+				searchStartOffset = r.endColumn - 1;
+			}
+			return null;
+		};
+
+		let languageId: LanguageId = -1;
+		let modeBrackets: RichEditBrackets | null = null;
+		const startTime = Date.now();
+		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
+			const elapsedTime = Date.now() - startTime;
+			if (elapsedTime > maxDuration) {
+				return null;
+			}
+			const lineTokens = this._getLineTokens(lineNumber);
+			const tokenCount = lineTokens.getCount();
+			const lineText = this._buffer.getLineContent(lineNumber);
+
+			let tokenIndex = 0;
+			let searchStartOffset = 0;
+			let searchEndOffset = 0;
+			if (lineNumber === position.lineNumber) {
+				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+				searchStartOffset = position.column - 1;
+				searchEndOffset = position.column - 1;
+				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+				if (languageId !== tokenLanguageId) {
+					languageId = tokenLanguageId;
+					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					resetCounts(languageId, modeBrackets);
+				}
+			}
+
+			let prevSearchInToken = true;
+			for (; tokenIndex < tokenCount; tokenIndex++) {
+				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+
+				if (languageId !== tokenLanguageId) {
+					// language id change!
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return r;
+						}
+						prevSearchInToken = false;
+					}
+					languageId = tokenLanguageId;
+					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					resetCounts(languageId, modeBrackets);
+				}
+
+				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+				if (searchInToken) {
+					// this token should be searched
+					if (prevSearchInToken) {
+						// the previous token should be searched, simply extend searchEndOffset
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					} else {
+						// the previous token should not be searched
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					}
+				} else {
+					// this token should not be searched
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return r;
+						}
+					}
+				}
+
+				prevSearchInToken = searchInToken;
+			}
+
+			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+				const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (r) {
+					return r;
+				}
 			}
 		}
 
@@ -2621,8 +2904,8 @@ class DecorationOptions implements model.IDecorationOptions {
 	readonly darkColor: string | ThemeColor;
 
 	constructor(options: model.IDecorationOptions) {
-		this.color = options.color || strings.empty;
-		this.darkColor = options.darkColor || strings.empty;
+		this.color = options.color || '';
+		this.darkColor = options.darkColor || '';
 
 	}
 }
@@ -2658,7 +2941,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 		}
 		let c = color ? theme.getColor(color.id) : null;
 		if (!c) {
-			return strings.empty;
+			return '';
 		}
 		return c.toString();
 	}

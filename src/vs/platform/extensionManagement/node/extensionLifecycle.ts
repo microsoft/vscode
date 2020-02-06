@@ -98,11 +98,11 @@ export class ExtensionsLifecycle extends Disposable {
 
 		// Catch all output coming from the process
 		type Output = { data: string, format: string[] };
-		extensionUninstallProcess.stdout.setEncoding('utf8');
-		extensionUninstallProcess.stderr.setEncoding('utf8');
+		extensionUninstallProcess.stdout!.setEncoding('utf8');
+		extensionUninstallProcess.stderr!.setEncoding('utf8');
 
-		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout, 'data');
-		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr, 'data');
+		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout!, 'data');
+		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
 
 		// Log output
 		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));

@@ -8,7 +8,7 @@ import { startsWithIgnoreCase, equalsIgnoreCase, endsWith, rtrim } from 'vs/base
 import { CharCode } from 'vs/base/common/charCode';
 import { sep, posix, isAbsolute, join, normalize } from 'vs/base/common/path';
 
-function isPathSeparator(code: number) {
+export function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
 }
 

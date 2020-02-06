@@ -98,7 +98,7 @@ export function getShellEnvironment(logService: ILogService, environmentService:
 		} else if (isWindows) {
 			logService.trace('getShellEnvironment: running on Windows, skipping');
 			_shellEnv = Promise.resolve({});
-		} else if (process.env['VSCODE_CLI'] === '1') {
+		} else if (process.env['VSCODE_CLI'] === '1' && process.env['VSCODE_FORCE_USER_ENV'] !== '1') {
 			logService.trace('getShellEnvironment: running on CLI, skipping');
 			_shellEnv = Promise.resolve({});
 		} else {

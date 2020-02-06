@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, dirname } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -11,7 +11,6 @@ import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { endsWith } from 'vs/base/common/strings';
 import { promisify } from 'util';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -138,6 +137,20 @@ export async function readdir(path: string): Promise<string[]> {
 	return handleDirectoryChildren(await promisify(fs.readdir)(path));
 }
 
+export async function readdirWithFileTypes(path: string): Promise<fs.Dirent[]> {
+	const children = await promisify(fs.readdir)(path, { withFileTypes: true });
+
+	// Mac: uses NFD unicode form on disk, but we want NFC
+	// See also https://github.com/nodejs/node/issues/2165
+	if (platform.isMacintosh) {
+		for (const child of children) {
+			child.name = normalizeNFC(child.name);
+		}
+	}
+
+	return children;
+}
+
 export function readdirSync(path: string): string[] {
 	return handleDirectoryChildren(fs.readdirSync(path));
 }
@@ -165,30 +178,52 @@ export function stat(path: string): Promise<fs.Stats> {
 }
 
 export interface IStatAndLink {
+
+	// The stats of the file. If the file is a symbolic
+	// link, the stats will be of that target file and
+	// not the link itself.
+	// If the file is a symbolic link pointing to a non
+	// existing file, the stat will be of the link and
+	// the `dangling` flag will indicate this.
 	stat: fs.Stats;
-	isSymbolicLink: boolean;
+
+	// Will be provided if the resource is a symbolic link
+	// on disk. Use the `dangling` flag to find out if it
+	// points to a resource that does not exist on disk.
+	symbolicLink?: { dangling: boolean };
 }
 
 export async function statLink(path: string): Promise<IStatAndLink> {
 
 	// First stat the link
-	let linkStat: fs.Stats | undefined;
-	let linkStatError: NodeJS.ErrnoException | undefined;
+	let lstats: fs.Stats | undefined;
 	try {
-		linkStat = await lstat(path);
+		lstats = await lstat(path);
+
+		// Return early if the stat is not a symbolic link at all
+		if (!lstats.isSymbolicLink()) {
+			return { stat: lstats };
+		}
 	} catch (error) {
-		linkStatError = error;
+		/* ignore - use stat() instead */
 	}
 
-	// Then stat the target and return that
-	const isLink = !!(linkStat && linkStat.isSymbolicLink());
-	if (linkStatError || isLink) {
-		const fileStat = await stat(path);
+	// If the stat is a symbolic link or failed to stat, use fs.stat()
+	// which for symbolic links will stat the target they point to
+	try {
+		const stats = await stat(path);
 
-		return { stat: fileStat, isSymbolicLink: isLink };
+		return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
+	} catch (error) {
+
+		// If the link points to a non-existing file we still want
+		// to return it as result while setting dangling: true flag
+		if (error.code === 'ENOENT' && lstats) {
+			return { stat: lstats, symbolicLink: { dangling: true } };
+		}
+
+		throw error;
 	}
-
-	return { stat: linkStat!, isSymbolicLink: false };
 }
 
 export function lstat(path: string): Promise<fs.Stats> {
@@ -384,7 +419,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error: Error | null) => void): void {
 	if (options.encoding) {
 		data = encode(data instanceof Uint8Array ? Buffer.from(data) : data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
@@ -619,55 +654,8 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 	});
 }
 
-export async function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<void> {
-	const mkdir = async () => {
-		try {
-			await promisify(fs.mkdir)(path, mode);
-		} catch (error) {
-
-			// ENOENT: a parent folder does not exist yet
-			if (error.code === 'ENOENT') {
-				return Promise.reject(error);
-			}
-
-			// Any other error: check if folder exists and
-			// return normally in that case if its a folder
-			try {
-				const fileStat = await stat(path);
-				if (!fileStat.isDirectory()) {
-					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
-				}
-			} catch (statError) {
-				throw error; // rethrow original error
-			}
-		}
-	};
-
-	// stop at root
-	if (path === dirname(path)) {
-		return Promise.resolve();
-	}
-
-	try {
-		await mkdir();
-	} catch (error) {
-
-		// Respect cancellation
-		if (token && token.isCancellationRequested) {
-			return Promise.resolve();
-		}
-
-		// ENOENT: a parent folder does not exist yet, continue
-		// to create the parent folder and then try again.
-		if (error.code === 'ENOENT') {
-			await mkdirp(dirname(path), mode);
-
-			return mkdir();
-		}
-
-		// Any other error
-		return Promise.reject(error);
-	}
+export async function mkdirp(path: string, mode?: number): Promise<void> {
+	return promisify(fs.mkdir)(path, { mode, recursive: true });
 }
 
 // See https://github.com/Microsoft/vscode/issues/30180

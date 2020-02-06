@@ -13,12 +13,13 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -165,7 +166,7 @@ class ToggleWordWrapAction extends EditorAction {
 
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
 
-	private static readonly _ID = 'editor.contrib.toggleWordWrapController';
+	public static readonly ID = 'editor.contrib.toggleWordWrapController';
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -183,7 +184,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.wrappingInfo) || !e.hasChanged(EditorOption.inDiffEditor)) {
+			if (!e.hasChanged(EditorOption.wrappingInfo) && !e.hasChanged(EditorOption.inDiffEditor)) {
 				return;
 			}
 			const options = this.editor.getOptions();
@@ -208,6 +209,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const ensureWordWrapSettings = () => {
 			if (this.editor.getContribution(DefaultSettingsEditorContribution.ID)) {
 				// in the settings editor...
+				return;
+			}
+			if (this.editor.isSimpleWidget) {
+				// in a simple widget...
 				return;
 			}
 			// Ensure correct word wrap settings
@@ -253,10 +258,6 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			wordWrapMinified: state.configuredWordWrapMinified
 		});
 	}
-
-	public getId(): string {
-		return ToggleWordWrapController._ID;
-	}
 }
 
 function canToggleWordWrap(uri: URI): boolean {
@@ -267,17 +268,20 @@ function canToggleWordWrap(uri: URI): boolean {
 }
 
 
-registerEditorContribution(ToggleWordWrapController);
+registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController);
 
 registerEditorAction(ToggleWordWrapAction);
+
+const WORD_WRAP_DARK_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg'));
+const WORD_WRAP_LIGHT_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'));
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'))
+		icon: {
+			dark: WORD_WRAP_DARK_ICON,
+			light: WORD_WRAP_LIGHT_ICON
 		}
 	},
 	group: 'navigation',
@@ -292,9 +296,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'))
+		icon: {
+			dark: WORD_WRAP_DARK_ICON,
+			light: WORD_WRAP_LIGHT_ICON
 		}
 	},
 	group: 'navigation',

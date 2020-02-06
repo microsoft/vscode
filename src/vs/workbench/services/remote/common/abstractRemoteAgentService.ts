@@ -21,6 +21,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export abstract class AbstractRemoteAgentService extends Disposable {
 
@@ -39,35 +40,48 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 
 	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
-			const connection = this.getConnection();
-			if (connection) {
-				const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-				this._environment = client.getEnvironmentData(connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI);
-			} else {
-				this._environment = Promise.resolve(null);
-			}
+			this._environment = this._withChannel(
+				(channel, connection) => RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI),
+				null
+			);
 		}
 		return bail ? this._environment : this._environment.then(undefined, () => null);
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
-		const connection = this.getConnection();
-		if (connection) {
-			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-			return client.getDiagnosticInfo(options);
-		}
-
-		return Promise.resolve(undefined);
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.getDiagnosticInfo(channel, options),
+			undefined
+		);
 	}
 
 	disableTelemetry(): Promise<void> {
-		const connection = this.getConnection();
-		if (connection) {
-			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-			return client.disableTelemetry();
-		}
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.disableTelemetry(channel),
+			undefined
+		);
+	}
 
-		return Promise.resolve(undefined);
+	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.logTelemetry(channel, eventName, data),
+			undefined
+		);
+	}
+
+	flushTelemetry(): Promise<void> {
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.flushTelemetry(channel),
+			undefined
+		);
+	}
+
+	private _withChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
+		const connection = this.getConnection();
+		if (!connection) {
+			return Promise.resolve(fallback);
+		}
+		return connection.withChannel('remoteextensionsenvironment', (channel) => callback(channel, connection));
 	}
 }
 
@@ -97,6 +111,12 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 
 	getChannel<T extends IChannel>(channelName: string): T {
 		return <T>getDelayedChannel(this._getOrCreateConnection().then(c => c.getChannel(channelName)));
+	}
+
+	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R> {
+		const channel = this.getChannel<T>(channelName);
+		const result = callback(channel);
+		return result;
 	}
 
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void {

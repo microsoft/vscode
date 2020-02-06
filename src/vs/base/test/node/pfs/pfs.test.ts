@@ -12,7 +12,6 @@ import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -49,7 +48,13 @@ function toReadable(value: string, throwError?: boolean): Readable {
 	});
 }
 
-suite('PFS', () => {
+suite('PFS', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/84066
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to
+	// rule out any random disk issue.
+	this.retries(3);
 
 	test('writeFile', async () => {
 		const id = uuid.generateUuid();
@@ -252,7 +257,7 @@ suite('PFS', () => {
 		}
 		catch (error) {
 			assert.fail(error);
-			return Promise.reject(error);
+			throw error;
 		}
 	});
 
@@ -305,23 +310,6 @@ suite('PFS', () => {
 		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
-	test('mkdirp cancellation', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'pfs', id);
-
-		const source = new CancellationTokenSource();
-
-		const mkdirpPromise = pfs.mkdirp(newDir, 493, source.token);
-		source.cancel();
-
-		await mkdirpPromise;
-
-		assert.ok(!fs.existsSync(newDir));
-
-		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
-	});
-
 	test('readDirsInDir', async () => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
@@ -346,7 +334,7 @@ suite('PFS', () => {
 
 	test('stat link', async () => {
 		if (isWindows) {
-			return Promise.resolve(); // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
 		}
 
 		const id1 = uuid.generateUuid();
@@ -361,12 +349,36 @@ suite('PFS', () => {
 		fs.symlinkSync(directory, symbolicLink);
 
 		let statAndIsLink = await pfs.statLink(directory);
-		assert.ok(!statAndIsLink!.isSymbolicLink);
+		assert.ok(!statAndIsLink?.symbolicLink);
 
 		statAndIsLink = await pfs.statLink(symbolicLink);
-		assert.ok(statAndIsLink!.isSymbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink);
+		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
 
 		pfs.rimrafSync(directory);
+	});
+
+	test('stat link (non existing target)', async () => {
+		if (isWindows) {
+			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+		}
+
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'pfs', id1);
+
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'pfs', id2);
+
+		await pfs.mkdirp(directory, 493);
+
+		fs.symlinkSync(directory, symbolicLink);
+
+		pfs.rimrafSync(directory);
+
+		const statAndIsLink = await pfs.statLink(symbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink?.dangling);
 	});
 
 	test('readdir', async () => {
@@ -381,6 +393,31 @@ suite('PFS', () => {
 
 			const children = await pfs.readdir(path.join(parentDir, 'pfs', id));
 			assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
+
+			await pfs.rimraf(parentDir);
+		}
+	});
+
+	test('readdirWithFileTypes', async () => {
+		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const testDir = path.join(parentDir, 'pfs', id);
+
+			const newDir = path.join(testDir, 'öäü');
+			await pfs.mkdirp(newDir, 493);
+
+			await pfs.writeFile(path.join(testDir, 'somefile.txt'), 'contents');
+
+			assert.ok(fs.existsSync(newDir));
+
+			const children = await pfs.readdirWithFileTypes(testDir);
+
+			assert.equal(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+			assert.equal(children.some(n => n.isDirectory()), true);
+
+			assert.equal(children.some(n => n.name === 'somefile.txt'), true);
+			assert.equal(children.some(n => n.isFile()), true);
 
 			await pfs.rimraf(parentDir);
 		}
@@ -499,7 +536,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || (<any>expectedError).code !== 'EISDIR') {
-			return Promise.reject(new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error')));
+			throw new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
 		}
 
 		// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
@@ -525,7 +562,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || expectedError.message !== readError) {
-			return Promise.reject(new Error('Expected error for writing to folder'));
+			throw new Error('Expected error for writing to folder');
 		}
 
 		await pfs.rimraf(parentDir);
@@ -533,7 +570,7 @@ suite('PFS', () => {
 
 	test('writeFile (stream, error handling EACCES)', async () => {
 		if (isLinux) {
-			return Promise.resolve(); // somehow this test fails on Linux in our TFS builds
+			return; // somehow this test fails on Linux in our TFS builds
 		}
 
 		const id = uuid.generateUuid();
@@ -556,7 +593,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || !((<any>expectedError).code !== 'EACCES' || (<any>expectedError).code !== 'EPERM')) {
-			return Promise.reject(new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error')));
+			throw new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
 		}
 
 		await pfs.rimraf(parentDir);
@@ -583,7 +620,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError) {
-			return Promise.reject(new Error('Expected error for writing to folder'));
+			throw new Error('Expected error for writing to folder');
 		}
 
 		await pfs.rimraf(parentDir);

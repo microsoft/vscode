@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileSystemProvider, FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-
+import { FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotImplementedError } from 'vs/base/common/errors';
 
-export class FetchFileSystemProvider implements IFileSystemProvider {
+export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities = FileSystemProviderCapabilities.Readonly + FileSystemProviderCapabilities.FileReadWrite + FileSystemProviderCapabilities.PathCaseSensitive;
 	readonly onDidChangeCapabilities = Event.None;

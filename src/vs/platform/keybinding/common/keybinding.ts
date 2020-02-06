@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -36,6 +37,12 @@ export interface IKeyboardEvent {
 	readonly metaKey: boolean;
 	readonly keyCode: KeyCode;
 	readonly code: string;
+}
+
+export interface KeybindingsSchemaContribution {
+	readonly onDidChange?: Event<void>;
+
+	getSchemaAdditions(): IJSONSchema[];
 }
 
 export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
@@ -80,9 +87,9 @@ export interface IKeybindingService {
 
 	getDefaultKeybindingsContent(): string;
 
-	getDefaultKeybindings(): ResolvedKeybindingItem[];
+	getDefaultKeybindings(): readonly ResolvedKeybindingItem[];
 
-	getKeybindings(): ResolvedKeybindingItem[];
+	getKeybindings(): readonly ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
 
@@ -91,6 +98,8 @@ export interface IKeybindingService {
 	 * text box. *Note* that the results of this function can be incorrect.
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+
+	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;

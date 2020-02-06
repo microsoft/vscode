@@ -15,7 +15,7 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
@@ -54,12 +54,11 @@ export abstract class SimpleFindWidget extends Widget {
 					return null;
 				}
 				try {
-					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
 					return null;
 				} catch (e) {
 					this.foundMatch = false;
-					this._updateButtons();
+					this.updateButtons(this.foundMatch);
 					return { content: e.message };
 				}
 			}
@@ -70,7 +69,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
-			this._updateButtons();
+			this.updateButtons(this.foundMatch);
 			this._delayedUpdateHistory();
 		});
 
@@ -209,7 +208,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this._updateButtons();
+		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
@@ -240,7 +239,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
-				this._updateButtons();
+				this.updateButtons(this.foundMatch);
 				dom.removeClass(this._innerDomNode, 'visible');
 			}, 200);
 		}
@@ -266,10 +265,10 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getCaseSensitive();
 	}
 
-	private _updateButtons() {
-		let hasInput = this.inputValue.length > 0;
-		this.prevBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
-		this.nextBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
+	protected updateButtons(foundMatch: boolean) {
+		const hasInput = this.inputValue.length > 0;
+		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 	}
 }
 
@@ -278,6 +277,11 @@ registerThemingParticipant((theme, collector) => {
 	const findWidgetBGColor = theme.getColor(editorWidgetBackground);
 	if (findWidgetBGColor) {
 		collector.addRule(`.monaco-workbench .simple-find-part { background-color: ${findWidgetBGColor} !important; }`);
+	}
+
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetForeground) {
+		collector.addRule(`.monaco-workbench .simple-find-part { color: ${widgetForeground}; }`);
 	}
 
 	const widgetShadowColor = theme.getColor(widgetShadow);

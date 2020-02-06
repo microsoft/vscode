@@ -22,7 +22,6 @@ export class Cache<T> {
 
 		const cts = new CancellationTokenSource();
 		const promise = this.task(cts.token);
-		promise.finally(() => cts.dispose());
 
 		this.result = {
 			promise,

@@ -19,13 +19,14 @@ import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { coalesce } from 'vs/base/common/arrays';
+import { IMatch } from 'vs/base/common/filters';
 
 export interface IContext {
 	event: any;
 	quickNavigateConfiguration: IQuickNavigateConfiguration;
 }
 
-export interface IHighlight {
+export interface IHighlight extends IMatch {
 	start: number;
 	end: number;
 }
@@ -53,7 +54,7 @@ export const QuickOpenItemAccessor = new QuickOpenItemAccessorClass();
 
 export class QuickOpenEntry {
 	private id: string;
-	private labelHighlights: IHighlight[];
+	private labelHighlights?: IHighlight[];
 	private descriptionHighlights?: IHighlight[];
 	private detailHighlights?: IHighlight[];
 	private hidden: boolean | undefined;
@@ -160,7 +161,7 @@ export class QuickOpenEntry {
 	/**
 	 * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
 	 */
-	setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
+	setHighlights(labelHighlights?: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
 		this.labelHighlights = labelHighlights;
 		this.descriptionHighlights = descriptionHighlights;
 		this.detailHighlights = detailHighlights;
@@ -169,7 +170,7 @@ export class QuickOpenEntry {
 	/**
 	 * Allows to return highlight ranges that should show up for the entry label and description.
 	 */
-	getHighlights(): [IHighlight[] /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
+	getHighlights(): [IHighlight[] | undefined /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
 		return [this.labelHighlights, this.descriptionHighlights, this.detailHighlights];
 	}
 
@@ -260,7 +261,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry;
 	}
 
-	getHighlights(): [IHighlight[], IHighlight[] | undefined, IHighlight[] | undefined] {
+	getHighlights(): [IHighlight[] | undefined, IHighlight[] | undefined, IHighlight[] | undefined] {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
 	}
 
@@ -268,7 +269,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.isHidden() : super.isHidden();
 	}
 
-	setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
+	setHighlights(labelHighlights?: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
 		this.entry ? this.entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights) : super.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
 	}
 
@@ -351,7 +352,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportOcticons: true });
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');
@@ -434,7 +435,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 				}
 			} else {
 				DOM.removeClass(groupData.container, 'results-group-separator');
-				groupData.container.style.borderTopColor = null;
+				groupData.container.style.borderTopColor = '';
 			}
 
 			// Group Label
@@ -461,7 +462,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), entry.getDescription(), options);
+			data.label.setLabel(entry.getLabel() || '', entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);

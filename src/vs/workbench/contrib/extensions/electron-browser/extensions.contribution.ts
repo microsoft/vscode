@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,6 +21,10 @@ import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
@@ -30,7 +34,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, Lifecycl
 
 // Running Extensions Editor
 
-const runtimeExtensionsEditorDescriptor = new EditorDescriptor(
+const runtimeExtensionsEditorDescriptor = EditorDescriptor.create(
 	RuntimeExtensionsEditor,
 	RuntimeExtensionsEditor.ID,
 	localize('runtimeExtension', "Running Extensions")
@@ -40,6 +44,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(runtimeExtensionsEditorDescriptor, [new SyncDescriptor(RuntimeExtensionsInput)]);
 
 class RuntimeExtensionsInputFactory implements IEditorInputFactory {
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
 	serialize(editorInput: EditorInput): string {
 		return '';
 	}
@@ -54,7 +61,21 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Global actions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowRuntimeExtensionsAction, ShowRuntimeExtensionsAction.ID, ShowRuntimeExtensionsAction.LABEL), 'Show Running Extensions', localize('developer', "Developer"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ShowRuntimeExtensionsAction, ShowRuntimeExtensionsAction.ID, ShowRuntimeExtensionsAction.LABEL), 'Show Running Extensions', localize('developer', "Developer"));
+
+class ExtensionsContributions implements IWorkbenchContribution {
+
+	constructor(
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
+	) {
+		if (workbenchEnvironmentService.extensionsPath) {
+			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.create(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
+			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
+		}
+	}
+}
+
+workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
 
 // Register Commands
 
@@ -84,9 +105,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
-		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -97,9 +118,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
-		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -110,9 +131,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
-		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -123,9 +144,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
-		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},

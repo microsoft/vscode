@@ -7,14 +7,13 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID, ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { SCMStatusController } from './scmActivity';
-import { SCMViewlet } from 'vs/workbench/contrib/scm/browser/scmViewlet';
+import { SCMStatusController } from './activity';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,11 +23,14 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewlet';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
@@ -38,20 +40,20 @@ class OpenSCMViewletAction extends ShowViewletAction {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	SCMViewlet,
-	VIEWLET_ID,
-	localize('source control', "Source Control"),
-	'scm',
-	2
-));
+Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: VIEWLET_ID,
+	name: localize('source control', "Source Control"),
+	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
+	icon: 'codicon-source-control',
+	order: 2
+}, ViewContainerLocation.Sidebar);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
+	SyncActionDescriptor.create(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
 		primary: 0,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
@@ -80,7 +82,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorations': {
 			type: 'string',
-			enum: ['all', 'gutter', 'overview', 'none'],
+			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
+			enumDescriptions: [
+				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
+				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
+				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
+				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
+				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
+			],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
@@ -89,6 +98,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: [1, 2, 3, 4, 5],
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
+		},
+		'scm.diffDecorationsGutterVisibility': {
+			type: 'string',
+			enum: ['always', 'hover'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
+				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
+			],
+			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
+			default: 'always'
 		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
@@ -105,7 +124,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.countBadge', "Controls the Source Control count badge."),
 			default: 'all'
-		}
+		},
+		'scm.defaultViewMode': {
+			type: 'string',
+			enum: ['tree', 'list'],
+			enumDescriptions: [
+				localize('scm.defaultViewMode.tree', "Show the repository changes as a tree."),
+				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
+			],
+			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
+			default: 'list'
+		},
+		'scm.autoReveal': {
+			type: 'boolean',
+			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
+			default: true
+		},
 	}
 });
 

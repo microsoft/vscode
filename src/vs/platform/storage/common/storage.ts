@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -96,6 +97,18 @@ export interface IStorageService {
 	 * Log the contents of the storage to the console.
 	 */
 	logStorage(): void;
+
+	/**
+	 * Migrate the storage contents to another workspace.
+	 */
+	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+
+	/**
+	 * Allows to flush state, e.g. in cases where a shutdown is
+	 * imminent. This will send out the onWillSaveState to ask
+	 * everyone for latest state.
+	 */
+	flush(): void;
 }
 
 export const enum StorageScope {
@@ -120,10 +133,11 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	readonly onWillSaveState = Event.None;
+	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private globalCache: Map<string, string> = new Map<string, string>();
 	private workspaceCache: Map<string, string> = new Map<string, string>();
@@ -204,6 +218,14 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	logStorage(): void {
 		logStorage(this.globalCache, this.workspaceCache, 'inMemory', 'inMemory');
+	}
+
+	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+		// not supported
+	}
+
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
 	}
 }
 

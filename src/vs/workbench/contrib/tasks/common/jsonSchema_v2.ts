@@ -74,7 +74,8 @@ const dependsOn: IJSONSchema = {
 				]
 			}
 		}
-	]
+	],
+	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
 };
 
 const dependsOrder: IJSONSchema = {
@@ -86,6 +87,11 @@ const dependsOrder: IJSONSchema = {
 	],
 	default: 'parallel',
 	description: nls.localize('JsonSchema.tasks.dependsOrder', 'Determines the order of the dependsOn tasks for this task. Note that this property is not recursive.')
+};
+
+const detail: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.detail', 'An optional description of a task that shows in the Run Task quick pick as a detail.')
 };
 
 const presentation: IJSONSchema = {
@@ -310,6 +316,7 @@ const identifier: IJSONSchema = {
 
 const runOptions: IJSONSchema = {
 	type: 'object',
+	additionalProperties: false,
 	properties: {
 		reevaluateOnRerun: {
 			type: 'boolean',
@@ -321,6 +328,11 @@ const runOptions: IJSONSchema = {
 			enum: ['default', 'folderOpen'],
 			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
 			default: 'default'
+		},
+		instanceLimit: {
+			type: 'number',
+			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
+			default: 1
 		},
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
@@ -364,7 +376,8 @@ let taskConfiguration: IJSONSchema = {
 		},
 		runOptions: Objects.deepClone(runOptions),
 		dependsOn: Objects.deepClone(dependsOn),
-		dependsOrder: Objects.deepClone(dependsOrder)
+		dependsOrder: Objects.deepClone(dependsOrder),
+		detail: Objects.deepClone(detail),
 	}
 };
 
@@ -424,6 +437,7 @@ taskDescriptionProperties.presentation = Objects.deepClone(presentation);
 taskDescriptionProperties.terminal = terminal;
 taskDescriptionProperties.group = Objects.deepClone(group);
 taskDescriptionProperties.runOptions = Objects.deepClone(runOptions);
+taskDescriptionProperties.detail = detail;
 taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
@@ -561,7 +575,7 @@ export function updateProblemMatchers() {
 	try {
 		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
 		definitions.problemMatcherType2.oneOf![0].enum = matcherIds;
-		(definitions.problemMatcherType2.oneOf![2].items as IJSONSchema).anyOf![1].enum = matcherIds;
+		(definitions.problemMatcherType2.oneOf![2].items as IJSONSchema).anyOf![0].enum = matcherIds;
 	} catch (err) {
 		console.log('Installing problem matcher ids failed');
 	}

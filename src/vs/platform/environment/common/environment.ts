@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { IUserHomeProvider } from 'vs/base/common/labels';
 
 export interface ParsedArgs {
 	_: string[];
@@ -25,7 +26,7 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	'prof-startup'?: string;
+	'prof-startup'?: boolean;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	verbose?: boolean;
@@ -61,8 +62,8 @@ export interface ParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
-	'disable-updates'?: string;
-	'disable-crash-reporter'?: string;
+	'disable-updates'?: boolean;
+	'disable-crash-reporter'?: boolean;
 	'skip-add-to-recently-opened'?: boolean;
 	'max-memory'?: string;
 	'file-write'?: boolean;
@@ -71,17 +72,23 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
-	'enable-remote-auto-shutdown'?: boolean;
-	'disable-inspect'?: boolean;
 	'force'?: boolean;
-	'gitCredential'?: string;
-	// node flags
-	'js-flags'?: boolean;
+	'force-user-env'?: boolean;
+
+	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
+	'no-proxy-server'?: boolean;
+	'proxy-server'?: string;
+	'proxy-bypass-list'?: string;
+	'proxy-pac-url'?: string;
+	'inspect'?: string;
+	'inspect-brk'?: string;
+	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
-
-	// Web flags
-	'web-user-data-dir'?: string;
+	'force-device-scale-factor'?: string;
+	'force-renderer-accessibility'?: boolean;
+	'ignore-certificate-error'?: boolean;
+	'allow-insecure-localhost'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -97,7 +104,7 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 
 export const BACKUPS = 'Backups';
 
-export interface IEnvironmentService {
+export interface IEnvironmentService extends IUserHomeProvider {
 
 	_serviceBrand: undefined;
 
@@ -110,8 +117,6 @@ export interface IEnvironmentService {
 	userHome: string;
 	userDataPath: string;
 
-	appNameLong: string;
-	appQuality?: string;
 	appSettingsHome: URI;
 
 	// user roaming data
@@ -119,7 +124,13 @@ export interface IEnvironmentService {
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
-	localeResource: URI;
+	argvResource: URI;
+
+	// sync resources
+	userDataSyncLogResource: URI;
+	userDataSyncHome: URI;
+	settingsSyncPreviewResource: URI;
+	keybindingsSyncPreviewResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
@@ -138,6 +149,7 @@ export interface IEnvironmentService {
 	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
+	logExtensionHostCommunication?: boolean;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 

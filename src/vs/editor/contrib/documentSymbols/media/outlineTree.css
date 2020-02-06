@@ -35,7 +35,11 @@
 }
 
 .monaco-list .outline-element .outline-element-decoration.bubble {
-	font-family: octicons;
+	font-family: codicon;
 	font-size: 14px;
 	opacity: 0.4;
+}
+
+.monaco-list .outline-element .outline-element-icon {
+	margin-right: 4px;
 }

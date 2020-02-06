@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 
@@ -27,24 +27,24 @@ export class MenuService implements IMenuService {
 
 type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
-class Menu extends Disposable implements IMenu {
+class Menu implements IMenu {
 
-	private readonly _onDidChange = this._register(new Emitter<IMenu | undefined>());
+	private readonly _onDidChange = new Emitter<IMenu | undefined>();
+	private readonly _dispoables = new DisposableStore();
 
-	private _menuGroups!: MenuItemGroup[];
-	private _contextKeys!: Set<string>;
+	private _menuGroups: MenuItemGroup[] = [];
+	private _contextKeys: Set<string> = new Set();
 
 	constructor(
 		private readonly _id: MenuId,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super();
 		this._build();
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		this._register(Event.debounce(
+		this._dispoables.add(Event.debounce(
 			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
 			() => { },
 			50
@@ -52,18 +52,23 @@ class Menu extends Disposable implements IMenu {
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		this._register(Event.debounce<IContextKeyChangeEvent, boolean>(
+		this._dispoables.add(Event.debounce<IContextKeyChangeEvent, boolean>(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
 		)(e => e && this._onDidChange.fire(undefined), this));
 	}
 
+	dispose(): void {
+		this._dispoables.dispose();
+		this._onDidChange.dispose();
+	}
+
 	private _build(): void {
 
 		// reset
-		this._menuGroups = [];
-		this._contextKeys = new Set();
+		this._menuGroups.length = 0;
+		this._contextKeys.clear();
 
 		const menuItems = MenuRegistry.getMenuItems(this._id);
 
@@ -106,7 +111,10 @@ class Menu extends Disposable implements IMenu {
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
+					const action = isIMenuItem(item)
+						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
+						: new SubmenuItemAction(item);
+
 					activeActions.push(action);
 				}
 			}
@@ -125,7 +133,7 @@ class Menu extends Disposable implements IMenu {
 		}
 	}
 
-	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
+	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
 
 		let aGroup = a.group;
 		let bGroup = b.group;
@@ -163,8 +171,15 @@ class Menu extends Disposable implements IMenu {
 		}
 
 		// sort on titles
-		const aTitle = typeof a.command.title === 'string' ? a.command.title : a.command.title.value;
-		const bTitle = typeof b.command.title === 'string' ? b.command.title : b.command.title.value;
-		return aTitle.localeCompare(bTitle);
+		return Menu._compareTitles(
+			isIMenuItem(a) ? a.command.title : a.title,
+			isIMenuItem(b) ? b.command.title : b.title
+		);
+	}
+
+	private static _compareTitles(a: string | ILocalizedString, b: string | ILocalizedString) {
+		const aStr = typeof a === 'string' ? a : a.value;
+		const bStr = typeof b === 'string' ? b : b.value;
+		return aStr.localeCompare(bStr);
 	}
 }

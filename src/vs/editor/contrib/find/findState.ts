@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface FindReplaceStateChangedEvent {
@@ -57,7 +57,7 @@ function effectiveOptionValue(override: FindOptionOverride, value: boolean): boo
 	return value;
 }
 
-export class FindReplaceState implements IDisposable {
+export class FindReplaceState extends Disposable {
 	private _searchString: string;
 	private _replaceString: string;
 	private _isRevealed: boolean;
@@ -74,7 +74,7 @@ export class FindReplaceState implements IDisposable {
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _currentMatch: Range | null;
-	private readonly _onFindReplaceStateChange = new Emitter<FindReplaceStateChangedEvent>();
+	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
 
 	public get searchString(): string { return this._searchString; }
 	public get replaceString(): string { return this._replaceString; }
@@ -97,6 +97,7 @@ export class FindReplaceState implements IDisposable {
 	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
 
 	constructor() {
+		super();
 		this._searchString = '';
 		this._replaceString = '';
 		this._isRevealed = false;
@@ -113,9 +114,6 @@ export class FindReplaceState implements IDisposable {
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
 		this._currentMatch = null;
-	}
-
-	public dispose(): void {
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {

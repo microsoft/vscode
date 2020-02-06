@@ -17,8 +17,8 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly versions: Map<string, number> = new Map<string, number>();
 

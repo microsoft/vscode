@@ -18,13 +18,14 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as perf from 'vs/base/common/performance';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { assertIsDefined } from 'vs/base/common/types';
 
 class PartsSplash {
 
@@ -40,8 +41,8 @@ class PartsSplash {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEnvironmentService private readonly _envService: IEnvironmentService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly _envService: IWorkbenchEnvironmentService,
+		@IElectronEnvironmentService private readonly _electronEnvService: IElectronEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
@@ -61,6 +62,10 @@ class PartsSplash {
 				this._savePartsSplash();
 			}
 		}, this, this._disposables);
+
+		_themeService.onThemeChange(_ => {
+			this._savePartsSplash();
+		}, this, this._disposables);
 	}
 
 	dispose(): void {
@@ -77,14 +82,17 @@ class PartsSplash {
 			sideBarBackground: this._getThemeColor(themes.SIDE_BAR_BACKGROUND),
 			statusBarBackground: this._getThemeColor(themes.STATUS_BAR_BACKGROUND),
 			statusBarNoFolderBackground: this._getThemeColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
+			windowBorder: this._getThemeColor(themes.WINDOW_ACTIVE_BORDER) ?? this._getThemeColor(themes.WINDOW_INACTIVE_BORDER)
 		};
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
 			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)) : 0,
-			activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)) : 0,
-			sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)) : 0,
-			statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)) : 0,
+			titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
+			activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
+			sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
+			statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
+			windowBorder: this._layoutService.hasWindowBorder(),
+			windowBorderRadius: this._layoutService.getWindowBorderRadius()
 		};
 		this._textFileService.write(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
@@ -105,7 +113,7 @@ class PartsSplash {
 			// the color needs to be in hex
 			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
 			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
-			ipc.send('vscode:changeColorTheme', this.windowService.windowId, payload);
+			ipc.send('vscode:changeColorTheme', this._electronEnvService.windowId, payload);
 		}
 	}
 

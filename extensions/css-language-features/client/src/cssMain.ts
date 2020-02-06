@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
-
+import * as path from 'path';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
+import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, CompletionItemTag } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { isArray } from 'util';
+const localize = nls.loadMessageBundle();
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -47,29 +45,38 @@ export function activate(context: ExtensionContext) {
 			dataPaths
 		},
 		middleware: {
-			async provideCompletionItem(document, position, context, token, next) {
-				const result = await next(document, position, context, token);
-				if (result) {
-					if (isArray(result)) {
-						return result.map(r => {
-							return {
-								...r,
-								tags: (r as any).deprecated ? [CompletionItemTag.Deprecated] : undefined
-							};
-						});
-					} else {
-						return {
-							isIncomplete: result.isIncomplete,
-							items: result.items.map(r => {
-								return {
-									...r,
-									tags: (r as any).deprecated ? [CompletionItemTag.Deprecated] : undefined
-								};
-							})
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				// testing the replace / insert mode
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
+
+					}
+				}
+				function updateLabel(item: CompletionItem) {
+					if (item.kind === CompletionItemKind.Color) {
+						item.label2 = {
+							name: item.label,
+							type: (item.documentation as string)
 						};
 					}
 				}
-				return result;
+				// testing the new completion
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+						(Array.isArray(r) ? r : r.items).forEach(updateLabel);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
 			}
 		}
 	};

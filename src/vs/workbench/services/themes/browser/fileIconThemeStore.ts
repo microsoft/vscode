@@ -14,6 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { find } from 'vs/base/common/arrays';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
@@ -62,7 +63,7 @@ export class FileIconThemeStore extends Disposable {
 
 	private initialize() {
 		iconThemeExtPoint.setHandler((extensions) => {
-			const previousIds: { [key: string]: boolean } = {};
+			const previousIds: { [key: string]: boolean; } = {};
 			const added: FileIconThemeData[] = [];
 			for (const theme of this.knownIconThemes) {
 				previousIds[theme.id] = true;
@@ -73,9 +74,10 @@ export class FileIconThemeStore extends Disposable {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin
+					extensionIsBuiltin: ext.description.isBuiltin,
+					extensionLocation: ext.description.extensionLocation
 				};
-				this.onIconThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
+				this.onIconThemes(extensionData, ext.value, ext.collector);
 			}
 			for (const theme of this.knownIconThemes) {
 				if (!previousIds[theme.id]) {
@@ -86,7 +88,7 @@ export class FileIconThemeStore extends Disposable {
 		});
 	}
 
-	private onIconThemes(extensionLocation: URI, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onIconThemes(extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -115,9 +117,9 @@ export class FileIconThemeStore extends Disposable {
 				return;
 			}
 
-			const iconThemeLocation = resources.joinPath(extensionLocation, iconTheme.path);
-			if (!resources.isEqualOrParent(iconThemeLocation, extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, iconThemeLocation.path, extensionLocation.path));
+			const iconThemeLocation = resources.joinPath(extensionData.extensionLocation, iconTheme.path);
+			if (!resources.isEqualOrParent(iconThemeLocation, extensionData.extensionLocation)) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, iconThemeLocation.path, extensionData.extensionLocation.path));
 			}
 
 			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, iconThemeLocation, extensionData);
@@ -131,12 +133,7 @@ export class FileIconThemeStore extends Disposable {
 			return Promise.resolve(FileIconThemeData.noIconTheme());
 		}
 		return this.getFileIconThemes().then(allIconSets => {
-			for (let iconSet of allIconSets) {
-				if (iconSet.id === iconTheme) {
-					return iconSet;
-				}
-			}
-			return undefined;
+			return find(allIconSets, iconSet => iconSet.id === iconTheme);
 		});
 	}
 
@@ -145,19 +142,14 @@ export class FileIconThemeStore extends Disposable {
 			return Promise.resolve(FileIconThemeData.noIconTheme());
 		}
 		return this.getFileIconThemes().then(allIconSets => {
-			for (let iconSet of allIconSets) {
-				if (iconSet.settingsId === settingsId) {
-					return iconSet;
-				}
-			}
-			return undefined;
+			return find(allIconSets, iconSet => iconSet.settingsId === settingsId);
 		});
 	}
 
-	public findThemeDataByParentLocation(parentLocation: URI | undefined): Promise<FileIconThemeData[]> {
-		if (parentLocation) {
+	public findThemeDataByExtensionLocation(extLocation: URI | undefined): Promise<FileIconThemeData[]> {
+		if (extLocation) {
 			return this.getFileIconThemes().then(allThemes => {
-				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, parentLocation));
+				return allThemes.filter(t => t.extensionData && resources.isEqualOrParent(t.extensionData.extensionLocation, extLocation));
 			});
 		}
 		return Promise.resolve([]);

@@ -17,19 +17,33 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
+	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
+	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
 };
+
+export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
 
 export class CompletionItem {
 
 	_brand!: 'ISuggestionItem';
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
+	isResolved: boolean = false;
+
+	//
+	readonly editStart: IPosition;
+	readonly editInsertEnd: IPosition;
+	readonly editReplaceEnd: IPosition;
+
+	//
+	readonly textLabel: string;
 
 	// perf
 	readonly labelLow: string;
@@ -49,23 +63,39 @@ export class CompletionItem {
 		readonly provider: modes.CompletionItemProvider,
 		model: ITextModel
 	) {
+		this.textLabel = typeof completion.label === 'string'
+			? completion.label
+			: completion.label.name;
+
 		// ensure lower-variants (perf)
-		this.labelLow = completion.label.toLowerCase();
+		this.labelLow = this.textLabel.toLowerCase();
+
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
+
+		// normalize ranges
+		if (Range.isIRange(completion.range)) {
+			this.editStart = new Position(completion.range.startLineNumber, completion.range.startColumn);
+			this.editInsertEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
+			this.editReplaceEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
+		} else {
+			this.editStart = new Position(completion.range.insert.startLineNumber, completion.range.insert.startColumn);
+			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
+			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
+		}
 
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
 		if (typeof resolveCompletionItem !== 'function') {
 			this.resolve = () => Promise.resolve();
+			this.isResolved = true;
 		} else {
 			let cached: Promise<void> | undefined;
 			this.resolve = (token) => {
 				if (!cached) {
-					let isDone = false;
 					cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, completion, token)).then(value => {
 						assign(completion, value);
-						isDone = true;
+						this.isResolved = true;
 					}, err => {
 						if (isPromiseCanceledError(err)) {
 							// the IPC queue will reject the request with the
@@ -74,7 +104,7 @@ export class CompletionItem {
 						}
 					});
 					token.onCancellationRequested(() => {
-						if (!isDone) {
+						if (!this.isResolved) {
 							// cancellation after the request has been
 							// dispatched -> reset cache
 							cached = undefined;
@@ -122,8 +152,12 @@ export function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
 
-	const wordUntil = model.getWordUntilPosition(position);
-	const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
+	const word = model.getWordAtPosition(position);
+	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
+	const defaultInsertRange = defaultReplaceRange.setEndPosition(position.lineNumber, position.column);
+
+	// const wordUntil = model.getWordUntilPosition(position);
+	// const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
 
 	position = position.clone();
 
@@ -159,7 +193,11 @@ export function provideSuggestionItems(
 
 							// fill in default range when missing
 							if (!suggestion.range) {
-								suggestion.range = defaultRange;
+								suggestion.range = { insert: defaultInsertRange, replace: defaultReplaceRange };
+							}
+							// fill in default sortText when missing
+							if (!suggestion.sortText) {
+								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));

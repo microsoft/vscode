@@ -141,4 +141,8 @@ export class MockKeybindingService implements IKeybindingService {
 	public _dumpDebugInfoJSON(): string {
 		return '';
 	}
+
+	public registerSchemaContribution() {
+		// noop
+	}
 }

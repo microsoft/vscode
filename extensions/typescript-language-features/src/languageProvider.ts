@@ -14,7 +14,7 @@ import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { LanguageDescription } from './utils/languageDescription';
 import { memoize } from './utils/memoize';
-import TelemetryReporter from './utils/telemetry';
+import { TelemetryReporter } from './utils/telemetry';
 import TypingsStatus from './utils/typingsStatus';
 
 
@@ -78,6 +78,8 @@ export default class LanguageProvider extends Disposable {
 			import('./features/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
 			import('./features/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
 			import('./features/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/callHierarchy').then(provider => this._register(provider.register(selector, this.client))),
 		]);
 	}
 

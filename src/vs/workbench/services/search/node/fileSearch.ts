@@ -7,7 +7,7 @@ import * as childProcess from 'child_process';
 import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import { Readable } from 'stream';
-import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import { StringDecoder } from 'string_decoder';
 import * as arrays from 'vs/base/common/arrays';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
@@ -360,7 +360,7 @@ export class FileWalker {
 		});
 	}
 
-	private forwardData(stream: Readable, encoding: string, cb: (err: Error | null, stdout?: string) => void): NodeStringDecoder {
+	private forwardData(stream: Readable, encoding: string, cb: (err: Error | null, stdout?: string) => void): StringDecoder {
 		const decoder = new StringDecoder(encoding);
 		stream.on('data', (data: Buffer) => {
 			cb(null, decoder.write(data));

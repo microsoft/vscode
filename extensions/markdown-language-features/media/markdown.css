@@ -129,15 +129,6 @@ h1, h2, h3 {
 	font-weight: normal;
 }
 
-h1 code,
-h2 code,
-h3 code,
-h4 code,
-h5 code,
-h6 code {
-	line-height: auto;
-}
-
 table {
 	border-collapse: collapse;
 }
@@ -182,13 +173,12 @@ pre.hljs code > div {
 	overflow: auto;
 }
 
-/** Theming */
-
 pre code {
 	color: var(--vscode-editor-foreground);
 	tab-size: 4;
 }
 
+/** Theming */
 
 .vscode-light pre {
 	background-color: rgba(220, 220, 220, 0.4);

@@ -2,90 +2,59 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
-import { memoize } from 'vs/base/common/decorators';
+
+import { Emitter } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
+import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { IWebviewService, WebviewEditorOverlay, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 
-class WebviewIconsManager {
-	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
+const WebviewPanelResourceScheme = 'webview-panel';
 
-	@memoize
-	private get _styleElement(): HTMLStyleElement {
-		const element = dom.createStyleSheet();
-		element.className = 'webview-icons';
-		return element;
-	}
+export class WebviewInput extends EditorInput {
 
-	public setIcons(
-		webviewId: string,
-		iconPath: { light: URI, dark: URI } | undefined
-	) {
-		if (iconPath) {
-			this._icons.set(webviewId, iconPath);
-		} else {
-			this._icons.delete(webviewId);
-		}
-
-		this.updateStyleSheet();
-	}
-
-	private updateStyleSheet() {
-		const cssRules: string[] = [];
-		this._icons.forEach((value, key) => {
-			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-			if (URI.isUri(value)) {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
-			}
-			else {
-				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
-				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
-			}
-		});
-		this._styleElement.innerHTML = cssRules.join('\n');
-	}
-}
-
-export class WebviewEditorInput extends EditorInput {
-
-	public static readonly typeId = 'workbench.editors.webviewInput';
-
-	private static readonly iconsManager = new WebviewIconsManager();
+	public static typeId = 'workbench.editors.webviewInput';
 
 	private _name: string;
-	private _iconPath?: { light: URI, dark: URI };
+	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
-	private readonly _webview: WebviewEditorOverlay;
+
+	private readonly _webview: Lazy<WebviewEditorOverlay>;
+	private _didSomeoneTakeMyWebview = false;
+
+	private readonly _onDisposeWebview = this._register(new Emitter<void>());
+	readonly onDisposeWebview = this._onDisposeWebview.event;
 
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		public readonly extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier;
-		},
-		webview: Unowned<WebviewEditorOverlay>,
+		webview: Lazy<WebviewEditorOverlay>,
+		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
-
 		this._name = name;
-		this.extension = extension;
+		this._webview = webview;
+	}
 
-		this._webview = this._register(webview.acquire()); // The input owns this webview
+	dispose() {
+		if (!this.isDisposed()) {
+			if (!this._didSomeoneTakeMyWebview) {
+				this._webview?.rawValue?.dispose();
+				this._onDisposeWebview.fire();
+			}
+		}
+		super.dispose();
 	}
 
 	public getTypeId(): string {
-		return WebviewEditorInput.typeId;
+		return WebviewInput.typeId;
 	}
 
 	public getResource(): URI {
 		return URI.from({
-			scheme: 'webview-panel',
+			scheme: WebviewPanelResourceScheme,
 			path: `webview-panel/webview-${this.id}`
 		});
 	}
@@ -94,11 +63,11 @@ export class WebviewEditorInput extends EditorInput {
 		return this._name;
 	}
 
-	public getTitle() {
+	public getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
-	public getDescription() {
+	public getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -107,17 +76,21 @@ export class WebviewEditorInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	public get webview() {
-		return this._webview;
+	public get webview(): WebviewEditorOverlay {
+		return this._webview.getValue();
+	}
+
+	public get extension() {
+		return this.webview.extension;
 	}
 
 	public get iconPath() {
 		return this._iconPath;
 	}
 
-	public set iconPath(value: { light: URI, dark: URI } | undefined) {
+	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.iconsManager.setIcons(this.id, value);
+		this._webviewService.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -128,6 +101,10 @@ export class WebviewEditorInput extends EditorInput {
 		return this._group;
 	}
 
+	public updateGroup(group: GroupIdentifier): void {
+		this._group = group;
+	}
+
 	public async resolve(): Promise<IEditorModel> {
 		return new EditorModel();
 	}
@@ -136,33 +113,11 @@ export class WebviewEditorInput extends EditorInput {
 		return false;
 	}
 
-	public updateGroup(group: GroupIdentifier): void {
-		this._group = group;
-	}
-}
-
-export class RevivedWebviewEditorInput extends WebviewEditorInput {
-	private _revived: boolean = false;
-
-	constructor(
-		id: string,
-		viewType: string,
-		name: string,
-		extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier
-		},
-		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		webview: Unowned<WebviewEditorOverlay>,
-	) {
-		super(id, viewType, name, extension, webview);
-	}
-
-	public async resolve(): Promise<IEditorModel> {
-		if (!this._revived) {
-			this._revived = true;
-			await this.reviver(this);
+	protected takeOwnershipOfWebview(): WebviewEditorOverlay | undefined {
+		if (this._didSomeoneTakeMyWebview) {
+			return undefined;
 		}
-		return super.resolve();
+		this._didSomeoneTakeMyWebview = true;
+		return this.webview;
 	}
 }

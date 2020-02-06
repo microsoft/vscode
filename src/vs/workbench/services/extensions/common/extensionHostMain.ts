@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -21,10 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-
-// we don't (yet) throw when extensions parse
-// uris that have no scheme
-setUriThrowOnMissingScheme(false);
 
 export interface IExitFn {
 	(code?: number): any;
@@ -145,6 +141,7 @@ export class ExtensionHostMain {
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
+		initData.logFile = URI.revive(rpcProtocol.transformIncomingURIs(initData.logFile));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}

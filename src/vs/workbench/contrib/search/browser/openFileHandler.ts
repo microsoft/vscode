@@ -8,10 +8,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { untildify } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
-import { isAbsolute } from 'vs/base/common/path';
-import { basename, dirname } from 'vs/base/common/resources';
+import { basename, dirname, toLocalResource } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -23,7 +21,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -33,6 +30,8 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { IFileQuery, IFileSearchStats, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
@@ -50,7 +49,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private resource: URI,
 		private name: string,
 		private description: string,
-		private icon: string,
+		private icon: string | undefined,
 		@IEditorService editorService: IEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -78,7 +77,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.description;
 	}
 
-	getIcon(): string {
+	getIcon(): string | undefined {
 		return this.icon;
 	}
 
@@ -121,7 +120,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
@@ -185,16 +185,15 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private async getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
-		const detildifiedQuery = untildify(query.original, this.environmentService.userHome);
-		if (isAbsolute(detildifiedQuery)) {
-			const workspaceFolders = this.contextService.getWorkspace().folders;
-			const resource = workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file ?
-				workspaceFolders[0].uri.with({ path: detildifiedQuery }) :
-				URI.file(detildifiedQuery);
+		const detildifiedQuery = untildify(query.original, (await this.remotePathService.userHome).path);
+		if ((await this.remotePathService.path).isAbsolute(detildifiedQuery)) {
+			const resource = toLocalResource(
+				await this.remotePathService.fileURI(detildifiedQuery),
+				this.workbenchEnvironmentService.configuration.remoteAuthority
+			);
 
 			try {
 				const stat = await this.fileService.resolve(resource);
-
 				return stat.isDirectory ? undefined : resource;
 			} catch (error) {
 				// ignore
