@@ -518,7 +518,7 @@ export class DebugService implements IDebugService {
 		try {
 			await session.initialize(dbgr!);
 			await session.launchOrAttach(session.configuration);
-			if (forceFocus || !this.viewModel.focusedSession) {
+			if (forceFocus || !this.viewModel.focusedSession || session.parentSession === this.viewModel.focusedSession) {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {
