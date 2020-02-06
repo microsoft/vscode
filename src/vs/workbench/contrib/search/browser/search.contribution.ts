@@ -38,10 +38,11 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, ExpandAllAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorWholeWordCommand, toggleSearchEditorRegexCommand, toggleSearchEditorContextLinesCommand, ReRunSearchEditorSearchAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, ExpandAllAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
+import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
@@ -52,12 +53,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { assertType } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { SearchEditorInput, SearchEditorInputFactory, SearchEditorContribution } from 'vs/workbench/contrib/search/browser/searchEditorInput';
-import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import product from 'vs/platform/product/common/product';
+import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -70,7 +68,7 @@ const category = nls.localize('search', "Search");
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.or(Constants.SearchViewVisibleKey, Constants.InSearchEditor),
+	when: ContextKeyExpr.or(Constants.SearchViewVisibleKey, SearchEditorConstants.InSearchEditor),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
@@ -205,7 +203,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FocusNextInputAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.or(
-		ContextKeyExpr.and(Constants.InSearchEditor, Constants.InputBoxFocusedKey),
+		ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, Constants.InputBoxFocusedKey),
 		ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey)),
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	handler: (accessor, args: any) => {
@@ -217,7 +215,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FocusPreviousInputAction.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.or(
-		ContextKeyExpr.and(Constants.InSearchEditor, Constants.InputBoxFocusedKey),
+		ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, Constants.InputBoxFocusedKey),
 		ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey, Constants.SearchInputBoxFocusedKey.toNegated())),
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
@@ -597,36 +595,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	handler: toggleRegexCommand
 }, ToggleRegexKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
-	id: Constants.ToggleSearchEditorCaseSensitiveCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.InSearchEditor, Constants.SearchInputBoxFocusedKey),
-	handler: toggleSearchEditorCaseSensitiveCommand
-}, ToggleCaseSensitiveKeybinding));
-
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
-	id: Constants.ToggleSearchEditorWholeWordCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.InSearchEditor, Constants.SearchInputBoxFocusedKey),
-	handler: toggleSearchEditorWholeWordCommand
-}, ToggleWholeWordKeybinding));
-
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
-	id: Constants.ToggleSearchEditorRegexCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.InSearchEditor, Constants.SearchInputBoxFocusedKey),
-	handler: toggleSearchEditorRegexCommand
-}, ToggleRegexKeybinding));
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: Constants.ToggleSearchEditorContextLinesCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.InSearchEditor),
-	handler: toggleSearchEditorContextLinesCommand,
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
-});
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.AddCursorsAtSearchResults,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -647,24 +615,6 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowAllSymbolsActio
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleSearchOnTypeAction, ToggleSearchOnTypeAction.ID, ToggleSearchOnTypeAction.LABEL), 'Search: Toggle Search on Type', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
-
-
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(ReRunSearchEditorSearchAction, ReRunSearchEditorSearchAction.ID, ReRunSearchEditorSearchAction.LABEL),
-	'Search Editor: Rerun search', category, ContextKeyExpr.and(Constants.InSearchEditor)
-);
-
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
-		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
-		ContextKeyExpr.and(Constants.HasSearchResults, Constants.SearchViewFocusedKey, Constants.EnableSearchEditorPreview)),
-	'Search: Open Results in Editor', category,
-	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
-
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
-	'Search: Open New Search Editor', category,
-	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
 
 // Register Quick Open Handler
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQuickOpenHandler(
@@ -775,6 +725,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.globalFindClipboard', "Controls whether the search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
+		'search.location': {
+			type: 'string',
+			enum: ['sidebar', 'panel'],
+			default: 'sidebar',
+			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
+			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use the search view's context menu instead.")
+		},
 		'search.collapseResults': {
 			type: 'string',
 			enum: ['auto', 'alwaysCollapse', 'alwaysExpand'],
@@ -882,22 +839,3 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	},
 	order: 2
 });
-
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
-		SearchEditor,
-		SearchEditor.ID,
-		nls.localize('defaultPreferencesEditor', "Search Editor")
-	),
-	[
-		new SyncDescriptor(SearchEditorInput)
-	]
-);
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	SearchEditorInput.ID,
-	SearchEditorInputFactory);
-
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);

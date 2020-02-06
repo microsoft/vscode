@@ -2172,6 +2172,11 @@ declare namespace monaco.editor {
 		 */
 		revealLineInCenterIfOutsideViewport(lineNumber: number, scrollType?: ScrollType): void;
 		/**
+		 * Scroll vertically as necessary and reveal a line close to the top of the viewport,
+		 * optimized for viewing a code definition.
+		 */
+		revealLineNearTop(lineNumber: number, scrollType?: ScrollType): void;
+		/**
 		 * Scroll vertically or horizontally as necessary and reveal a position.
 		 */
 		revealPosition(position: IPosition, scrollType?: ScrollType): void;
@@ -2183,6 +2188,11 @@ declare namespace monaco.editor {
 		 * Scroll vertically or horizontally as necessary and reveal a position centered vertically only if it lies outside the viewport.
 		 */
 		revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType?: ScrollType): void;
+		/**
+		 * Scroll vertically or horizontally as necessary and reveal a position close to the top of the viewport,
+		 * optimized for viewing a code definition.
+		 */
+		revealPositionNearTop(position: IPosition, scrollType?: ScrollType): void;
 		/**
 		 * Returns the primary selection of the editor.
 		 */
@@ -2229,6 +2239,11 @@ declare namespace monaco.editor {
 		 */
 		revealLinesInCenterIfOutsideViewport(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
 		/**
+		 * Scroll vertically as necessary and reveal lines close to the top of the viewport,
+		 * optimized for viewing a code definition.
+		 */
+		revealLinesNearTop(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
+		/**
 		 * Scroll vertically or horizontally as necessary and reveal a range.
 		 */
 		revealRange(range: IRange, scrollType?: ScrollType): void;
@@ -2244,6 +2259,11 @@ declare namespace monaco.editor {
 		 * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 		 */
 		revealRangeInCenterIfOutsideViewport(range: IRange, scrollType?: ScrollType): void;
+		/**
+		 * Scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
+		 * optimized for viewing a code definition.
+		 */
+		revealRangeNearTop(range: IRange, scrollType?: ScrollType): void;
 		/**
 		 * Directly trigger a handler or an editor action.
 		 * @param source The source of the call.
@@ -2774,6 +2794,11 @@ declare namespace monaco.editor {
 		 * Defaults to 5.
 		 */
 		fastScrollSensitivity?: number;
+		/**
+		 * Enable that the editor scrolls only the predominant axis. Prevents horizontal drift when scrolling vertically on a trackpad.
+		 * Defaults to true.
+		 */
+		scrollPredominantAxis?: boolean;
 		/**
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
@@ -3752,34 +3777,35 @@ declare namespace monaco.editor {
 		scrollbar = 79,
 		scrollBeyondLastColumn = 80,
 		scrollBeyondLastLine = 81,
-		selectionClipboard = 82,
-		selectionHighlight = 83,
-		selectOnLineNumbers = 84,
-		showFoldingControls = 85,
-		showUnused = 86,
-		snippetSuggestions = 87,
-		smoothScrolling = 88,
-		stopRenderingLineAfter = 89,
-		suggest = 90,
-		suggestFontSize = 91,
-		suggestLineHeight = 92,
-		suggestOnTriggerCharacters = 93,
-		suggestSelection = 94,
-		tabCompletion = 95,
-		useTabStops = 96,
-		wordSeparators = 97,
-		wordWrap = 98,
-		wordWrapBreakAfterCharacters = 99,
-		wordWrapBreakBeforeCharacters = 100,
-		wordWrapColumn = 101,
-		wordWrapMinified = 102,
-		wrappingIndent = 103,
-		wrappingStrategy = 104,
-		editorClassName = 105,
-		pixelRatio = 106,
-		tabFocusMode = 107,
-		layoutInfo = 108,
-		wrappingInfo = 109
+		scrollPredominantAxis = 82,
+		selectionClipboard = 83,
+		selectionHighlight = 84,
+		selectOnLineNumbers = 85,
+		showFoldingControls = 86,
+		showUnused = 87,
+		snippetSuggestions = 88,
+		smoothScrolling = 89,
+		stopRenderingLineAfter = 90,
+		suggest = 91,
+		suggestFontSize = 92,
+		suggestLineHeight = 93,
+		suggestOnTriggerCharacters = 94,
+		suggestSelection = 95,
+		tabCompletion = 96,
+		useTabStops = 97,
+		wordSeparators = 98,
+		wordWrap = 99,
+		wordWrapBreakAfterCharacters = 100,
+		wordWrapBreakBeforeCharacters = 101,
+		wordWrapColumn = 102,
+		wordWrapMinified = 103,
+		wrappingIndent = 104,
+		wrappingStrategy = 105,
+		editorClassName = 106,
+		pixelRatio = 107,
+		tabFocusMode = 108,
+		layoutInfo = 109,
+		wrappingInfo = 110
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3864,6 +3890,7 @@ declare namespace monaco.editor {
 		scrollbar: IEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions>;
 		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, number>;
 		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, boolean>;
+		scrollPredominantAxis: IEditorOption<EditorOption.scrollPredominantAxis, boolean>;
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;

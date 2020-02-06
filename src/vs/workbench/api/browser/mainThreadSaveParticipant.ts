@@ -33,10 +33,6 @@ import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } 
 import { ILabelService } from 'vs/platform/label/common/label';
 import { canceled } from 'vs/base/common/errors';
 
-export interface ICodeActionsOnSaveOptions {
-	[kind: string]: boolean;
-}
-
 export interface ISaveParticipantParticipant {
 	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
 }
@@ -242,11 +238,10 @@ class CodeActionOnSaveParticipant implements ISaveParticipantParticipant {
 		if (env.reason === SaveReason.AUTO) {
 			return undefined;
 		}
-
 		const model = editorModel.textEditorModel;
 
 		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.resource };
-		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
+		const setting = this._configurationService.getValue<{ [kind: string]: boolean }>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
@@ -380,9 +375,10 @@ export class SaveParticipant implements ISaveParticipant {
 			cancellable: true,
 			delay: model.isDirty() ? 3000 : 5000
 		}, async progress => {
+			// undoStop before participation
+			model.textEditorModel.pushStackElement();
 
 			for (let p of this._saveParticipants.getValue()) {
-
 				if (cts.token.isCancellationRequested) {
 					break;
 				}
@@ -394,6 +390,8 @@ export class SaveParticipant implements ISaveParticipant {
 				}
 			}
 
+			// undoStop after participation
+			model.textEditorModel.pushStackElement();
 		}, () => {
 			// user cancel
 			cts.dispose(true);

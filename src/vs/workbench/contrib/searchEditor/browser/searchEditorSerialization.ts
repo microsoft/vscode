@@ -12,7 +12,7 @@ import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbenc
 import { ITextQuery } from 'vs/workbench/services/search/common/search';
 import { localize } from 'vs/nls';
 import type { ITextModel } from 'vs/editor/common/model';
-import type { SearchConfiguration } from 'vs/workbench/contrib/search/browser/searchEditorInput';
+import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';

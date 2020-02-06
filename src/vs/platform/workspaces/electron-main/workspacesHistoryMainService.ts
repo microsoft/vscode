@@ -35,7 +35,7 @@ export interface IWorkspacesHistoryMainService {
 
 	addRecentlyOpened(recents: IRecent[]): void;
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolder?: ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
-	removeFromRecentlyOpened(paths: URI[]): void;
+	removeRecentlyOpened(paths: URI[]): void;
 	clearRecentlyOpened(): void;
 
 	updateWindowsJumpList(): void;
@@ -148,7 +148,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	removeFromRecentlyOpened(toRemove: URI[]): void {
+	removeRecentlyOpened(toRemove: URI[]): void {
 		const keep = (recent: IRecent) => {
 			const uri = location(recent);
 			for (const r of toRemove) {
@@ -344,7 +344,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					}
 				}
 			}
-			this.removeFromRecentlyOpened(toRemove);
+			this.removeRecentlyOpened(toRemove);
 
 			// Add entries
 			jumpList.push({

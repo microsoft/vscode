@@ -126,8 +126,8 @@ export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
 	}
 
 	private async handleSymbolicLink(): Promise<void> {
-		const { stat, isSymbolicLink } = await statLink(this._path);
-		if (isSymbolicLink && !stat.isDirectory()) {
+		const { stat, symbolicLink } = await statLink(this._path);
+		if (symbolicLink && !stat.isDirectory()) {
 			const realPath = await realpath(this._path);
 
 			this.watch(realPath, false);

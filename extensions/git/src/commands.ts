@@ -2332,14 +2332,20 @@ export class CommandCenter {
 	}
 
 	@command('git.openDiff', { repository: false })
-	async openDiff(uri: Uri, hash: string) {
+	async openDiff(uri: Uri, lhs: string, rhs: string) {
 		const basename = path.basename(uri.fsPath);
 
-		if (hash === '~') {
-			return commands.executeCommand('vscode.diff', toGitUri(uri, hash), toGitUri(uri, `HEAD`), `${basename} (Index)`);
+		let title;
+		if ((lhs === 'HEAD' || lhs === '~') && rhs === '') {
+			title = `${basename} (Working Tree)`;
+		}
+		else if (lhs === 'HEAD' && rhs === '~') {
+			title = `${basename} (Index)`;
+		} else {
+			title = `${basename} (${lhs.endsWith('^') ? `${lhs.substr(0, 8)}^` : lhs.substr(0, 8)}) \u27f7 ${basename} (${rhs.endsWith('^') ? `${rhs.substr(0, 8)}^` : rhs.substr(0, 8)})`;
 		}
 
-		return commands.executeCommand('vscode.diff', toGitUri(uri, `${hash}^`), toGitUri(uri, hash), `${basename} (${hash.substr(0, 8)}^) \u27f7 ${basename} (${hash.substr(0, 8)})`);
+		return commands.executeCommand('vscode.diff', toGitUri(uri, lhs), rhs === '' ? uri : toGitUri(uri, rhs), title);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {

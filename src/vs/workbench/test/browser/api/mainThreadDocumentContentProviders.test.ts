@@ -7,10 +7,10 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { mock } from 'vs/workbench/test/browser/api/mock';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
 import { TextEdit } from 'vs/editor/common/modes';
 
 suite('MainThreadDocumentContentProviders', function () {

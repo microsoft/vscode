@@ -595,8 +595,6 @@ export class CodeApplication extends Disposable {
 				// Catch file URLs
 				if (uri.authority === Schemas.file && !!uri.path) {
 					const cli = assign(Object.create(null), environmentService.args);
-
-					// hey Ben, we need to convert this `code://file` URI into a `file://` URI
 					const urisToOpen = [{ fileUri: URI.file(uri.fsPath) }];
 
 					windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });

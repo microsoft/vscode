@@ -186,7 +186,7 @@ export function getCwd(
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 		const resolved = _resolveCwd(unresolved, lastActiveWorkspace, configurationResolverService);
-		return resolved || unresolved;
+		return _sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;

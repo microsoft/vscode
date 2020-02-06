@@ -124,7 +124,7 @@ export class ExtensionContainers extends Disposable {
 		this.containers.forEach(c => c.extension = extension);
 	}
 
-	private update(extension: IExtension): void {
+	private update(extension: IExtension | undefined): void {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
