@@ -51,14 +51,14 @@ suite('Files - ExplorerView', () => {
 			letter: '\u2937'
 		});
 		assert.deepEqual(provideDecorations(s1), {
-			tooltip: 'Can not resolve workspace folder',
+			tooltip: 'Unable to resolve workspace folder',
 			letter: '!',
 			color: listInvalidItemForeground
 		});
 
-		const unknown = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d, true, true);
+		const unknown = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d, false, true);
 		assert.deepEqual(provideDecorations(unknown), {
-			tooltip: 'Unknown resource',
+			tooltip: 'Unknown File Type',
 			letter: '?'
 		});
 	});
