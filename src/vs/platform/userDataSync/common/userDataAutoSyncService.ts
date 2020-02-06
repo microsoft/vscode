@@ -114,7 +114,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		switch (error.code) {
 			case UserDataSyncErrorCode.ConnectionRefused:
 			case UserDataSyncErrorCode.Forbidden:
-			case UserDataSyncErrorCode.Unauthroized:
+			case UserDataSyncErrorCode.Unauthorized:
 			case UserDataSyncErrorCode.Rejected:
 				return false;
 		}
