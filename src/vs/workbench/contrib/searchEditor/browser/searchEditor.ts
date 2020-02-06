@@ -7,7 +7,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -34,7 +33,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Delayer } from 'vs/base/common/async';
-import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
+import { serializeSearchResultForEditor, serializeSearchConfiguration, extractSearchQuery } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
@@ -334,13 +333,14 @@ export class SearchEditor extends BaseEditor {
 		controller.closeWidget(false);
 
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, true);
-		const textModel = assertIsDefined(this.searchResultEditor.getModel());
-		this.modelService.updateModel(textModel, results.text);
-		this.getInput()?.setDirty(this.getInput()?.resource.scheme !== 'search-editor');
-		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
+		const { header, body } = await this.getInput()!.getModels();
+		this.modelService.updateModel(body, results.text);
+		header.setValue(serializeSearchConfiguration(config));
 
-		(assertIsDefined(this._input) as SearchEditorInput).reloadModel();
+		this.getInput()?.setDirty(this.getInput()?.resource.scheme !== 'search-editor');
+		body.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		this.getInput()?.saveHighlights(body.getAllDecorations());
 
 		searchModel.dispose();
 	}
@@ -377,20 +377,22 @@ export class SearchEditor extends BaseEditor {
 		await super.setInput(newInput, options, token);
 		this.inSearchEditorContextKey.set(true);
 
-		const { model, query } = await newInput.reloadModel();
-		this.searchResultEditor.setModel(model);
+		const { body, header } = await newInput.getModels();
 
+		this.searchResultEditor.setModel(body);
 		this.pauseSearching = true;
 
-		this.queryEditorWidget.setValue(query.query, true);
-		this.queryEditorWidget.searchInput.setCaseSensitive(query.caseSensitive);
-		this.queryEditorWidget.searchInput.setRegex(query.regexp);
-		this.queryEditorWidget.searchInput.setWholeWords(query.wholeWord);
-		this.queryEditorWidget.setContextLines(query.contextLines);
-		this.inputPatternExcludes.setValue(query.excludes);
-		this.inputPatternIncludes.setValue(query.includes);
-		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(query.useIgnores);
-		this.toggleIncludesExcludes(query.showIncludesExcludes);
+		const config = extractSearchQuery(header);
+
+		this.queryEditorWidget.setValue(config.query, true);
+		this.queryEditorWidget.searchInput.setCaseSensitive(config.caseSensitive);
+		this.queryEditorWidget.searchInput.setRegex(config.regexp);
+		this.queryEditorWidget.searchInput.setWholeWords(config.wholeWord);
+		this.queryEditorWidget.setContextLines(config.contextLines);
+		this.inputPatternExcludes.setValue(config.excludes);
+		this.inputPatternIncludes.setValue(config.includes);
+		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useIgnores);
+		this.toggleIncludesExcludes(config.showIncludesExcludes);
 
 		this.restoreViewState();
 		this.pauseSearching = false;

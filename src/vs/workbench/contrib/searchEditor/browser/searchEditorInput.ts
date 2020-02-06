@@ -10,7 +10,7 @@ import { isEqual, joinPath, toLocalResource } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
@@ -24,9 +24,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileSaveOptions, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
+
 
 export type SearchConfiguration = {
 	query: string,
@@ -48,8 +49,9 @@ export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
 	private dirty: boolean = false;
-	private readonly model: Promise<ITextModel>;
-	private query: Partial<SearchConfiguration> | undefined;
+	private readonly contentsModel: Promise<ITextModel>;
+	private readonly headerModel: Promise<ITextModel>;
+	private _cachedConfig?: SearchConfiguration;
 
 	private readonly _onDidChangeContent = new Emitter<void>();
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -60,7 +62,7 @@ export class SearchEditorInput extends EditorInput {
 
 	constructor(
 		public readonly resource: URI,
-		getModel: () => Promise<ITextModel>,
+		getModel: () => Promise<{ contentsModel: ITextModel, headerModel: ITextModel }>,
 		startingConfig: Partial<SearchConfiguration> | undefined,
 		@IModelService private readonly modelService: IModelService,
 		@IEditorService protected readonly editorService: IEditorService,
@@ -75,11 +77,26 @@ export class SearchEditorInput extends EditorInput {
 	) {
 		super();
 
-		this.model = getModel()
-			.then(model => {
-				this._register(model.onDidChangeContent(() => this._onDidChangeContent.fire()));
-				return model;
+		const modelLoader = getModel()
+			.then(({ contentsModel, headerModel }) => {
+				this._register(contentsModel.onDidChangeContent(() => this._onDidChangeContent.fire()));
+				this._register(headerModel.onDidChangeContent(() => {
+					this._cachedConfig = extractSearchQuery(headerModel);
+					this._onDidChangeContent.fire();
+					this._onDidChangeLabel.fire();
+				}));
+
+				this._cachedConfig = extractSearchQuery(headerModel);
+
+				this._register(contentsModel);
+				this._register(headerModel);
+
+				return { contentsModel, headerModel };
 			});
+
+		this.contentsModel = modelLoader.then(({ contentsModel }) => contentsModel);
+		this.headerModel = modelLoader.then(({ headerModel }) => headerModel);
+
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
@@ -95,8 +112,6 @@ export class SearchEditorInput extends EditorInput {
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
-
-		this.query = startingConfig;
 	}
 
 	getResource() {
@@ -104,22 +119,31 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
-		if ((await this.model).isDisposed()) { return; }
 
 		if (this.isUntitled()) {
 			return this.saveAs(group, options);
 		} else {
-			await this.textFileService.write(this.resource, (await this.model).getValue(), options);
+			await this.textFileService.write(this.resource, await this.serializeForDisk(), options);
 			this.setDirty(false);
 			return this;
 		}
+	}
+
+	private async serializeForDisk() {
+		return (await this.headerModel).getValue() + '\n' + (await this.contentsModel).getValue();
+	}
+
+	async getModels() {
+		const header = await this.headerModel;
+		const body = await this.contentsModel;
+		return { header, body };
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
 			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
-			if (await this.textFileService.saveAs(this.resource, path, options)) {
+			if (await this.textFileService.create(path, await this.serializeForDisk())) {
 				this.setDirty(false);
 				if (!isEqual(path, this.resource)) {
 					const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
@@ -140,7 +164,7 @@ export class SearchEditorInput extends EditorInput {
 		const trimToMax = (label: string) => (label.length < maxLength ? label : `${label.slice(0, maxLength - 3)}...`);
 
 		if (this.isUntitled()) {
-			const query = this.query?.query?.trim();
+			const query = this._cachedConfig?.query?.trim();
 			if (query) {
 				return localize('searchTitle.withQuery', "Search: {0}", trimToMax(query));
 			}
@@ -150,18 +174,8 @@ export class SearchEditorInput extends EditorInput {
 		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
 	}
 
-	async reloadModel() {
-		const model = await this.model;
-		const query = extractSearchQuery(model);
-		this.query = query;
-		this._highlights = model.getAllDecorations();
-
-		this._onDidChangeLabel.fire();
-		return { model, query };
-	}
-
 	getConfigSync() {
-		return this.query;
+		return this._cachedConfig;
 	}
 
 	async resolve() {
@@ -226,8 +240,12 @@ export class SearchEditorInput extends EditorInput {
 
 	public async setHighlights(value: IModelDeltaDecoration[]) {
 		if (!value) { return; }
-		const model = await this.model;
+		const model = await this.contentsModel;
 		model.deltaDecorations([], value);
+		this._highlights = value;
+	}
+
+	public saveHighlights(value: IModelDeltaDecoration[]) {
 		this._highlights = value;
 	}
 
@@ -239,14 +257,14 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	private async backup(): Promise<IWorkingCopyBackup> {
-		const content = (await this.model).createSnapshot();
+		const content = stringToSnapshot(await this.serializeForDisk());
 		return { content };
 	}
 
 	// Bringing this over from textFileService because it only suggests for untitled scheme.
 	// In the future I may just use the untitled scheme. I dont get particular benefit from using search-editor...
 	private async suggestFileName(): Promise<URI> {
-		const query = (await this.reloadModel()).query.query;
+		const query = extractSearchQuery(await this.headerModel).query;
 
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + '.code-search';
 
@@ -287,16 +305,12 @@ export const getOrMakeSearchEditorInput = (
 	const config = existingData.config ?? (existingData.text ? extractSearchQuery(existingData.text) : {});
 
 	const getModel = async () => {
-		const existing = modelService.getModel(uri);
-		if (existing) { return existing; }
+		let contents: string;
 
 		const backup = await backupService.resolve(uri);
-		backupService.discardBackup(uri);
-
-		let contents: string | ITextBufferFactory;
-
 		if (backup) {
-			contents = backup.value;
+			// this way of stringifying a TextBufferFactory seems needlessly complicated...
+			contents = snapshotToString(backup.value.create(DefaultEndOfLine.LF).createSnapshot(true));
 		} else if (uri.scheme !== SearchEditorScheme) {
 			contents = (await textFileService.read(uri)).value;
 		} else if (existingData.text) {
@@ -306,8 +320,33 @@ export const getOrMakeSearchEditorInput = (
 		} else {
 			throw new Error('no initial contents for search editor');
 		}
+		backupService.discardBackup(uri);
 
-		return modelService.createModel(contents, modeService.create('search-result'), uri);
+		const lines = contents.split(/\r?\n/);
+
+		const headerlines = [];
+		const bodylines = [];
+		let inHeader = true;
+		for (const line of lines) {
+			if (inHeader) {
+				headerlines.push(line);
+				if (line === '') {
+					inHeader = false;
+				}
+			} else {
+				bodylines.push(line);
+			}
+		}
+
+		const contentsModelURI = uri.with({ scheme: 'search-editor-body' });
+		const headerModelURI = uri.with({ scheme: 'search-editor-header' });
+		const contentsModel = modelService.getModel(contentsModelURI) ?? modelService.createModel('', modeService.create('search-result'), contentsModelURI);
+		const headerModel = modelService.getModel(headerModelURI) ?? modelService.createModel('', modeService.create('search-result'), headerModelURI);
+
+		contentsModel.setValue(bodylines.join('\n'));
+		headerModel.setValue(headerlines.join('\n'));
+
+		return { contentsModel, headerModel };
 	};
 
 	const input = instantiationService.createInstance(SearchEditorInput, uri, getModel, config);
