@@ -18,6 +18,7 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import * as pty from 'node-pty';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -173,6 +174,10 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	log?: boolean;
 	cancellationToken?: CancellationToken;
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
+}
+
+export interface PtySpawnOptions extends pty.IBasePtyForkOptions {
+	log?: boolean;
 }
 
 async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
@@ -513,6 +518,32 @@ export class Git {
 		return cp.spawn(this.path, args, options);
 	}
 
+	spawn_pty(args: string[], options: PtySpawnOptions = {}): pty.IPty {
+		if (!this.path) {
+			throw new Error('git could not be found in the system.');
+		}
+
+		if (!options) {
+			options = {};
+		}
+
+		options.env = assign({}, process.env, this.env, options.env || {}, {
+			VSCODE_GIT_COMMAND: args[0],
+			LC_ALL: 'en_US.UTF-8',
+			LANG: 'en_US.UTF-8'
+		});
+
+		if (options.cwd) {
+			options.cwd = sanitizePath(options.cwd);
+		}
+
+		if (options.log !== false) {
+			this.log(`> git ${args.join(' ')}\n`);
+		}
+
+		return pty.spawn(this.path, args, options);
+	}
+
 	private log(output: string): void {
 		this._onOutput.emit('log', output);
 	}
@@ -771,6 +802,14 @@ export class Repository {
 
 	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		return this.git.spawn(args, options);
+	}
+
+	spawn_pty(args: string[], options: PtySpawnOptions = {}): pty.IPty {
+		if (options.cwd === undefined) {
+			options.cwd = this.root;
+		}
+
+		return this.git.spawn_pty(args, options);
 	}
 
 	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
@@ -1506,26 +1545,51 @@ export class Repository {
 			args.push(branch);
 		}
 
-		try {
-			await this.run(args, options);
-		} catch (err) {
-			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
-				err.gitErrorCode = GitErrorCodes.Conflict;
-			} else if (/Please tell me who you are\./.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
-			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
-				err.stderr = err.stderr.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
-				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
-			} else if (/cannot lock ref|unable to update local ref/i.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.CantLockRef;
-			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
-			}
+		return new Promise<void>((c, e) => {
+			const child = this.spawn_pty(args);
 
-			throw err;
-		}
+			const onExit = (exitCode: number) => {
+				if (exitCode !== 0) {
+					let err = new GitError({ message: 'Failed to execute git.', stderr: outputData });
+
+					if (/^CONFLICT \([^)]+\): \b/m.test(outputData || '')) {
+						err.gitErrorCode = GitErrorCodes.Conflict;
+					} else if (/Please tell me who you are\./.test(outputData || '')) {
+						err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+					} else if (/Could not read from remote repository/.test(outputData || '')) {
+						err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+					} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(outputData)) {
+						err.stderr = outputData.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
+						err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+					} else if (/cannot lock ref|unable to update local ref/i.test(outputData || '')) {
+						err.gitErrorCode = GitErrorCodes.CantLockRef;
+					} else if (/cannot rebase onto multiple branches/i.test(outputData || '')) {
+						err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+					}
+
+					e(err);
+				}
+
+				console.log(exitCode);
+
+				c();
+			};
+
+			const onData = (raw: string) => {
+				// TODO: Clear control chars.
+				outputData += raw;
+
+				if (/Are you sure you want to continue connecting/i.test(outputData)) {
+					// TODO: Ask user confirmation.
+					child.write('yes\r');
+				}
+			};
+
+			let outputData: string = '';
+
+			child.on('data', onData);
+			child.on('exit', onExit);
+		});
 	}
 
 	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
