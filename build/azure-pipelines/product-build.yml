@@ -8,12 +8,9 @@ resources:
 
 jobs:
 - job: macOS
-  condition: and(succeeded())
   timeoutInMinutes: 180
   pool:
     vmImage: macOS-latest
-  dependsOn:
-  - Compile
   steps:
   - template: darwin/codesign-darwin.yml
 
