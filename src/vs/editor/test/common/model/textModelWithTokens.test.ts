@@ -612,8 +612,8 @@ suite('TextModel.getLineIndentGuide', () => {
 	test('getLineIndentGuide three levels', () => {
 		assertIndentGuides([
 			[0, 2, 4, 1, 'A'],
-			[1, 3, 5, 2, '  A'], // TODO 5 => 4
-			[2, 4, 5, 3, '    A'], // TODO 5 => 4
+			[1, 3, 4, 2, '  A'],
+			[2, 4, 4, 3, '    A'],
 			[3, 4, 4, 3, '      A'],
 			[0, 2, 4, 1, 'A'], // TODO => too big of a difference with the line above?
 		], 2);
@@ -717,9 +717,9 @@ suite('TextModel.getLineIndentGuide', () => {
 	test('issue #8952 - Indentation guide lines going through text on .yml file', () => {
 		assertIndentGuides([
 			[0, 2, 5, 1, 'properties:'],
-			[1, 3, 6, 2, '    emailAddress:'], // TODO 6 => 5
+			[1, 3, 5, 2, '    emailAddress:'],
 			[2, 3, 5, 2, '        - bla'],
-			[2, 5, 6, 3, '        - length:'], // TODO 6 => 5
+			[2, 5, 5, 3, '        - length:'],
 			[3, 5, 5, 3, '            max: 255'],
 			[0, 2, 5, 1, 'getters:']
 		], 4);
@@ -731,7 +731,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, 3, 6, 2, '\tswitch (base) {'],
 			[2, 4, 4, 3, '\t\tcase 1:'],
 			[3, 4, 4, 3, '\t\t\treturn 1;'],
-			[2, 6, 8, 3, '\t\tcase 2:'], // TODO 8 => 6 or 7
+			[2, 6, 6, 3, '\t\tcase 2:'],
 			[3, 6, 6, 3, '\t\t\treturn 2;'],
 			[1, 3, 6, 2, '\t}'],
 			[0, 2, 7, 1, '}']
@@ -740,7 +740,7 @@ suite('TextModel.getLineIndentGuide', () => {
 
 	test('issue #12398 - Problem in indent guidelines', () => {
 		assertIndentGuides([
-			[2, 2, 3, 3, '\t\t.bla'],
+			[2, 2, 2, 3, '\t\t.bla'],
 			[3, 2, 2, 3, '\t\t\tlabel(for)'],
 			[0, 1, 2, 1, 'include script']
 		], 4);

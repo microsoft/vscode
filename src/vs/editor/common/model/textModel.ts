@@ -2675,19 +2675,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 				if (distance === 0) {
 					// This is the initial line number
 					if (currentIndent >= 0 && this._computeIndentLevel(upLineNumber) > currentIndent) {
-						// This is a new scope, we have special handling here, since we want the
-						// child scope's indent to be active, not the parent scope's
+						// This is the beginning of a scope, we have special handling here, since we want the
+						// child scope indent to be active, not the parent scope
+						goUp = false;
 						startLineNumber = upLineNumber + 1;
 						endLineNumber = maxLineNumber;
-						for (let offsetDown = startLineNumber; offsetDown < maxLineNumber; offsetDown++) {
-							if (this._computeIndentLevel(offsetDown) === currentIndent) {
-								endLineNumber = offsetDown;
-								break;
-							}
-						}
-						return { startLineNumber, endLineNumber, indent: upLineIndentLevel + 1 };
-					}
-					if (currentIndent >= 0 && this._computeIndentLevel(upLineNumber - 2) > currentIndent) {
+						indent = upLineIndentLevel + 1;
+					} else if (currentIndent >= 0 && this._computeIndentLevel(upLineNumber - 2) > currentIndent) {
 						// This is the end of a scope. Like above, but we walk backwards to find the parent scope start
 						endLineNumber = upLineNumber - 1;
 						startLineNumber = minLineNumber;
@@ -2698,10 +2692,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 							}
 						}
 						return { startLineNumber, endLineNumber, indent: upLineIndentLevel + 1 };
+					} else {
+						startLineNumber = upLineNumber;
+						endLineNumber = downLineNumber;
+						indent = upLineIndentLevel;
 					}
-					startLineNumber = upLineNumber;
-					endLineNumber = downLineNumber;
-					indent = upLineIndentLevel;
+
 					if (indent === 0) {
 						// No need to continue
 						return { startLineNumber, endLineNumber, indent };
