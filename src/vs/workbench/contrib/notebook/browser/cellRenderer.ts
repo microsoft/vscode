@@ -392,6 +392,7 @@ class StatefullMarkdownCell extends Disposable {
 		this.menuContainer = templateData.menuContainer;
 		this.editingContainer = templateData.editingContainer;
 		this.localDisposables = new DisposableStore();
+		this._register(this.localDisposables);
 
 		const viewUpdate = () => {
 			if (viewCell.isEditing) {
@@ -438,6 +439,7 @@ class StatefullMarkdownCell extends Disposable {
 					this.localDisposables.add(model.onDidChangeContent(() => {
 						viewCell.setText(model.getLinesContent());
 						const clientHeight = this.cellContainer.clientHeight;
+						this.cellContainer.innerHTML = viewCell.getHTML() || '';
 						handler.layoutElement(viewCell, realContentHeight + 32 + clientHeight);
 					}));
 
