@@ -44,6 +44,18 @@ steps:
 
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
+
+    cat << EOF |
+    $(macos-developer-certificate)
+    EOF
+    base64 -D > $(agent.tempdirectory)/cert.p12
+
+    # import the certificate to a newly created keychain
+    security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+    security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+    security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+    security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
   displayName: Prepare tooling
 
 - script: |
@@ -127,8 +139,12 @@ steps:
 
 - script: |
     set -e
+    codesign -s 99FM488X57 --deep --force --options runtime --entitlements build/azure-pipelines/darwin/entitlements.plist ../VSCode-darwin/*.app
+  displayName: Set Hardened Entitlements
+
+- script: |
+    set -e
     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
-    cp ../VSCode-darwin.zip ../VSCode-darwin-legacy-signed.zip
   displayName: Archive build
 
 - task: PublishPipelineArtifact@0
@@ -136,35 +152,6 @@ steps:
   inputs:
     artifactName: darwin-unsigned
     targetPath: ../VSCode-darwin.zip
-
-- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-  inputs:
-    ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)'
-    Pattern: 'VSCode-darwin-legacy-signed.zip'
-    signConfigType: inlineSignParams
-    inlineOperation: |
-      [
-        {
-          "keyCode": "CP-401337-Apple",
-          "operationSetCode": "MacAppDeveloperSign",
-          "parameters": [ ],
-          "toolName": "sign",
-          "toolVersion": "1.0"
-        }
-      ]
-    SessionTimeout: 60
-  displayName: 'Legacy Codesign'
-
-- script: |
-    zip -d ../VSCode-darwin-legacy-signed.zip "*.pkg"
-  displayName: Clean Archive
-
-- task: PublishPipelineArtifact@0
-  displayName: 'Publish Pipeline Artifact'
-  inputs:
-    artifactName: darwin-legacy-signed
-    targetPath: ../VSCode-darwin-legacy-signed.zip
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
