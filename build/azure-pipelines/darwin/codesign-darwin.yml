@@ -13,11 +13,11 @@ steps:
     base64 -D > $(agent.tempdirectory)/cert.p12
 
     # import the certificate to a newly created keychain
-    security create-keychain -p pwd build
-    security default-keychain -s build
-    security unlock-keychain -p pwd build
-    security import $(agent.tempdirectory)/cert.p12 -k ~/Library/Keychains/build.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd build
+    security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+    security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+    security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+    security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
 
     curl -o $(agent.tempdirectory)/VSCode-darwin.zip https://vscode.blob.core.windows.net/public/VSCode-darwin.zip
     unzip $(agent.tempdirectory)/VSCode-darwin.zip -d $(agent.tempdirectory)
