@@ -73,7 +73,7 @@ suite('Debug', function () {
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
 		// Do not await debug start to return due to https://github.com/microsoft/vscode/issues/90134
-		commands.executeCommand('workbench.action.debug.start');
+		debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
 		await capabilitiesPromise;
 		await initializedPromise;
 		await configurationDonePromise;
