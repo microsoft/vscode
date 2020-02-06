@@ -263,7 +263,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
-	private disposables: Map<HTMLElement, IDisposable> = new Map();
+	private disposables: Map<HTMLElement, DisposableStore> = new Map();
 	private count = 0;
 
 	constructor(
@@ -362,14 +362,23 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		let contentSizeChangeListener = templateData.editor?.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				let width = templateData.editor!.getLayoutInfo().width;
-				templateData.editor?.layout(
-					{
-						width: width,
-						height: e.contentHeight
+				let layout = templateData.editor!.getLayoutInfo();
+				if (layout.height !== e.contentHeight) {
+					templateData.editor?.layout(
+						{
+							width: layout.width,
+							height: e.contentHeight
 
+						}
+					);
+
+					if (element.outputs.length) {
+						let outputHeight = templateData.outputContainer!.clientHeight;
+						this.handler.layoutElement(element, e.contentHeight + 32 + outputHeight);
+					} else {
+						this.handler.layoutElement(element, e.contentHeight + 16);
 					}
-				);
+				}
 			}
 		});
 
@@ -423,26 +432,20 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 						this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
 					}
 
-					this.disposables.set(templateData.cellContainer, {
-						dispose: () => {
-							elementSizeObserver.dispose();
-						}
-					});
+					this.disposables.get(templateData.cellContainer)?.add(elementSizeObserver);
 				}
 			}
 		});
 
-		this.disposables.set(templateData.menuContainer!, listener!);
+		let menuStore = new DisposableStore();
+		menuStore.add(listener!);
+		this.disposables.set(templateData.menuContainer!, menuStore);
 
-		this.disposables.set(templateData.cellContainer, {
-			dispose: () => {
-				listener.dispose();
-				contentSizeChangeListener?.dispose();
-				rerenderOutput.dispose();
-				cellWidthResizeObserver.stopObserving();
-				cellWidthResizeObserver.dispose();
-			}
-		});
+		let cellStore = new DisposableStore();
+		cellStore.add(contentSizeChangeListener!);
+		cellStore.add(rerenderOutput);
+		cellStore.add(cellWidthResizeObserver);
+		this.disposables.set(templateData.cellContainer, cellStore);
 
 		if (templateData.outputContainer) {
 			templateData.outputContainer!.innerHTML = '';
@@ -486,11 +489,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
 				}
 
-				this.disposables.set(templateData.cellContainer, {
-					dispose: () => {
-						elementSizeObserver.dispose();
-					}
-				});
+				this.disposables.get(templateData.cellContainer)?.add(elementSizeObserver);
 			}
 		}
 
