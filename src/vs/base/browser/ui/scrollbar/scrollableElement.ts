@@ -287,7 +287,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._options.fastScrollSensitivity = massagedOptions.fastScrollSensitivity;
-		this._options.scrollPredominantAxisOnly = massagedOptions.scrollPredominantAxisOnly;
+		this._options.scrollPredominantAxis = massagedOptions.scrollPredominantAxis;
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 
 		if (!this._options.lazyRender) {
@@ -335,7 +335,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
 			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
 
-			if (this._options.scrollPredominantAxisOnly) {
+			if (this._options.scrollPredominantAxis) {
 				if (Math.abs(deltaY) >= Math.abs(deltaX)) {
 					deltaX = 0;
 				} else {
@@ -562,7 +562,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
 		fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
-		scrollPredominantAxisOnly: (typeof opts.scrollPredominantAxisOnly !== 'undefined' ? opts.scrollPredominantAxisOnly : true),
+		scrollPredominantAxis: (typeof opts.scrollPredominantAxis !== 'undefined' ? opts.scrollPredominantAxis : true),
 		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 

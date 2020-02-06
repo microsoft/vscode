@@ -323,7 +323,7 @@ export interface IEditorOptions {
 	 * Enable that the editor scrolls only the predominant axis. Prevents horizontal drift when scrolling vertically on a trackpad.
 	 * Defaults to true.
 	 */
-	scrollPredominantAxisOnly?: boolean;
+	scrollPredominantAxis?: boolean;
 	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
@@ -3198,7 +3198,7 @@ export const enum EditorOption {
 	scrollbar,
 	scrollBeyondLastColumn,
 	scrollBeyondLastLine,
-	scrollPredominantAxisOnly,
+	scrollPredominantAxis,
 	selectionClipboard,
 	selectionHighlight,
 	selectOnLineNumbers,
@@ -3657,9 +3657,9 @@ export const EditorOptions = {
 		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
 		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
 	)),
-	scrollPredominantAxisOnly: register(new EditorBooleanOption(
-		EditorOption.scrollPredominantAxisOnly, 'scrollPredominantAxisOnly', true,
-		{ description: nls.localize('scrollPredominantAxisOnly', "Scroll only along the predominant axis when scrolling both vertically and horizontally at the same time. Prevents horizontal drift when scrolling vertically on a trackpad.") }
+	scrollPredominantAxis: register(new EditorBooleanOption(
+		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,
+		{ description: nls.localize('scrollPredominantAxis', "Scroll only along the predominant axis when scrolling both vertically and horizontally at the same time. Prevents horizontal drift when scrolling vertically on a trackpad.") }
 	)),
 	selectionClipboard: register(new EditorBooleanOption(
 		EditorOption.selectionClipboard, 'selectionClipboard', true,

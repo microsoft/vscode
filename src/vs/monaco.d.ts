@@ -2798,7 +2798,7 @@ declare namespace monaco.editor {
 		 * Enable that the editor scrolls only the predominant axis. Prevents horizontal drift when scrolling vertically on a trackpad.
 		 * Defaults to true.
 		 */
-		scrollPredominantAxisOnly?: boolean;
+		scrollPredominantAxis?: boolean;
 		/**
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
@@ -3777,34 +3777,35 @@ declare namespace monaco.editor {
 		scrollbar = 79,
 		scrollBeyondLastColumn = 80,
 		scrollBeyondLastLine = 81,
-		selectionClipboard = 82,
-		selectionHighlight = 83,
-		selectOnLineNumbers = 84,
-		showFoldingControls = 85,
-		showUnused = 86,
-		snippetSuggestions = 87,
-		smoothScrolling = 88,
-		stopRenderingLineAfter = 89,
-		suggest = 90,
-		suggestFontSize = 91,
-		suggestLineHeight = 92,
-		suggestOnTriggerCharacters = 93,
-		suggestSelection = 94,
-		tabCompletion = 95,
-		useTabStops = 96,
-		wordSeparators = 97,
-		wordWrap = 98,
-		wordWrapBreakAfterCharacters = 99,
-		wordWrapBreakBeforeCharacters = 100,
-		wordWrapColumn = 101,
-		wordWrapMinified = 102,
-		wrappingIndent = 103,
-		wrappingStrategy = 104,
-		editorClassName = 105,
-		pixelRatio = 106,
-		tabFocusMode = 107,
-		layoutInfo = 108,
-		wrappingInfo = 109
+		scrollPredominantAxis = 82,
+		selectionClipboard = 83,
+		selectionHighlight = 84,
+		selectOnLineNumbers = 85,
+		showFoldingControls = 86,
+		showUnused = 87,
+		snippetSuggestions = 88,
+		smoothScrolling = 89,
+		stopRenderingLineAfter = 90,
+		suggest = 91,
+		suggestFontSize = 92,
+		suggestLineHeight = 93,
+		suggestOnTriggerCharacters = 94,
+		suggestSelection = 95,
+		tabCompletion = 96,
+		useTabStops = 97,
+		wordSeparators = 98,
+		wordWrap = 99,
+		wordWrapBreakAfterCharacters = 100,
+		wordWrapBreakBeforeCharacters = 101,
+		wordWrapColumn = 102,
+		wordWrapMinified = 103,
+		wrappingIndent = 104,
+		wrappingStrategy = 105,
+		editorClassName = 106,
+		pixelRatio = 107,
+		tabFocusMode = 108,
+		layoutInfo = 109,
+		wrappingInfo = 110
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3889,6 +3890,7 @@ declare namespace monaco.editor {
 		scrollbar: IEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions>;
 		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, number>;
 		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, boolean>;
+		scrollPredominantAxis: IEditorOption<EditorOption.scrollPredominantAxis, boolean>;
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
