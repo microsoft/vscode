@@ -126,7 +126,7 @@ class NavBar extends Disposable {
 
 const NavbarSection = {
 	Readme: 'readme',
-	FeatureContributions: 'contributions',
+	Contributions: 'contributions',
 	Changelog: 'changelog',
 	Dependencies: 'dependencies',
 	ExtensionPack: 'extensionPack'
@@ -438,7 +438,7 @@ export class ExtensionEditor extends BaseEditor {
 					template.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
 				}
 				if (manifest && manifest.contributes) {
-					template.navbar.push(NavbarSection.FeatureContributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+					template.navbar.push(NavbarSection.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 				}
 				if (extension.hasChangelog()) {
 					template.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
@@ -565,7 +565,7 @@ export class ExtensionEditor extends BaseEditor {
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate): Promise<IActiveElement | null> {
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme(template);
-			case NavbarSection.FeatureContributions: return this.openContributions(template);
+			case NavbarSection.Contributions: return this.openContributions(template);
 			case NavbarSection.Changelog: return this.openChangelog(template);
 			case NavbarSection.Dependencies: return this.openDependencies(extension, template);
 			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension, template);
