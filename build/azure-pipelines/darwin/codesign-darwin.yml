@@ -16,7 +16,7 @@ steps:
     security create-keychain -p pwd build
     security default-keychain -s build
     security unlock-keychain -p pwd build
-    security import $(agent.tempdirectory)/cert.p12 -k ~/Library/Keychains/${KEYCHAIN} -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+    security import $(agent.tempdirectory)/cert.p12 -k ~/Library/Keychains/build.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd build
 
     curl -o $(agent.tempdirectory)/VSCode-darwin.zip https://vscode.blob.core.windows.net/public/VSCode-darwin.zip
