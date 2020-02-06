@@ -15,7 +15,7 @@ import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout } from 'vs/base/common/async';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
@@ -46,6 +46,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidLoad = this._register(new Emitter<LoadReason>());
 	readonly onDidLoad = this._onDidLoad.event;
 
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
 	private readonly _onDidSaveError = this._register(new Emitter<void>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
@@ -60,9 +63,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
-
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
 	//#endregion
 
@@ -266,14 +266,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
 
 			if (this.isResolved()) {
-				return this; // Make sure meanwhile someone else did not suceed in loading
+				return this; // Make sure meanwhile someone else did not succeed in loading
 			}
 
 			if (backup) {
 				try {
 					return await this.loadFromBackup(backup, options);
 				} catch (error) {
-					this.logService.error('[text file model] load()', error); // ignore error and continue to load as file below
+					this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
 				}
 			}
 		}
@@ -344,12 +344,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// NotModified status is expected and can be handled gracefully
 			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-
-				// Guard against the model having changed in the meantime
-				if (currentVersionId === this.versionId) {
-					this.doSetDirty(false); // Ensure we are not tracking a stale state
-				}
-
 				return this;
 			}
 
@@ -393,7 +387,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Update Existing Model
-		if (this.isResolved()) {
+		if (this.textEditorModel) {
 			this.doUpdateTextModel(content.value);
 		}
 
@@ -412,27 +406,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace('[text file model] load() - created text editor model', this.resource.toString());
 
 		// Create model
-		this.createTextEditorModel(value, resource, this.preferredMode);
+		const textModel = this.createTextEditorModel(value, resource, this.preferredMode);
 
 		// We restored a backup so we have to set the model as being dirty
 		if (fromBackup) {
 			this.setDirty(true);
 		}
 
-		// Ensure we are not tracking a stale state
-		else {
-			this.doSetDirty(false);
-		}
-
 		// Model Listeners
-		this.installModelListeners();
+		this.installModelListeners(textModel);
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
 		this.logService.trace('[text file model] load() - updated text editor model', this.resource.toString());
-
-		// Ensure we are not tracking a stale state
-		this.doSetDirty(false);
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
@@ -446,19 +432,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateSavedVersionId();
 	}
 
-	private installModelListeners(): void {
+	private installModelListeners(model: ITextModel): void {
 
 		// See https://github.com/Microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		if (this.isResolved()) {
-			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
-		}
+		this._register(model.onDidChangeContent(() => this.onModelContentChanged(model)));
 	}
 
-	private onModelContentChanged(): void {
+	private onModelContentChanged(model: ITextModel): void {
 		this.logService.trace(`[text file model] onModelContentChanged() - enter`, this.resource.toString());
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
@@ -472,7 +456,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// The contents changed as a matter of Undo and the version reached matches the saved one
 			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
-			if (this.isResolved() && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+			if (model.getAlternativeVersionId() === this.bufferSavedVersionId) {
 				this.logService.trace('[text file model] onModelContentChanged() - model content changed back to last saved version', this.resource.toString());
 
 				// Clear flags
@@ -739,11 +723,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._onDidSaveError.fire();
 	}
 
-	private doTouch(versionId: number, reason: SaveReason): Promise<void> {
-		if (!this.isResolved()) {
-			return Promise.resolve();
-		}
-
+	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, reason: SaveReason): Promise<void> {
 		const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 		return this.saveSequentializer.setPending(versionId, this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
 			mtime: lastResolvedFileStat.mtime,

@@ -38,6 +38,9 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		// Figure out initial auto save config
 		this.onAutoSaveConfigurationChange(filesConfigurationService.getAutoSaveConfiguration(), false);
 
+		// Fill in initial dirty working copies
+		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
+
 		this.registerListeners();
 	}
 
@@ -47,10 +50,10 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
 
 		// Working Copy events
-		this._register(this.workingCopyService.onDidRegister(c => this.onDidRegister(c)));
-		this._register(this.workingCopyService.onDidUnregister(c => this.onDidUnregister(c)));
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.onDidChangeDirty(c)));
-		this._register(this.workingCopyService.onDidChangeContent(c => this.onDidChangeContent(c)));
+		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
+		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 	}
 
 	private onWindowFocusChange(focused: boolean): void {
@@ -141,7 +144,9 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private onDidRegister(workingCopy: IWorkingCopy): void {
-		this.scheduleAutoSave(workingCopy);
+		if (workingCopy.isDirty()) {
+			this.scheduleAutoSave(workingCopy);
+		}
 	}
 
 	private onDidUnregister(workingCopy: IWorkingCopy): void {
@@ -149,13 +154,18 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
-		if (!workingCopy.isDirty()) {
+		if (workingCopy.isDirty()) {
+			this.scheduleAutoSave(workingCopy);
+		} else {
 			this.discardAutoSave(workingCopy);
 		}
 	}
 
 	private onDidChangeContent(workingCopy: IWorkingCopy): void {
 		if (workingCopy.isDirty()) {
+			// this listener will make sure that the auto save is
+			// pushed out for as long as the user is still changing
+			// the content of the working copy.
 			this.scheduleAutoSave(workingCopy);
 		}
 	}

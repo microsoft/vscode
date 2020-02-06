@@ -764,7 +764,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerTimelineProvider: (scheme: string, provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension);
-				return extHostTimeline.registerTimelineProvider(provider, extHostCommands.converter);
+				return extHostTimeline.registerTimelineProvider(provider, extension.identifier, extHostCommands.converter);
 			}
 		};
 

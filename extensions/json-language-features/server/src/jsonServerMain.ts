@@ -329,7 +329,7 @@ documents.onDidClose(event => {
 });
 
 const pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
-const validationDelayMs = 500;
+const validationDelayMs = 300;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
 	const request = pendingValidationRequests[textDocument.uri];
@@ -363,12 +363,12 @@ function validateTextDocument(textDocument: TextDocument, callback?: (diagnostic
 
 	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
 	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
-		setTimeout(() => {
+		setImmediate(() => {
 			const currDocument = documents.get(textDocument.uri);
 			if (currDocument && currDocument.version === version) {
 				respond(diagnostics); // Send the computed diagnostics to VSCode.
 			}
-		}, 100);
+		});
 	}, error => {
 		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, error));
 	});

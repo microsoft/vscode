@@ -18,7 +18,7 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface Session {
+	export interface AuthenticationSession {
 		id: string;
 		accessToken: string;
 		accountName: string;
@@ -58,12 +58,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Promise<ReadonlyArray<Session>>;
+		getSessions(): Promise<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Promise<Session>;
+		login(scopes: string[]): Promise<AuthenticationSession>;
 		logout(sessionId: string): Promise<void>;
 	}
 
@@ -1505,27 +1505,32 @@ declare module 'vscode' {
 
 	export class TimelineItem {
 		/**
-		 * A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
+		 * A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred.
 		 */
 		timestamp: number;
 
 		/**
-		 * A human-readable string describing the timeline item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 * A human-readable string describing the timeline item.
 		 */
 		label: string;
 
 		/**
-		 * Optional id for the timeline item. See [TreeItem.id](#TreeItem.id) for more details.
+		 * Optional id for the timeline item.
+		 */
+		/**
+		 * Optional id for the timeline item that has to be unique across your timeline source.
+		 *
+		 * If not provided, an id is generated using the timeline item's label.
 		 */
 		id?: string;
 
 		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item. See [TreeItem.iconPath](#TreeItem.iconPath) for more details.
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
 		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
-		 * A human readable string describing less prominent details of the timeline item. See [TreeItem.description](#TreeItem.description) for more details.
+		 * A human readable string describing less prominent details of the timeline item.
 		 */
 		description?: string;
 
@@ -1540,7 +1545,22 @@ declare module 'vscode' {
 		command?: Command;
 
 		/**
-		 * Context value of the timeline item.  See [TreeItem.contextValue](#TreeItem.contextValue) for more details.
+		 * Context value of the timeline item. This can be used to contribute specific actions to the item.
+		 * For example, a timeline item is given a context value as `commit`. When contributing actions to `timeline/item/context`
+		 * using `menus` extension point, you can specify context value for key `timelineItem` in `when` expression like `timelineItem == commit`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"timeline/item/context": [
+		 *				{
+		 *					"command": "extension.copyCommitId",
+		 *					"when": "timelineItem == commit"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show the `extension.copyCommitId` action only for items where `contextValue` is `commit`.
 		 */
 		contextValue?: string;
 
@@ -1551,32 +1571,35 @@ declare module 'vscode' {
 		constructor(label: string, timestamp: number);
 	}
 
+	export interface TimelineChangeEvent {
+		/**
+		 * The [uri](#Uri) of the resource for which the timeline changed.
+		 * If the [uri](#Uri) is `undefined` that signals that the timeline source for all resources changed.
+		 */
+		uri?: Uri;
+	}
+
 	export interface TimelineProvider {
 		/**
 		 * An optional event to signal that the timeline for a source has changed.
 		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
 		 */
-		onDidChange?: Event<Uri | undefined>;
+		onDidChange?: Event<TimelineChangeEvent>;
 
 		/**
-		 * An identifier of the source of the timeline items. This can be used for filtering and/or overriding existing sources.
+		 * An identifier of the source of the timeline items. This can be used to filter sources.
 		 */
-		source: string;
+		id: string;
 
 		/**
-		 * A human-readable string describing the source of the timeline items. This can be as the display label when filtering by sources.
+		 * A human-readable string describing the source of the timeline items. This can be used as the display label when filtering sources.
 		 */
-		sourceDescription: string;
-
-		/**
-		 * A flag that signals whether this provider can be swapped out (replaced) for another provider using the same [TimelineProvider.source](#TimelineProvider.source).
-		 */
-		replaceable?: boolean;
+		label: string;
 
 		/**
 		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
 		 *
-		 * @param uri The uri of the file to provide the timeline for.
+		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
 		 * @param token A cancellation token.
 		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
@@ -1597,6 +1620,21 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
+	}
+
+	//#endregion
+
+
+	//#region
+
+	export interface ExtensionContext {
+		/**
+		 * Get the uri of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The uri of the resource.
+		 */
+		asExtensionUri(relativePath: string): Uri;
 	}
 
 	//#endregion

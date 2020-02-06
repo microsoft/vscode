@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -101,6 +102,7 @@ export interface ExtensionData {
 	extensionPublisher: string;
 	extensionName: string;
 	extensionIsBuiltin: boolean;
+	extensionLocation: URI;
 }
 
 export interface IThemeExtensionPoint {

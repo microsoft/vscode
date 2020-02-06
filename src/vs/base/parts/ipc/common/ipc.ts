@@ -9,6 +9,8 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { getRandomElement } from 'vs/base/common/arrays';
+import { isFunction } from 'vs/base/common/types';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -117,8 +119,7 @@ export interface IClientRouter<TContext = string> {
  * order to pick the right one.
  */
 export interface IRoutingChannelClient<TContext = string> {
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
-	getBroadcastChannel<T extends IChannel>(channelName: string): T;
+	getChannel<T extends IChannel>(channelName: string, router?: IClientRouter<TContext>): T;
 }
 
 interface IReader {
@@ -700,19 +701,47 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		});
 	}
 
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T {
+	/**
+	 * Get a channel from a remote client. When passed a router,
+	 * one can specify which client it wants to call and listen to/from.
+	 * Otherwise, when calling without a router, a random client will
+	 * be selected and when listening without a router, every client
+	 * will be listened to.
+	 */
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
+	getChannel<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean): T;
+	getChannel<T extends IChannel>(channelName: string, routerOrClientFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean)): T {
 		const that = this;
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				const channelPromise = router.routeCall(that, command, arg)
+				let connectionPromise: Promise<Client<TContext>>;
+
+				if (isFunction(routerOrClientFilter)) {
+					// when no router is provided, we go random client picking
+					let connection = getRandomElement(that.connections.filter(routerOrClientFilter));
+
+					connectionPromise = connection
+						// if we found a client, let's call on it
+						? Promise.resolve(connection)
+						// else, let's wait for a client to come along
+						: Event.toPromise(Event.filter(that.onDidAddConnection, routerOrClientFilter));
+				} else {
+					connectionPromise = routerOrClientFilter.routeCall(that, command, arg);
+				}
+
+				const channelPromise = connectionPromise
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
 					.call(command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any): Event<T> {
-				const channelPromise = router.routeEvent(that, event, arg)
+				if (isFunction(routerOrClientFilter)) {
+					return that.getMulticastEvent(channelName, routerOrClientFilter, event, arg);
+				}
+
+				const channelPromise = routerOrClientFilter.routeEvent(that, event, arg)
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
@@ -721,64 +750,56 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		} as T;
 	}
 
-	getBroadcastChannel<T extends IChannel>(channelName: string): T {
+	private getMulticastEvent<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean, eventName: string, arg: any): Event<T> {
 		const that = this;
+		let disposables = new DisposableStore();
 
-		return {
-			call(_): Promise<T> {
-				throw new Error('IPC broadcast channels are not supported for calls');
-			},
-			listen(eventName: string, arg: any): Event<T> {
-				let disposables = new DisposableStore();
+		// Create an emitter which hooks up to all clients
+		// as soon as first listener is added. It also
+		// disconnects from all clients as soon as the last listener
+		// is removed.
+		const emitter = new Emitter<T>({
+			onFirstListenerAdd: () => {
+				disposables = new DisposableStore();
 
-				// Create an emitter which hooks up to all clients
-				// as soon as first listener is added. It also
-				// disconnects from all clients as soon as the last listener
-				// is removed.
-				const emitter = new Emitter<T>({
-					onFirstListenerAdd: () => {
-						disposables = new DisposableStore();
+				// The event multiplexer is useful since the active
+				// client list is dynamic. We need to hook up and disconnection
+				// to/from clients as they come and go.
+				const eventMultiplexer = new EventMultiplexer<T>();
+				const map = new Map<Connection<TContext>, IDisposable>();
 
-						// The event multiplexer is useful since the active
-						// client list is dynamic. We need to hook up and disconnection
-						// to/from clients as they come and go.
-						const eventMultiplexer = new EventMultiplexer<T>();
-						const map = new Map<Connection<TContext>, IDisposable>();
+				const onDidAddConnection = (connection: Connection<TContext>) => {
+					const channel = connection.channelClient.getChannel(channelName);
+					const event = channel.listen<T>(eventName, arg);
+					const disposable = eventMultiplexer.add(event);
 
-						const onDidAddConnection = (connection: Connection<TContext>) => {
-							const channel = connection.channelClient.getChannel(channelName);
-							const event = channel.listen<T>(eventName, arg);
-							const disposable = eventMultiplexer.add(event);
+					map.set(connection, disposable);
+				};
 
-							map.set(connection, disposable);
-						};
+				const onDidRemoveConnection = (connection: Connection<TContext>) => {
+					const disposable = map.get(connection);
 
-						const onDidRemoveConnection = (connection: Connection<TContext>) => {
-							const disposable = map.get(connection);
-
-							if (!disposable) {
-								return;
-							}
-
-							disposable.dispose();
-							map.delete(connection);
-						};
-
-						that.connections.forEach(onDidAddConnection);
-						that.onDidAddConnection(onDidAddConnection, undefined, disposables);
-						that.onDidRemoveConnection(onDidRemoveConnection, undefined, disposables);
-						eventMultiplexer.event(emitter.fire, emitter, disposables);
-
-						disposables.add(eventMultiplexer);
-					},
-					onLastListenerRemove: () => {
-						disposables.dispose();
+					if (!disposable) {
+						return;
 					}
-				});
 
-				return emitter.event;
+					disposable.dispose();
+					map.delete(connection);
+				};
+
+				that.connections.filter(clientFilter).forEach(onDidAddConnection);
+				Event.filter(that.onDidAddConnection, clientFilter)(onDidAddConnection, undefined, disposables);
+				that.onDidRemoveConnection(onDidRemoveConnection, undefined, disposables);
+				eventMultiplexer.event(emitter.fire, emitter, disposables);
+
+				disposables.add(eventMultiplexer);
+			},
+			onLastListenerRemove: () => {
+				disposables.dispose();
 			}
-		} as T;
+		});
+
+		return emitter.event;
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {

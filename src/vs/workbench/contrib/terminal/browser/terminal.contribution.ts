@@ -10,7 +10,7 @@ import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -20,7 +20,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, DeleteToLineStartTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, MoveToLineEndTerminalAction, MoveToLineStartTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SendSequenceTerminalCommand, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, TERMINAL_PICKER_PREFIX, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalCommand, RenameWithArgTerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, DeleteToLineStartTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, MoveToLineEndTerminalAction, MoveToLineStartTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, TERMINAL_PICKER_PREFIX, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction, RenameWithArgTerminalAction, SendSequenceTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -343,6 +343,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.unicodeVersion': {
+			type: 'string',
+			enum: ['6', '11'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.unicodeVersion.six', "Version 6 of unicode, this is an older version which should work better on older systems."),
+				nls.localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode, this version provides better support on modern systems that use modern versions of unicode.")
+			],
+			default: '11',
+			description: nls.localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		}
 	}
 });
@@ -588,66 +598,77 @@ if (BrowserFeatures.clipboard.readText) {
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
 	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
 }
-(new SendSequenceTerminalCommand({
-	id: SendSequenceTerminalCommand.ID,
-	precondition: undefined,
-	description: {
-		description: SendSequenceTerminalCommand.LABEL,
-		args: [{
-			name: 'args',
-			schema: {
-				type: 'object',
-				required: ['text'],
-				properties: {
-					text: { type: 'string' }
-				},
-			}
-		}]
-	}
-})).register();
 
-(new CreateNewWithCwdTerminalCommand({
-	id: CreateNewWithCwdTerminalCommand.ID,
-	precondition: undefined,
-	description: {
-		description: CreateNewWithCwdTerminalCommand.LABEL,
-		args: [{
-			name: 'args',
-			schema: {
-				type: 'object',
-				required: ['cwd'],
-				properties: {
-					cwd: {
-						description: CreateNewWithCwdTerminalCommand.CWD_ARG_LABEL,
-						type: 'string'
+registerAction2(class extends SendSequenceTerminalAction {
+	constructor() {
+		super({
+			id: SendSequenceTerminalAction.ID,
+			title: SendSequenceTerminalAction.LABEL,
+			description: {
+				description: SendSequenceTerminalAction.LABEL,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						required: ['text'],
+						properties: {
+							text: { type: 'string' }
+						},
 					}
-				},
+				}]
 			}
-		}]
+		});
 	}
-})).register();
-
-(new RenameWithArgTerminalCommand({
-	id: RenameWithArgTerminalCommand.ID,
-	precondition: undefined,
-	description: {
-		description: RenameWithArgTerminalCommand.LABEL,
-		args: [{
-			name: 'args',
-			schema: {
-				type: 'object',
-				required: ['name'],
-				properties: {
-					name: {
-						description: RenameWithArgTerminalCommand.NAME_ARG_LABEL,
-						type: 'string',
-						minLength: 1
+});
+registerAction2(class extends CreateNewWithCwdTerminalAction {
+	constructor() {
+		super({
+			id: CreateNewWithCwdTerminalAction.ID,
+			title: CreateNewWithCwdTerminalAction.LABEL,
+			description: {
+				description: CreateNewWithCwdTerminalAction.LABEL,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						required: ['cwd'],
+						properties: {
+							cwd: {
+								description: CreateNewWithCwdTerminalAction.CWD_ARG_LABEL,
+								type: 'string'
+							}
+						},
 					}
-				}
+				}]
 			}
-		}]
+		});
 	}
-})).register();
+});
+registerAction2(class extends RenameWithArgTerminalAction {
+	constructor() {
+		super({
+			id: RenameWithArgTerminalAction.ID,
+			title: RenameWithArgTerminalAction.LABEL,
+			description: {
+				description: RenameWithArgTerminalAction.LABEL,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						required: ['name'],
+						properties: {
+							name: {
+								description: RenameWithArgTerminalAction.NAME_ARG_LABEL,
+								type: 'string',
+								minLength: 1
+							}
+						}
+					}
+				}]
+			}
+		});
+	}
+});
 
 setupTerminalCommands();
 setupTerminalMenu();
