@@ -8,7 +8,7 @@ resources:
 
 jobs:
 - job: macOS
-  timeoutInMinutes: 180
+  timeoutInMinutes: 20
   pool:
     vmImage: macOS-latest
   steps:
