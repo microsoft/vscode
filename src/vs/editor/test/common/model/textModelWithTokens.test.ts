@@ -765,71 +765,36 @@ suite('TextModel.getLineIndentGuide', () => {
 		assert.deepEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
 	});
-});
 
-suite('TextModel.getActiveIndentGuide', () => {
-	function assertActiveIndent(lines: [Boolean, string][], selectedLine: number) {
-		let text = lines.map(l => l[1]).join('\n');
-		let model = TextModel.createFromString(text);
-
-		let actualActive = model.getActiveIndentGuide(selectedLine, 1, model.getLineCount());
-
-		let actual: [Boolean, string][] = [];
-		for (let line = 1; line <= model.getLineCount(); line++) {
-			actual[line - 1] = [actualActive.indent > 0 && line >= actualActive.startLineNumber && line <= actualActive.endLineNumber, model.getLineContent(line)];
-		}
-
-		assert.deepEqual(actual, lines);
-
-		model.dispose();
-
-	}
-
-	test('no active', () => {
-		assertActiveIndent([
-			[false, 'A'],
-			[false, 'A']
-		], 1);
+	test('tweaks - no active', () => {
+		assertIndentGuides([
+			[0, 1, 1, 0, 'A'],
+			[0, 2, 2, 0, 'A']
+		]);
 	});
 
-	test('inside scope', () => {
-		assertActiveIndent([
-			[false, 'A'],
-			[true, '  A']
-		], 2);
+	test('tweaks - inside scope', () => {
+		assertIndentGuides([
+			[0, 2, 2, 1, 'A'],
+			[1, 2, 2, 1, '  A']
+		]);
 	});
 
-	test('scope start', () => {
-		assertActiveIndent([
-			[false, 'A'],
-			[true, '  A'],
-			[false, 'A']
-		], 1);
+	test('tweaks - scope start', () => {
+		assertIndentGuides([
+			[0, 2, 2, 1, 'A'],
+			[1, 2, 2, 1, '  A'],
+			[0, 2, 2, 1, 'A']
+		]);
 	});
 
-	test('inside scope start and end', () => {
-		assertActiveIndent([
-			[false, 'A'],
-			[true, '  A'],
-			[false, 'A']
-		], 2);
-	});
-
-	test('scope end', () => {
-		assertActiveIndent([
-			[false, 'A'],
-			[true, '  A'],
-			[false, 'A']
-		], 3);
-	});
-
-	test('empty line', () => {
-		assertActiveIndent([
-			[false, 'A'],
-			[true, '  A'],
-			[true, ''],
-			[true, '  A'],
-			[false, 'A']
-		], 3);
+	test('tweaks - empty line', () => {
+		assertIndentGuides([
+			[0, 2, 4, 1, 'A'],
+			[1, 2, 4, 1, '  A'],
+			[1, 2, 4, 1, ''],
+			[1, 2, 4, 1, '  A'],
+			[0, 2, 4, 1, 'A']
+		]);
 	});
 });
