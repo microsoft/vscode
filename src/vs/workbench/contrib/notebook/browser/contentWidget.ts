@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewCell } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import * as DOM from 'vs/base/browser/dom';
 import * as UUID from 'vs/base/common/uuid';
@@ -14,7 +14,6 @@ import { URI } from 'vs/base/common/uri';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import * as path from 'vs/base/common/path';
 import { NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
-
 
 export interface IDimentionMessage {
 	type: 'dimension';
@@ -66,7 +65,7 @@ let version = 0;
 export class BackLayerWebView extends Disposable {
 	public element: HTMLElement;
 	public webview: WebviewElement;
-	public mapping: Map<string, { cell: ViewCell, offset: number, top: number }> = new Map();
+	public mapping: Map<string, { cell: CellViewModel, offset: number, top: number }> = new Map();
 	public outputMapping: Map<string, boolean> = new Map();
 
 	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler, public environmentSerice: IEnvironmentService) {
@@ -287,7 +286,7 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage(message);
 	}
 
-	public createContentWidget(cell: ViewCell, offset: number, shadowContent: string, initialTop: number) {
+	public createContentWidget(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number) {
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,

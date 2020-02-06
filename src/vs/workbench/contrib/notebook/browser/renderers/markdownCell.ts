@@ -5,7 +5,7 @@
 
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ViewCell } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { CellRenderTemplate, NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,7 +21,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 	constructor(
 		handler: NotebookHandler,
-		viewCell: ViewCell,
+		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		editorOptions: IEditorOptions,
 		instantiationService: IInstantiationService

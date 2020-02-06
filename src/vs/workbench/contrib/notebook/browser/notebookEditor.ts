@@ -18,7 +18,8 @@ import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/w
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
+import { MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
@@ -50,11 +51,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private contentWidgets!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
 
-	private list: WorkbenchList<ViewCell> | undefined;
+	private list: WorkbenchList<CellViewModel> | undefined;
 	private model: NotebookEditorModel | undefined;
 	private notebook: INotebook | undefined;
 	viewType: string | undefined;
-	private viewCells: ViewCell[] = [];
+	private viewCells: CellViewModel[] = [];
 	private localStore: DisposableStore = new DisposableStore();
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private fontInfo: BareFontInfo | undefined;
@@ -127,7 +128,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			this.instantiationService.createInstance(CodeCellRenderer, this)
 		];
 
-		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ViewCell>>(
+		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<CellViewModel>>(
 			WorkbenchList,
 			'NotebookCellList',
 			this.body,
@@ -178,7 +179,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createContentWidget(cell: ViewCell, outputIndex: number, shadowContent: string, offset: number) {
+	createContentWidget(cell: CellViewModel, outputIndex: number, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}
@@ -202,7 +203,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}
 	}
 
-	disposeViewCell(cell: ViewCell) {
+	disposeViewCell(cell: CellViewModel) {
 	}
 
 	onHide() {
@@ -278,7 +279,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				this.viewType = input.viewType;
 				this.viewCells = this.notebook.cells.map(cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return new ViewCell(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService);
+					return new CellViewModel(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService);
 				});
 
 				const updateScrollPosition = () => {
@@ -324,8 +325,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			});
 	}
 
-	layoutElement(cell: ViewCell, height: number) {
-		let relayout = (cell: ViewCell, height: number) => {
+	layoutElement(cell: CellViewModel, height: number) {
+		let relayout = (cell: CellViewModel, height: number) => {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			if (index >= 0) {
 				this.list?.updateDynamicHeight(index, cell, height);
@@ -362,7 +363,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}
 	}
 
-	async insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
+	async insertEmptyNotebookCell(listIndex: number | undefined, cell: CellViewModel, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
 		let newLanguages = this.notebook!.languages;
 		let language = 'markdown';
 		if (newLanguages && newLanguages.length) {
@@ -373,7 +374,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		let newCell = new ViewCell(this.viewType!, this.notebook!.handle, newModeCell!, false, this.modelService, this.modeService);
+		let newCell = new CellViewModel(this.viewType!, this.notebook!.handle, newModeCell!, false, this.modelService, this.modeService);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);
@@ -388,11 +389,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		});
 	}
 
-	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void {
+	editNotebookCell(listIndex: number | undefined, cell: CellViewModel): void {
 		cell.isEditing = true;
 	}
 
-	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void {
+	saveNotebookCell(listIndex: number | undefined, cell: CellViewModel): void {
 		cell.isEditing = false;
 	}
 
@@ -406,7 +407,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		return undefined;
 	}
 
-	focusNotebookCell(cell: ViewCell, focusEditor: boolean) {
+	focusNotebookCell(cell: CellViewModel, focusEditor: boolean) {
 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 
 		if (focusEditor) {
@@ -424,7 +425,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.list?.view.domNode.focus();
 	}
 
-	async deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): Promise<void> {
+	async deleteNotebookCell(listIndex: number | undefined, cell: CellViewModel): Promise<void> {
 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 
 		// await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);

@@ -9,9 +9,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import * as marked from 'vs/base/common/marked/marked';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI } from 'vs/base/common/uri';
 import { deepClone } from 'vs/base/common/objects';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -19,177 +16,15 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Emitter } from 'vs/base/common/event';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import * as UUID from 'vs/base/common/uuid';
-import { ICell } from 'vs/editor/common/modes';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeObserver';
 import { NotebookHandler, CellRenderTemplate, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
+import { CellViewModel } from './cellViewModel';
 
-
-export class ViewCell extends Disposable {
-	private _textModel: ITextModel | null = null;
-	private _mdRenderer: marked.Renderer | null = null;
-	private _html: string | null = null;
-	private _dynamicHeight: number | null = null;
-
-	protected readonly _onDidDispose = new Emitter<void>();
-	readonly onDidDispose = this._onDidDispose.event;
-
-	protected readonly _onDidChangeEditingState = new Emitter<void>();
-	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
-
-	protected readonly _onDidChangeOutputs = new Emitter<void>();
-	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
-
-	get cellType() {
-		return this.cell.cell_type;
-	}
-
-	get lineCount() {
-		return this.cell.source.length;
-	}
-
-	get outputs() {
-		return this.cell.outputs;
-	}
-
-	get isEditing(): boolean {
-		return this._isEditing;
-	}
-
-	set isEditing(newState: boolean) {
-		this._isEditing = newState;
-		this._onDidChangeEditingState.fire();
-	}
-
-	public id: string;
-
-	constructor(
-		public viewType: string,
-		public notebookHandle: number,
-		public cell: ICell,
-		private _isEditing: boolean,
-		private readonly modelService: IModelService,
-		private readonly modeService: IModeService
-	) {
-		super();
-
-		this.id = UUID.generateUuid();
-		if (this.cell.onDidChangeOutputs) {
-			this.cell.onDidChangeOutputs(() => {
-				this._onDidChangeOutputs.fire();
-			});
-		}
-	}
-
-	hasDynamicHeight() {
-		if (this._dynamicHeight !== null) {
-			return false;
-		}
-
-		if (this.cellType === 'code') {
-			if (this.outputs && this.outputs.length > 0) {
-				// for (let i = 0; i < this.outputs.length; i++) {
-				// 	if (this.outputs[i].output_type === 'display_data' || this.outputs[i].output_type === 'execute_result') {
-				// 		return false;
-				// 	}
-				// }
-
-				return true;
-			} else {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	setDynamicHeight(height: number) {
-		this._dynamicHeight = height;
-	}
-
-	getDynamicHeight() {
-		return this._dynamicHeight;
-	}
-
-	getHeight(lineHeight: number) {
-		if (this._dynamicHeight) {
-			return this._dynamicHeight;
-		}
-
-		if (this.cellType === 'markdown') {
-			return 100;
-		} else {
-			return this.lineCount * lineHeight + 16;
-		}
-	}
-
-	setText(strs: string[]) {
-		this.cell.source = strs;
-		this._html = null;
-	}
-
-	save() {
-		if (this._textModel && (this.cell.isDirty || this.isEditing)) {
-			let cnt = this._textModel.getLineCount();
-			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
-		}
-	}
-
-	getText(): string {
-		return this.cell.source.join('\n');
-	}
-
-	getHTML(): string | null {
-		if (this.cellType === 'markdown') {
-			if (this._html) {
-				return this._html;
-			}
-
-			let renderer = this.getMDRenderer();
-			this._html = marked(this.getText(), { renderer: renderer });
-			return this._html;
-		}
-
-		return null;
-	}
-
-	getTextModel(): ITextModel {
-		if (!this._textModel) {
-			let mode = this.modeService.create(this.cellType === 'markdown' ? 'markdown' : this.cell.language);
-			let ext = this.cellType === 'markdown' ? 'md' : 'py';
-			let resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
-			resource = resource.with({ authority: `notebook+${this.viewType}-${this.notebookHandle}-${this.cell.handle}` });
-			let content = this.cell.source.join('\n');
-			this._textModel = this.modelService.createModel(content, mode, resource, false);
-			this._register(this._textModel);
-			this._register(this._textModel.onDidChangeContent(() => {
-				this.cell.isDirty = true;
-			}));
-		}
-
-		return this._textModel;
-	}
-
-	private getMDRenderer() {
-
-		if (!this._mdRenderer) {
-			this._mdRenderer = new marked.Renderer({ gfm: true });
-		}
-
-		return this._mdRenderer;
-	}
-}
-
-
-
-export class NotebookCellListDelegate implements IListVirtualDelegate<ViewCell> {
+export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -198,19 +33,19 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ViewCell> 
 		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: ViewCell): number {
+	getHeight(element: CellViewModel): number {
 		return element.getHeight(this._lineHeight);
 	}
 
-	hasDynamicHeight(element: ViewCell): boolean {
+	hasDynamicHeight(element: CellViewModel): boolean {
 		return element.hasDynamicHeight();
 	}
 
-	getDynamicHeight(element: ViewCell) {
+	getDynamicHeight(element: CellViewModel) {
 		return element.getDynamicHeight() || 0;
 	}
 
-	getTemplateId(element: ViewCell): string {
+	getTemplateId(element: CellViewModel): string {
 		if (element.cellType === 'markdown') {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
@@ -247,7 +82,7 @@ class AbstractCellRenderer {
 		};
 	}
 
-	showContextMenu(listIndex: number | undefined, element: ViewCell, x: number, y: number) {
+	showContextMenu(listIndex: number | undefined, element: CellViewModel, x: number, y: number) {
 		const actions: Action[] = [];
 		const insertAbove = new Action(
 			'workbench.notebook.code.insertCellAbove',
@@ -346,11 +181,9 @@ class AbstractCellRenderer {
 	}
 }
 
-
-
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
-	private disposables: Map<ViewCell, DisposableStore> = new Map();
+	private disposables: Map<CellViewModel, DisposableStore> = new Map();
 	private count = 0;
 
 	constructor(
@@ -392,7 +225,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return template;
 	}
 
-	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.editingContainer!.style.display = 'none';
 		templateData.cellContainer.innerHTML = element.getHTML() || '';
 
@@ -421,14 +254,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	}
 
-	disposeElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	disposeElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		if (height) {
 			this.disposables.get(element)?.clear();
 		}
 	}
 }
 
-export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
 	private count = 0;
@@ -479,7 +312,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return tempalte;
 	}
 
-	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		let width;
 		const listDimension = this.handler.getListDimension();
 		if (listDimension) {
@@ -668,7 +501,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 
-	disposeElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	disposeElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		let menuContainer = this.disposables.get(templateData.menuContainer!);
 
 		if (menuContainer) {
