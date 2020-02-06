@@ -300,13 +300,23 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	private _computeContentWidth(maxLineWidth: number): number {
 		const options = this._configuration.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		let isViewportWrapping = wrappingInfo.isViewportWrapping;
-		if (!isViewportWrapping) {
-			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		if (wrappingInfo.isViewportWrapping) {
+			const layoutInfo = options.get(EditorOption.layoutInfo);
+			const minimap = options.get(EditorOption.minimap);
+			if (maxLineWidth > layoutInfo.contentWidth + fontInfo.typicalHalfwidthCharacterWidth) {
+				// This is a case where viewport wrapping is on, but the line extends above the viewport
+				if (minimap.enabled && minimap.side === 'right') {
+					// We need to accomodate the scrollbar width
+					return maxLineWidth + layoutInfo.verticalScrollbarWidth;
+				}
+			}
+			return maxLineWidth;
+		} else {
+			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * fontInfo.typicalHalfwidthCharacterWidth;
 			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
 			return Math.max(maxLineWidth + extraHorizontalSpace, whitespaceMinWidth);
 		}
-		return maxLineWidth;
 	}
 
 	public onMaxLineWidthChanged(maxLineWidth: number): void {

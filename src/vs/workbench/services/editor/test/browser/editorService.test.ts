@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions, EditorsOrder } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -72,15 +72,15 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		this.gotSaved = true;
-		return true;
+		return this;
 	}
-	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		this.gotSavedAs = true;
-		return true;
+		return this;
 	}
-	async revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;
@@ -172,7 +172,6 @@ suite('EditorService', () => {
 		assert.ok(!service.activeTextEditorMode);
 		assert.equal(service.visibleTextEditorWidgets.length, 0);
 		assert.equal(service.isOpen(input), true);
-		assert.equal(service.getOpened({ resource: input.getResource() }), input);
 		assert.equal(activeEditorChangeEventCounter, 1);
 		assert.equal(visibleEditorChangeEventCounter, 1);
 

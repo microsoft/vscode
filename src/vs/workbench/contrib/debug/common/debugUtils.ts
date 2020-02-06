@@ -11,7 +11,7 @@ import { deepClone } from 'vs/base/common/objects';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
-export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
+export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string } | undefined): string {
 	return value.replace(_formatPIIRegexp, function (match, group) {
 		if (excludePII && group.length > 0 && group[0] !== '_') {
 			return match;
@@ -246,6 +246,9 @@ export function getVisibleAndSorted<T extends { presentation?: IConfigPresentati
 			return -1;
 		}
 		if (!first.presentation.group) {
+			if (!second.presentation.group) {
+				return compareOrders(first.presentation.order, second.presentation.order);
+			}
 			return 1;
 		}
 		if (!second.presentation.group) {
@@ -254,13 +257,18 @@ export function getVisibleAndSorted<T extends { presentation?: IConfigPresentati
 		if (first.presentation.group !== second.presentation.group) {
 			return first.presentation.group.localeCompare(second.presentation.group);
 		}
-		if (typeof first.presentation.order !== 'number') {
-			return 1;
-		}
-		if (typeof second.presentation.order !== 'number') {
-			return -1;
-		}
 
-		return first.presentation.order - second.presentation.order;
+		return compareOrders(first.presentation.order, second.presentation.order);
 	});
+}
+
+function compareOrders(first: number | undefined, second: number | undefined): number {
+	if (typeof first !== 'number') {
+		return 1;
+	}
+	if (typeof second !== 'number') {
+		return -1;
+	}
+
+	return first - second;
 }

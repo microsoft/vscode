@@ -309,6 +309,14 @@ export interface IPartialEditorMouseEvent {
 }
 
 /**
+ * A paste event originating from the editor.
+ */
+export interface IPasteEvent {
+	readonly range: Range;
+	readonly mode: string | null;
+}
+
+/**
  * An overview ruler
  * @internal
  */
@@ -416,11 +424,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted after composition has started.
 	 */
-	onCompositionStart(listener: () => void): IDisposable;
+	onDidCompositionStart(listener: () => void): IDisposable;
 	/**
 	 * An event emitted after composition has ended.
 	 */
-	onCompositionEnd(listener: () => void): IDisposable;
+	onDidCompositionEnd(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
@@ -431,7 +439,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 */
-	onDidPaste(listener: (range: Range) => void): IDisposable;
+	onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
@@ -722,6 +730,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	getTelemetryData(): { [key: string]: any } | undefined;
+
+	/**
+	 * Returns the editor's container dom node
+	 */
+	getContainerDomNode(): HTMLElement;
 
 	/**
 	 * Returns the editor's dom node

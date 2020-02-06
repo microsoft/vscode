@@ -138,7 +138,7 @@ class FormatOnType implements IEditorContribution {
 			}
 
 			if (isNonEmptyArray(edits)) {
-				FormattingEdit.execute(this._editor, edits);
+				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
 
@@ -191,7 +191,7 @@ class FormatOnPaste implements IEditorContribution {
 			return;
 		}
 
-		this._callOnModel.add(this.editor.onDidPaste(range => this._trigger(range)));
+		this._callOnModel.add(this.editor.onDidPaste(({ range }) => this._trigger(range)));
 	}
 
 	private _trigger(range: Range): void {

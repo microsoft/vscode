@@ -76,6 +76,11 @@ export interface IUntitledTextEditorModelManager {
 	readonly onDidChangeEncoding: Event<URI>;
 
 	/**
+	 * Events for when untitled text editor labels change.
+	 */
+	readonly onDidChangeLabel: Event<URI>;
+
+	/**
 	 * Events for when untitled text editors are disposed.
 	 */
 	readonly onDidDisposeModel: Event<URI>;
@@ -132,7 +137,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
-	protected readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
+	private readonly _onDidChangeLabel = this._register(new Emitter<URI>());
+	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+
+	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(
@@ -222,6 +230,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledResource, !!options.associatedResource, options.mode, options.initialValue, options.encoding);
 
 		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(input.getResource()));
+		const labelListener = input.onDidChangeLabel(() => this._onDidChangeLabel.fire(input.getResource()));
 		const encodingListener = input.onDidModelChangeEncoding(() => this._onDidChangeEncoding.fire(input.getResource()));
 		const disposeListener = input.onDispose(() => this._onDidDisposeModel.fire(input.getResource()));
 
@@ -234,6 +243,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 			// Listeners
 			dirtyListener.dispose();
+			labelListener.dispose();
 			encodingListener.dispose();
 			disposeListener.dispose();
 		});

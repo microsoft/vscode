@@ -25,6 +25,7 @@ import { timeout, RunOnceWorker } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -288,8 +289,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				return false; // resource must not be pending to save
 			}
 
-			if (this.editorService.isOpen({ resource })) {
-				return false; // model must not be opened already
+			if (this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: resource.scheme !== Schemas.untitled, forceUntitled: resource.scheme === Schemas.untitled }))) {
+				return false; // model must not be opened already as file
 			}
 
 			return true;

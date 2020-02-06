@@ -211,7 +211,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	preventSaveConflicts(resource: URI, language: string): boolean {
-		return this.configurationService.getValue('files.preventSaveConflicts', { resource, overrideIdentifier: language });
+		return this.configurationService.getValue('files.saveConflictResolution', { resource, overrideIdentifier: language }) !== 'overwriteFileOnDisk';
 	}
 }
 

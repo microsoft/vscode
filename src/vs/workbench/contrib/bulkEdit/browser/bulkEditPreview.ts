@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, TextEdit, WorkspaceTextEdit, WorkspaceFileEdit } from 'vs/editor/common/modes';
+import { WorkspaceEdit, WorkspaceTextEdit, WorkspaceFileEdit, WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mergeSort, coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,34 +18,56 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
+import { values, ResourceMap } from 'vs/base/common/map';
+import { localize } from 'vs/nls';
 
-class CheckedObject {
+export class CheckedStates<T extends object> {
 
-	private _checked: boolean = true;
+	private readonly _states = new WeakMap<T, boolean>();
+	private _checkedCount: number = 0;
 
-	constructor(protected _emitter: Emitter<any>) { }
+	private readonly _onDidChange = new Emitter<T>();
+	readonly onDidChange: Event<T> = this._onDidChange.event;
 
-	updateChecked(checked: boolean) {
-		if (this._checked !== checked) {
-			this._checked = checked;
-			this._emitter.fire(this);
-		}
+	dispose(): void {
+		this._onDidChange.dispose();
 	}
 
-	isChecked(): boolean {
-		return this._checked;
+	get checkedCount() {
+		return this._checkedCount;
+	}
+
+	isChecked(obj: T): boolean {
+		return this._states.get(obj) ?? false;
+	}
+
+	updateChecked(obj: T, value: boolean): void {
+		const valueNow = this._states.get(obj);
+		if (valueNow === value) {
+			return;
+		}
+		if (valueNow === undefined) {
+			if (value) {
+				this._checkedCount += 1;
+			}
+		} else {
+			if (value) {
+				this._checkedCount += 1;
+			} else {
+				this._checkedCount -= 1;
+			}
+		}
+		this._states.set(obj, value);
+		this._onDidChange.fire(obj);
 	}
 }
 
-export class BulkTextEdit extends CheckedObject {
+export class BulkTextEdit {
 
 	constructor(
 		readonly parent: BulkFileOperation,
-		readonly edit: TextEdit,
-		emitter: Emitter<BulkFileOperation | BulkTextEdit>
-	) {
-		super(emitter);
-	}
+		readonly textEdit: WorkspaceTextEdit
+	) { }
 }
 
 export const enum BulkFileOperationType {
@@ -55,7 +77,7 @@ export const enum BulkFileOperationType {
 	Rename = 8,
 }
 
-export class BulkFileOperation extends CheckedObject {
+export class BulkFileOperation {
 
 	type: BulkFileOperationType = 0;
 	textEdits: BulkTextEdit[] = [];
@@ -65,19 +87,38 @@ export class BulkFileOperation extends CheckedObject {
 	constructor(
 		readonly uri: URI,
 		readonly parent: BulkFileOperations
-	) {
-		super(parent._onDidChangeCheckedState);
-	}
+	) { }
 
 	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit, ) {
-		this.type += type;
+		this.type |= type;
 		this.originalEdits.set(index, edit);
 		if (WorkspaceTextEdit.is(edit)) {
-			this.textEdits = this.textEdits.concat(edit.edits.map(edit => new BulkTextEdit(this, edit, this._emitter)));
+			this.textEdits.push(new BulkTextEdit(this, edit));
 
 		} else if (type === BulkFileOperationType.Rename) {
 			this.newUri = edit.newUri;
 		}
+	}
+}
+
+export class BulkCategory {
+
+	private static readonly _defaultMetadata = Object.freeze({
+		label: localize('default', "Other"),
+		icon: { id: 'codicon/symbol-file' },
+		needsConfirmation: false
+	});
+
+	static keyOf(metadata?: WorkspaceEditMetadata) {
+		return metadata?.label || '<default>';
+	}
+
+	readonly operationByResource = new Map<string, BulkFileOperation>();
+
+	constructor(readonly metadata: WorkspaceEditMetadata = BulkCategory._defaultMetadata) { }
+
+	get fileOperations(): BulkFileOperation[] {
+		return values(this.operationByResource);
 	}
 }
 
@@ -88,11 +129,10 @@ export class BulkFileOperations {
 		return await result._init();
 	}
 
-	readonly _onDidChangeCheckedState = new Emitter<BulkFileOperation | BulkTextEdit>();
-	readonly onDidChangeCheckedState: Event<BulkFileOperation | BulkTextEdit> = this._onDidChangeCheckedState.event;
+	readonly checked = new CheckedStates<WorkspaceFileEdit | WorkspaceTextEdit>();
 
 	readonly fileOperations: BulkFileOperation[] = [];
-
+	readonly categories: BulkCategory[] = [];
 	readonly conflicts: ConflictDetector;
 
 	constructor(
@@ -104,18 +144,24 @@ export class BulkFileOperations {
 	}
 
 	dispose(): void {
+		this.checked.dispose();
 		this.conflicts.dispose();
 	}
 
 	async _init() {
 		const operationByResource = new Map<string, BulkFileOperation>();
-		const newToOldUri = new Map<string, string>();
+		const operationByCategory = new Map<string, BulkCategory>();
+
+		const newToOldUri = new ResourceMap<URI>();
 
 		for (let idx = 0; idx < this._bulkEdit.edits.length; idx++) {
 			const edit = this._bulkEdit.edits[idx];
 
 			let uri: URI;
 			let type: BulkFileOperationType;
+
+			// store inital checked state
+			this.checked.updateChecked(edit, !edit.metadata?.needsConfirmation);
 
 			if (WorkspaceTextEdit.is(edit)) {
 				type = BulkFileOperationType.TextEdit;
@@ -130,7 +176,7 @@ export class BulkFileOperations {
 				}
 				// map newUri onto oldUri so that text-edit appear for
 				// the same file element
-				newToOldUri.set(edit.newUri.toString(), uri.toString());
+				newToOldUri.set(edit.newUri, uri);
 
 			} else if (edit.oldUri) {
 				type = BulkFileOperationType.Delete;
@@ -153,73 +199,131 @@ export class BulkFileOperations {
 				continue;
 			}
 
-			let key = uri.toString();
-			let operation = operationByResource.get(key);
+			const insert = (uri: URI, map: Map<string, BulkFileOperation>) => {
+				let key = uri.toString();
+				let operation = map.get(key);
 
-			// rename
-			if (!operation && newToOldUri.has(key)) {
-				key = newToOldUri.get(key)!;
-				operation = operationByResource.get(key);
-			}
+				// rename
+				if (!operation && newToOldUri.has(uri)) {
+					uri = newToOldUri.get(uri)!;
+					key = uri.toString();
+					operation = map.get(key);
+				}
 
-			if (!operation) {
-				operation = new BulkFileOperation(uri, this);
-				operationByResource.set(key, operation);
+				if (!operation) {
+					operation = new BulkFileOperation(uri, this);
+					map.set(key, operation);
+				}
+				operation.addEdit(idx, type, edit);
+			};
+
+			insert(uri, operationByResource);
+
+			// insert into "this" category
+			let key = BulkCategory.keyOf(edit.metadata);
+			let category = operationByCategory.get(key);
+			if (!category) {
+				category = new BulkCategory(edit.metadata);
+				operationByCategory.set(key, category);
 			}
-			operation.addEdit(idx, type, edit);
+			insert(uri, category.operationByResource);
 		}
 
 		operationByResource.forEach(value => this.fileOperations.push(value));
+		operationByCategory.forEach(value => value.metadata.needsConfirmation ? this.categories.unshift(value) : this.categories.push(value));
+
+		// "correct" invalid parent-check child states that is
+		// unchecked file edits (rename, create, delete) uncheck
+		// all edits for a file, e.g no text change without rename
+		for (let file of this.fileOperations) {
+			if (file.type !== BulkFileOperationType.TextEdit) {
+				let checked = true;
+				file.originalEdits.forEach(edit => {
+					if (WorkspaceFileEdit.is(edit)) {
+						checked = checked && this.checked.isChecked(edit);
+					}
+				});
+				if (!checked) {
+					file.originalEdits.forEach(edit => {
+						this.checked.updateChecked(edit, checked);
+					});
+				}
+			}
+		}
+
 		return this;
 	}
 
-	asWorkspaceEdit(): WorkspaceEdit {
+	getWorkspaceEdit(): WorkspaceEdit {
 		const result: WorkspaceEdit = { edits: [] };
 		let allAccepted = true;
-		for (let file of this.fileOperations) {
 
-			if (!file.isChecked()) {
-				allAccepted = false;
+		for (let i = 0; i < this._bulkEdit.edits.length; i++) {
+			const edit = this._bulkEdit.edits[i];
+			if (this.checked.isChecked(edit)) {
+				result.edits[i] = edit;
 				continue;
 			}
+			allAccepted = false;
+		}
 
-			const keyOfEdit = (edit: TextEdit) => JSON.stringify(edit);
-			const checkedEdits = new Set<string>();
+		if (allAccepted) {
+			return this._bulkEdit;
+		}
 
-			for (let edit of file.textEdits) {
-				if (edit.isChecked()) {
-					checkedEdits.add(keyOfEdit(edit.edit));
-				}
-			}
+		// not all edits have been accepted
+		coalesceInPlace(result.edits);
+		return result;
+	}
 
-			file.originalEdits.forEach((value, idx) => {
+	getFileEdits(uri: URI): IIdentifiedSingleEditOperation[] {
 
-				if (WorkspaceTextEdit.is(value)) {
-					let newValue: WorkspaceTextEdit = { ...value, edits: [] };
-					let allEditsAccepted = true;
-					for (let edit of value.edits) {
-						if (!checkedEdits.has(keyOfEdit(edit))) {
-							allEditsAccepted = false;
-						} else {
-							newValue.edits.push(edit);
+		for (let file of this.fileOperations) {
+			if (file.uri.toString() === uri.toString()) {
+
+				const result: IIdentifiedSingleEditOperation[] = [];
+				let ignoreAll = false;
+
+				file.originalEdits.forEach(edit => {
+
+					if (WorkspaceTextEdit.is(edit)) {
+						if (this.checked.isChecked(edit)) {
+							result.push(EditOperation.replaceMove(Range.lift(edit.edit.range), edit.edit.text));
 						}
+
+					} else if (!this.checked.isChecked(edit)) {
+						// UNCHECKED WorkspaceFileEdit disables all text edits
+						ignoreAll = true;
 					}
-					if (!allEditsAccepted) {
-						value = newValue;
-						allAccepted = false;
-					}
+				});
+
+				if (ignoreAll) {
+					return [];
 				}
 
-				result.edits[idx] = value;
-			});
+				return mergeSort(
+					result,
+					(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
+				);
+			}
 		}
-		if (!allAccepted) {
-			// only return a new edit when something has changed
-			coalesceInPlace(result.edits);
-			return result;
-		}
-		return this._bulkEdit;
+		return [];
+	}
 
+	getUriOfEdit(edit: WorkspaceFileEdit | WorkspaceTextEdit): URI {
+
+		for (let file of this.fileOperations) {
+			let found = false;
+			file.originalEdits.forEach(value => {
+				if (!found && value === edit) {
+					found = true;
+				}
+			});
+			if (found) {
+				return file.uri;
+			}
+		}
+		throw new Error('invalid edit');
 	}
 }
 
@@ -257,30 +361,26 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	private async _init() {
 		for (let operation of this._operations.fileOperations) {
-			await this._applyTextEditsToPreviewModel(operation);
+			await this._applyTextEditsToPreviewModel(operation.uri);
 		}
-		this._disposables.add(this._operations.onDidChangeCheckedState(element => {
-			let operation = element instanceof BulkFileOperation ? element : element.parent;
-			this._applyTextEditsToPreviewModel(operation);
+		this._disposables.add(this._operations.checked.onDidChange(e => {
+			const uri = this._operations.getUriOfEdit(e);
+			this._applyTextEditsToPreviewModel(uri);
 		}));
 	}
 
-	private async _applyTextEditsToPreviewModel(operation: BulkFileOperation) {
-		const model = await this._getOrCreatePreviewModel(operation.uri);
+	private async _applyTextEditsToPreviewModel(uri: URI) {
+		const model = await this._getOrCreatePreviewModel(uri);
 
 		// undo edits that have been done before
 		let undoEdits = this._modelPreviewEdits.get(model.id);
 		if (undoEdits) {
 			model.applyEdits(undoEdits);
 		}
-		// compute new edits
-		const newEdits = mergeSort(
-			operation.textEdits.filter(edit => edit.isChecked() && edit.parent.isChecked()).map(edit => EditOperation.replaceMove(Range.lift(edit.edit.range), edit.edit.text)),
-			(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
-		);
-		// apply edits and keep undo edits
-		undoEdits = model.applyEdits(newEdits);
-		this._modelPreviewEdits.set(model.id, undoEdits);
+		// apply new edits and keep (future) undo edits
+		const newEdits = this._operations.getFileEdits(uri);
+		const newUndoEdits = model.applyEdits(newEdits);
+		this._modelPreviewEdits.set(model.id, newUndoEdits);
 	}
 
 	private async _getOrCreatePreviewModel(uri: URI) {

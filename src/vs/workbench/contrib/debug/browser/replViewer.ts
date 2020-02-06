@@ -60,7 +60,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-chevron-right'));
+		dom.append(container, $('span.arrow.codicon.codicon-arrow-small-right'));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
@@ -86,7 +86,6 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	constructor(private readonly linkDetector: LinkDetector) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-chevron-left'));
 		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 		const annotation = dom.append(output, $('span'));
@@ -97,7 +96,6 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
 			colorize: true,
 			linkDetector: this.linkDetector
@@ -231,7 +229,6 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// value
 		renderExpressionValue(element.value, templateData.value, {
-			preserveWhitespace: true,
 			showHover: false,
 			linkDetector: this.linkDetector
 		});

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Session } from 'vs/editor/common/modes';
+import { AuthenticationSession } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
@@ -23,8 +23,9 @@ export interface IAuthenticationService {
 	readonly onDidUnregisterAuthenticationProvider: Event<string>;
 
 	readonly onDidChangeSessions: Event<string>;
-	getSessions(providerId: string): Promise<ReadonlyArray<Session> | undefined>;
-	login(providerId: string): Promise<Session>;
+	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession> | undefined>;
+	getDisplayName(providerId: string): string;
+	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
 	logout(providerId: string, accountId: string): Promise<void>;
 }
 
@@ -60,7 +61,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._onDidChangeSessions.fire(id);
 	}
 
-	async getSessions(id: string): Promise<ReadonlyArray<Session> | undefined> {
+	getDisplayName(id: string): string {
+		const authProvider = this._authenticationProviders.get(id);
+		if (authProvider) {
+			return authProvider.displayName;
+		} else {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+	}
+
+	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession> | undefined> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return await authProvider.getSessions();
@@ -69,10 +79,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async login(id: string): Promise<Session> {
+	async login(id: string, scopes: string[]): Promise<AuthenticationSession> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.login();
+			return authProvider.login(scopes);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

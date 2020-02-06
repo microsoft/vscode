@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITextFileService, IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -106,14 +106,14 @@ suite('Files - FileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		assert.ok(!accessor.editorService.isOpen({ resource }));
+		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createInput({ resource, forceFile: true })));
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
 		await awaitEditorOpening(accessor.editorService);
-		assert.ok(accessor.editorService.isOpen({ resource }));
+		assert.ok(accessor.editorService.isOpen(accessor.editorService.createInput({ resource, forceFile: true })));
 
 		part.dispose();
 		tracker.dispose();

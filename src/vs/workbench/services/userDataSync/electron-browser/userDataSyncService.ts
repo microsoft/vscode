@@ -9,7 +9,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -46,8 +45,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('push');
 	}
 
-	sync(_continue?: boolean): Promise<boolean> {
-		return this.channel.call('sync', [_continue]);
+	sync(): Promise<void> {
+		return this.channel.call('sync');
+	}
+
+	accept(source: SyncSource, content: string): Promise<void> {
+		return this.channel.call('accept', [source, content]);
 	}
 
 	reset(): Promise<void> {
@@ -58,8 +61,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	stop(): void {
-		this.channel.call('stop');
+	stop(): Promise<void> {
+		return this.channel.call('stop');
+	}
+
+	async restart(): Promise<void> {
+		const status = await this.channel.call<SyncStatus>('restart');
+		await this.updateStatus(status);
 	}
 
 	hasPreviouslySynced(): Promise<boolean> {
@@ -74,12 +82,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('hasLocalData');
 	}
 
-	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncAndHasUserData');
+	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [source, preview]);
 	}
 
-	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
-		return this.channel.call('removeExtension', [identifier]);
+	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncAndHasUserData');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

@@ -173,20 +173,48 @@
 	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox {
+.scm-viewlet .scm-editor-container {
+	padding: 1px;
+	position: relative;
+	outline-offset: -1px;
+}
+
+.scm-viewlet .scm-editor-container > .scm-editor-validation {
+	position: absolute;
 	width: 100%;
+	z-index: 10;
+	left: 0px;
+	box-sizing: border-box;
+	font-size: 0.9em;
+	padding: 1px 3px;
+	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
+.scm-viewlet .scm-editor-container.synthetic-focus > .scm-editor-validation {
+	display: block;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > textarea.input {
-	min-height: 26px;
+.scm-viewlet .scm-editor-placeholder {
+	position: absolute;
+	pointer-events: none;
+	z-index: 1;
+	margin: 1px;
+	padding: 3px 4px;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
-.scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
-	overflow-y: scroll;
+.scm-viewlet .scm-editor-placeholder.hidden {
+	display: none;
+}
+
+.scm-viewlet .scm-editor-container .monaco-editor-background,
+.scm-viewlet .scm-editor-container .monaco-editor,
+.scm-viewlet .scm-editor-container .mtk1 {
+	color: inherit;
 }
 
 .scm-viewlet .list-view-mode .monaco-tl-twistie:not(.force-twistie):not(.collapsible) {

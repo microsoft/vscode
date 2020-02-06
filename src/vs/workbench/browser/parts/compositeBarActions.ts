@@ -17,7 +17,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 
@@ -51,11 +51,11 @@ export interface ICompositeBar {
 
 export class ActivityAction extends Action {
 
-	private readonly _onDidChangeActivity = new Emitter<this>();
-	readonly onDidChangeActivity: Event<this> = this._onDidChangeActivity.event;
+	private readonly _onDidChangeActivity = this._register(new Emitter<ActivityAction>());
+	readonly onDidChangeActivity = this._onDidChangeActivity.event;
 
-	private readonly _onDidChangeBadge = new Emitter<this>();
-	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
+	private readonly _onDidChangeBadge = this._register(new Emitter<ActivityAction>());
+	readonly onDidChangeBadge = this._onDidChangeBadge.event;
 
 	private badge: IBadge | undefined;
 	private clazz: string | undefined;
@@ -463,6 +463,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
+		private compositeContextMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
@@ -596,6 +597,12 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private showContextMenu(container: HTMLElement): void {
 		const actions: Action[] = [this.toggleCompositePinnedAction];
+
+		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
+		if (compositeContextMenuActions.length) {
+			actions.push(...compositeContextMenuActions);
+		}
+
 		if ((<any>this.compositeActivityAction.activity).extensionId) {
 			actions.push(new Separator());
 			actions.push(CompositeActionViewItem.manageExtensionAction);

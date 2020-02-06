@@ -21,11 +21,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { Recording } from 'vs/workbench/services/bulkEdit/browser/conflicts';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
@@ -49,29 +48,29 @@ class ModelEditTask implements IDisposable {
 
 	addEdit(resourceEdit: WorkspaceTextEdit): void {
 		this._expectedModelVersionId = resourceEdit.modelVersionId;
-		for (const edit of resourceEdit.edits) {
-			if (typeof edit.eol === 'number') {
-				// honor eol-change
-				this._newEol = edit.eol;
-			}
-			if (!edit.range && !edit.text) {
-				// lacks both a range and the text
-				continue;
-			}
-			if (Range.isEmpty(edit.range) && !edit.text) {
-				// no-op edit (replace empty range with empty text)
-				continue;
-			}
+		const { edit } = resourceEdit;
 
-			// create edit operation
-			let range: Range;
-			if (!edit.range) {
-				range = this._model.getFullModelRange();
-			} else {
-				range = Range.lift(edit.range);
-			}
-			this._edits.push(EditOperation.replaceMove(range, edit.text));
+		if (typeof edit.eol === 'number') {
+			// honor eol-change
+			this._newEol = edit.eol;
 		}
+		if (!edit.range && !edit.text) {
+			// lacks both a range and the text
+			return;
+		}
+		if (Range.isEmpty(edit.range) && !edit.text) {
+			// no-op edit (replace empty range with empty text)
+			return;
+		}
+
+		// create edit operation
+		let range: Range;
+		if (!edit.range) {
+			range = this._model.getFullModelRange();
+		} else {
+			range = Range.lift(edit.range);
+		}
+		this._edits.push(EditOperation.replaceMove(range, edit.text));
 	}
 
 	validate(): ValidationResult {
@@ -180,9 +179,14 @@ class BulkEditModel implements IDisposable {
 
 				for (const edit of value) {
 					if (makeMinimal) {
-						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, edit.edits);
-						task.addEdit({ ...edit, edits: newEdits ?? edit.edits });
-
+						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.edit]);
+						if (!newEdits) {
+							task.addEdit(edit);
+						} else {
+							for (let moreMinialEdit of newEdits) {
+								task.addEdit({ ...edit, edit: moreMinialEdit });
+							}
+						}
 					} else {
 						task.addEdit(edit);
 					}
@@ -229,12 +233,10 @@ class BulkEdit {
 		editor: ICodeEditor | undefined,
 		progress: IProgress<IProgressStep> | undefined,
 		edits: Edit[],
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
-		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILabelService private readonly _uriLabelServie: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
@@ -243,7 +245,7 @@ class BulkEdit {
 	}
 
 	ariaMessage(): string {
-		const editCount = this._edits.reduce((prev, cur) => WorkspaceFileEdit.is(cur) ? prev : prev + cur.edits.length, 0);
+		const editCount = this._edits.length;
 		const resourceCount = this._edits.length;
 		if (editCount === 0) {
 			return localize('summary.0', "Made no edits");
@@ -283,7 +285,7 @@ class BulkEdit {
 		// for child operations
 		this._progress.report({ total });
 
-		let progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
+		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
 		// do it.
 		for (const group of groups) {
@@ -333,22 +335,11 @@ class BulkEdit {
 	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
-		const recording = Recording.start(this._fileService);
-		const model = new BulkEditModel(this._editor, progress, edits, this._workerService, this._textModelService);
+		const model = this._instaService.createInstance(BulkEditModel, this._editor, progress, edits);
 
 		await model.prepare();
 
-		const conflicts = edits
-			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, { relative: true }));
-
-		recording.stop();
-
-		if (conflicts.length > 0) {
-			model.dispose();
-			throw new Error(localize('conflict', "These files have changed in the meantime: {0}", conflicts.join(', ')));
-		}
-
+		// this._throwIfConflicts(conflicts);
 		const validationResult = model.validate();
 		if (validationResult.canApply === false) {
 			model.dispose();
@@ -367,15 +358,10 @@ export class BulkEditService implements IBulkEditService {
 	private _previewHandler?: IBulkEditPreviewHandler;
 
 	constructor(
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
@@ -387,13 +373,17 @@ export class BulkEditService implements IBulkEditService {
 		});
 	}
 
+	hasPreviewHandler(): boolean {
+		return Boolean(this._previewHandler);
+	}
+
 	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		if (edit.edits.length === 0) {
 			return { ariaSummary: localize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && options?.showPreview) {
+		if (this._previewHandler && (options?.showPreview || edit.edits.some(value => value.metadata?.needsConfirmation))) {
 			edit = await this._previewHandler(edit, options);
 		}
 
@@ -424,10 +414,7 @@ export class BulkEditService implements IBulkEditService {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}
-		const bulkEdit = new BulkEdit(
-			codeEditor, options?.progress, edits,
-			this._logService, this._textModelService, this._fileService, this._workerService, this._textFileService, this._labelService, this._configurationService
-		);
+		const bulkEdit = this._instaService.createInstance(BulkEdit, codeEditor, options?.progress, edits);
 		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		}).catch(err => {

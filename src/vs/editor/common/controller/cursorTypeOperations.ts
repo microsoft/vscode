@@ -492,15 +492,20 @@ export class TypeOperations {
 		});
 	}
 
+	private static _autoClosingPairIsSymmetric(autoClosingPair: StandardAutoClosingPairConditional): boolean {
+		const { open, close } = autoClosingPair;
+		return (open.indexOf(close) >= 0 || close.indexOf(open) >= 0);
+	}
+
 	private static _isBeforeClosingBrace(config: CursorConfiguration, autoClosingPair: StandardAutoClosingPairConditional, characterAfter: string) {
 		const otherAutoClosingPairs = config.autoClosingPairsClose2.get(characterAfter);
 		if (!otherAutoClosingPairs) {
 			return false;
 		}
 
-		const thisBraceIsSymmetric = (autoClosingPair.open === autoClosingPair.close);
+		const thisBraceIsSymmetric = TypeOperations._autoClosingPairIsSymmetric(autoClosingPair);
 		for (const otherAutoClosingPair of otherAutoClosingPairs) {
-			const otherBraceIsSymmetric = (otherAutoClosingPair.open === otherAutoClosingPair.close);
+			const otherBraceIsSymmetric = TypeOperations._autoClosingPairIsSymmetric(otherAutoClosingPair);
 			if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
 				continue;
 			}

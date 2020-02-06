@@ -857,8 +857,10 @@ export class SimpleFileDialog {
 	}
 
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
-		const parentFolder = resources.dirname(currFolder);
-		if (!resources.isEqual(currFolder, parentFolder, true)) {
+		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file });
+		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
+		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent, true)) {
+			const parentFolder = resources.dirname(currFolder);
 			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
 		}
 		return null;

@@ -24,7 +24,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -35,6 +34,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Action2 } from 'vs/platform/actions/common/actions';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -278,11 +278,11 @@ export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
 	}
 }
 
-export class SendSequenceTerminalCommand extends Command {
+export class SendSequenceTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	public run(accessor: ServicesAccessor, args: any): void {
 		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
 		if (!terminalInstance) {
 			return;
@@ -298,12 +298,12 @@ export class SendSequenceTerminalCommand extends Command {
 	}
 }
 
-export class CreateNewWithCwdTerminalCommand extends Command {
+export class CreateNewWithCwdTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
 	public static readonly CWD_ARG_LABEL = nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at");
 
-	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
+	public run(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
@@ -1055,12 +1055,12 @@ export class RenameTerminalAction extends Action {
 		});
 	}
 }
-export class RenameWithArgTerminalCommand extends Command {
+export class RenameWithArgTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_WITH_ARG;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
 	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
 
-	public runCommand(
+	public run(
 		accessor: ServicesAccessor,
 		args?: { name?: string }
 	): void {
@@ -1165,7 +1165,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, quickInputService, terminalService);
-		this.class = 'quick-open-terminal-configure';
+		this.class = 'codicon codicon-gear';
 	}
 
 	public run(): Promise<any> {

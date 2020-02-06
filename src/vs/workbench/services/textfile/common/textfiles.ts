@@ -51,6 +51,17 @@ export interface ITextFileService extends IDisposable {
 	readonly encoding: IResourceEncodings;
 
 	/**
+	 * The handler that should be called when saving fails. Can be overridden
+	 * to handle save errors in a custom way.
+	 */
+	saveErrorHandler: ISaveErrorHandler;
+
+	/**
+	 * The save participant if any. By default, no save participant is registered.
+	 */
+	saveParticipant: ISaveParticipant | undefined;
+
+	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
 	 *
 	 * @param resource the resource to check for being dirty
@@ -62,9 +73,9 @@ export interface ITextFileService extends IDisposable {
 	 *
 	 * @param resource the resource to save
 	 * @param options optional save options
-	 * @return true if the resource was saved.
+	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	save(resource: URI, options?: ISaveOptions): Promise<boolean>;
+	save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Saves the provided resource asking the user for a file name or using the provided one.
@@ -72,9 +83,9 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource to save as.
 	 * @param targetResource the optional target to save to.
 	 * @param options optional save options
-	 * @return Path of the saved resource.
+	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined>;
+	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Reverts the provided resource.
@@ -83,12 +94,6 @@ export interface ITextFileService extends IDisposable {
 	 * @param force to force revert even when the file is not dirty
 	 */
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean>;
-
-	/**
-	 * Create a file. If the file exists it will be overwritten with the contents if
-	 * the options enable to overwrite.
-	 */
-	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Read the contents of a file identified by the resource.
@@ -106,9 +111,10 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
+	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * the options enable to overwrite.
 	 */
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
+	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
@@ -119,6 +125,11 @@ export interface ITextFileService extends IDisposable {
 	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
+	 */
+	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 }
 
 export interface FileOperationWillRunEvent extends IWaitUntil {
@@ -174,7 +185,7 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	overwriteReadonly?: boolean;
 
 	/**
-	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
 	 * ask the user to authenticate as super user.
 	 */
 	writeElevated?: boolean;
@@ -255,7 +266,7 @@ export const enum ModelState {
 
 	/**
 	 * Any error that happens during a save that is not causing the CONFLICT state.
-	 * Models in error mode are always diry.
+	 * Models in error mode are always dirty.
 	 */
 	ERROR
 }
@@ -356,6 +367,7 @@ export interface ITextFileEditorModelManager {
 	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
+	getAll(): ITextFileEditorModel[];
 
 	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
@@ -367,6 +379,7 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteEncoding?: boolean;
 	writeElevated?: boolean;
 	ignoreModifiedSince?: boolean;
+	ignoreErrorHandler?: boolean;
 }
 
 export interface ILoadOptions {
@@ -407,13 +420,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(options?: IRevertOptions): Promise<boolean>;
 
-	backup(target?: URI): Promise<void>;
-
-	hasBackup(): boolean;
-
 	isDirty(): this is IResolvedTextFileEditorModel;
 
-	makeDirty(): void;
+	setDirty(dirty: boolean): void;
 
 	getMode(): string | undefined;
 

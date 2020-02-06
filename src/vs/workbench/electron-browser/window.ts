@@ -213,7 +213,7 @@ export class ElectronWindow extends Disposable {
 			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
-		// keyboard layout changed event
+		// accessibility support changed event
 		ipc.on('vscode:accessibilitySupportChanged', (event: IpcEvent, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
@@ -272,13 +272,10 @@ export class ElectronWindow extends Disposable {
 					return; // do not indicate dirty of working copies that are auto saved after short delay
 				}
 
-				if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
-					const hasDirtyFiles = this.workingCopyService.hasDirty;
-					this.isDocumentedEdited = hasDirtyFiles;
-
-					this.electronService.setDocumentEdited(hasDirtyFiles);
-				}
+				this.updateDocumentEdited(gotDirty);
 			}));
+
+			this.updateDocumentEdited();
 		}
 
 		// Detect minimize / maximize
@@ -288,6 +285,15 @@ export class ElectronWindow extends Disposable {
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+	}
+
+	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
+		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
+			const hasDirtyFiles = this.workingCopyService.hasDirty;
+			this.isDocumentedEdited = hasDirtyFiles;
+
+			this.electronService.setDocumentEdited(hasDirtyFiles);
+		}
 	}
 
 	private onDidChangeMaximized(maximized: boolean): void {
@@ -608,18 +614,24 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
+		// In wait mode, listen to changes to the editors and wait until the files
+		// are closed that the user wants to wait for. When this happens we delete
+		// the wait marker file to signal to the outside that editing is done.
 		const listener = this.editorService.onDidCloseEditor(async event => {
-			const closedResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const detailsResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.DETAILS });
+			const masterResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
 
-			// In wait mode, listen to changes to the editors and wait until the files
-			// are closed that the user wants to wait for. When this happens we delete
-			// the wait marker file to signal to the outside that editing is done.
-			if (
-				// for https://github.com/microsoft/vscode/issues/75861
-				(resourcesToWaitFor.length === 1 && isEqual(closedResource, resourcesToWaitFor[0])) ||
-				// any other case we simply check for all resources to wait for
-				resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))
-			) {
+			// Remove from resources to wait for based on the
+			// resources from editors that got closed
+			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => {
+				if (isEqual(resourceToWaitFor, masterResource) || isEqual(resourceToWaitFor, detailsResource)) {
+					return false; // remove - the closing editor matches this resource
+				}
+
+				return true; // keep - not yet closed
+			});
+
+			if (resourcesToWaitFor.length === 0) {
 				// If auto save is configured with the default delay (1s) it is possible
 				// to close the editor while the save still continues in the background. As such
 				// we have to also check if the files to wait for are dirty and if so wait
@@ -644,8 +656,8 @@ export class ElectronWindow extends Disposable {
 			}
 
 			// Otherwise resolve promise when resource is saved
-			const listener = this.workingCopyService.onDidChangeDirty(e => {
-				if (!e.isDirty() && isEqual(resource, e.resource)) {
+			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
+				if (!workingCopy.isDirty() && isEqual(resource, workingCopy.resource)) {
 					listener.dispose();
 
 					resolve();
@@ -772,8 +784,8 @@ class NativeMenubarControl extends MenubarControl {
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
-					if (!this.menus[menuItem.item.submenu]) {
-						const menu = this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					if (!this.menus[menuItem.item.submenu.id]) {
+						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
 						this._register(menu.onDidChange(() => this.updateMenubar()));
 					}
 

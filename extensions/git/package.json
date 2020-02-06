@@ -27,6 +27,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "git.setLogLevel",
+        "title": "%command.setLogLevel%",
+        "category": "Git"
+      },
+      {
         "command": "git.clone",
         "title": "%command.clone%",
         "category": "Git"
@@ -1194,7 +1199,7 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.openChange",
@@ -1204,44 +1209,44 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
       "editor/context": [
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [
         {
           "command": "git.stageChange",
-          "when": "originalResourceScheme == gitfs"
+          "when": "originalResourceScheme == git"
         },
         {
           "command": "git.revertChange",
-          "when": "originalResourceScheme == gitfs"
+          "when": "originalResourceScheme == git"
         }
       ]
     },
@@ -1760,6 +1765,7 @@
   },
   "dependencies": {
     "byline": "^5.0.0",
+    "dayjs": "1.8.19",
     "file-type": "^7.2.0",
     "iconv-lite": "^0.4.24",
     "jschardet": "2.1.1",
@@ -1774,6 +1780,9 @@
     "@types/mocha": "2.2.43",
     "@types/node": "^12.11.7",
     "@types/which": "^1.0.28",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "mocha-junit-reporter": "^1.23.3",
+    "mocha-multi-reporters": "^1.1.7",
+    "vscode": "^1.1.36"
   }
 }

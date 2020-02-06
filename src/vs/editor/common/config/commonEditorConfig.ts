@@ -432,7 +432,7 @@ export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
-	scope: ConfigurationScope.RESOURCE_LANGUAGE,
+	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 });
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -483,6 +483,11 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
+		},
+		'editor.semanticHighlighting.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
 		},
 		'editor.stablePeek': {
 			type: 'boolean',

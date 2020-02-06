@@ -22,7 +22,7 @@ import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
@@ -39,6 +39,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
+import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -203,6 +204,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
+
+	private _codeLink?: HTMLElement;
 
 	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
 
@@ -500,10 +503,35 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		messageElement.innerText = message;
 
 		if (source || code) {
-			const detailsElement = dom.append(markerElement, $('span'));
-			detailsElement.style.opacity = '0.6';
-			detailsElement.style.paddingLeft = '6px';
-			detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
+			if (typeof code === 'string') {
+				const detailsElement = dom.append(markerElement, $('span'));
+				detailsElement.style.opacity = '0.6';
+				detailsElement.style.paddingLeft = '6px';
+				detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
+			} else {
+				if (code) {
+					const sourceAndCodeElement = $('span');
+					if (source) {
+						const sourceElement = dom.append(sourceAndCodeElement, $('span'));
+						sourceElement.innerText = source;
+					}
+					this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
+					this._codeLink.setAttribute('href', code.link.toString());
+
+					this._codeLink.onclick = (e) => {
+						this._openerService.open(code.link);
+						e.preventDefault();
+						e.stopPropagation();
+					};
+
+					const codeElement = dom.append(this._codeLink, $('span'));
+					codeElement.innerText = code.value;
+
+					const detailsElement = dom.append(markerElement, sourceAndCodeElement);
+					detailsElement.style.opacity = '0.6';
+					detailsElement.style.paddingLeft = '6px';
+				}
+			}
 		}
 
 		if (isNonEmptyArray(relatedInformation)) {
@@ -648,3 +676,11 @@ function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
 	}
 	return true;
 }
+
+registerThemingParticipant((theme, collector) => {
+	const linkFg = theme.getColor(textLinkForeground);
+	if (linkFg) {
+		collector.addRule(`.monaco-editor-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
+	}
+});
+

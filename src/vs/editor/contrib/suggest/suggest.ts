@@ -17,13 +17,18 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
+	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
+	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
 };
+
+export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
 
 export class CompletionItem {
 
@@ -37,6 +42,9 @@ export class CompletionItem {
 	readonly editInsertEnd: IPosition;
 	readonly editReplaceEnd: IPosition;
 
+	//
+	readonly textLabel: string;
+
 	// perf
 	readonly labelLow: string;
 	readonly sortTextLow?: string;
@@ -48,9 +56,6 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
-	//
-	readonly isDetailsResolved: boolean;
-
 	constructor(
 		readonly position: IPosition,
 		readonly completion: modes.CompletionItem,
@@ -58,8 +63,13 @@ export class CompletionItem {
 		readonly provider: modes.CompletionItemProvider,
 		model: ITextModel
 	) {
+		this.textLabel = typeof completion.label === 'string'
+			? completion.label
+			: completion.label.name;
+
 		// ensure lower-variants (perf)
-		this.labelLow = completion.label.toLowerCase();
+		this.labelLow = this.textLabel.toLowerCase();
+
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
 
@@ -73,8 +83,6 @@ export class CompletionItem {
 			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
 			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
 		}
-
-		this.isDetailsResolved = container.isDetailsResolved || typeof provider.resolveCompletionItem === 'undefined';
 
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
@@ -189,7 +197,7 @@ export function provideSuggestionItems(
 							}
 							// fill in default sortText when missing
 							if (!suggestion.sortText) {
-								suggestion.sortText = suggestion.label;
+								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorOptions, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputFactory, IFileEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';

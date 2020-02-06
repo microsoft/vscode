@@ -111,12 +111,16 @@
               },
               "editor.suggest.insertMode": "replace"
           }
-        }
+        },
+        "jsonValidation": [{
+            "fileMatch": "*.schema.json",
+            "url": "http://json-schema.org/draft-07/schema#"
+        }]
     },
     "dependencies": {
         "request-light": "^0.2.5",
         "vscode-extension-telemetry": "0.1.1",
-        "vscode-languageclient": "^6.0.0-next.3",
+        "vscode-languageclient": "^6.0.1",
         "vscode-nls": "^4.1.1"
     },
     "devDependencies": {

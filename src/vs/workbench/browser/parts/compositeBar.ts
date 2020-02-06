@@ -40,6 +40,7 @@ export interface ICompositeBarOptions {
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
 	getContextMenuActions: () => Action[];
+	getContextMenuActionsForComposite: (compositeId: string) => Action[];
 	openComposite: (compositeId: string) => Promise<any>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => void;
@@ -95,12 +96,19 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof CompositeOverflowActivityAction) {
 					return this.compositeOverflowActionViewItem;
 				}
 				const item = this.model.findItem(action.id);
-				return item && this.instantiationService.createInstance(CompositeActionViewItem, action as ActivityAction, item.pinnedAction, () => this.getContextMenuActions() as Action[], this.options.colors, this.options.icon, this);
+				return item && this.instantiationService.createInstance(
+					CompositeActionViewItem, action as ActivityAction, item.pinnedAction,
+					(compositeId: string) => this.options.getContextMenuActionsForComposite(compositeId),
+					() => this.getContextMenuActions() as Action[],
+					this.options.colors,
+					this.options.icon,
+					this
+				);
 			},
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),

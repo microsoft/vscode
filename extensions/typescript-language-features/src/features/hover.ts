@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tagsMarkdownPreview } from '../utils/previewer';
+import { markdownDocumentation } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 
 
@@ -45,9 +45,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		if (data.displayString) {
 			parts.push({ language: 'typescript', value: data.displayString });
 		}
-
-		const tags = tagsMarkdownPreview(data.tags);
-		parts.push(data.documentation + (tags ? '\n\n' + tags : ''));
+		parts.push(markdownDocumentation(data.documentation, data.tags));
 		return parts;
 	}
 }

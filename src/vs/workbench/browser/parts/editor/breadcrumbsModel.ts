@@ -42,6 +42,7 @@ export class EditorBreadcrumbsModel {
 	private readonly _disposables = new DisposableStore();
 	private readonly _fileInfo: FileInfo;
 
+	private readonly _cfgEnabled: BreadcrumbsConfig<boolean>;
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
@@ -58,6 +59,7 @@ export class EditorBreadcrumbsModel {
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
+		this._cfgEnabled = BreadcrumbsConfig.IsEnabled.bindTo(_configurationService);
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(_configurationService);
 
@@ -69,10 +71,12 @@ export class EditorBreadcrumbsModel {
 	}
 
 	dispose(): void {
+		this._cfgEnabled.dispose();
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
 		this._outlineDisposables.dispose();
 		this._disposables.dispose();
+		this._onDidUpdate.dispose();
 	}
 
 	isRelative(): boolean {
@@ -143,6 +147,11 @@ export class EditorBreadcrumbsModel {
 
 		// update when config changes (re-render)
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (!this._cfgEnabled.getValue()) {
+				// breadcrumbs might be disabled (also via a setting/config) and that is
+				// something we must check before proceeding.
+				return;
+			}
 			if (e.affectsConfiguration('breadcrumbs')) {
 				this._updateOutline(true);
 				return;

@@ -8,9 +8,11 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { Disposable } from 'vs/base/common/lifecycle';
+import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
-export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
+export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape {
 	private readonly _proxy: ExtHostTunnelServiceShape;
 
 	constructor(
@@ -18,7 +20,10 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITunnelService private readonly tunnelService: ITunnelService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
+		this._register(tunnelService.onTunnelOpened(() => this._proxy.$onDidTunnelsChange()));
+		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined> {
@@ -31,6 +36,15 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> {
 		return this.remoteExplorerService.close(remote);
+	}
+
+	async $getTunnels(): Promise<TunnelDescription[]> {
+		return (await this.tunnelService.tunnels).map(tunnel => {
+			return {
+				remoteAddress: { port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost },
+				localAddress: tunnel.localAddress
+			};
+		});
 	}
 
 	async $registerCandidateFinder(): Promise<void> {
@@ -59,7 +73,23 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 		this.tunnelService.setTunnelProvider(tunnelProvider);
 	}
 
+	async $setCandidateFilter(): Promise<void> {
+		this._register(this.remoteExplorerService.setCandidateFilter(async (candidates: { host: string, port: number, detail: string }[]): Promise<{ host: string, port: number, detail: string }[]> => {
+			const filters: boolean[] = await this._proxy.$filterCandidates(candidates);
+			const filteredCandidates: { host: string, port: number, detail: string }[] = [];
+			if (filters.length !== candidates.length) {
+				return candidates;
+			}
+			for (let i = 0; i < candidates.length; i++) {
+				if (filters[i]) {
+					filteredCandidates.push(candidates[i]);
+				}
+			}
+			return filteredCandidates;
+		}));
+	}
+
 	dispose(): void {
-		//
+
 	}
 }

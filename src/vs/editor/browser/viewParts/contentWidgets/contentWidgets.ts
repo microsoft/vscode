@@ -251,7 +251,9 @@ class Widget {
 		if (this._range) {
 			// Do not trust that widgets give a valid position
 			const validModelRange = this._context.model.validateModelRange(this._range);
-			this._viewRange = this._context.model.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
+			if (this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getStartPosition()) || this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getEndPosition())) {
+				this._viewRange = this._context.model.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
+			}
 		}
 	}
 
@@ -314,8 +316,9 @@ class Widget {
 	}
 
 	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
-		const MIN_LIMIT = (width <= domNodePosition.width - 20 ? domNodePosition.left : 0);
-		const MAX_LIMIT = (width <= domNodePosition.width - 20 ? domNodePosition.left + domNodePosition.width - 20 : windowSize.width - 20);
+		// Initially, the limits are defined as the dom node limits
+		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
+		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
 
 		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
 

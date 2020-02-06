@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
-import { IEditorOptions, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -398,6 +398,11 @@ export interface IEditorGroup {
 	readonly label: string;
 
 	/**
+	 * A human readable label for the group to be used by screen readers.
+	 */
+	readonly ariaLabel: string;
+
+	/**
 	 * The active control is the currently visible control of the group.
 	 */
 	readonly activeControl: IVisibleEditor | undefined;
@@ -464,7 +469,7 @@ export interface IEditorGroup {
 	 *
 	 * Note: An editor can be opened but not actively visible.
 	 */
-	isOpened(editor: IEditorInput | IResourceInput): boolean;
+	isOpened(editor: IEditorInput): boolean;
 
 	/**
 	 * Find out if the provided editor is pinned in the group.

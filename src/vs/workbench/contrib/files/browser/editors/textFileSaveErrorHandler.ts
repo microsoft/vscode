@@ -13,7 +13,6 @@ import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTex
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -64,8 +63,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
 
-		// Hook into model
-		TextFileEditorModel.setSaveErrorHandler(this);
+		// Set as save error handler to service for text files
+		this.textFileService.saveErrorHandler = this;
 
 		this.registerListeners();
 	}
@@ -333,7 +332,7 @@ class ConfigureSaveConflictAction extends Action {
 	}
 
 	run(): Promise<any> {
-		this.preferencesService.openSettings(undefined, 'files.preventSaveConflicts');
+		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
 
 		return Promise.resolve(true);
 	}

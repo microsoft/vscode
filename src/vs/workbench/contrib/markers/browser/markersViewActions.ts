@@ -12,7 +12,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -27,6 +26,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class ShowProblemsPanelAction extends Action {
 
@@ -34,14 +34,13 @@ export class ShowProblemsPanelAction extends Action {
 	public static readonly LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
 
 	constructor(id: string, label: string,
-		@IPanelService private readonly panelService: IPanelService
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super(id, label);
 	}
 
 	public run(): Promise<any> {
-		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-		return Promise.resolve();
+		return this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 	}
 }
 
@@ -272,7 +271,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
-		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
+		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(action.onFocus(() => this.focus()));

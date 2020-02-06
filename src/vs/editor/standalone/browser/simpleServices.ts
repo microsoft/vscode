@@ -635,6 +635,10 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
+	hasPreviewHandler(): false {
+		return false;
+	}
+
 	setPreviewHandler(): IDisposable {
 		return Disposable.None;
 	}
@@ -655,8 +659,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 				let array = edits.get(model);
 				if (!array) {
 					array = [];
+					edits.set(model, array);
 				}
-				edits.set(model, array.concat(edit.edits));
+				array.push(edit.edit);
 			}
 		}
 

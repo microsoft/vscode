@@ -3,45 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, ITextEditorModel, IModeSupport, GroupIdentifier, isTextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorModel, IModeSupport, TextResourceEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { basename } from 'vs/base/common/resources';
-import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
  * code editor model.
  */
-export class ResourceEditorInput extends EditorInput implements IModeSupport {
+export class ResourceEditorInput extends TextResourceEditorInput implements IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
-	private cachedModel: ResourceEditorModel | null = null;
-	private modelReference: Promise<IReference<ITextEditorModel>> | null = null;
+	private cachedModel: ResourceEditorModel | undefined = undefined;
+	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
 	constructor(
 		private name: string | undefined,
 		private description: string | undefined,
-		private readonly resource: URI,
+		resource: URI,
 		private preferredMode: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IEditorService private readonly editorService: IEditorService
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super();
-
-		this.name = name;
-		this.description = description;
-		this.resource = resource;
-	}
-
-	getResource(): URI {
-		return this.resource;
+		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 	}
 
 	getTypeId(): string {
@@ -49,7 +47,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 	}
 
 	getName(): string {
-		return this.name || basename(this.resource);
+		return this.name || super.getName();
 	}
 
 	setName(name: string): void {
@@ -94,7 +92,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		// Ensure the resolved model is of expected type
 		if (!(model instanceof ResourceEditorModel)) {
 			ref.dispose();
-			this.modelReference = null;
+			this.modelReference = undefined;
 
 			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
 		}
@@ -107,28 +105,6 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		}
 
 		return model;
-	}
-
-	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-
-		// Preserve view state by opening the editor first. In addition
-		// this allows the user to review the contents of the editor.
-		let viewState: IEditorViewState | undefined = undefined;
-		const editor = await this.editorService.openEditor(this, undefined, group);
-		if (isTextEditor(editor)) {
-			viewState = editor.getViewState();
-		}
-
-		// Save as
-		const target = await this.textFileService.saveAs(this.resource, undefined, options);
-		if (!target) {
-			return false; // save cancelled
-		}
-
-		// Open the target
-		await this.editorService.openEditor({ resource: target, options: { viewState, pinned: true } }, group);
-
-		return true;
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -147,10 +123,10 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 	dispose(): void {
 		if (this.modelReference) {
 			this.modelReference.then(ref => ref.dispose());
-			this.modelReference = null;
+			this.modelReference = undefined;
 		}
 
-		this.cachedModel = null;
+		this.cachedModel = undefined;
 
 		super.dispose();
 	}

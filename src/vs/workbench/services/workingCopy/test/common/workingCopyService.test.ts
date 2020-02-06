@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
+import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { basename } from 'vs/base/common/resources';
 
 suite('WorkingCopyService', () => {
 
@@ -25,6 +26,8 @@ suite('WorkingCopyService', () => {
 		readonly onDispose = this._onDispose.event;
 
 		readonly capabilities = 0;
+
+		readonly name = basename(this.resource);
 
 		private dirty = false;
 
@@ -59,9 +62,9 @@ suite('WorkingCopyService', () => {
 			return true;
 		}
 
-		async backup(): Promise<void> { }
-
-		hasBackup(): boolean { return false; }
+		async backup(): Promise<IWorkingCopyBackup> {
+			return {};
+		}
 
 		dispose(): void {
 			this._onDispose.fire();

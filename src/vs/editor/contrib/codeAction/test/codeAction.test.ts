@@ -220,6 +220,43 @@ suite('CodeAction', () => {
 		}
 	});
 
+	test('getCodeActions no invoke a provider that has been excluded #84602', async function () {
+		const baseType = CodeActionKind.Refactor;
+		const subType = CodeActionKind.Refactor.append('sub');
+
+		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', staticCodeActionProvider(
+			{ title: 'a', kind: baseType.value }
+		)));
+
+		let didInvoke = false;
+		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', new class implements modes.CodeActionProvider {
+
+			providedCodeActionKinds = [subType.value];
+
+			provideCodeActions(): modes.ProviderResult<modes.CodeActionList> {
+				didInvoke = true;
+				return {
+					actions: [
+						{ title: 'x', kind: subType.value }
+					],
+					dispose: () => { }
+				};
+			}
+		}));
+
+		{
+			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
+				type: modes.CodeActionTriggerType.Auto, filter: {
+					include: baseType,
+					excludes: [subType],
+				}
+			}, CancellationToken.None);
+			assert.strictEqual(didInvoke, false);
+			assert.equal(actions.length, 1);
+			assert.strictEqual(actions[0].title, 'a');
+		}
+	});
+
 	test('getCodeActions should not invoke code action providers filtered out by providedCodeActionKinds', async function () {
 		let wasInvoked = false;
 		const provider = new class implements modes.CodeActionProvider {

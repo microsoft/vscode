@@ -215,6 +215,10 @@
 	-webkit-mask: inherit;
 }
 
+.extensions-viewlet>.extensions .extension>.details>.header-container>.header .extension-remote-badge .codicon {
+	margin-right: 0;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
 	text-align: right;
 }

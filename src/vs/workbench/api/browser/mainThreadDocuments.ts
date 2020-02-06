@@ -160,7 +160,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	// --- from extension host process
 
 	$trySaveDocument(uri: UriComponents): Promise<boolean> {
-		return this._textFileService.save(URI.revive(uri));
+		return this._textFileService.save(URI.revive(uri)).then(target => !!target);
 	}
 
 	$tryOpenDocument(_uri: UriComponents): Promise<any> {
