@@ -7,6 +7,16 @@ resources:
     image: snapcore/snapcraft:stable
 
 jobs:
+- job: macOS
+  condition: and(succeeded())
+  timeoutInMinutes: 180
+  pool:
+    vmImage: macOS-latest
+  dependsOn:
+  - Compile
+  steps:
+  - template: darwin/codesign-darwin.yml
+
 # - job: Compile
 #   pool:
 #     vmImage: 'Ubuntu-16.04'
@@ -141,16 +151,6 @@ jobs:
 #   - macOS
 #   steps:
 #   - template: sync-mooncake.yml
-
-- job: macOS
-  condition: and(succeeded())
-  timeoutInMinutes: 180
-  pool:
-    vmImage: macOS-latest
-  dependsOn:
-  - Compile
-  steps:
-  - template: darwin/codesign-darwin.yml
 
 trigger: none
 pr: none
