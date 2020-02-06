@@ -597,28 +597,26 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 	private static _normalizeArr(arr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
 		let expr: ContextKeyExpr[] = [];
 
-		if (arr) {
-			for (let i = 0, len = arr.length; i < len; i++) {
-				let e: ContextKeyExpr | null | undefined = arr[i];
-				if (!e) {
-					continue;
-				}
-
-				if (e instanceof ContextKeyAndExpr) {
-					expr = expr.concat(e.expr);
-					continue;
-				}
-
-				if (e instanceof ContextKeyOrExpr) {
-					// Not allowed, because we don't have parens!
-					throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
-				}
-
-				expr.push(e);
+		for (let i = 0, len = arr.length; i < len; i++) {
+			let e: ContextKeyExpr | null | undefined = arr[i];
+			if (!e) {
+				continue;
 			}
 
-			expr.sort(cmp);
+			if (e instanceof ContextKeyAndExpr) {
+				expr = expr.concat(e.expr);
+				continue;
+			}
+
+			if (e instanceof ContextKeyOrExpr) {
+				// Not allowed, because we don't have parens!
+				throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
+			}
+
+			expr.push(e);
 		}
+
+		expr.sort(cmp);
 
 		return expr;
 	}
