@@ -135,13 +135,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (sessions.length === 0) {
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 			return;
 		}
 
 		if (sessions.length === 1) {
 			this.logAuthenticatedEvent(sessions[0]);
-			this.activeAccount = sessions[0];
+			this.setActiveAccount(sessions[0]);
 			return;
 		}
 
@@ -155,7 +155,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (selectedAccount) {
 			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
 			this.logAuthenticatedEvent(selected);
-			this.activeAccount = selected;
+			this.setActiveAccount(selected);
 		}
 	}
 
@@ -176,11 +176,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return this._activeAccount;
 	}
 
-	set activeAccount(account: AuthenticationSession | undefined) {
+	async setActiveAccount(account: AuthenticationSession | undefined) {
 		this._activeAccount = account;
 
 		if (account) {
-			this.userDataAuthTokenService.setToken(account.accessToken);
+			const token = await account.accessToken();
+			this.userDataAuthTokenService.setToken(token);
 			this.authenticationState.set(AuthStatus.SignedIn);
 		} else {
 			this.userDataAuthTokenService.setToken(undefined);
@@ -196,7 +197,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				// Try to update existing account, case where access token has been refreshed
 				const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
 				const matchingAccount = accounts.filter(a => a.id === this.activeAccount?.id)[0];
-				this.activeAccount = matchingAccount;
+				this.setActiveAccount(matchingAccount);
 			} else {
 				this.initializeActiveAccount();
 			}
@@ -211,7 +212,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidUnregisterAuthenticationProvider(providerId: string) {
 		if (providerId === this.userDataSyncStore!.authenticationProviderId) {
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 			this.authenticationState.reset();
 		}
 	}
@@ -477,7 +478,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async signIn(): Promise<void> {
 		try {
-			this.activeAccount = await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']);
+			this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
 		} catch (e) {
 			this.notificationService.error(e);
 			throw e;
@@ -487,7 +488,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async signOut(): Promise<void> {
 		if (this.activeAccount) {
 			await this.authenticationService.logout(this.userDataSyncStore!.authenticationProviderId, this.activeAccount.id);
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 		}
 	}
 
