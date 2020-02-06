@@ -1544,6 +1544,10 @@ export class Repository {
 		}
 
 		return new Promise<void>((c, e) => {
+			if (options.cancellationToken && options.cancellationToken.isCancellationRequested) {
+				throw new GitError({ message: 'Cancelled' });
+			}
+
 			const child = this.spawn_pty(args);
 
 			const onExit = (exitCode: number) => {
@@ -1584,6 +1588,18 @@ export class Repository {
 			};
 
 			let outputData: string = '';
+
+			if (options.cancellationToken) {
+				onceEvent(options.cancellationToken.onCancellationRequested)(() => {
+					try {
+						child.kill();
+					} catch (err) {
+						// noop
+					}
+
+					e(new GitError({ message: 'Cancelled' }));
+				});
+			}
 
 			child.on('data', onData);
 			child.on('exit', onExit);
