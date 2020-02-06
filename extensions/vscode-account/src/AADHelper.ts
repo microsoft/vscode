@@ -53,6 +53,8 @@ function parseQuery(uri: vscode.Uri) {
 
 export const onDidChangeSessions = new vscode.EventEmitter<void>();
 
+export const REFRESH_NETWORK_FAILURE = 'Network failure';
+
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
 		this.fire(uri);
@@ -91,7 +93,7 @@ export class AzureActiveDirectoryService {
 					try {
 						await this.refreshToken(session.refreshToken, session.scope);
 					} catch (e) {
-						await this.logout(session.id);
+						this.handleTokenRefreshFailure(e, session.id, session.refreshToken, session.scope, false);
 					}
 				});
 
@@ -134,7 +136,7 @@ export class AzureActiveDirectoryService {
 								await this.refreshToken(session.refreshToken, session.scope);
 								didChange = true;
 							} catch (e) {
-								await this.logout(session.id);
+								this.handleTokenRefreshFailure(e, session.id, session.refreshToken, session.scope, false);
 							}
 						}
 					});
@@ -335,18 +337,14 @@ export class AzureActiveDirectoryService {
 			this._tokens.push(token);
 		}
 
-		const existingTimeout = this._refreshTimeouts.get(token.sessionId);
-		if (existingTimeout) {
-			clearTimeout(existingTimeout);
-		}
+		this.clearSessionTimeout(token.sessionId);
 
 		this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 			try {
 				await this.refreshToken(token.refreshToken, scope);
-			} catch (e) {
-				await this.logout(token.sessionId);
-			} finally {
 				onDidChangeSessions.fire();
+			} catch (e) {
+				this.handleTokenRefreshFailure(e, token.sessionId, token.refreshToken, scope, true);
 			}
 		}, 1000 * (parseInt(token.expiresIn) - 30)));
 
@@ -460,28 +458,72 @@ export class AzureActiveDirectoryService {
 			post.end();
 			post.on('error', err => {
 				Logger.error(err.message);
-				reject(err);
+				reject(new Error(REFRESH_NETWORK_FAILURE));
 			});
 		});
 	}
 
-	public async logout(sessionId: string) {
-		Logger.info(`Logging out of session '${sessionId}'`);
+	private clearSessionTimeout(sessionId: string): void {
+		const timeout = this._refreshTimeouts.get(sessionId);
+		if (timeout) {
+			clearTimeout(timeout);
+			this._refreshTimeouts.delete(sessionId);
+		}
+	}
+
+	private removeInMemorySessionData(sessionId: string) {
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex > -1) {
 			this._tokens.splice(tokenIndex, 1);
 		}
 
+		this.clearSessionTimeout(sessionId);
+	}
+
+	private async handleTokenRefreshFailure(e: Error, sessionId: string, refreshToken: string, scope: string, sendChangeEvent: boolean): Promise<void> {
+		if (e.message === REFRESH_NETWORK_FAILURE) {
+			this.handleRefreshNetworkError(sessionId, refreshToken, scope);
+		} else {
+			await this.logout(sessionId);
+			if (sendChangeEvent) {
+				onDidChangeSessions.fire();
+			}
+		}
+	}
+
+	private handleRefreshNetworkError(sessionId: string, refreshToken: string, scope: string, attempts: number = 1) {
+		if (attempts === 5) {
+			Logger.error('Token refresh failed after 5 attempts');
+			return;
+		}
+
+		if (attempts === 1) {
+			this.removeInMemorySessionData(sessionId);
+			onDidChangeSessions.fire();
+		}
+
+		const delayBeforeRetry = 5 * attempts * attempts;
+
+		this.clearSessionTimeout(sessionId);
+
+		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
+			try {
+				await this.refreshToken(refreshToken, scope);
+				onDidChangeSessions.fire();
+			} catch (e) {
+				await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1);
+			}
+		}, 1000 * delayBeforeRetry));
+	}
+
+	public async logout(sessionId: string) {
+		Logger.info(`Logging out of session '${sessionId}'`);
+		this.removeInMemorySessionData(sessionId);
+
 		if (this._tokens.length === 0) {
 			await keychain.deleteToken();
 		} else {
 			this.storeTokenData();
-		}
-
-		const timeout = this._refreshTimeouts.get(sessionId);
-		if (timeout) {
-			clearTimeout(timeout);
-			this._refreshTimeouts.delete(sessionId);
 		}
 	}
 
