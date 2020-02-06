@@ -1620,7 +1620,7 @@ export class CommandCenter {
 
 		const rawBranchName = defaultName || await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
+			prompt: localize('provide branch name', "Please provide a new branch name"),
 			value: initialValue,
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
