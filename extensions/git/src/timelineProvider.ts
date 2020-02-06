@@ -62,8 +62,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			this._repo = repo;
 			this._repoStatusDate = new Date();
 			this._repoDisposable = Disposable.from(
-				repo.onDidChangeRepository(this.onRepositoryChanged, this),
-				repo.onDidRunGitStatus(this.onRepositoryStatusChanged, this)
+				repo.onDidChangeRepository(uri => this.onRepositoryChanged(repo, uri)),
+				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo))
 			);
 		}
 
@@ -90,7 +90,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			item.command = {
 				title: 'Open Diff',
 				command: 'git.openDiff',
-				arguments: [uri, c.hash]
+				arguments: [uri, `${c.hash}^`, c.hash]
 			};
 
 			return item;
@@ -124,7 +124,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			}
 
 			const item = new TimelineItem('Staged Changes', date.getTime());
-			item.id = '~';
+			item.id = 'index';
 			// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 			item.iconPath = new (ThemeIcon as any)('git-commit');
 			item.description = `${dateFormatter.fromNow()}  \u2022  You`;
@@ -132,7 +132,50 @@ export class GitTimelineProvider implements TimelineProvider {
 			item.command = {
 				title: 'Open Comparison',
 				command: 'git.openDiff',
-				arguments: [uri, '~']
+				arguments: [uri, 'HEAD', '~']
+			};
+
+			items.push(item);
+		}
+
+
+		const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+		if (working) {
+			const date = new Date();
+			dateFormatter = dayjs(date);
+
+			let status;
+			switch (working.type) {
+				case Status.INDEX_MODIFIED:
+					status = 'Modified';
+					break;
+				case Status.INDEX_ADDED:
+					status = 'Added';
+					break;
+				case Status.INDEX_DELETED:
+					status = 'Deleted';
+					break;
+				case Status.INDEX_RENAMED:
+					status = 'Renamed';
+					break;
+				case Status.INDEX_COPIED:
+					status = 'Copied';
+					break;
+				default:
+					status = '';
+					break;
+			}
+
+			const item = new TimelineItem('Uncommited Changes', date.getTime());
+			item.id = 'working';
+			// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
+			item.iconPath = new (ThemeIcon as any)('git-commit');
+			item.description = `${dateFormatter.fromNow()}  \u2022  You`;
+			item.detail = `You  \u2014 Working Tree\n${dateFormatter.fromNow()} (${dateFormatter.format('MMMM Do, YYYY h:mma')})\n${status}`;
+			item.command = {
+				title: 'Open Comparison',
+				command: 'git.openDiff',
+				arguments: [uri, index ? '~' : 'HEAD', '']
 			};
 
 			items.push(item);
@@ -141,23 +184,30 @@ export class GitTimelineProvider implements TimelineProvider {
 		return items;
 	}
 
-	@debounce(500)
 	private onRepositoriesChanged(_repo: Repository) {
 		// console.log(`GitTimelineProvider.onRepositoriesChanged`);
 
 		// TODO[ECA]: Being naive for now and just always refreshing each time there is a new repository
-		this._onDidChange.fire();
+		this.fireChanged();
+	}
+
+	private onRepositoryChanged(_repo: Repository, _uri: Uri) {
+		// console.log(`GitTimelineProvider.onRepositoryChanged: uri=${uri.toString(true)}`);
+
+		this.fireChanged();
+	}
+
+	private onRepositoryStatusChanged(_repo: Repository) {
+		// console.log(`GitTimelineProvider.onRepositoryStatusChanged`);
+
+		// This is crappy, but for now just save the last time a status was run and use that as the timestamp for staged items
+		this._repoStatusDate = new Date();
+
+		this.fireChanged();
 	}
 
 	@debounce(500)
-	private onRepositoryChanged() {
-		// console.log(`GitTimelineProvider.onRepositoryChanged`);
-
+	private fireChanged() {
 		this._onDidChange.fire();
-	}
-
-	private onRepositoryStatusChanged() {
-		// This is crappy, but for now just save the last time a status was run and use that as the timestamp for staged items
-		this._repoStatusDate = new Date();
 	}
 }
