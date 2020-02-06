@@ -124,7 +124,7 @@ export interface IUserData {
 }
 
 export enum UserDataSyncErrorCode {
-	Unauthroized = 'Unauthroized',
+	Unauthorized = 'Unauthorized',
 	Forbidden = 'Forbidden',
 	ConnectionRefused = 'ConnectionRefused',
 	Rejected = 'Rejected',
