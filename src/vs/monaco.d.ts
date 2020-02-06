@@ -3658,6 +3658,10 @@ declare namespace monaco.editor {
 		 */
 		showSnippets?: boolean;
 		/**
+		 * Show large details.
+		 */
+		largeDetail?: boolean;
+		/**
 		 * Controls the visibility of the status bar at the bottom of the suggest widget.
 		 */
 		hideStatusBar?: boolean;

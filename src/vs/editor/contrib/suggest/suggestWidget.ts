@@ -19,7 +19,6 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext, CompletionItem, suggestWidgetStatusbarMenu } from './suggest';
@@ -309,7 +308,6 @@ class SuggestionDetails {
 		private readonly widget: SuggestWidget,
 		private readonly editor: ICodeEditor,
 		private readonly markdownRenderer: MarkdownRenderer,
-		@IConfigurationService private readonly _configService: IConfigurationService,
 		private readonly kbToggleDetails: string,
 	) {
 		this.disposables = new DisposableStore();
@@ -337,7 +335,7 @@ class SuggestionDetails {
 			.on(this.configureFont, this, this.disposables);
 
 		markdownRenderer.onDidRenderCodeBlock(() => {
-			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+			const largeDetail = this.editor.getOption(EditorOption.suggest).largeDetail;
 			if (largeDetail) {
 				removeClass(this.el, 'large-markdown-details');
 				addClass(this.el, 'code-markdown-details');
@@ -410,7 +408,7 @@ class SuggestionDetails {
 			this.docs.textContent = documentation;
 			this._maxLineLengthInCodeBlock = undefined;
 		} else {
-			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+			const largeDetail = this.editor.getOption(EditorOption.suggest).largeDetail;
 			if (largeDetail) {
 				addClass(this.el, 'large-markdown-details');
 			}
@@ -599,8 +597,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const markdownRenderer = this.toDispose.add(new MarkdownRenderer(editor, modeService, openerService));
 
@@ -1151,7 +1148,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		removeClass(this.element, 'docs-side');
 		removeClass(this.element, 'docs-below');
 		this.editor.layoutContentWidget(this);
-		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+		const largeDetail = this.editor.getOption(EditorOption.suggest).largeDetail;
 		if (largeDetail) {
 			this.element.style.width = '';
 			this.listElement.style.width = '';
@@ -1241,7 +1238,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		} else {
 			this.details.renderItem(this.list.getFocusedElements()[0], this.explainMode);
 		}
-		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+		const largeDetail = this.editor.getOption(EditorOption.suggest).largeDetail;
 		if (largeDetail) {
 			const widgetY = getDomNodePagePosition(this.element).top;
 
@@ -1366,7 +1363,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const widgetCoords = getDomNodePagePosition(this.element);
 		const widgetX = widgetCoords.left;
 		const widgetY = widgetCoords.top;
-		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+		const largeDetail = this.editor.getOption(EditorOption.suggest).largeDetail;
 
 		// Fixes #27649
 		// Check if the Y changed to the top of the cursor and keep the widget flagged to prefer top
@@ -1425,7 +1422,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-below');
 			return;
 		}
-		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+		const largeDetail = this.editor.getOption(EditorOption.suggest).largeDetail;
 
 		if (largeDetail) {
 			const detailWidth = this.getDetailWidth();

@@ -2659,6 +2659,10 @@ export interface ISuggestOptions {
 	 */
 	showSnippets?: boolean;
 	/**
+	 * Show large details.
+	 */
+	largeDetail?: boolean;
+	/**
 	 * Controls the visibility of the status bar at the bottom of the suggest widget.
 	 */
 	hideStatusBar?: boolean;
@@ -2703,6 +2707,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
+			largeDetail: true,
 			hideStatusBar: true
 		};
 		super(
@@ -2942,6 +2947,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
 			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
+			largeDetail: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
 			hideStatusBar: EditorBooleanOption.boolean(input.hideStatusBar, this.defaultValue.hideStatusBar),
 		};
 	}
