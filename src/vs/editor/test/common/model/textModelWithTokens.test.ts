@@ -615,7 +615,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, 3, 4, 2, '  A'],
 			[2, 4, 4, 3, '    A'],
 			[3, 4, 4, 3, '      A'],
-			[0, 2, 4, 1, 'A'], // TODO => too big of a difference with the line above?
+			[0, 5, 5, 0, 'A'],
 		], 2);
 	});
 
@@ -659,27 +659,27 @@ suite('TextModel.getLineIndentGuide', () => {
 
 	test('getLineIndentGuide Whitespace', () => {
 		assertIndentGuides([
-			[0, 1, 1, 0, 'class A {'], // TODO => the next one is not working here
+			[0, 2, 7, 1, 'class A {'],
 			[1, 2, 7, 1, ''],
-			[1, 2, 7, 1, '  void foo() {'], // TODO => also not working here
-			[2, 4, 5, 2, '     '],
-			[3, 5, 5, 3, '     return 1;'],
+			[1, 4, 5, 2, '  void foo() {'],
+			[2, 4, 5, 2, '    '],
+			[2, 4, 5, 2, '    return 1;'],
 			[1, 4, 5, 2, '  }'],
 			[1, 2, 7, 1, '      '],
-			[0, 8, 8, 0, '}']
+			[0, 2, 7, 1, '}']
 		], 2);
 	});
 
 	test('getLineIndentGuide Tabs', () => {
 		assertIndentGuides([
-			[0, 1, 1, 0, 'class A {'], // TODO => not working here
+			[0, 2, 7, 1, 'class A {'],
 			[1, 2, 7, 1, '\t\t'],
 			[1, 4, 5, 2, '\tvoid foo() {'],
 			[2, 4, 5, 2, '\t \t//hello'],
 			[2, 4, 5, 2, '\t    return 2;'],
 			[1, 4, 5, 2, '  \t}'],
 			[1, 2, 7, 1, '      '],
-			[0, 8, 8, 0, '}']
+			[0, 2, 7, 1, '}']
 		], 4);
 	});
 
@@ -721,7 +721,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[2, 3, 5, 2, '        - bla'],
 			[2, 5, 5, 3, '        - length:'],
 			[3, 5, 5, 3, '            max: 255'],
-			[0, 2, 5, 1, 'getters:']
+			[0, 6, 6, 0, 'getters:']
 		], 4);
 	});
 
@@ -733,7 +733,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[3, 4, 4, 3, '\t\t\treturn 1;'],
 			[2, 6, 6, 3, '\t\tcase 2:'],
 			[3, 6, 6, 3, '\t\t\treturn 2;'],
-			[1, 3, 6, 2, '\t}'],
+			[1, 2, 7, 1, '\t}'],
 			[0, 2, 7, 1, '}']
 		], 4);
 	});
@@ -742,7 +742,7 @@ suite('TextModel.getLineIndentGuide', () => {
 		assertIndentGuides([
 			[2, 2, 2, 3, '\t\t.bla'],
 			[3, 2, 2, 3, '\t\t\tlabel(for)'],
-			[0, 1, 2, 1, 'include script']
+			[0, 3, 3, 0, 'include script']
 		], 4);
 	});
 
