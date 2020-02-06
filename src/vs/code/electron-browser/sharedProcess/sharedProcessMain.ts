@@ -100,7 +100,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
-	ipcRenderer.once('handshake:goodbye', onExit);
+	ipcRenderer.once('handshake:mainprocess-goodbye', onExit);
 
 	disposables.add(server);
 
@@ -271,13 +271,19 @@ function setupIPC(hook: string): Promise<Server> {
 }
 
 async function handshake(configuration: ISharedProcessConfiguration): Promise<void> {
+
+	// shared process -> main: give me payload for IPC connection
+	// main -> shared process: payload for IPC connection
 	const data = await new Promise<ISharedProcessInitData>(c => {
-		ipcRenderer.once('handshake:hey there', (_: any, r: ISharedProcessInitData) => c(r));
-		ipcRenderer.send('handshake:hello');
+		ipcRenderer.once('handshake:main-payload', (_: any, r: ISharedProcessInitData) => c(r));
+		ipcRenderer.send('handshake:sharedprocess-hello');
 	});
 
+	// shared process => main: IPC connection established
 	const server = await setupIPC(data.sharedIPCHandle);
+	ipcRenderer.send('handshake:sharedprocess-ipc-ready');
 
+	// shared process => main: initialization done
 	await main(server, data, configuration);
-	ipcRenderer.send('handshake:im ready');
+	ipcRenderer.send('handshake:sharedprocess-init-ready');
 }

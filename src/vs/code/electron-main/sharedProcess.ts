@@ -21,6 +21,8 @@ export class SharedProcess implements ISharedProcess {
 
 	private window: BrowserWindow | null = null;
 
+	private readonly _whenReady: Promise<void>;
+
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
@@ -28,10 +30,12 @@ export class SharedProcess implements ISharedProcess {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
-	) { }
+	) {
+		this._whenReady = new Promise<void>(c => ipcMain.once('handshake:sharedprocess-init-ready', () => c(undefined)));
+	}
 
 	@memoize
-	private get _whenReady(): Promise<void> {
+	private get _whenIpcReady(): Promise<void> {
 		this.window = new BrowserWindow({
 			show: false,
 			backgroundColor: this.themeMainService.getBackgroundColor(),
@@ -98,16 +102,16 @@ export class SharedProcess implements ISharedProcess {
 		});
 
 		return new Promise<void>(c => {
-			const onHello = Event.once(Event.fromNodeEventEmitter(ipcMain, 'handshake:hello', ({ sender }: { sender: WebContents }) => sender));
+			const onHello = Event.once(Event.fromNodeEventEmitter(ipcMain, 'handshake:sharedprocess-hello', ({ sender }: { sender: WebContents }) => sender));
 			disposables.add(onHello(sender => {
-				sender.send('handshake:hey there', {
+				sender.send('handshake:main-payload', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args,
 					logLevel: this.logService.getLevel()
 				});
 
-				disposables.add(toDisposable(() => sender.send('handshake:goodbye')));
-				ipcMain.once('handshake:im ready', () => c(undefined));
+				disposables.add(toDisposable(() => sender.send('handshake:mainprocess-goodbye')));
+				ipcMain.once('handshake:sharedprocess-ipc-ready', () => c(undefined));
 			}));
 		});
 	}
@@ -120,6 +124,11 @@ export class SharedProcess implements ISharedProcess {
 	async whenReady(): Promise<void> {
 		await this.barrier.wait();
 		await this._whenReady;
+	}
+
+	async whenIpcReady(): Promise<void> {
+		await this.barrier.wait();
+		await this._whenIpcReady;
 	}
 
 	toggle(): void {
