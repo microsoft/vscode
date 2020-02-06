@@ -4,46 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { Component } from 'vs/workbench/common/component';
-import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { attachBadgeStyler, attachProgressBarStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { ProgressBar, IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { inQuickOpenContext, InQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Color } from 'vs/base/common/color';
+
+export interface IQuickInputOptions {
+	idPrefix: string;
+	container: HTMLElement;
+	ignoreFocusOut(): boolean;
+	isScreenReaderOptimized(): boolean;
+	backKeybindingLabel(): string | undefined;
+	setContextKey(id?: string): void;
+	returnFocus(): void;
+	createList<T>(
+		user: string,
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: IListRenderer<T, any>[],
+		options: IListOptions<T>,
+	): List<T>;
+	styles: IQuickInputStyles;
+}
+
+export interface IQuickInputStyles {
+	widget: IQuickInputWidgetStyles;
+	inputBox: IInputBoxStyles;
+	countBadge: ICountBadgetyles;
+	button: IButtonStyles;
+	progressBar: IProgressBarStyles;
+	list: IListStyles & { listInactiveFocusForeground?: Color; pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+}
+
+export interface IQuickInputWidgetStyles {
+	quickInputBackground?: Color;
+	quickInputForeground?: Color;
+	contrastBorder?: Color;
+	widgetShadow?: Color;
+	titleColor: string | undefined;
+}
 
 const $ = dom.$;
 
@@ -51,8 +71,8 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
 	iconPath: {
-		dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
-		light: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
+		dark: URI.parse(registerAndGetAmdImageURL('vs/base/parts/quickinput/browser/media/arrow-left-dark.svg')),
+		light: URI.parse(registerAndGetAmdImageURL('vs/base/parts/quickinput/browser/media/arrow-left-light.svg'))
 	},
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
@@ -60,6 +80,7 @@ const backButton = {
 
 interface QuickInputUI {
 	container: HTMLElement;
+	styleSheet: HTMLStyleElement;
 	leftActionBar: ActionBar;
 	titleBar: HTMLElement;
 	title: HTMLElement;
@@ -917,21 +938,15 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 }
 
-export class QuickInputService extends Component implements IQuickInputService {
-
-	public _serviceBrand: undefined;
-
-	private static readonly ID = 'workbench.component.quickinput';
+export class QuickInputController extends Disposable {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
-	private idPrefix = 'quickInput_'; // Constant since there is still only one.
+	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.Dimension;
+	private titleBarOffset?: number;
 	private comboboxAccessibility = false;
 	private enabled = true;
-	private inQuickOpenWidgets: Record<string, boolean> = {};
-	private inQuickOpenContext: IContextKey<boolean>;
-	private contexts: Map<string, IContextKey<boolean>> = new Map();
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
@@ -939,78 +954,23 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private controller: QuickInput | null = null;
 
-	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(QuickInputService.ID, themeService, storageService);
-		this.inQuickOpenContext = InQuickOpenContextKey.bindTo(contextKeyService);
-		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
-		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
-		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
-		this.layout(this.layoutService.dimension);
+	private parentElement: HTMLElement;
+	private styles: IQuickInputStyles;
+	private onShowEmitter = new Emitter<void>();
+	private onHideEmitter = new Emitter<void>();
+	public onShow = this.onShowEmitter.event;
+	public onHide = this.onHideEmitter.event;
+
+	constructor(private options: IQuickInputOptions) {
+		super();
+		this.idPrefix = options.idPrefix;
+		this.parentElement = options.container;
+		this.styles = options.styles;
 		this.registerKeyModsListeners();
 	}
 
-	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
-		if (open) {
-			this.inQuickOpenWidgets[widget] = true;
-		} else {
-			delete this.inQuickOpenWidgets[widget];
-		}
-		if (Object.keys(this.inQuickOpenWidgets).length) {
-			if (!this.inQuickOpenContext.get()) {
-				this.inQuickOpenContext.set(true);
-			}
-		} else {
-			if (this.inQuickOpenContext.get()) {
-				this.inQuickOpenContext.reset();
-			}
-		}
-	}
-
-	private setContextKey(id?: string) {
-		let key: IContextKey<boolean> | undefined;
-		if (id) {
-			key = this.contexts.get(id);
-			if (!key) {
-				key = new RawContextKey<boolean>(id, false)
-					.bindTo(this.contextKeyService);
-				this.contexts.set(id, key);
-			}
-		}
-
-		if (key && key.get()) {
-			return; // already active context
-		}
-
-		this.resetContextKeys();
-
-		if (key) {
-			key.set(true);
-		}
-	}
-
-	private resetContextKeys() {
-		this.contexts.forEach(context => {
-			if (context.get()) {
-				context.reset();
-			}
-		});
-	}
-
 	private registerKeyModsListeners() {
-		const workbench = this.layoutService.getWorkbenchElement();
-		this._register(dom.addDisposableListener(workbench, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(this.parentElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Ctrl:
@@ -1022,7 +982,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 			}
 		}));
-		this._register(dom.addDisposableListener(workbench, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(this.parentElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Ctrl:
@@ -1041,10 +1001,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 			return this.ui;
 		}
 
-		const workbench = this.layoutService.getWorkbenchElement();
-		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
+		const container = dom.append(this.parentElement, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+
+		const styleSheet = dom.createStyleSheet(container);
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
@@ -1086,11 +1047,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const countContainer = dom.append(filterContainer, $('.quick-input-count'));
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
-		this._register(attachBadgeStyler(count, this.themeService));
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const ok = new Button(okContainer);
-		attachButtonStyler(ok, this.themeService);
 		ok.label = localize('ok', "OK");
 		this._register(ok.onDidClick(e => {
 			this.onDidAcceptEmitter.fire();
@@ -1098,7 +1057,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const customButton = new Button(customButtonContainer);
-		attachButtonStyler(customButton, this.themeService);
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
@@ -1108,9 +1066,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const progressBar = new ProgressBar(container);
 		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
-		this._register(attachProgressBarStyler(progressBar, this.themeService));
 
-		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.idPrefix + 'list'));
+		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
@@ -1138,7 +1095,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
 		this._register(focusTracker.onDidBlur(() => {
-			if (!this.getUI().ignoreFocusOut && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
+			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(true);
 			}
 		}));
@@ -1180,10 +1137,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this._register(this.quickOpenService.onShow(() => this.hide(true)));
-
 		this.ui = {
 			container,
+			styleSheet,
 			leftActionBar,
 			titleBar,
 			title,
@@ -1208,13 +1164,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
-			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
+			isScreenReaderOptimized: () => this.options.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
 			setComboboxAccessibility: enabled => this.setComboboxAccessibility(enabled),
 			setEnabled: enabled => this.setEnabled(enabled),
-			setContextKey: contextKey => this.setContextKey(contextKey),
+			setContextKey: contextKey => this.options.setContextKey(contextKey),
 		};
 		this.updateStyles();
 		return this.ui;
@@ -1389,7 +1345,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private show(controller: QuickInput) {
 		const ui = this.getUI();
-		this.quickOpenService.close();
+		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
 		if (oldController) {
@@ -1419,11 +1375,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.setComboboxAccessibility(false);
 		ui.inputBox.removeAttribute('aria-label');
 
-		const keybinding = this.keybindingService.lookupKeybinding(QuickPickBack.id);
-		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
-
-		this.inQuickOpen('quickInput', true);
-		this.resetContextKeys();
+		const backKeybindingLabel = this.options.backKeybindingLabel();
+		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
 
 		ui.container.style.display = '';
 		this.updateLayout();
@@ -1480,15 +1433,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 	}
 
-	private hide(focusLost?: boolean) {
+	public hide(focusLost?: boolean) {
 		const controller = this.controller;
 		if (controller) {
 			this.controller = null;
-			this.inQuickOpen('quickInput', false);
-			this.resetContextKeys();
+			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
 			if (!focusLost) {
-				this.editorGroupService.activeGroup.focus();
+				this.options.returnFocus();
 			}
 			controller.didHide();
 		}
@@ -1530,18 +1482,18 @@ export class QuickInputService extends Component implements IQuickInputService {
 		return Promise.resolve(undefined);
 	}
 
-	layout(dimension: dom.Dimension): void {
+	layout(dimension: dom.Dimension, titleBarOffset: number): void {
 		this.dimension = dimension;
+		this.titleBarOffset = titleBarOffset;
 		this.updateLayout();
 	}
 
 	private updateLayout() {
 		if (this.ui) {
-			const titlebarOffset = this.layoutService.getTitleBarOffset();
-			this.ui.container.style.top = `${titlebarOffset}px`;
+			this.ui.container.style.top = `${this.titleBarOffset}px`;
 
 			const style = this.ui.container.style;
-			const width = Math.min(this.layoutService.dimension.width * 0.62 /* golden cut */, QuickInputService.MAX_WIDTH);
+			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 			style.marginLeft = '-' + (width / 2) + 'px';
 
@@ -1550,21 +1502,47 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 	}
 
-	protected updateStyles() {
-		const theme = this.themeService.getTheme();
+	public applyStyles(styles: IQuickInputStyles) {
+		this.styles = styles;
+		this.updateStyles();
+	}
+
+	private updateStyles() {
 		if (this.ui) {
-			// TODO
-			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
-			this.ui.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : '';
-			this.ui.inputBox.style(theme);
-			const quickInputBackground = theme.getColor(QUICK_INPUT_BACKGROUND);
+			const {
+				titleColor,
+				quickInputBackground,
+				quickInputForeground,
+				contrastBorder,
+				widgetShadow,
+			} = this.styles.widget;
+			this.ui.titleBar.style.backgroundColor = titleColor || '';
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
-			const quickInputForeground = theme.getColor(QUICK_INPUT_FOREGROUND);
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
-			const contrastBorderColor = theme.getColor(contrastBorder);
-			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : '';
-			const widgetShadowColor = theme.getColor(widgetShadow);
-			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
+			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
+			this.ui.container.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : '';
+			this.ui.inputBox.style(this.styles.inputBox);
+			this.ui.count.style(this.styles.countBadge);
+			this.ui.ok.style(this.styles.button);
+			this.ui.customButton.style(this.styles.button);
+			this.ui.progressBar.style(this.styles.progressBar);
+			this.ui.list.style(this.styles.list);
+
+			const content: string[] = [];
+			if (this.styles.list.listInactiveFocusForeground) {
+				content.push(`.monaco-list .monaco-list-row.focused { color:  ${this.styles.list.listInactiveFocusForeground}; }`);
+				content.push(`.monaco-list .monaco-list-row.focused:hover { color:  ${this.styles.list.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
+			}
+			if (this.styles.list.pickerGroupBorder) {
+				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.list.pickerGroupBorder}; }`);
+			}
+			if (this.styles.list.pickerGroupForeground) {
+				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			}
+			const newStyles = content.join('\n');
+			if (newStyles !== this.ui.styleSheet.innerHTML) {
+				this.ui.styleSheet.innerHTML = newStyles;
+			}
 		}
 	}
 
@@ -1572,30 +1550,3 @@ export class QuickInputService extends Component implements IQuickInputService {
 		return this.ui && this.ui.container.style.display !== 'none';
 	}
 }
-
-export const QuickPickManyToggle: ICommandAndKeybindingRule = {
-	id: 'workbench.action.quickPickManyToggle',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: inQuickOpenContext,
-	primary: 0,
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.toggle();
-	}
-};
-
-export const QuickPickBack: ICommandAndKeybindingRule = {
-	id: 'workbench.action.quickInputBack',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	when: inQuickOpenContext,
-	primary: 0,
-	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS },
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.back();
-	}
-};
-
-registerSingleton(IQuickInputService, QuickInputService, true);
