@@ -6,6 +6,7 @@ steps:
     KeyVaultName: vscode
 
 - script: |
+    set -e
     cat << EOF |
     $(macos-developer-certificate)
     EOF
