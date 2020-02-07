@@ -10,8 +10,8 @@ const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
 const util = require('util');
-const bootstrap = require('../../src/bootstrap');
-const coverage = require('../coverage');
+const bootstrap = require('../../../src/bootstrap');
+const coverage = require('../../coverage');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -24,7 +24,7 @@ let _out;
 
 function initLoader(opts) {
 	let outdir = opts.build ? 'out-build' : 'out';
-	_out = path.join(__dirname, `../../${outdir}`);
+	_out = path.join(__dirname, `../../../${outdir}`);
 
 	// setup loader
 	loader = require(`${_out}/vs/loader`);
@@ -32,7 +32,7 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: bootstrap.uriFromPath(path.join(__dirname, '../../src')),
+		baseUrl: bootstrap.uriFromPath(path.join(__dirname, '../../../src')),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,

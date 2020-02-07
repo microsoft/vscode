@@ -57,7 +57,7 @@ const withReporter = (function () {
 })()
 
 const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../${outdir}`);
+const out = path.join(__dirname, `../../../${outdir}`);
 
 const testModules = (async function () {
 
