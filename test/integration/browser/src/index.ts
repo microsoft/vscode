@@ -11,6 +11,9 @@ import * as  tmp from 'tmp';
 import * as  rimraf from 'rimraf';
 
 const optimist = require('optimist')
+	.describe('workspacePath', 'path to the workspace to open in the test').string()
+	.describe('extensionDevelopmentPath', 'path to the extension to test').string()
+	.describe('extensionTestsPath', 'path to the extension tests').string()
 	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
 	.describe('help', 'show the help').alias('help', 'h');
@@ -26,10 +29,9 @@ async function runTestsInBrowser(browserType: string, endpoint: string): Promise
 	const host = url.parse(endpoint).host;
 	const protocol = 'vscode-remote';
 
-	const integrationTestsPath = path.join(__dirname, '..', '..', '..', '..', 'extensions', 'vscode-api-tests');
-	const testWorkspaceUri = url.format({ pathname: path.join(integrationTestsPath, 'testWorkspace'), protocol, host, slashes: true });
-	const testExtensionUri = url.format({ pathname: path.join(integrationTestsPath), protocol, host, slashes: true });
-	const testFilesUri = url.format({ pathname: path.join(integrationTestsPath, 'out', 'singlefolder-tests'), protocol, host, slashes: true });
+	const testWorkspaceUri = url.format({ pathname: path.resolve(optimist.argv.workspacePath), protocol, host, slashes: true });
+	const testExtensionUri = url.format({ pathname: path.resolve(optimist.argv.extensionDevelopmentPath), protocol, host, slashes: true });
+	const testFilesUri = url.format({ pathname: path.resolve(optimist.argv.extensionTestsPath), protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"]]`;
