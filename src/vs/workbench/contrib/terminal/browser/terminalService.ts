@@ -9,7 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TerminalPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
@@ -423,7 +423,7 @@ export class TerminalService implements ITerminalService {
 
 	public showPanel(focus?: boolean): Promise<void> {
 		return new Promise<void>(async (complete) => {
-			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalPane;
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 			if (!pane) {
 				await this._panelService.openPanel(TERMINAL_VIEW_ID, focus);
 				if (focus) {
@@ -657,14 +657,14 @@ export class TerminalService implements ITerminalService {
 
 	public focusFindWidget(): Promise<void> {
 		return this.showPanel(false).then(() => {
-			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalPane;
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 			pane.focusFindWidget();
 			this._findWidgetVisible.set(true);
 		});
 	}
 
 	public hideFindWidget(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalPane;
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
 			pane.hideFindWidget();
 			this._findWidgetVisible.reset();
@@ -673,7 +673,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public findNext(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalPane;
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
 			pane.showFindWidget();
 			pane.getFindWidget().find(false);
@@ -681,7 +681,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public findPrevious(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalPane;
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
 			pane.showFindWidget();
 			pane.getFindWidget().find(true);

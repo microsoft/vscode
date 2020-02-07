@@ -31,7 +31,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
-export class TerminalPane extends ViewPane {
+export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _copyContextMenuAction: IAction | undefined;
 	private _contextMenuActions: IAction[] | undefined;
