@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const express = require('express');
+const yaserver = require('yaserver');
+const http = require('http');
 const glob = require('glob');
 const path = require('path');
 const fs = require('fs');
@@ -17,32 +18,32 @@ function template(str, env) {
 	});
 }
 
-var app = express();
+yaserver.createServer({ rootDir: REPO_ROOT }).then((staticServer) => {
+	const server = http.createServer((req, res) => {
+		if (req.url === '' || req.url === '/') {
+			glob('**/vs/{base,platform,editor}/**/test/{common,browser}/**/*.test.js', {
+				cwd: path.join(REPO_ROOT, 'out'),
+				// ignore: ['**/test/{node,electron*}/**/*.js']
+			}, function (err, files) {
+				if (err) { return res.sendStatus(500); }
 
-app.use('/out', express.static(path.join(REPO_ROOT, 'out')));
-app.use('/test', express.static(path.join(REPO_ROOT, 'test')));
-app.use('/node_modules', express.static(path.join(REPO_ROOT, 'node_modules')));
+				var modules = files
+					.map(function (file) { return file.replace(/\.js$/, ''); });
 
-app.get('/', function (req, res) {
-	glob('**/vs/{base,platform,editor}/**/test/{common,browser}/**/*.test.js', {
-		cwd: path.join(REPO_ROOT, 'out'),
-		// ignore: ['**/test/{node,electron*}/**/*.js']
-	}, function (err, files) {
-		if (err) { return res.sendStatus(500); }
+				fs.readFile(path.join(__dirname, 'index.html'), 'utf8', function (err, templateString) {
+					if (err) { return res.sendStatus(500); }
 
-		var modules = files
-			.map(function (file) { return file.replace(/\.js$/, ''); });
-
-		fs.readFile(path.join(__dirname, 'index.html'), 'utf8', function (err, templateString) {
-			if (err) { return res.sendStatus(500); }
-
-			res.send(template(templateString, {
-				modules: JSON.stringify(modules)
-			}));
-		});
+					res.end(template(templateString, {
+						modules: JSON.stringify(modules)
+					}));
+				});
+			});
+		} else {
+			return staticServer.handle(req, res);
+		}
 	});
-});
 
-app.listen(PORT, function () {
-	console.log('http://localhost:8887/');
+	server.listen(PORT, () => {
+		console.log(`http://localhost:${PORT}/`);
+	});
 });
