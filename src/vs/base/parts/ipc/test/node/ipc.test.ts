@@ -454,7 +454,7 @@ suite('Base IPC', function () {
 			client1.registerChannel('channel', clientChannel1);
 
 			const pings: string[] = [];
-			const channel = server.getChannel('channel');
+			const channel = server.getChannel('channel', () => true);
 			const service = new TestChannelClient(channel);
 			service.onPong(msg => pings.push(msg));
 

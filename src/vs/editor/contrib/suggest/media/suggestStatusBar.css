@@ -10,8 +10,19 @@
 	margin-bottom: 18px;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar span {
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
 	min-height: 18px;
+	opacity: 0.5;
+	color: inherit;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label {
+	margin-right: 0;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label::after {
+	content: ', ';
+	margin-right: 0.3em;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row > .contents > .main > .right > .readMore,

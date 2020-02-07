@@ -518,7 +518,7 @@ export class DebugService implements IDebugService {
 		try {
 			await session.initialize(dbgr!);
 			await session.launchOrAttach(session.configuration);
-			if (forceFocus || !this.viewModel.focusedSession) {
+			if (forceFocus || !this.viewModel.focusedSession || session.parentSession === this.viewModel.focusedSession) {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {
@@ -883,44 +883,42 @@ export class DebugService implements IDebugService {
 		await this.sendExceptionBreakpoints(session);
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
+	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
 
-		return this.sendToOneOrAllSessions(session, s =>
-			s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified)
-		);
+		await sendToOneOrAllSessions(this.model, session, s => s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified));
 	}
 
-	private sendFunctionBreakpoints(session?: IDebugSession): Promise<void> {
+	private async sendFunctionBreakpoints(session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
-		return this.sendToOneOrAllSessions(session, s => {
-			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend) : Promise.resolve(undefined);
+		await sendToOneOrAllSessions(this.model, session, async s => {
+			if (s.capabilities.supportsFunctionBreakpoints) {
+				await s.sendFunctionBreakpoints(breakpointsToSend);
+			}
 		});
 	}
 
 	private sendDataBreakpoints(session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getDataBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
-		return this.sendToOneOrAllSessions(session, s => {
-			return s.capabilities.supportsDataBreakpoints ? s.sendDataBreakpoints(breakpointsToSend) : Promise.resolve(undefined);
+		return sendToOneOrAllSessions(this.model, session, async s => {
+			if (s.capabilities.supportsDataBreakpoints) {
+				await s.sendDataBreakpoints(breakpointsToSend);
+			}
 		});
 	}
 
 	private sendExceptionBreakpoints(session?: IDebugSession): Promise<void> {
 		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
 
-		return this.sendToOneOrAllSessions(session, s => {
-			return s.sendExceptionBreakpoints(enabledExceptionBps);
+		return sendToOneOrAllSessions(this.model, session, async s => {
+			if (s.capabilities.supportsConfigurationDoneRequest && (!s.capabilities.exceptionBreakpointFilters || s.capabilities.exceptionBreakpointFilters.length === 0)) {
+				// Only call `setExceptionBreakpoints` as specified in dap protocol #90001
+				return;
+			}
+			await s.sendExceptionBreakpoints(enabledExceptionBps);
 		});
-	}
-
-	private async sendToOneOrAllSessions(session: IDebugSession | undefined, send: (session: IDebugSession) => Promise<void>): Promise<void> {
-		if (session) {
-			await send(session);
-		} else {
-			await Promise.all(this.model.getSessions().map(s => send(s)));
-		}
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
@@ -1133,4 +1131,12 @@ export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFr
 	}
 
 	return { session, thread, stackFrame };
+}
+
+async function sendToOneOrAllSessions(model: DebugModel, session: IDebugSession | undefined, send: (session: IDebugSession) => Promise<void>): Promise<void> {
+	if (session) {
+		await send(session);
+	} else {
+		await Promise.all(model.getSessions().map(s => send(s)));
+	}
 }

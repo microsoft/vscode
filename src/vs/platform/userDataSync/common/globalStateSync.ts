@@ -118,7 +118,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('UI State: Failed to synchronise ui state as there is a new remote version available. Synchronizing again...');
+				this.logService.info('UI State: Failed to synchronize ui state as there is a new remote version available. Synchronizing again...');
 				return this.sync();
 			}
 			throw e;
@@ -133,7 +133,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		throw new Error('UI State: Conflicts should not occur');
 	}
 
-	resolveConflicts(content: string, remote: boolean): Promise<void> {
+	accept(content: string): Promise<void> {
 		throw new Error('UI State: Conflicts should not occur');
 	}
 
@@ -183,22 +183,25 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 		if (local) {
 			// update local
-			this.logService.info('UI State: Updating local ui state...');
+			this.logService.trace('UI State: Updating local ui state...');
 			await this.writeLocalGlobalState(local);
+			this.logService.info('UI State: Updated local ui state');
 		}
 
 		if (remote) {
 			// update remote
-			this.logService.info('UI State: Updating remote ui state...');
+			this.logService.trace('UI State: Updating remote ui state...');
 			const content = JSON.stringify(remote);
 			const ref = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+			this.logService.info('UI State: Updated remote ui state');
 			remoteUserData = { ref, content };
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
-			this.logService.info('UI State: Updating last synchronised ui state...');
+			this.logService.trace('UI State: Updating last synchronized ui state...');
 			await this.updateLastSyncUserData(remoteUserData);
+			this.logService.info('UI State: Updated last synchronized ui state');
 		}
 	}
 

@@ -20,7 +20,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TimelineItem, ITimelineService } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TimelineItem, ITimelineService, TimelineChangeEvent, TimelineProvidersChangeEvent, TimelineRequest, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -29,6 +29,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { basename } from 'vs/base/common/path';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
+import { debounce } from 'vs/base/common/decorators';
 
 type TreeElement = TimelineItem;
 
@@ -42,8 +43,13 @@ export class TimelinePane extends ViewPane {
 	private _messageElement!: HTMLDivElement;
 	private _treeElement!: HTMLDivElement;
 	private _tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
-	private _tokenSource: CancellationTokenSource | undefined;
 	private _visibilityDisposables: DisposableStore | undefined;
+
+	// private _excludedSources: Set<string> | undefined;
+	private _items: TimelineItemWithSource[] = [];
+	private _loadingMessageTimer: any | undefined;
+	private _pendingRequests = new Map<string, TimelineRequest>();
+	private _uri: URI | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -72,16 +78,31 @@ export class TimelinePane extends ViewPane {
 			uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		}
 
-		this.updateUri(uri);
+		if ((uri?.toString(true) === this._uri?.toString(true) && uri !== undefined) ||
+			// Fallback to match on fsPath if we are dealing with files or git schemes
+			(uri?.fsPath === this._uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this._uri?.scheme === 'file' || this._uri?.scheme === 'git'))) {
+			return;
+		}
+
+		this._uri = uri;
+		this.loadTimeline();
 	}
 
-	private onProvidersChanged() {
-		this.refresh();
+	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
+		if (e.removed) {
+			for (const source of e.removed) {
+				this.replaceItems(source);
+			}
+		}
+
+		if (e.added) {
+			this.loadTimeline(e.added);
+		}
 	}
 
-	private onTimelineChanged(uri: URI | undefined) {
-		if (uri === undefined || uri.toString(true) !== this._uri?.toString(true)) {
-			this.refresh();
+	private onTimelineChanged(e: TimelineChangeEvent) {
+		if (e.uri === undefined || e.uri.toString(true) !== this._uri?.toString(true)) {
+			this.loadTimeline([e.id]);
 		}
 	}
 
@@ -119,53 +140,114 @@ export class TimelinePane extends ViewPane {
 		DOM.clearNode(this._messageElement);
 	}
 
-	private async refresh() {
-		this._tokenSource?.cancel();
-		this._tokenSource = new CancellationTokenSource();
+	private async loadTimeline(sources?: string[]) {
+		// If we have no source, we are reseting all sources, so cancel everything in flight and reset caches
+		if (sources === undefined) {
+			this._items.length = 0;
 
-		let children;
-
-		const uri = this._uri;
-		// TODO[ECA]: Fix the list of schemes here
-		if (uri && (uri.scheme === 'file' || uri.scheme === 'git' || uri.scheme === 'gitlens')) {
-			const messageTimer = setTimeout(() => {
-				this._tree.setChildren(null, undefined);
-				this.message = `Loading timeline for ${basename(uri.fsPath)}...`;
-			}, 500);
-
-			const token = this._tokenSource.token;
-			const items = await this.progressService.withProgress({ location: VIEWLET_ID }, () => this.timelineService.getTimeline(uri, token));
-
-			clearTimeout(messageTimer);
-
-			children = items.map(item => ({ element: item }));
-
-			if (children.length === 0) {
-				this.message = 'No timeline information was provided.';
-			} else {
-				this.message = undefined;
+			if (this._loadingMessageTimer) {
+				clearTimeout(this._loadingMessageTimer);
+				this._loadingMessageTimer = undefined;
 			}
-		} else {
-			this.message = 'The active editor cannot provide timeline information.';
+
+			for (const { tokenSource } of this._pendingRequests.values()) {
+				tokenSource.dispose(true);
+			}
+
+			this._pendingRequests.clear();
+
+			// TODO[ECA]: Are these the right the list of schemes to exclude? Is there a better way?
+			if (this._uri && (this._uri.scheme === 'vscode-settings' || this._uri.scheme === 'webview-panel' || this._uri.scheme === 'walkThrough')) {
+				this.message = 'The active editor cannot provide timeline information.';
+				this._tree.setChildren(null, undefined);
+
+				return;
+			}
+
+			if (this._uri !== undefined) {
+				this._loadingMessageTimer = setTimeout((uri: URI) => {
+					if (uri !== this._uri) {
+						return;
+					}
+
+					this._tree.setChildren(null, undefined);
+					this.message = `Loading timeline for ${basename(uri.fsPath)}...`;
+				}, 500, this._uri);
+			}
 		}
 
-		this._tree.setChildren(null, children);
+		if (this._uri === undefined) {
+			return;
+		}
+
+		for (const source of sources ?? this.timelineService.getSources()) {
+			let request = this._pendingRequests.get(source);
+			request?.tokenSource.dispose(true);
+
+			request = this.timelineService.getTimelineRequest(source, this._uri, new CancellationTokenSource())!;
+
+			this._pendingRequests.set(source, request);
+			request.tokenSource.token.onCancellationRequested(() => this._pendingRequests.delete(source));
+
+			this.handleRequest(request);
+		}
 	}
 
-	private _uri: URI | undefined;
+	private async handleRequest(request: TimelineRequest) {
+		let items;
+		try {
+			items = await this.progressService.withProgress({ location: VIEWLET_ID }, () => request.items);
+		}
+		catch { }
 
-	private updateUri(uri: URI | undefined) {
-		if (uri?.toString(true) === this._uri?.toString(true) && uri !== undefined) {
+		this._pendingRequests.delete(request.source);
+		if (request.tokenSource.token.isCancellationRequested || request.uri !== this._uri) {
 			return;
 		}
 
-		// Fallback to match on fsPath if we are dealing with files or git schemes
-		if (uri?.fsPath === this._uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this._uri?.scheme === 'file' || this._uri?.scheme === 'git')) {
+		this.replaceItems(request.source, items);
+	}
+
+	private replaceItems(source: string, items?: TimelineItemWithSource[]) {
+		const hasItems = this._items.length !== 0;
+
+		if (items?.length) {
+			this._items.splice(0, this._items.length, ...this._items.filter(i => i.source !== source), ...items);
+			this._items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
+		}
+		else if (this._items.length && this._items.some(i => i.source === source)) {
+			this._items = this._items.filter(i => i.source !== source);
+		}
+		else {
 			return;
 		}
 
+		// If we have items already and there are other pending requests, debounce for a bit to wait for other requests
+		if (hasItems && this._pendingRequests.size !== 0) {
+			this.refreshDebounced();
+		}
+		else {
+			this.refresh();
+		}
+	}
 
-		this._uri = uri;
+	private refresh() {
+		if (this._loadingMessageTimer) {
+			clearTimeout(this._loadingMessageTimer);
+			this._loadingMessageTimer = undefined;
+		}
+
+		if (this._items.length === 0) {
+			this.message = 'No timeline information was provided.';
+		} else {
+			this.message = undefined;
+		}
+
+		this._tree.setChildren(null, this._items.map(item => ({ element: item })));
+	}
+
+	@debounce(500)
+	private refreshDebounced() {
 		this.refresh();
 	}
 

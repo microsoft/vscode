@@ -2169,14 +2169,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers
+	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers.
 	 */
 	export interface CodeActionProviderMetadata {
 		/**
-		 * [CodeActionKinds](#CodeActionKind) that this provider may return.
+		 * List of [CodeActionKinds](#CodeActionKind) that a [CodeActionProvider](#CodeActionProvider) may return.
 		 *
-		 * The list of kinds may be generic, such as `CodeActionKind.Refactor`, or the provider
-		 * may list our every specific kind they provide, such as `CodeActionKind.Refactor.Extract.append('function`)`
+		 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+		 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
+		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
 		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
 	}
@@ -10052,7 +10054,7 @@ declare module 'vscode' {
 	 * 	return api;
 	 * }
 	 * ```
-	 * When depending on the API of another extension add an `extensionDependency`-entry
+	 * When depending on the API of another extension add an `extensionDependencies`-entry
 	 * to `package.json`, and use the [getExtension](#extensions.getExtension)-function
 	 * and the [exports](#Extension.exports)-property, like below:
 	 *

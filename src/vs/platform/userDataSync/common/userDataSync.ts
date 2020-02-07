@@ -124,12 +124,13 @@ export interface IUserData {
 }
 
 export enum UserDataSyncErrorCode {
-	Unauthroized = 'Unauthroized',
+	Unauthorized = 'Unauthorized',
 	Forbidden = 'Forbidden',
 	ConnectionRefused = 'ConnectionRefused',
 	Rejected = 'Rejected',
 	TooLarge = 'TooLarge',
-	TooManyFailures = 'TooManyFailures',
+	NoRef = 'NoRef',
+	NewLocal = 'NewLocal',
 	Unknown = 'Unknown',
 }
 
@@ -137,6 +138,18 @@ export class UserDataSyncError extends Error {
 
 	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly source?: SyncSource) {
 		super(message);
+		this.name = `${this.code} (UserDataSyncError) ${this.source}`;
+	}
+
+	static toUserDataSyncError(error: Error): UserDataSyncError {
+		if (error instanceof UserDataSyncStoreError) {
+			return error;
+		}
+		const match = /^(.+) \(UserDataSyncError\) (.+)?$/.exec(error.name);
+		if (match && match[1]) {
+			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], <SyncSource>match[2]);
+		}
+		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
 	}
 
 }
@@ -204,8 +217,8 @@ export interface ISynchroniser {
 
 export interface IUserDataSynchroniser extends ISynchroniser {
 	readonly source: SyncSource;
-	getRemoteContent(): Promise<string | null>;
-	resolveConflicts(content: string, remote: boolean): Promise<void>;
+	getRemoteContent(preivew?: boolean): Promise<string | null>;
+	accept(content: string): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -215,14 +228,14 @@ export interface IUserDataSyncService extends ISynchroniser {
 	isFirstTimeSyncAndHasUserData(): Promise<boolean>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
-	getRemoteContent(source: SyncSource): Promise<string | null>;
-	resolveConflictsAndContinueSync(content: string, remote: boolean): Promise<void>;
+	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
+	accept(source: SyncSource, content: string): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
-	onError: Event<{ code: UserDataSyncErrorCode, source?: SyncSource }>;
+	readonly onError: Event<{ code: UserDataSyncErrorCode, source?: SyncSource }>;
 	triggerAutoSync(): Promise<void>;
 }
 

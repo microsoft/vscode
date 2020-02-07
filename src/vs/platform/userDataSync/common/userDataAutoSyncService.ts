@@ -15,7 +15,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 	private enabled: boolean = false;
 	private successiveFailures: number = 0;
-	private successiveUnhandledFailures: number = 0;
 	private readonly syncDelayer: Delayer<void>;
 
 	private readonly _onError: Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }> = this._register(new Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }>());
@@ -77,21 +76,15 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				this.resetFailures();
 			} catch (e) {
 				this.successiveFailures++;
-				if (this.isUnHandledError(e)) {
-					this.successiveUnhandledFailures++;
-				}
 				this.logService.error(e);
 				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
-			}
-			if (this.successiveUnhandledFailures > 5) {
-				this._onError.fire({ code: UserDataSyncErrorCode.TooManyFailures });
 			}
 			if (loop) {
 				await timeout(1000 * 60 * 5);
 				this.sync(loop, true);
 			}
 		} else {
-			this.logService.trace('Not syncing as it is disabled.');
+			this.logService.trace('Auto Sync: Not syncing as it is disabled.');
 		}
 	}
 
@@ -107,20 +100,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			&& !!(await this.userDataAuthTokenService.getToken());
 	}
 
-	private isUnHandledError(error: Error): boolean {
-		if (!(error instanceof UserDataSyncError)) {
-			return true;
-		}
-		switch (error.code) {
-			case UserDataSyncErrorCode.ConnectionRefused:
-			case UserDataSyncErrorCode.Forbidden:
-			case UserDataSyncErrorCode.Unauthroized:
-			case UserDataSyncErrorCode.Rejected:
-				return false;
-		}
-		return true;
-	}
-
 	private resetFailures(): void {
 		this.successiveFailures = 0;
 	}
@@ -128,7 +107,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	async triggerAutoSync(): Promise<void> {
 		if (this.enabled) {
 			return this.syncDelayer.trigger(() => {
-				this.logService.info('Sync: Triggerred.');
+				this.logService.info('Auto Sync: Triggerred.');
 				return this.sync(false, true);
 			}, this.successiveFailures
 				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */

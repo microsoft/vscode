@@ -63,8 +63,8 @@ export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspac
 		return this.workspacesHistoryMainService.addRecentlyOpened(recents);
 	}
 
-	async removeFromRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
-		return this.workspacesHistoryMainService.removeFromRecentlyOpened(paths);
+	async removeRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
+		return this.workspacesHistoryMainService.removeRecentlyOpened(paths);
 	}
 
 	async clearRecentlyOpened(windowId: number): Promise<void> {

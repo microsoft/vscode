@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSynchroniser, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
@@ -17,6 +16,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type SyncConflictsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
+type SyncErrorClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
@@ -73,7 +76,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			try {
 				await synchroniser.pull();
 			} catch (e) {
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 	}
@@ -89,7 +92,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			try {
 				await synchroniser.push();
 			} catch (e) {
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 	}
@@ -114,21 +117,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					break;
 				}
 			} catch (e) {
-				if (e instanceof UserDataSyncStoreError) {
-					throw e;
-				}
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 		this.logService.trace(`Finished Syncing. Took ${new Date().getTime() - startTime}ms`);
 	}
 
-	async resolveConflictsAndContinueSync(content: string, remote: boolean): Promise<void> {
-		const synchroniser = this.getSynchroniserInConflicts();
-		if (!synchroniser) {
-			throw new Error(localize('no synchroniser with conflicts', "No conflicts detected."));
-		}
-		await synchroniser.resolveConflicts(content, remote);
+	async accept(source: SyncSource, content: string): Promise<void> {
+		const synchroniser = this.getSynchroniser(source);
+		await synchroniser.accept(content);
 		if (synchroniser.status !== SyncStatus.HasConflicts) {
 			await this.sync();
 		}
@@ -199,10 +196,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return false;
 	}
 
-	async getRemoteContent(source: SyncSource): Promise<string | null> {
+	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
 		for (const synchroniser of this.synchronisers) {
 			if (synchroniser.source === source) {
-				return synchroniser.getRemoteContent();
+				return synchroniser.getRemoteContent(preview);
 			}
 		}
 		return null;
@@ -252,7 +249,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			try {
 				await synchroniser.resetLocal();
 			} catch (e) {
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.logService.error(`${synchroniser.source}: ${toErrorMessage(e)}`);
+				this.logService.error(e);
 			}
 		}
 		this.logService.info('Completed resetting local cache');
@@ -290,9 +288,21 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return SyncStatus.Idle;
 	}
 
+	private handleSyncError(e: Error, source: SyncSource): void {
+		if (e instanceof UserDataSyncStoreError) {
+			switch (e.code) {
+				case UserDataSyncErrorCode.TooLarge:
+					this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source });
+			}
+			throw e;
+		}
+		this.logService.error(e);
+		this.logService.error(`${source}: ${toErrorMessage(e)}`);
+	}
+
 	private computeConflictsSource(): SyncSource | null {
 		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		return synchroniser ? this.getSyncSource(synchroniser) : null;
+		return synchroniser ? synchroniser.source : null;
 	}
 
 	private getSynchroniserInConflicts(): IUserDataSynchroniser | null {
@@ -300,17 +310,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return synchroniser || null;
 	}
 
-	private getSyncSource(synchroniser: ISynchroniser): SyncSource {
-		if (synchroniser instanceof SettingsSynchroniser) {
-			return SyncSource.Settings;
+	private getSynchroniser(source: SyncSource): IUserDataSynchroniser {
+		switch (source) {
+			case SyncSource.Settings: return this.settingsSynchroniser;
+			case SyncSource.Keybindings: return this.keybindingsSynchroniser;
+			case SyncSource.Extensions: return this.extensionsSynchroniser;
+			case SyncSource.GlobalState: return this.globalStateSynchroniser;
 		}
-		if (synchroniser instanceof KeybindingsSynchroniser) {
-			return SyncSource.Keybindings;
-		}
-		if (synchroniser instanceof ExtensionsSynchroniser) {
-			return SyncSource.Extensions;
-		}
-		return SyncSource.GlobalState;
 	}
 
 	private onDidChangeAuthTokenStatus(token: string | undefined): void {

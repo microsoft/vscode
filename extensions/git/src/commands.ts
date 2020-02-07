@@ -9,8 +9,8 @@ import * as path from 'path';
 import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, GitErrorCodes, Ref, RefType, Status } from './api/git';
-import { CommitOptions, ForcePushMode, Git, Stash } from './git';
+import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions } from './api/git';
+import { ForcePushMode, Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
@@ -1620,7 +1620,7 @@ export class CommandCenter {
 
 		const rawBranchName = defaultName || await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
+			prompt: localize('provide branch name', "Please provide a new branch name"),
 			value: initialValue,
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
@@ -2332,14 +2332,20 @@ export class CommandCenter {
 	}
 
 	@command('git.openDiff', { repository: false })
-	async openDiff(uri: Uri, hash: string) {
+	async openDiff(uri: Uri, lhs: string, rhs: string) {
 		const basename = path.basename(uri.fsPath);
 
-		if (hash === '~') {
-			return commands.executeCommand('vscode.diff', toGitUri(uri, hash), toGitUri(uri, `HEAD`), `${basename} (Index)`);
+		let title;
+		if ((lhs === 'HEAD' || lhs === '~') && rhs === '') {
+			title = `${basename} (Working Tree)`;
+		}
+		else if (lhs === 'HEAD' && rhs === '~') {
+			title = `${basename} (Index)`;
+		} else {
+			title = `${basename} (${lhs.endsWith('^') ? `${lhs.substr(0, 8)}^` : lhs.substr(0, 8)}) \u27f7 ${basename} (${rhs.endsWith('^') ? `${rhs.substr(0, 8)}^` : rhs.substr(0, 8)})`;
 		}
 
-		return commands.executeCommand('vscode.diff', toGitUri(uri, `${hash}^`), toGitUri(uri, hash), `${basename} (${hash.substr(0, 8)}^) \u27f7 ${basename} (${hash.substr(0, 8)})`);
+		return commands.executeCommand('vscode.diff', toGitUri(uri, lhs), rhs === '' ? uri : toGitUri(uri, rhs), title);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {

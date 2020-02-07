@@ -1,21 +1,28 @@
 # VS Code Smoke Test
 
-Make sure you are on **Node v10.x**.
+Make sure you are on **Node v12.x**.
 
 ### Run
 
 ```bash
 # Install Dependencies and Compile
 yarn --cwd test/smoke
+yarn --cwd test/automation
 
-# Dev
+# Dev (Electron)
 yarn smoketest
 
-# Build
-yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_BUILD_PARENT_FOLDER
+# Dev (Web)
+yarn smoketest --web --browser <chromium|firefox|webkit>
 
-# Remote
-yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --remote
+# Build (Electron)
+yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
+
+# Build (Web - read instructions below)
+yarn smoketest --build <path to web server folder> --web --browser <chromium|firefox|webkit>
+
+# Remote (Electron)
+yarn smoketest --build <path latest built version> --remote
 ```
 
 ### Run for a release
@@ -27,18 +34,33 @@ git checkout release/1.22
 yarn --cwd test/smoke
 ```
 
+#### Electron
+
 In addition to the new build to be released you will need the previous stable build so that the smoketest can test the data migration.
 The recommended way to make these builds available for the smoketest is by downloading their archive version (\*.zip) and extracting
 them into two folders. Pass the folder paths to the smoketest as follows:
 
 ```bash
-yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_RELEASE_PARENT_FOLDER
+yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
 ```
+
+#### Web
+
+**macOS**: if you have downloaded the server with web bits, make sure to run the following command before unzipping it to avoid security issues on startup:
+
+```bash
+xattr -d com.apple.quarantine <path to server with web folder zip>
+```
+
+There is no support for testing an old version to a new one yet, so simply configure the `--build` command line argument to point to
+the web server folder which includes the web client bits (e.g. `vscode-server-darwin-web` for macOS).
+
+**Note**: make sure to point to the server that includes the client bits!
 
 ### Debug
 
 - `--verbose` logs all the low level driver calls made to Code;
-- `-f PATTERN` filters the tests to be run. You can also use pretty much any mocha argument;
+- `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
 - `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
 
 ### Develop

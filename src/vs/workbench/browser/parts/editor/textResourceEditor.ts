@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { assertIsDefined, isFunction } from 'vs/base/common/types';
+import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -25,6 +25,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { basenameOrAuthority } from 'vs/base/common/resources';
+import { ModelConstants } from 'vs/editor/common/model';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -109,11 +111,11 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
 
-		const inputName = this.input?.getName();
+		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.getResource()) : this.input?.getName();
 		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
-			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('untitledFileEditorAriaLabel', "Editor");
+			ariaLabel = inputName ? nls.localize('writeableEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('writeableEditorAriaLabel', "Editor");
 		}
 
 		return ariaLabel;
@@ -212,8 +214,8 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (!e.mode || e.mode === PLAINTEXT_MODE_ID) {
-			return; // require a specific mode
+		if (e.range.startLineNumber !== 1 && e.range.startColumn !== 1) {
+			return; // only when pasting into first line, first column (= empty document)
 		}
 
 		if (codeEditor.getOption(EditorOption.readOnly)) {
@@ -230,7 +232,24 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			return; // require current mode to be unspecific
 		}
 
-		// Finally apply mode to model
-		this.modelService.setMode(textModel, this.modeService.create(e.mode));
+		let candidateMode: string | undefined = undefined;
+
+		// A mode is provided via the paste event so text was copied using
+		// VSCode. As such we trust this mode and use it if specific
+		if (e.mode) {
+			candidateMode = e.mode;
+		}
+
+		// A mode was not provided, so the data comes from outside VSCode
+		// We can still try to guess a good mode from the first line if
+		// the paste changed the first line
+		else {
+			candidateMode = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+		}
+
+		// Finally apply mode to model if specified
+		if (candidateMode !== PLAINTEXT_MODE_ID) {
+			this.modelService.setMode(textModel, this.modeService.create(candidateMode));
+		}
 	}
 }

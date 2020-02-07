@@ -47,6 +47,9 @@ steps:
     .\scripts\test.bat --tfs "Unit Tests"
   displayName: Run Unit Tests
 - powershell: |
+    yarn test-browser --browser chromium --browser webkit
+  displayName: Run Unit Tests (Browser)
+- powershell: |
     .\scripts\test-integration.bat --tfs "Integration Tests"
   displayName: Run Integration Tests
 - task: PublishTestResults@2

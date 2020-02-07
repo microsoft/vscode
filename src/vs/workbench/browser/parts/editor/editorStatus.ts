@@ -51,7 +51,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { find } from 'vs/base/common/arrays';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
@@ -390,7 +390,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					text: nls.localize('tabFocusModeEnabled', "Tab Moves Focus"),
 					tooltip: nls.localize('disableTabMode', "Disable Accessibility Mode"),
 					command: 'editor.action.toggleTabFocusMode',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND)
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
+					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
 				}, 'status.editor.tabFocusMode', nls.localize('status.editor.tabFocusMode', "Accessibility Mode"), StatusbarAlignment.RIGHT, 100.7);
 			}
 		} else {
@@ -405,7 +406,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					text: nls.localize('screenReaderDetected', "Screen Reader Optimized"),
 					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
 					command: 'showEditorScreenReaderNotification',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND)
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
+					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
 				}, 'status.editor.screenReaderMode', nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"), StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
@@ -573,13 +575,14 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private updateStatusBar(): void {
+		const activeInput = this.editorService.activeEditor;
 		const activeControl = this.editorService.activeControl;
 		const activeCodeEditor = activeControl ? withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
-		this.onModeChange(activeCodeEditor);
+		this.onModeChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
 		this.onEncodingChange(activeControl, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
@@ -607,7 +610,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 			// Hook Listener for mode changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
-				this.onModeChange(activeCodeEditor);
+				this.onModeChange(activeCodeEditor, activeInput);
 			}));
 
 			// Hook Listener for content changes
@@ -661,11 +664,11 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private onModeChange(editorWidget: ICodeEditor | undefined): void {
+	private onModeChange(editorWidget: ICodeEditor | undefined, editorInput: IEditorInput | undefined): void {
 		let info: StateDelta = { mode: undefined };
 
 		// We only support text based editors
-		if (editorWidget) {
+		if (editorWidget && editorInput && toEditorWithModeSupport(editorInput)) {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;

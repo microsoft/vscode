@@ -22,7 +22,7 @@ interface IToken {
 	accessToken: string;
 	refreshToken: string;
 
-	displayName: string;
+	accountName: string;
 	scope: string;
 	sessionId: string; // The account id + the scope
 }
@@ -33,6 +33,7 @@ interface ITokenClaims {
 	unique_name?: string;
 	oid?: string;
 	altsecid?: string;
+	ipd?: string;
 	scp: string;
 }
 
@@ -51,6 +52,8 @@ function parseQuery(uri: vscode.Uri) {
 }
 
 export const onDidChangeSessions = new vscode.EventEmitter<void>();
+
+export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -90,7 +93,7 @@ export class AzureActiveDirectoryService {
 					try {
 						await this.refreshToken(session.refreshToken, session.scope);
 					} catch (e) {
-						await this.logout(session.id);
+						this.handleTokenRefreshFailure(e, session.id, session.refreshToken, session.scope, false);
 					}
 				});
 
@@ -133,7 +136,7 @@ export class AzureActiveDirectoryService {
 								await this.refreshToken(session.refreshToken, session.scope);
 								didChange = true;
 							} catch (e) {
-								await this.logout(session.id);
+								this.handleTokenRefreshFailure(e, session.id, session.refreshToken, session.scope, false);
 							}
 						}
 					});
@@ -169,11 +172,11 @@ export class AzureActiveDirectoryService {
 		}, 1000 * 30);
 	}
 
-	private convertToSession(token: IToken): vscode.Session {
+	private convertToSession(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
-			accessToken: token.accessToken,
-			displayName: token.displayName,
+			accessToken: () => Promise.resolve(token.accessToken),
+			accountName: token.accountName,
 			scopes: token.scope.split(' ')
 		};
 	}
@@ -187,7 +190,7 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	get sessions(): vscode.Session[] {
+	get sessions(): vscode.AuthenticationSession[] {
 		return this._tokens.map(token => this.convertToSession(token));
 	}
 
@@ -287,7 +290,7 @@ export class AzureActiveDirectoryService {
 		});
 		vscode.env.openExternal(uri);
 
-		const timeoutPromise = new Promise((resolve: (value: IToken) => void, reject) => {
+		const timeoutPromise = new Promise((_: (value: IToken) => void, reject) => {
 			const wait = setTimeout(() => {
 				clearTimeout(wait);
 				reject('Login timed out.');
@@ -334,18 +337,14 @@ export class AzureActiveDirectoryService {
 			this._tokens.push(token);
 		}
 
-		const existingTimeout = this._refreshTimeouts.get(token.sessionId);
-		if (existingTimeout) {
-			clearTimeout(existingTimeout);
-		}
+		this.clearSessionTimeout(token.sessionId);
 
 		this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 			try {
 				await this.refreshToken(token.refreshToken, scope);
-			} catch (e) {
-				await this.logout(token.sessionId);
-			} finally {
 				onDidChangeSessions.fire();
+			} catch (e) {
+				this.handleTokenRefreshFailure(e, token.sessionId, token.refreshToken, scope, true);
 			}
 		}, 1000 * (parseInt(token.expiresIn) - 30)));
 
@@ -360,8 +359,8 @@ export class AzureActiveDirectoryService {
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,
-			sessionId: claims.tid + (claims.oid || claims.altsecid) + scope,
-			displayName: claims.email || claims.unique_name || 'user@example.com'
+			sessionId: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${scope}`,
+			accountName: claims.email || claims.unique_name || 'user@example.com'
 		};
 	}
 
@@ -459,28 +458,72 @@ export class AzureActiveDirectoryService {
 			post.end();
 			post.on('error', err => {
 				Logger.error(err.message);
-				reject(err);
+				reject(new Error(REFRESH_NETWORK_FAILURE));
 			});
 		});
 	}
 
-	public async logout(sessionId: string) {
-		Logger.info(`Logging out of session '${sessionId}'`);
+	private clearSessionTimeout(sessionId: string): void {
+		const timeout = this._refreshTimeouts.get(sessionId);
+		if (timeout) {
+			clearTimeout(timeout);
+			this._refreshTimeouts.delete(sessionId);
+		}
+	}
+
+	private removeInMemorySessionData(sessionId: string) {
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex > -1) {
 			this._tokens.splice(tokenIndex, 1);
 		}
 
+		this.clearSessionTimeout(sessionId);
+	}
+
+	private async handleTokenRefreshFailure(e: Error, sessionId: string, refreshToken: string, scope: string, sendChangeEvent: boolean): Promise<void> {
+		if (e.message === REFRESH_NETWORK_FAILURE) {
+			this.handleRefreshNetworkError(sessionId, refreshToken, scope);
+		} else {
+			await this.logout(sessionId);
+			if (sendChangeEvent) {
+				onDidChangeSessions.fire();
+			}
+		}
+	}
+
+	private handleRefreshNetworkError(sessionId: string, refreshToken: string, scope: string, attempts: number = 1) {
+		if (attempts === 5) {
+			Logger.error('Token refresh failed after 5 attempts');
+			return;
+		}
+
+		if (attempts === 1) {
+			this.removeInMemorySessionData(sessionId);
+			onDidChangeSessions.fire();
+		}
+
+		const delayBeforeRetry = 5 * attempts * attempts;
+
+		this.clearSessionTimeout(sessionId);
+
+		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
+			try {
+				await this.refreshToken(refreshToken, scope);
+				onDidChangeSessions.fire();
+			} catch (e) {
+				await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1);
+			}
+		}, 1000 * delayBeforeRetry));
+	}
+
+	public async logout(sessionId: string) {
+		Logger.info(`Logging out of session '${sessionId}'`);
+		this.removeInMemorySessionData(sessionId);
+
 		if (this._tokens.length === 0) {
 			await keychain.deleteToken();
 		} else {
 			this.storeTokenData();
-		}
-
-		const timeout = this._refreshTimeouts.get(sessionId);
-		if (timeout) {
-			clearTimeout(timeout);
-			this._refreshTimeouts.delete(sessionId);
 		}
 	}
 

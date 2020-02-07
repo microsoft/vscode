@@ -730,6 +730,12 @@
           "default": 3072,
           "description": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
+        },
+        "typescript.tsserver.experimental.enableProjectDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
+          "scope": "window"
         }
       }
     },
@@ -882,10 +888,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}:\\d{1,2}:\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}:\\d{1,2}:\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
       }

@@ -56,7 +56,7 @@ const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replac
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
+const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
 const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
@@ -415,11 +415,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (label === NLS_NO_RESULTS) {
 			return searchString === ''
 				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
-				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
 		}
-		return currentMatch
-			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
-			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
+		if (currentMatch) {
+			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
+			const lineContent = this._codeEditor.getModel()?.getLineContent(currentMatch.startLineNumber);
+			if (lineContent) {
+				return `${lineContent}, ${ariaLabel}`;
+			}
+
+			return ariaLabel;
+		}
+
+		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 
 	/**

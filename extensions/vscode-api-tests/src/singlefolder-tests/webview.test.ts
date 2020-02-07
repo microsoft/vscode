@@ -13,7 +13,8 @@ const webviewId = 'myWebview';
 
 const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 
-suite('Webview tests', () => {
+// TODO: Re-enable after https://github.com/microsoft/vscode/issues/88415
+('electron' in process.versions ? suite.skip : suite)('Webview tests', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {

@@ -14,6 +14,11 @@
 
 import * as vscode from 'vscode';
 
+declare const window: unknown;
+declare const TextEncoder: any;
+declare const TextDecoder: any;
+declare const URL: any;
+
 const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
 

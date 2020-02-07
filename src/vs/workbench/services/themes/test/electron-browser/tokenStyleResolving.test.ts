@@ -18,8 +18,6 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
 
-let tokenClassificationRegistry = getTokenClassificationRegistry();
-
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
 
@@ -73,10 +71,7 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 	for (let qualifiedClassifier in expected) {
 		const [type, ...modifiers] = qualifiedClassifier.split('.');
 
-		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-		assert.ok(classification, 'Classification not found');
-
-		const tokenStyle = themeData.getTokenStyle(classification!);
+		const tokenStyle = themeData.getTokenStyle(type, modifiers);
 		const expectedTokenStyle = expected[qualifiedClassifier];
 		assertTokenStyle(tokenStyle, expectedTokenStyle, qualifiedClassifier);
 
@@ -317,5 +312,29 @@ suite('Themes - TokenStyleResolving', () => {
 			'class.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
 		});
 
+	});
+
+	test('super type', async () => {
+		getTokenClassificationRegistry().registerTokenType('myTestInterface', 'A type just for testing', 'interface');
+		try {
+			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+			themeData.setCustomColors({ 'editor.foreground': '#000000' });
+			themeData.setCustomTokenStyleRules({
+				'type': '#ff0000',
+				'interface': { fontStyle: 'italic' },
+				'type.static': { fontStyle: 'bold' }
+			});
+
+			assertTokenStyles(themeData, { 'myTestInterface': ts('#ff0000', { italic: true }) });
+			assertTokenStyles(themeData, { 'myTestInterface.static': ts('#ff0000', { italic: true, bold: true }) });
+
+			themeData.setCustomTokenStyleRules({
+				'type': '#ff0000',
+				'interface': { foreground: '#ff00ff', fontStyle: 'italic' }
+			});
+			assertTokenStyles(themeData, { 'myTestInterface': ts('#ff00ff', { italic: true }) });
+		} finally {
+			getTokenClassificationRegistry().deregisterTokenType('myTestInterface');
+		}
 	});
 });

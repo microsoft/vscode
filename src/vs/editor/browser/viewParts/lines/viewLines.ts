@@ -589,6 +589,14 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (boxEndY - boxStartY > viewportHeight) {
 			// the box is larger than the viewport ... scroll to its top
 			newScrollTop = boxStartY;
+		} else if (verticalType === viewEvents.VerticalRevealType.NearTop) {
+			// We want a gap that is 20% of the viewport, but with a minimum of 5 lines
+			const desiredGapAbove = Math.max(5 * this._lineHeight, viewportHeight * 0.2);
+			// Try to scroll just above the box with the desired gap
+			const desiredScrollTop = boxStartY - desiredGapAbove;
+			// But ensure that the box is not pushed out of viewport
+			const minScrollTop = boxEndY - viewportHeight;
+			newScrollTop = Math.max(minScrollTop, desiredScrollTop);
 		} else if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport) {
 			if (verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
 				// Box is already in the viewport... do nothing

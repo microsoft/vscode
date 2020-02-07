@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -23,13 +23,12 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { Session } from 'vs/editor/common/modes';
+import { AuthenticationSession } from 'vs/editor/common/modes';
 import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -68,10 +67,6 @@ type FirstTimeSyncClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-type SyncErrorClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
-
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
 	private static readonly ENABLEMENT_SETTING = 'sync.enable';
@@ -82,7 +77,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
-	private _activeAccount: Session | undefined;
+	private _activeAccount: AuthenticationSession | undefined;
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -118,9 +113,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(userDataAutoSyncService.onError(({ code, source }) => this.onAutoSyncError(code, source)));
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
-				if (isWeb) {
-					this._register(instantiationService.createInstance(UserDataAutoSyncService));
-				} else {
+				if (!isWeb) {
 					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
 				}
 			});
@@ -138,12 +131,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (sessions.length === 0) {
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 			return;
 		}
 
 		if (sessions.length === 1) {
-			this.activeAccount = sessions[0];
+			this.logAuthenticatedEvent(sessions[0]);
+			this.setActiveAccount(sessions[0]);
 			return;
 		}
 
@@ -155,19 +149,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}), { canPickMany: false });
 
 		if (selectedAccount) {
-			this.activeAccount = sessions.filter(account => selectedAccount.id === account.id)[0];
+			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
+			this.logAuthenticatedEvent(selected);
+			this.setActiveAccount(selected);
 		}
 	}
 
-	get activeAccount(): Session | undefined {
+	private logAuthenticatedEvent(session: AuthenticationSession): void {
+		type UserAuthenticatedClassification = {
+			id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
+		};
+
+		type UserAuthenticatedEvent = {
+			id: string;
+		};
+
+		const id = session.id.split('/')[1];
+		this.telemetryService.publicLog2<UserAuthenticatedEvent, UserAuthenticatedClassification>('user.authenticated', { id });
+	}
+
+	get activeAccount(): AuthenticationSession | undefined {
 		return this._activeAccount;
 	}
 
-	set activeAccount(account: Session | undefined) {
+	async setActiveAccount(account: AuthenticationSession | undefined) {
 		this._activeAccount = account;
 
 		if (account) {
-			this.userDataAuthTokenService.setToken(account.accessToken);
+			const token = await account.accessToken();
+			this.userDataAuthTokenService.setToken(token);
 			this.authenticationState.set(AuthStatus.SignedIn);
 		} else {
 			this.userDataAuthTokenService.setToken(undefined);
@@ -183,7 +193,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				// Try to update existing account, case where access token has been refreshed
 				const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
 				const matchingAccount = accounts.filter(a => a.id === this.activeAccount?.id)[0];
-				this.activeAccount = matchingAccount;
+				this.setActiveAccount(matchingAccount);
 			} else {
 				this.initializeActiveAccount();
 			}
@@ -198,7 +208,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidUnregisterAuthenticationProvider(providerId: string) {
 		if (providerId === this.userDataSyncStore!.authenticationProviderId) {
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 			this.authenticationState.reset();
 		}
 	}
@@ -263,27 +273,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onAutoSyncError(code: UserDataSyncErrorCode, source?: SyncSource): void {
 		switch (code) {
-			case UserDataSyncErrorCode.TooManyFailures:
-				this.telemetryService.publicLog2('sync/errorTooMany');
-				this.disableSync();
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: localize('too many errors', "Turned off sync because of too many failure attempts. Please open Sync log to check the failures and turn on sync."),
-					actions: {
-						primary: [new Action('open sync log', localize('open log', "Show logs"), undefined, true, () => this.showSyncLog())]
-					}
-				});
-				return;
 			case UserDataSyncErrorCode.TooLarge:
-				this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source: source! });
 				if (source === SyncSource.Keybindings || source === SyncSource.Settings) {
 					const sourceArea = getSyncAreaLabel(source);
-					this.disableSync();
 					this.notificationService.notify({
 						severity: Severity.Error,
-						message: localize('too large', "Turned off sync because size of the {0} file to sync is larger than {1}. Please open the file and reduce the size and turn on sync", sourceArea, '1MB'),
+						message: localize('too large', "Disabled synchronizing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
 						actions: {
-							primary: [new Action('open sync log', localize('open file', "Show {0} file", sourceArea), undefined, true,
+							primary: [new Action('open sync file', localize('open file', "Show {0} file", sourceArea), undefined, true,
 								() => source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
 						}
 					});
@@ -469,13 +466,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private disableSync(): Promise<void> {
-		return this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, undefined, ConfigurationTarget.USER);
+	private disableSync(source?: SyncSource): Promise<void> {
+		let key: string = UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING;
+		switch (source) {
+			case SyncSource.Settings: key = 'sync.enableSettings'; break;
+			case SyncSource.Keybindings: key = 'sync.enableKeybindings'; break;
+			case SyncSource.Extensions: key = 'sync.enableExtensions'; break;
+			case SyncSource.GlobalState: key = 'sync.enableUIState'; break;
+		}
+		return this.configurationService.updateValue(key, false, ConfigurationTarget.USER);
 	}
 
 	private async signIn(): Promise<void> {
 		try {
-			this.activeAccount = await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']);
+			this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
 		} catch (e) {
 			this.notificationService.error(e);
 			throw e;
@@ -485,7 +489,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async signOut(): Promise<void> {
 		if (this.activeAccount) {
 			await this.authenticationService.logout(this.userDataSyncStore!.authenticationProviderId, this.activeAccount.id);
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 		}
 	}
 
@@ -672,10 +676,10 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		let promise: Promise<string | null> | undefined;
 		if (isEqual(uri, toRemoteContentResource(SyncSource.Settings))) {
-			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings);
+			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings, true);
 		}
 		if (isEqual(uri, toRemoteContentResource(SyncSource.Keybindings))) {
-			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings);
+			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings, true);
 		}
 		if (promise) {
 			return promise.then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
@@ -760,35 +764,40 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 	private createAcceptChangesWidgetRenderer(): void {
 		if (!this.acceptChangesButton) {
-			const replaceLabel = localize('accept remote', "Replace (Overwrite Local)");
-			const applyLabel = localize('accept local', "Apply");
-			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? replaceLabel : applyLabel, null);
+			const acceptRemoteLabel = localize('accept remote', "Accept Remote");
+			const acceptLocalLabel = localize('accept local', "Accept Local");
+			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined ? acceptRemoteLabel : acceptLocalLabel, null);
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
 					const conflictsSource = this.userDataSyncService.conflictsSource;
 					const syncSource = getSyncSourceFromRemoteContentResource(model.uri);
-					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource!, action: syncSource !== undefined ? 'replaceLocal' : 'apply' });
-					if (syncSource !== undefined) {
-						const syncAreaLabel = getSyncAreaLabel(syncSource);
-						const result = await this.dialogService.confirm({
-							type: 'info',
-							title: localize('Sync overwrite local', "Sync: {0}", replaceLabel),
-							message: localize('confirm replace and overwrite local', "Would you like to replace Local {0} with Remote {1}?", syncAreaLabel, syncAreaLabel),
-							primaryButton: replaceLabel
-						});
-						if (!result.confirmed) {
-							return;
-						}
-					}
-					try {
-						await this.userDataSyncService.resolveConflictsAndContinueSync(model.getValue(), syncSource !== undefined);
-					} catch (e) {
-						this.userDataSyncService.restart().then(() => {
-							if (conflictsSource === this.userDataSyncService.conflictsSource) {
-								this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource!, action: syncSource !== undefined ? 'acceptRemote' : 'acceptLocal' });
+					const syncAreaLabel = getSyncAreaLabel(conflictsSource!);
+					const result = await this.dialogService.confirm({
+						type: 'info',
+						title: syncSource !== undefined
+							? localize('Sync accept remote', "Sync: {0}", acceptRemoteLabel)
+							: localize('Sync accept local', "Sync: {0}", acceptLocalLabel),
+						message: syncSource !== undefined
+							? localize('confirm replace and overwrite local', "Would you like to accept Remote {0} and replace Local {1}?", syncAreaLabel, syncAreaLabel)
+							: localize('confirm replace and overwrite remote', "Would you like to accept Local {0} and replace Remote {1}?", syncAreaLabel, syncAreaLabel),
+						primaryButton: syncSource !== undefined ? acceptRemoteLabel : acceptLocalLabel
+					});
+					if (result.confirmed) {
+						try {
+							await this.userDataSyncService.accept(conflictsSource!, model.getValue());
+						} catch (e) {
+							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.NewLocal) {
+								this.userDataSyncService.restart().then(() => {
+									if (conflictsSource === this.userDataSyncService.conflictsSource) {
+										this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+									}
+								});
+							} else {
+								this.notificationService.error(e);
 							}
-						});
+						}
 					}
 				}
 			}));

@@ -17,13 +17,18 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
+	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
+	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
 };
+
+export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
 
 export class CompletionItem {
 
