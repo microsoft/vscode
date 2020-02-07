@@ -209,6 +209,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	validationMessage: string | undefined;
 
 	inputHasFocus(): boolean;
+
+	focusOnInput(): void;
 }
 
 export interface IInputBox extends IQuickInput {
