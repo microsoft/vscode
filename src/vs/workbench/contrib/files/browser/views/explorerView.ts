@@ -327,16 +327,8 @@ export class ExplorerView extends ViewPane {
 		this.tree.domFocus();
 
 		const focused = this.tree.getFocus();
-		if (focused.length === 1) {
-			if (this.autoReveal) {
-				this.tree.reveal(focused[0], 0.5);
-			}
-
-			const activeFile = this.getActiveFile();
-			if (!activeFile && !focused[0].isDirectory) {
-				// Open the focused element in the editor if there is currently no file opened #67708
-				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } });
-			}
+		if (focused.length === 1 && this.autoReveal) {
+			this.tree.reveal(focused[0], 0.5);
 		}
 	}
 
