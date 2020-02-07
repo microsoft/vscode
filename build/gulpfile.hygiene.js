@@ -53,7 +53,7 @@ const indentationFilter = [
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
-	'!test/assert.js',
+	'!test/unit/assert.js',
 
 	// except specific folders
 	'!test/automation/out/**',
@@ -82,7 +82,7 @@ const indentationFilter = [
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns}',
+	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist}',
 	'!build/{lib,download}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',

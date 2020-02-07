@@ -7,6 +7,7 @@
 
 const path = require('path');
 const glob = require('glob');
+const fs = require('fs');
 const events = require('events');
 const mocha = require('mocha');
 const url = require('url');
@@ -17,7 +18,8 @@ const playwright = require('playwright');
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('run', 'only run tests matching <file_pattern>').alias('run', 'glob').string('runGlob')
+	.describe('run', 'only run tests matching <relative_file_path>').string('run')
+	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium'])
@@ -59,35 +61,53 @@ const withReporter = (function () {
 const outdir = argv.build ? 'out-build' : 'out';
 const out = path.join(__dirname, `../../../${outdir}`);
 
+function ensureIsArray(a) {
+	return Array.isArray(a) ? a : [a];
+}
+
 const testModules = (async function () {
 
-	const defaultGlob = '**/*.test.js';
 	const excludeGlob = '**/{node,electron-browser,electron-main}/**/*.test.js';
-	const pattern = argv.glob || defaultGlob
+	let isDefaultModules = true;
+	let promise;
 
-	return new Promise((resolve, reject) => {
-		glob(pattern, { cwd: out }, (err, files) => {
-			if (err) {
-				reject(err);
-				return;
-			}
+	if (argv.run) {
+		// use file list (--run)
+		isDefaultModules = false;
+		promise = Promise.resolve(ensureIsArray(argv.run).map(file => {
+			file = file.replace(/^src/, 'out');
+			file = file.replace(/\.ts$/, '.js');
+			return path.relative(out, file);
+		}));
 
-			const modules = [];
-			const badFiles = [];
+	} else {
+		// glob patterns (--glob)
+		const defaultGlob = '**/*.test.js';
+		const pattern = argv.glob || defaultGlob
+		isDefaultModules = argv.glob === defaultGlob;
 
-			for (let file of files) {
-				if (minimatch(file, excludeGlob)) {
-					badFiles.push(file);
+		promise = new Promise((resolve, reject) => {
+			glob(pattern, { cwd: out }, (err, files) => {
+				if (err) {
+					reject(err);
 				} else {
-					modules.push(file.replace(/\.js$/, ''));
+					resolve(files)
 				}
-			}
-
-			if (badFiles.length > 0 && pattern !== defaultGlob) {
-				console.warn(`DROPPED ${badFiles.length} files because '${pattern}' includes files from invalid layers.${badFiles.map(file => `\n\t-${file}`)}`);
-			}
-			resolve(modules);
+			});
 		});
+	}
+
+	return promise.then(files => {
+		const modules = [];
+		for (let file of files) {
+			if (!minimatch(file, excludeGlob)) {
+				modules.push(file.replace(/\.js$/, ''));
+
+			} else if (!isDefaultModules) {
+				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+			}
+		}
+		return modules;
 	})
 })();
 

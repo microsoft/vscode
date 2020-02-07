@@ -11,7 +11,7 @@ const path = require('path');
 const glob = require('glob');
 const jsdom = require('jsdom-no-contextify');
 const TEST_GLOB = '**/test/**/*.test.js';
-const coverage = require('../../coverage');
+const coverage = require('../coverage');
 
 const optimist = require('optimist')
 	.usage('Run the Code tests. All mocha options apply.')
@@ -44,7 +44,7 @@ function main() {
 		nodeMain: __filename,
 		baseUrl: path.join(REPO_ROOT, 'src'),
 		paths: {
-			'vs/css': '../test/css.mock',
+			'vs/css': '../test/unit/node/css.mock',
 			'vs': `../${out}/vs`,
 			'lib': `../${out}/lib`,
 			'bootstrap-fork': `../${out}/bootstrap-fork`
@@ -166,7 +166,7 @@ function main() {
 }
 
 if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
-	require('../../browser');
+	require('./browser');
 } else {
 	main();
 }

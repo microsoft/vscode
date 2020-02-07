@@ -176,10 +176,9 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 				await this.apply(content, true);
 				this.setStatus(SyncStatus.Idle);
 			} catch (e) {
-				this.logService.error(e);
 				if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
 					(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-					throw new Error('Failed to resolve conflicts as there is a new local version available.');
+					throw new UserDataSyncError('Failed to resolve conflicts as there is a new local version available.', UserDataSyncErrorCode.NewLocal);
 				}
 				throw e;
 			}
@@ -235,13 +234,13 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Keybindings: Failed to synchronise keybindings as there is a new remote version available. Synchronizing again...');
+				this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new remote version available. Synchronizing again...');
 				return this.sync();
 			}
 			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
 				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
 				// Rejected as there is a new local version. Syncing again.
-				this.logService.info('Keybindings: Failed to synchronise keybindings as there is a new local version available. Synchronizing again...');
+				this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new local version available. Synchronizing again...');
 				return this.sync();
 			}
 			throw e;
@@ -274,15 +273,17 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 			}
 
 			if (hasLocalChanged) {
-				this.logService.info('Keybindings: Updating local keybindings');
+				this.logService.trace('Keybindings: Updating local keybindings...');
 				await this.updateLocalFileContent(content, fileContent);
+				this.logService.info('Keybindings: Updated local keybindings');
 			}
 
 			if (hasRemoteChanged) {
-				this.logService.info('Keybindings: Updating remote keybindings');
+				this.logService.trace('Keybindings: Updating remote keybindings...');
 				const remoteContents = this.updateSyncContent(content, remoteUserData.content);
 				const ref = await this.updateRemoteUserData(remoteContents, forcePush ? null : remoteUserData.ref);
 				remoteUserData = { ref, content: remoteContents };
+				this.logService.info('Keybindings: Updated remote keybindings');
 			}
 
 			// Delete the preview
@@ -292,9 +293,10 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref && (content !== undefined || fileContent !== null)) {
-			this.logService.info('Keybindings: Updating last synchronised keybindings');
+			this.logService.trace('Keybindings: Updating last synchronized keybindings...');
 			const lastSyncContent = this.updateSyncContent(content !== undefined ? content : fileContent!.value.toString(), null);
 			await this.updateLastSyncUserData({ ref: remoteUserData.ref, content: lastSyncContent });
+			this.logService.info('Keybindings: Updated last synchronized keybindings');
 		}
 
 		this.syncPreviewResultPromise = null;
