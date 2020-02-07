@@ -12,7 +12,7 @@ const iLibSourceMaps = require('istanbul-lib-source-maps');
 const iLibReport = require('istanbul-lib-report');
 const iReports = require('istanbul-reports');
 
-const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '..'));
+const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../../'));
 
 exports.initialize = function (loaderConfig) {
 	const instrumenter = iLibInstrument.createInstrumenter();
@@ -47,7 +47,7 @@ exports.createReport = function (isSingle) {
 		transformed.data = newData;
 
 		const context = iLibReport.createContext({
-			dir: path.join(__dirname, `../.build/coverage${isSingle ? '-single' : ''}`),
+			dir: path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
 			coverageMap: transformed
 		});
 		const tree = context.getTree('flat');

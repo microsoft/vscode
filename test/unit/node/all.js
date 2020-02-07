@@ -11,7 +11,7 @@ const path = require('path');
 const glob = require('glob');
 const jsdom = require('jsdom-no-contextify');
 const TEST_GLOB = '**/test/**/*.test.js';
-const coverage = require('../../coverage');
+const coverage = require('../coverage');
 
 const optimist = require('optimist')
 	.usage('Run the Code tests. All mocha options apply.')
