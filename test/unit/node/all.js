@@ -11,38 +11,38 @@ const path = require('path');
 const glob = require('glob');
 const jsdom = require('jsdom-no-contextify');
 const TEST_GLOB = '**/test/**/*.test.js';
-const coverage = require('./coverage');
+const coverage = require('../../coverage');
 
-var optimist = require('optimist')
+const optimist = require('optimist')
 	.usage('Run the Code tests. All mocha options apply.')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
 	.describe('coverage', 'Generate a coverage report').boolean('coverage')
-	.describe('only-monaco-editor', 'Run only monaco editor tests').boolean('only-monaco-editor')
 	.describe('browser', 'Run tests in a browser').boolean('browser')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
 
-var argv = optimist.argv;
+const argv = optimist.argv;
 
 if (argv.help) {
 	optimist.showHelp();
 	process.exit(1);
 }
 
-var out = argv.build ? 'out-build' : 'out';
-var loader = require('../' + out + '/vs/loader');
-var src = path.join(path.dirname(__dirname), out);
+const REPO_ROOT = path.join(__dirname, '../../../');
+const out = argv.build ? 'out-build' : 'out';
+const loader = require(`../../../${out}/vs/loader`);
+const src = path.join(REPO_ROOT, out);
 
 function main() {
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
 	});
 
-	var loaderConfig = {
+	const loaderConfig = {
 		nodeRequire: require,
 		nodeMain: __filename,
-		baseUrl: path.join(path.dirname(__dirname), 'src'),
+		baseUrl: path.join(REPO_ROOT, 'src'),
 		paths: {
 			'vs/css': '../test/css.mock',
 			'vs': `../${out}/vs`,
@@ -75,17 +75,17 @@ function main() {
 	global.navigator = global.window.navigator;
 	global.XMLHttpRequest = global.window.XMLHttpRequest;
 
-	var didErr = false;
-	var write = process.stderr.write;
+	let didErr = false;
+	const write = process.stderr.write;
 	process.stderr.write = function (data) {
 		didErr = didErr || !!data;
 		write.apply(process.stderr, arguments);
 	};
 
-	var loadFunc = null;
+	let loadFunc = null;
 
 	if (argv.runGlob) {
-		loadFunc = cb => {
+		loadFunc = (cb) => {
 			const doRun = tests => {
 				const modulesToLoad = tests.map(test => {
 					if (path.isAbsolute(test)) {
@@ -100,41 +100,19 @@ function main() {
 			glob(argv.runGlob, { cwd: src }, function (err, files) { doRun(files); });
 		};
 	} else if (argv.run) {
-		var tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
-		var modulesToLoad = tests.map(function (test) {
+		const tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
+		const modulesToLoad = tests.map(function (test) {
 			test = test.replace(/^src/, 'out');
 			test = test.replace(/\.ts$/, '.js');
 			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
 		});
-		loadFunc = cb => {
+		loadFunc = (cb) => {
 			define(modulesToLoad, () => cb(null), cb);
 		};
-	} else if (argv['only-monaco-editor']) {
-		loadFunc = function (cb) {
-			glob(TEST_GLOB, { cwd: src }, function (err, files) {
-				var modulesToLoad = files.map(function (file) {
-					return file.replace(/\.js$/, '');
-				});
-				modulesToLoad = modulesToLoad.filter(function (module) {
-					if (/^vs\/workbench\//.test(module)) {
-						return false;
-					}
-					// platform tests drag in the workbench.
-					// see https://github.com/Microsoft/vscode/commit/12eaba2f64c69247de105c3d9c47308ac6e44bc9
-					// and cry a little
-					if (/^vs\/platform\//.test(module)) {
-						return false;
-					}
-					return !/(\/|\\)node(\/|\\)/.test(module);
-				});
-				console.log(JSON.stringify(modulesToLoad, null, '\t'));
-				define(modulesToLoad, function () { cb(null); }, cb);
-			});
-		};
 	} else {
-		loadFunc = function (cb) {
+		loadFunc = (cb) => {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
-				var modulesToLoad = files.map(function (file) {
+				const modulesToLoad = files.map(function (file) {
 					return file.replace(/\.js$/, '');
 				});
 				define(modulesToLoad, function () { cb(null); }, cb);
@@ -160,7 +138,7 @@ function main() {
 		}
 
 		// report failing test for every unexpected error during any of the tests
-		var unexpectedErrors = [];
+		let unexpectedErrors = [];
 		suite('Errors', function () {
 			test('should not have unexpected errors in tests', function () {
 				if (unexpectedErrors.length) {
@@ -177,7 +155,7 @@ function main() {
 		// replace the default unexpected error handler to be useful during tests
 		loader(['vs/base/common/errors'], function (errors) {
 			errors.setUnexpectedErrorHandler(function (err) {
-				let stack = (err && err.stack) || (new Error().stack);
+				const stack = (err && err.stack) || (new Error().stack);
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});
 
@@ -188,7 +166,7 @@ function main() {
 }
 
 if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
-	require('./browser');
+	require('../../browser');
 } else {
 	main();
 }
