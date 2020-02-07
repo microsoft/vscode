@@ -18,6 +18,11 @@ const optimist = require('optimist')
 	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
 	.describe('help', 'show the help').alias('help', 'h');
 
+if (optimist.argv.help) {
+	optimist.showHelp();
+	process.exit(0);
+}
+
 const width = 1200;
 const height = 800;
 
