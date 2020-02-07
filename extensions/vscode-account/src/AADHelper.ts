@@ -78,20 +78,7 @@ export class AzureActiveDirectoryService {
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
-
-				// TODO remove, temporary fix to delete duplicated refresh tokens from https://github.com/microsoft/vscode/issues/89334
-				const seen: { [key: string]: boolean; } = Object.create(null);
-				const dedupedSessions = sessions.filter(session => {
-					if (seen[session.id]) {
-						return false;
-					}
-
-					seen[session.id] = true;
-
-					return true;
-				});
-
-				const refreshes = dedupedSessions.map(async session => {
+				const refreshes = sessions.map(async session => {
 					try {
 						await this.refreshToken(session.refreshToken, session.scope);
 					} catch (e) {
