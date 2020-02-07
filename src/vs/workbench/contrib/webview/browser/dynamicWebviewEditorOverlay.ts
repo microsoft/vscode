@@ -16,11 +16,8 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
  * Webview editor overlay that creates and destroys the underlying webview as needed.
  */
 export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOverlay {
-	private readonly _onDidWheel= this._register(new Emitter<IMouseWheelEvent>());
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
-
-	private readonly _onDidSetInitialDimension = this._register(new Emitter<Dimension>());
-	public readonly onDidSetInitialDimension = this._onDidSetInitialDimension.event;
 
 	private readonly _pendingMessages = new Set<any>();
 	private readonly _webview = this._register(new MutableDisposable<WebviewElement>());

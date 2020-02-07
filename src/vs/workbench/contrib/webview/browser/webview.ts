@@ -80,7 +80,6 @@ export interface Webview extends IDisposable {
 	containsScript: boolean;
 
 	readonly onDidFocus: Event<void>;
-	readonly onDidSetInitialDimension: Event<Dimension>;
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;

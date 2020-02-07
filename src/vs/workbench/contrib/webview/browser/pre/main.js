@@ -506,7 +506,6 @@
 							newFrame.contentWindow.focus();
 						}
 
-						host.postMessage('did-set-initial-dimension', { width: newFrame.contentWindow.document.body.scrollWidth, height: newFrame.contentWindow.document.body.scrollHeight });
 						host.postMessage('content-contains-scripts', checkScripts(newFrame.contentWindow.document));
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
