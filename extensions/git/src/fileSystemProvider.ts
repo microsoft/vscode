@@ -9,7 +9,6 @@ import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
 import { filterEvent, eventToPromise, isDescendant, pathEquals, EmptyDisposable } from './util';
 import { Repository } from './repository';
-import { TextEncoder } from 'util';
 
 interface CacheRow {
 	uri: Uri;
