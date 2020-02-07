@@ -186,17 +186,17 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 		if (!this.webview!.mapping.has(cell.id)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getElementTop(index) || 0;
+			let top = this.list?.getAbsoluteTop(index) || 0;
 			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
 			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
 		} else if (!this.webview!.outputMapping.has(cell.id + `-${outputIndex}`)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getElementTop(index) || 0;
+			let top = this.list?.getAbsoluteTop(index) || 0;
 			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
 			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
 		} else {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getElementTop(index) || 0;
+			let top = this.list?.getAbsoluteTop(index) || 0;
 			let scrollTop = this.list?.scrollTop || 0;
 
 			this.webview!.updateViewScrollTop(-scrollTop, [{ id: cell.id, top: top + offset }]);
@@ -290,7 +290,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					// const date = new Date();
 					this.webview?.mapping.forEach((item) => {
 						let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
-						let top = this.list?.getElementTop(index) || 0;
+						let top = this.list?.getAbsoluteTop(index) || 0;
 						let newTop = this.webview!.shouldRenderContentWidget(item.cell.id, top);
 
 						if (newTop !== undefined) {

@@ -1478,7 +1478,7 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
+
 	//#region color theme access
 
 	/**

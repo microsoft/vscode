@@ -1311,7 +1311,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 
-	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
@@ -1587,7 +1587,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	getElementTop(index: number): number {
+	getAbsoluteTop(index: number): number {
+		if (index < 0 || index >= this.length) {
+			throw new ListError(this.user, `Invalid index ${index}`);
+		}
+
 		return this.view.elementTop(index);
 	}
 
