@@ -77,7 +77,6 @@ export interface Webview extends IDisposable {
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
-	containsScript: boolean;
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidClickLink: Event<string>;

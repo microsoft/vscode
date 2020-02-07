@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -10,7 +11,6 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -32,7 +32,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private _options: WebviewOptions;
 
 	private _owner: any = undefined;
-	containsScript: boolean = false;
 
 	public constructor(
 		private readonly id: string,

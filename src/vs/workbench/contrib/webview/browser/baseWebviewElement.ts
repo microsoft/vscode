@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -13,9 +14,6 @@ import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } fr
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { StopWatch } from 'vs/base/common/stopwatch';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -28,9 +26,7 @@ export const enum WebviewMessageChannels {
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
-	containsScripts = 'content-contains-scripts',
-	wheel = 'did-scroll-wheel',
-	ack = 'speed-test-ack'
+	wheel = 'did-scroll-wheel'
 }
 
 interface IKeydownEvent {
@@ -63,8 +59,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected content: WebviewContent;
 
 	public extension: WebviewExtensionDescription | undefined;
-
-	private sw: StopWatch | null = null;
 
 	constructor(
 		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
@@ -125,17 +119,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleFocusChange(true);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.containsScripts, (containsScript: boolean) => {
-			this.containsScript = containsScript;
-		}));
-
 		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
 			this._onDidWheel.fire(event);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.ack, (buf) => {
-			this.sw!.stop();
-			console.log(this._printSpeed(this._convert(2 * 10 * 1024 * 1024, this.sw!.elapsed())));
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
@@ -151,20 +136,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this.style();
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
-	}
-
-	private _convert(byteCount: number, elapsedMillis: number): number {
-		return (byteCount * 1000 * 8) / elapsedMillis;
-	}
-
-	private _printSpeed(n: number): string {
-		if (n <= 1024) {
-			return `${n} bps`;
-		}
-		if (n < 1024 * 1024) {
-			return `${(n / 1024).toFixed(1)} kbps`;
-		}
-		return `${(n / 1024 / 1024).toFixed(1)} Mbps`;
 	}
 
 	dispose(): void {
@@ -196,8 +167,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
-
-	public containsScript: boolean = false;
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
@@ -278,18 +247,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	public set initialScrollProgress(value: number) {
 		this._send('initial-scroll-position', value);
-	}
-
-	public speedTest() {
-		const SIZE = 10 * 1024 * 1024; // 10MB
-		let buff = VSBuffer.alloc(SIZE);
-		let value = Math.random() % 256;
-		for (let i = 0; i < SIZE; i++) {
-			buff.writeUInt8(value, i);
-		}
-
-		this.sw = StopWatch.create(true);
-		this._send('speedTest', buff.buffer);
 	}
 
 	private doUpdateContent() {

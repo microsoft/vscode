@@ -50,7 +50,6 @@
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 	};
 
-
 	// TODO: @rebornix, make it an option
 	const defaultCssRules = `
 	body {
@@ -468,23 +467,6 @@
 					}, 0);
 				});
 
-				const checkScripts = (document) => {
-					let scripts = document.getElementsByTagName('script');
-
-					if (scripts.length > 1) {
-						return true;
-					}
-
-					if (scripts[0].id !== '_vscodeApiScript') {
-						return true;
-					}
-
-					// no scripts
-
-					let iframes = document.getElementsByTagName('iframe');
-					return iframes.length > 0;
-				};
-
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
 						// Workaround for https://github.com/Microsoft/vscode/issues/12865
@@ -505,8 +487,6 @@
 						if (host.focusIframeOnCreate) {
 							newFrame.contentWindow.focus();
 						}
-
-						host.postMessage('content-contains-scripts', checkScripts(newFrame.contentWindow.document));
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
@@ -578,9 +558,6 @@
 				initData.initialScrollProgress = progress;
 			});
 
-			host.onMessage('speedTest', (_event, buf) => {
-				host.postMessage('speed-test-ack', buf);
-			});
 
 			trackFocus({
 				onFocus: () => host.postMessage('did-focus'),
