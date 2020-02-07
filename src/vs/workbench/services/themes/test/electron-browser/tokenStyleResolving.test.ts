@@ -6,7 +6,7 @@
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import * as assert from 'assert';
 import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { Color } from 'vs/base/common/color';
 import { isString } from 'vs/base/common/types';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -17,8 +17,6 @@ import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
-
-let tokenClassificationRegistry = getTokenClassificationRegistry();
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
@@ -73,10 +71,7 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 	for (let qualifiedClassifier in expected) {
 		const [type, ...modifiers] = qualifiedClassifier.split('.');
 
-		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-		assert.ok(classification, 'Classification not found');
-
-		const tokenStyle = themeData.getTokenStyle(classification!);
+		const tokenStyle = themeData.getTokenStyle(type, modifiers);
 		const expectedTokenStyle = expected[qualifiedClassifier];
 		assertTokenStyle(tokenStyle, expectedTokenStyle, qualifiedClassifier);
 

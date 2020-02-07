@@ -19,7 +19,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
@@ -124,7 +124,7 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getTokenStyle(classification: TokenClassification, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
+	public getTokenStyle(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
 		let result: any = {
 			foreground: undefined,
 			bold: undefined,
@@ -158,7 +158,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		if (this.tokenStylingRules === undefined) {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = rule.selector.match(classification);
+				const matchScore = rule.selector.match(type, modifiers);
 				if (matchScore >= 0) {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
@@ -178,14 +178,14 @@ export class ColorThemeData implements IColorTheme {
 			}
 		} else {
 			for (const rule of this.tokenStylingRules) {
-				const matchScore = rule.selector.match(classification);
+				const matchScore = rule.selector.match(type, modifiers);
 				if (matchScore >= 0) {
 					_processStyle(matchScore, rule.style, rule);
 				}
 			}
 		}
 		for (const rule of this.customTokenStylingRules) {
-			const matchScore = rule.selector.match(classification);
+			const matchScore = rule.selector.match(type, modifiers);
 			if (matchScore >= 0) {
 				_processStyle(matchScore, rule.style, rule);
 			}
@@ -202,10 +202,7 @@ export class ColorThemeData implements IColorTheme {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
 			const [type, ...modifiers] = tokenStyleValue.split('.');
-			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-			if (classification) {
-				return this.getTokenStyle(classification);
-			}
+			return this.getTokenStyle(type, modifiers);
 		} else if (typeof tokenStyleValue === 'object') {
 			return tokenStyleValue;
 		}
@@ -243,11 +240,7 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
-		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-		if (!classification) {
-			return undefined;
-		}
-		const style = this.getTokenStyle(classification, useDefault, definitions);
+		const style = this.getTokenStyle(type, modifiers, useDefault, definitions);
 		if (!style) {
 			return undefined;
 		}

@@ -13,7 +13,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 export const TOKEN_TYPE_WILDCARD = '*';
-export const TOKEN_TYPE_WILDCARD_NUM = -1;
 
 // qualified string [type|*](.modifier)*
 export type TokenClassificationString = string;
@@ -21,13 +20,8 @@ export type TokenClassificationString = string;
 export const typeAndModifierIdPattern = '^\\w+[-_\\w+]*$';
 export const fontStylePattern = '^(\\s*(-?italic|-?bold|-?underline))*\\s*$';
 
-export interface TokenClassification {
-	type: number;
-	modifiers: number;
-}
-
 export interface TokenSelector {
-	match(classification: TokenClassification): number;
+	match(type: string, modifiers: string[]): number;
 	asString(): string;
 }
 
@@ -138,8 +132,6 @@ export interface ITokenClassificationRegistry {
 	 */
 	registerTokenModifier(id: string, description: string): void;
 
-	getTokenClassification(type: string, modifiers: string[]): TokenClassification | undefined;
-
 	/**
 	 * Parses a token selector from a selector string.
 	 * @param selectorString selector string in the form (*|type)(.modifier)*
@@ -241,8 +233,6 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	constructor() {
 		this.tokenTypeById = {};
 		this.tokenModifierById = {};
-
-		this.tokenTypeById[TOKEN_TYPE_WILDCARD] = { num: TOKEN_TYPE_WILDCARD_NUM, id: TOKEN_TYPE_WILDCARD, description: '', deprecationMessage: undefined };
 	}
 
 	public registerTokenType(id: string, description: string, deprecationMessage?: string): void {
@@ -270,42 +260,27 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		this.tokenStylingSchema.properties[`*.${id}`] = getStylingSchemeEntry(description, deprecationMessage);
 	}
 
-	public getTokenClassification(type: string, modifiers: string[]): TokenClassification | undefined {
-		const tokenTypeDesc = this.tokenTypeById[type];
-		if (!tokenTypeDesc) {
-			return undefined;
-		}
-		let allModifierBits = 0;
-		for (const modifier of modifiers) {
-			const tokenModifierDesc = this.tokenModifierById[modifier];
-			if (tokenModifierDesc) {
-				allModifierBits |= tokenModifierDesc.num;
-			}
-		}
-		return { type: tokenTypeDesc.num, modifiers: allModifierBits };
-	}
-
-
 	public parseTokenSelector(selectorString: string): TokenSelector {
-		const [type, ...modifiers] = selectorString.split('.');
+		const [selectorType, ...selectorModifiers] = selectorString.split('.');
 
-		const selectorClassification = this.getTokenClassification(type, modifiers);
-		if (!selectorClassification) {
+		if (!selectorType) {
 			return {
 				match: () => -1,
 				asString: () => selectorString
 			};
 		}
-		const score = getTokenStylingScore(selectorClassification);
+		const score = selectorModifiers.length + ((selectorString !== TOKEN_TYPE_WILDCARD) ? 1 : 0);
 
 		return {
-			match: (classification: TokenClassification) => {
-				if (selectorClassification.type !== TOKEN_TYPE_WILDCARD_NUM && selectorClassification.type !== classification.type) {
+			match: (type: string, modifiers: string[]) => {
+				if (selectorType !== TOKEN_TYPE_WILDCARD && selectorType !== type) {
 					return -1;
 				}
-				const selectorModifier = selectorClassification.modifiers;
-				if ((classification.modifiers & selectorModifier) !== selectorModifier) {
-					return -1;
+				// all selector modifiers must be present
+				for (const selectorModifier of selectorModifiers) {
+					if (modifiers.indexOf(selectorModifier) === -1) {
+						return -1;
+					}
 				}
 				return score;
 			},
@@ -430,16 +405,6 @@ function registerDefaultClassifications(): void {
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
 	return tokenClassificationRegistry;
-}
-
-function bitCount(u: number) {
-	// https://blogs.msdn.microsoft.com/jeuge/2005/06/08/bit-fiddling-3/
-	const uCount = u - ((u >> 1) & 0o33333333333) - ((u >> 2) & 0o11111111111);
-	return ((uCount + (uCount >> 3)) & 0o30707070707) % 63;
-}
-
-function getTokenStylingScore(classification: TokenClassification) {
-	return bitCount(classification.modifiers) + ((classification.type !== TOKEN_TYPE_WILDCARD_NUM) ? 1 : 0);
 }
 
 function getStylingSchemeEntry(description?: string, deprecationMessage?: string): IJSONSchema {
