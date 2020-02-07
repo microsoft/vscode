@@ -56,7 +56,8 @@ export class DebugTaskRunner {
 		try {
 			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
-			if (this.canceled) {
+			if (this.canceled || (taskSummary && taskSummary.exitCode === undefined)) {
+				// User canceled, either debugging, or the prelaunch task
 				return TaskRunResult.Failure;
 			}
 
