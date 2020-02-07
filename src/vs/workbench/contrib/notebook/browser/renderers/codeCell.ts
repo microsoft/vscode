@@ -118,7 +118,7 @@ export class CodeCell extends Disposable {
 						if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
 							let height = elementSizeObserver.getHeight();
 							if (clientHeight !== height) {
-								viewCell.setDynamicHeight(totalHeight + 32 + height);
+								viewCell.dynamicHeight = totalHeight + 32 + height;
 								handler.layoutElement(viewCell, totalHeight + 32 + height);
 							}
 
@@ -128,7 +128,7 @@ export class CodeCell extends Disposable {
 					// const elementSizeObserver = new ElementSizeObserver();
 					elementSizeObserver.startObserving();
 					if (!hasDynamicHeight && clientHeight !== 0) {
-						viewCell.setDynamicHeight(totalHeight + 32 + clientHeight);
+						viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
 						handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
 					}
 
@@ -162,7 +162,7 @@ export class CodeCell extends Disposable {
 					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
 						let height = elementSizeObserver.getHeight();
 						if (clientHeight !== height) {
-							viewCell.setDynamicHeight(totalHeight + 32 + height);
+							viewCell.dynamicHeight = totalHeight + 32 + height;
 							handler.layoutElement(viewCell, totalHeight + 32 + height);
 						}
 
@@ -171,7 +171,7 @@ export class CodeCell extends Disposable {
 				});
 				elementSizeObserver.startObserving();
 				if (!hasDynamicHeight && clientHeight !== 0) {
-					viewCell.setDynamicHeight(totalHeight + 32 + clientHeight);
+					viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
 					handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
 				}
 

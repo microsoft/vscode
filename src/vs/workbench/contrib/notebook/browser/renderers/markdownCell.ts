@@ -14,7 +14,6 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/render
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
 	private cellContainer: HTMLElement;
-	private menuContainer?: HTMLElement;
 	private editingContainer?: HTMLElement;
 
 	private localDisposables: DisposableStore;
@@ -29,7 +28,6 @@ export class StatefullMarkdownCell extends Disposable {
 		super();
 
 		this.cellContainer = templateData.cellContainer;
-		this.menuContainer = templateData.menuContainer;
 		this.editingContainer = templateData.editingContainer;
 		this.localDisposables = new DisposableStore();
 		this._register(this.localDisposables);

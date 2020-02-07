@@ -41,7 +41,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewMo
 	}
 
 	getDynamicHeight(element: CellViewModel) {
-		return element.getDynamicHeight() || 0;
+		return element.dynamicHeight || 0;
 	}
 
 	getTemplateId(element: CellViewModel): string {

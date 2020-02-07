@@ -40,6 +40,14 @@ export class CellViewModel extends Disposable {
 		this._isEditing = newState;
 		this._onDidChangeEditingState.fire();
 	}
+
+	set dynamicHeight(height: number | null) {
+		this._dynamicHeight = height;
+	}
+
+	get dynamicHeight(): number | null {
+		return this._dynamicHeight;
+	}
 	public id: string;
 	constructor(public viewType: string, public notebookHandle: number, public cell: ICell, private _isEditing: boolean, private readonly modelService: IModelService, private readonly modeService: IModeService) {
 		super();
@@ -69,12 +77,7 @@ export class CellViewModel extends Disposable {
 		}
 		return true;
 	}
-	setDynamicHeight(height: number) {
-		this._dynamicHeight = height;
-	}
-	getDynamicHeight() {
-		return this._dynamicHeight;
-	}
+
 	getHeight(lineHeight: number) {
 		if (this._dynamicHeight) {
 			return this._dynamicHeight;
