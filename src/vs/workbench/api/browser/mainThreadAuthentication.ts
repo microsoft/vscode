@@ -31,7 +31,13 @@ export class MainThreadAuthenticationProvider {
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {
-		return this._proxy.$login(this.id, scopes);
+		return this._proxy.$login(this.id, scopes).then(session => {
+			return {
+				id: session.id,
+				accountName: session.accountName,
+				accessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
+			};
+		});
 	}
 
 	logout(accountId: string): Promise<void> {
