@@ -459,19 +459,21 @@ class FileElementTemplate {
 
 		} else {
 			// create, delete, edit: NAME
-			this._label.setFile(element.edit.uri, {
+			const options = {
 				matches: createMatches(score),
 				fileKind: FileKind.FILE,
 				fileDecorations: { colors: true, badges: false },
-			});
-
+				extraClasses: <string[]>[]
+			};
 			if (element.edit.type & BulkFileOperationType.Create) {
 				this._details.innerText = localize('detail.create', "(creating)");
 			} else if (element.edit.type & BulkFileOperationType.Delete) {
 				this._details.innerText = localize('detail.del', "(deleting)");
+				options.extraClasses.push('delete');
 			} else {
 				this._details.innerText = '';
 			}
+			this._label.setFile(element.edit.uri, options);
 		}
 	}
 }
