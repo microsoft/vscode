@@ -53,7 +53,7 @@ export class TypeScriptServerSpawner {
 			primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
 		}
 
-		if (this.shouldUseSeparateDiagnosticsServer(version, configuration)) {
+		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
 			return new GetErrRoutingTsServer({
 				getErr: this.spawnTsServer(ServerKind.Diagnostics, version, configuration, pluginManager),
 				primary: primaryServer,
@@ -71,10 +71,9 @@ export class TypeScriptServerSpawner {
 	}
 
 	private shouldUseSeparateDiagnosticsServer(
-		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
 	): boolean {
-		return configuration.enableProjectDiagnostics && !!version.apiVersion && version.apiVersion.gte(API.v380);
+		return configuration.enableProjectDiagnostics;
 	}
 
 	private spawnTsServer(
