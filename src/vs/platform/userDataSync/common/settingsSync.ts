@@ -245,10 +245,9 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 				await this.apply(true);
 				this.setStatus(SyncStatus.Idle);
 			} catch (e) {
-				this.logService.error(e);
 				if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
 					(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-					throw new Error('New local version available.');
+					throw new UserDataSyncError('Failed to resolve conflicts as there is a new local version available.', UserDataSyncErrorCode.NewLocal);
 				}
 				throw e;
 			}
@@ -282,13 +281,13 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Settings: Failed to synchronise settings as there is a new remote version available. Synchronizing again...');
+				this.logService.info('Settings: Failed to synchronize settings as there is a new remote version available. Synchronizing again...');
 				return this.sync();
 			}
 			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
 				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
 				// Rejected as there is a new local version. Syncing again.
-				this.logService.info('Settings: Failed to synchronise settings as there is a new local version available. Synchronizing again...');
+				this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
 				return this.sync();
 			}
 			throw e;
@@ -311,15 +310,17 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 			}
 
 			if (hasLocalChanged) {
-				this.logService.info('Settings: Updating local settings');
+				this.logService.trace('Settings: Updating local settings...');
 				await this.updateLocalFileContent(content, fileContent);
+				this.logService.info('Settings: Updated local settings');
 			}
 			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
 				// Update ignored settings from remote
 				content = updateIgnoredSettings(content, remoteUserData.content || '{}', getIgnoredSettings(this.configurationService, content), formatUtils);
-				this.logService.info('Settings: Updating remote settings');
+				this.logService.trace('Settings: Updating remote settings...');
 				const ref = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+				this.logService.info('Settings: Updated remote settings');
 				remoteUserData = { ref, content };
 			}
 
@@ -330,8 +331,9 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			this.logService.info('Settings: Updating last synchronised settings');
+			this.logService.trace('Settings: Updating last synchronized settings...');
 			await this.updateLastSyncUserData(remoteUserData);
+			this.logService.info('Settings: Updated last synchronized settings');
 		}
 
 		this.syncPreviewResultPromise = null;

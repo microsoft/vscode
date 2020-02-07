@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSynchroniser, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
@@ -17,6 +16,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type SyncConflictsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
+type SyncErrorClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
@@ -73,7 +76,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			try {
 				await synchroniser.pull();
 			} catch (e) {
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 	}
@@ -89,7 +92,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			try {
 				await synchroniser.push();
 			} catch (e) {
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 	}
@@ -114,10 +117,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					break;
 				}
 			} catch (e) {
-				if (e instanceof UserDataSyncStoreError) {
-					throw e;
-				}
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 		this.logService.trace(`Finished Syncing. Took ${new Date().getTime() - startTime}ms`);
@@ -249,7 +249,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			try {
 				await synchroniser.resetLocal();
 			} catch (e) {
-				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+				this.logService.error(`${synchroniser.source}: ${toErrorMessage(e)}`);
+				this.logService.error(e);
 			}
 		}
 		this.logService.info('Completed resetting local cache');
@@ -287,27 +288,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return SyncStatus.Idle;
 	}
 
+	private handleSyncError(e: Error, source: SyncSource): void {
+		if (e instanceof UserDataSyncStoreError) {
+			switch (e.code) {
+				case UserDataSyncErrorCode.TooLarge:
+					this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source });
+			}
+			throw e;
+		}
+		this.logService.error(e);
+		this.logService.error(`${source}: ${toErrorMessage(e)}`);
+	}
+
 	private computeConflictsSource(): SyncSource | null {
 		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		return synchroniser ? this.getSyncSource(synchroniser) : null;
+		return synchroniser ? synchroniser.source : null;
 	}
 
 	private getSynchroniserInConflicts(): IUserDataSynchroniser | null {
 		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
 		return synchroniser || null;
-	}
-
-	private getSyncSource(synchroniser: ISynchroniser): SyncSource {
-		if (synchroniser instanceof SettingsSynchroniser) {
-			return SyncSource.Settings;
-		}
-		if (synchroniser instanceof KeybindingsSynchroniser) {
-			return SyncSource.Keybindings;
-		}
-		if (synchroniser instanceof ExtensionsSynchroniser) {
-			return SyncSource.Extensions;
-		}
-		return SyncSource.GlobalState;
 	}
 
 	private getSynchroniser(source: SyncSource): IUserDataSynchroniser {
