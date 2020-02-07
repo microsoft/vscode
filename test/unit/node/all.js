@@ -166,7 +166,7 @@ function main() {
 }
 
 if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
-	require('../../browser');
+	require('./browser');
 } else {
 	main();
 }

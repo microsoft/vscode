@@ -9,7 +9,7 @@ const glob = require('glob');
 const path = require('path');
 const fs = require('fs');
 
-const REPO_ROOT = path.join(__dirname, '../');
+const REPO_ROOT = path.join(__dirname, '../../../');
 const PORT = 8887;
 
 function template(str, env) {
@@ -25,13 +25,13 @@ yaserver.createServer({ rootDir: REPO_ROOT }).then((staticServer) => {
 				cwd: path.join(REPO_ROOT, 'out'),
 				// ignore: ['**/test/{node,electron*}/**/*.js']
 			}, function (err, files) {
-				if (err) { return res.sendStatus(500); }
+				if (err) { console.log(err); process.exit(0); }
 
 				var modules = files
 					.map(function (file) { return file.replace(/\.js$/, ''); });
 
 				fs.readFile(path.join(__dirname, 'index.html'), 'utf8', function (err, templateString) {
-					if (err) { return res.sendStatus(500); }
+					if (err) { console.log(err); process.exit(0); }
 
 					res.end(template(templateString, {
 						modules: JSON.stringify(modules)
