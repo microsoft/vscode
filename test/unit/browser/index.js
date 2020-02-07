@@ -31,6 +31,11 @@ const optimist = require('optimist')
 // logic
 const argv = optimist.argv;
 
+if (argv.help) {
+	optimist.showHelp();
+	process.exit(0);
+}
+
 const withReporter = (function () {
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 	let ctor;
