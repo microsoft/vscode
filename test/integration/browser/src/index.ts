@@ -3,23 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import * as  path from 'path';
+import * as  cp from 'child_process';
+import * as  playwright from 'playwright';
+import * as  url from 'url';
+import * as  tmp from 'tmp';
+import * as  rimraf from 'rimraf';
 
-const path = require('path');
-const cp = require('child_process');
-const playwright = require('playwright');
-const url = require('url');
-
-// opts
 const optimist = require('optimist')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
 	.describe('help', 'show the help').alias('help', 'h');
 
-// logic
-const argv = optimist.argv;
-
-let serverProcess;
+let serverProcess: cp.ChildProcess | undefined = undefined;
 
 function teardownServer() {
 	if (serverProcess) {
@@ -28,18 +24,17 @@ function teardownServer() {
 	}
 }
 
-/**
- * @param {string} browserType
- * @param {string} endpoint
- */
-async function runTestsInBrowser(browserType, endpoint) {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
+async function runTestsInBrowser(browserType: string, endpoint: string): Promise<void> {
+	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const page = (await browser.defaultContext().pages())[0];
 
-	const integrationTestsPath = path.join(__dirname, '..', '..', '..', 'extensions', 'vscode-api-tests');
-	const testWorkspaceUri = url.format({ pathname: path.join(integrationTestsPath, 'testWorkspace'), protocol: 'vscode-remote:', slashes: true, host: 'localhost:9888' });
-	const testExtensionUri = url.format({ pathname: path.join(integrationTestsPath), protocol: 'vscode-remote:', slashes: true, host: 'localhost:9888' });
-	const testFilesUri = url.format({ pathname: path.join(integrationTestsPath, 'out', 'singlefolder-tests'), protocol: 'vscode-remote:', slashes: true, host: 'localhost:9888' });
+	const host = url.parse(endpoint).host;
+	const protocol = 'vscode-remote';
+
+	const integrationTestsPath = path.join(__dirname, '..', '..', '..', '..', 'extensions', 'vscode-api-tests');
+	const testWorkspaceUri = url.format({ pathname: path.join(integrationTestsPath, 'testWorkspace'), protocol, host, slashes: true });
+	const testExtensionUri = url.format({ pathname: path.join(integrationTestsPath), protocol, host, slashes: true });
+	const testFilesUri = url.format({ pathname: path.join(integrationTestsPath, 'out', 'singlefolder-tests'), protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"]]`;
@@ -51,7 +46,7 @@ async function runTestsInBrowser(browserType, endpoint) {
 	// 	emitter.emit(type, data1, data2)
 	// });
 
-	page.on('console', async msg => {
+	page.on('console', async (msg: playwright.ConsoleMessage) => {
 		const msgText = msg.text();
 		console[msg.type()](msgText, await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 
@@ -63,12 +58,15 @@ async function runTestsInBrowser(browserType, endpoint) {
 	});
 }
 
-async function launch() {
-	// workspacePath = _workspacePath;
-	// const agentFolder = userDataDir;
-	// await promisify(mkdir)(agentFolder);
+async function launchServer(): Promise<string> {
+	const tmpDir = tmp.dirSync({ prefix: 't' });
+	const testDataPath = tmpDir.name;
+	process.once('exit', () => rimraf.sync(testDataPath));
+
+	const userDataDir = path.join(testDataPath, 'd');
+
 	const env = {
-		// VSCODE_AGENT_FOLDER: agentFolder,
+		VSCODE_AGENT_FOLDER: userDataDir,
 		...process.env
 	};
 
@@ -76,7 +74,9 @@ async function launch() {
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 	} else {
-		serverLocation = path.join(__dirname, '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = path.join(__dirname, '..', '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+
+		process.env.VSCODE_DEV = '1';
 	}
 
 	serverProcess = cp.spawn(
@@ -85,15 +85,15 @@ async function launch() {
 		{ env }
 	);
 
-	serverProcess.stderr.on('data', e => console.log('Server stderr: ' + e));
-	serverProcess.stdout.on('data', e => console.log('Server stdout: ' + e));
+	serverProcess?.stderr?.on('data', e => console.log(`Server stderr: ${e}`));
+	serverProcess?.stdout?.on('data', e => console.log(`Server stdout: ${e}`));
 
 	process.on('exit', teardownServer);
 	process.on('SIGINT', teardownServer);
 	process.on('SIGTERM', teardownServer);
 
 	return new Promise(r => {
-		serverProcess.stdout.on('data', d => {
+		serverProcess?.stdout?.on('data', d => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				r(matches[1]);
@@ -102,6 +102,6 @@ async function launch() {
 	});
 }
 
-launch().then(async endpoint => {
-	return runTestsInBrowser(argv.browser, endpoint);
+launchServer().then(async endpoint => {
+	return runTestsInBrowser(optimist.argv.browser, endpoint);
 }, console.error);
