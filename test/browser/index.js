@@ -191,12 +191,22 @@ class EchoRunner extends events.EventEmitter {
 
 testModules.then(async modules => {
 
-	const browserTypes = Array.isArray(argv.browser) ? argv.browser : [argv.browser];
-	const promises = browserTypes.map(browserType => runTestsInBrowser(modules, browserType));
-	const messages = await Promise.all(promises);
+	// run tests in selected browsers
+	const browserTypes = Array.isArray(argv.browser)
+		? argv.browser : [argv.browser];
+
+	const promises = browserTypes.map(async browserType => {
+		try {
+			return await runTestsInBrowser(modules, browserType);
+		} catch (err) {
+			console.error(err);
+			process.exit(1);
+		}
+	});
 
 	// aftermath
 	let didFail = false;
+	const messages = await Promise.all(promises);
 	for (let msg of messages) {
 		if (msg) {
 			didFail = true;
