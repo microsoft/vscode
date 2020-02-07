@@ -170,10 +170,15 @@ declare module 'vscode' {
 
 		/**
 		 * Fired when the list of tunnels has changed.
+		 * @deprecated use onDidChangeTunnels instead
 		 */
 		// TODO@alexr
 		// eslint-disable-next-line vscode-dts-event-naming
 		export const onDidTunnelsChange: Event<void>;
+		/**
+		 * Fired when the list of tunnels has changed.
+		 */
+		export const onDidChangeTunnels: Event<void>;
 	}
 
 	export interface ResourceLabelFormatter {
