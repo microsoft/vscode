@@ -33,6 +33,7 @@ const all = [
 	'scripts/**/*',
 	'src/**/*',
 	'test/**/*',
+	'!test/**/out/**',
 	'!**/node_modules/**'
 ];
 
