@@ -183,7 +183,6 @@ class AbstractCellRenderer {
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<CellViewModel, DisposableStore> = new Map();
-	private count = 0;
 
 	constructor(
 		handler: NotebookHandler,
@@ -217,8 +216,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
-			editingContainer: codeInnerContent,
-			index: ++this.count
+			editingContainer: codeInnerContent
 		};
 
 		return template;
@@ -264,8 +262,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	static readonly TEMPLATE_ID = 'code_cell';
 	private disposables: Map<CellViewModel, DisposableStore> = new Map();
 
-	private count = 0;
-
 	constructor(
 		protected handler: NotebookHandler,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -305,8 +301,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cellContainer: innerContent,
 			menuContainer: action,
 			outputContainer: outputContainer,
-			editor,
-			index: ++this.count
+			editor
 		};
 
 		return tempalte;

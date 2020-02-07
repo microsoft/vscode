@@ -7,7 +7,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ITextModel } from 'vs/editor/common/model';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 
 export const CELL_MARGIN = 24;
@@ -35,6 +34,4 @@ export interface CellRenderTemplate {
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
-	model?: ITextModel;
-	index: number;
 }
