@@ -198,8 +198,18 @@ export class SearchEditor extends BaseEditor {
 			});
 	}
 
+
+	getControl() {
+		return this.searchResultEditor;
+	}
+
 	focus() {
-		this.restoreViewState();
+		const input = this.getInput();
+		if (input && input.viewState && input.viewState.focused === 'editor') {
+			this.searchResultEditor.focus();
+		} else {
+			this.queryEditorWidget.focus();
+		}
 	}
 
 	focusNextInput() {
@@ -226,7 +236,7 @@ export class SearchEditor extends BaseEditor {
 		} else if (this.inputPatternExcludes.inputHasFocus()) {
 			this.inputPatternIncludes.focus();
 		} else if (this.searchResultEditor.hasWidgetFocus()) {
-			// ureachable.
+			// unreachable.
 		}
 	}
 

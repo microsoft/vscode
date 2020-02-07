@@ -158,7 +158,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		if (this.tokenStylingRules === undefined) {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = rule.match(classification);
+				const matchScore = rule.selector.match(classification);
 				if (matchScore >= 0) {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
@@ -178,16 +178,16 @@ export class ColorThemeData implements IColorTheme {
 			}
 		} else {
 			for (const rule of this.tokenStylingRules) {
-				const matchScore = rule.match(classification);
+				const matchScore = rule.selector.match(classification);
 				if (matchScore >= 0) {
-					_processStyle(matchScore, rule.value, rule);
+					_processStyle(matchScore, rule.style, rule);
 				}
 			}
 		}
 		for (const rule of this.customTokenStylingRules) {
-			const matchScore = rule.match(classification);
+			const matchScore = rule.selector.match(classification);
 			if (matchScore >= 0) {
-				_processStyle(matchScore, rule.value, rule);
+				_processStyle(matchScore, rule.style, rule);
 			}
 		}
 		return TokenStyle.fromData(result);
@@ -222,7 +222,7 @@ export class ColorThemeData implements IColorTheme {
 			});
 
 			if (this.tokenStylingRules) {
-				this.tokenStylingRules.forEach(r => index.add(r.value.foreground));
+				this.tokenStylingRules.forEach(r => index.add(r.style.foreground));
 			} else {
 				tokenClassificationRegistry.getTokenStylingDefaultRules().forEach(r => {
 					const defaultColor = r.defaults[this.type];
@@ -231,7 +231,7 @@ export class ColorThemeData implements IColorTheme {
 					}
 				});
 			}
-			this.customTokenStylingRules.forEach(r => index.add(r.value.foreground));
+			this.customTokenStylingRules.forEach(r => index.add(r.style.foreground));
 
 			this.tokenColorIndex = index;
 		}
@@ -704,9 +704,8 @@ function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {
 function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenStyleCustomizations, result: TokenStylingRule[] = []) {
 	for (let key in tokenStylingRuleSection) {
 		if (key[0] !== '[') {
-			const [type, ...modifiers] = key.split('.');
-			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-			if (classification) {
+			try {
+				const selector = tokenClassificationRegistry.parseTokenSelector(key);
 				const settings = tokenStylingRuleSection[key];
 				let style: TokenStyle | undefined;
 				if (typeof settings === 'string') {
@@ -715,8 +714,10 @@ function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenSt
 					style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle);
 				}
 				if (style) {
-					result.push(tokenClassificationRegistry.getTokenStylingRule(classification, style));
+					result.push({ selector, style });
 				}
+			} catch (e) {
+				// invalid selector, ignore
 			}
 		}
 	}

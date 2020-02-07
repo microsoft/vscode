@@ -5,9 +5,7 @@
 
 import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { InputBox, IRange, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Severity from 'vs/base/common/severity';
@@ -112,20 +110,7 @@ export class QuickInputBox extends Disposable {
 		this.inputBox.layout();
 	}
 
-	style(theme: ITheme) {
-		this.inputBox.style({
-			inputForeground: theme.getColor(inputForeground),
-			inputBackground: theme.getColor(inputBackground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
-		});
+	style(styles: IInputBoxStyles) {
+		this.inputBox.style(styles);
 	}
 }
