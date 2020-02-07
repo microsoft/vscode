@@ -41,7 +41,6 @@ suite('Debug', function () {
 		assert.equal(debug.activeDebugSession, undefined);
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
-		let capabilitiesReceived: () => void;
 		let initializedReceived: () => void;
 		let configurationDoneReceived: () => void;
 
@@ -55,9 +54,6 @@ suite('Debug', function () {
 					}
 					if (m.type === 'response' && m.command === 'variables') {
 						variablesReceived();
-					}
-					if (m.event === 'capabilities') {
-						capabilitiesReceived();
 					}
 					if (m.event === 'initialized') {
 						initializedReceived();
