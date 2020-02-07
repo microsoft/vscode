@@ -9,7 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TerminalPane } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
+import { TerminalPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
