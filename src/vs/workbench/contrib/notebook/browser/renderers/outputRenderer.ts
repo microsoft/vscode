@@ -111,7 +111,17 @@ class RichDisplayRenderer implements IMimeRenderer {
 		DOM.addClasses(display, 'display');
 
 		if (output.data) {
-			if (output.data['text/html']) {
+			if (output.data['application/javascript']) {
+				let data = output.data['application/javascript'];
+				let str = isArray(data) ? data.join('') : data;
+				let scriptVal = `<script type="application/javascript">${str}</script>`;
+				hasDynamicHeight = false;
+				return {
+					element: outputNode,
+					shadowContent: scriptVal,
+					hasDynamicHeight
+				};
+			} else if (output.data['text/html']) {
 				let data = output.data['text/html'];
 				let str = isArray(data) ? data.join('') : data;
 				hasDynamicHeight = false;
