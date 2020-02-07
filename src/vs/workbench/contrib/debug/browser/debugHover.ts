@@ -273,11 +273,13 @@ export class DebugHoverWidget implements IContentWidget {
 			return;
 		}
 
+		if (dom.isAncestor(document.activeElement, this.domNode)) {
+			this.editor.focus();
+		}
 		this._isVisible = false;
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
-		this.editor.focus();
 	}
 
 	getPosition(): IContentWidgetPosition | null {
