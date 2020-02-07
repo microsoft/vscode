@@ -11,6 +11,7 @@ import { textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/comm
 interface ITokenTypeExtensionPoint {
 	id: string;
 	description: string;
+	superType?: string;
 }
 
 interface ITokenModifierExtensionPoint {
@@ -136,6 +137,11 @@ export class TokenClassificationExtensionPoints {
 				collector.error(nls.localize('invalid.id.format', "'configuration.{0}.id' must follow the pattern letterOrDigit[-_letterOrDigit]*", extensionPoint));
 				return false;
 			}
+			const superType = (contribution as ITokenTypeExtensionPoint).superType;
+			if (superType && !superType.match(typeAndModifierIdPattern)) {
+				collector.error(nls.localize('invalid.superType.format', "'configuration.{0}.superType' must follow the pattern letterOrDigit[-_letterOrDigit]*", extensionPoint));
+				return false;
+			}
 			if (typeof contribution.description !== 'string' || contribution.id.length === 0) {
 				collector.error(nls.localize('invalid.description', "'configuration.{0}.description' must be defined and can not be empty", extensionPoint));
 				return false;
@@ -172,7 +178,7 @@ export class TokenClassificationExtensionPoints {
 				}
 				for (const contribution of extensionValue) {
 					if (validateTypeOrModifier(contribution, 'semanticTokenType', collector)) {
-						tokenClassificationRegistry.registerTokenType(contribution.id, contribution.description);
+						tokenClassificationRegistry.registerTokenType(contribution.id, contribution.description, contribution.superType);
 					}
 				}
 			}

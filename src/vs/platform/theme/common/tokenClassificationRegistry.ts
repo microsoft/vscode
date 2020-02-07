@@ -22,14 +22,15 @@ export const fontStylePattern = '^(\\s*(-?italic|-?bold|-?underline))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[]): number;
-	asString(): string;
+	readonly selectorString: string;
 }
 
 export interface TokenTypeOrModifierContribution {
 	readonly num: number;
 	readonly id: string;
+	readonly superType?: string;
 	readonly description: string;
-	readonly deprecationMessage: string | undefined;
+	readonly deprecationMessage?: string;
 }
 
 
@@ -123,7 +124,7 @@ export interface ITokenClassificationRegistry {
 	 * @param id The TokenType id as used in theme description files
 	 * @param description the description
 	 */
-	registerTokenType(id: string, description: string): void;
+	registerTokenType(id: string, description: string, superType?: string, deprecationMessage?: string): void;
 
 	/**
 	 * Register a token modifier to the registry.
@@ -197,6 +198,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	private tokenStylingDefaultRules: TokenStylingDefaultRule[] = [];
 
+	private typeHierarchy: { [id: string]: string[] };
+
 	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
 		type: 'object',
 		properties: {},
@@ -233,18 +236,23 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	constructor() {
 		this.tokenTypeById = {};
 		this.tokenModifierById = {};
+		this.typeHierarchy = {};
 	}
 
-	public registerTokenType(id: string, description: string, deprecationMessage?: string): void {
+	public registerTokenType(id: string, description: string, superType?: string, deprecationMessage?: string): void {
 		if (!id.match(typeAndModifierIdPattern)) {
 			throw new Error('Invalid token type id.');
 		}
+		if (superType && !superType.match(typeAndModifierIdPattern)) {
+			throw new Error('Invalid token super type id.');
+		}
 
 		const num = this.currentTypeNumber++;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
+		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
 
 		this.tokenStylingSchema.properties[id] = getStylingSchemeEntry(description, deprecationMessage);
+		this.typeHierarchy = {};
 	}
 
 	public registerTokenModifier(id: string, description: string, deprecationMessage?: string): void {
@@ -266,15 +274,20 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		if (!selectorType) {
 			return {
 				match: () => -1,
-				asString: () => selectorString
+				selectorString
 			};
 		}
-		const score = selectorModifiers.length + ((selectorString !== TOKEN_TYPE_WILDCARD) ? 1 : 0);
 
 		return {
 			match: (type: string, modifiers: string[]) => {
-				if (selectorType !== TOKEN_TYPE_WILDCARD && selectorType !== type) {
-					return -1;
+				let score = 0;
+				if (selectorType !== TOKEN_TYPE_WILDCARD) {
+					const hierarchy = this.getTypeHierarchy(type);
+					const level = hierarchy.indexOf(selectorType);
+					if (level === -1) {
+						return -1;
+					}
+					score = 100 - level;
 				}
 				// all selector modifiers must be present
 				for (const selectorModifier of selectorModifiers) {
@@ -282,9 +295,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 						return -1;
 					}
 				}
-				return score;
+				return score + selectorModifiers.length * 100;
 			},
-			asString: () => selectorString
+			selectorString
 		};
 	}
 
@@ -293,13 +306,14 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	}
 
 	public deregisterTokenStyleDefault(selector: TokenSelector): void {
-		const selectorString = selector.asString();
-		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.selector.asString() === selectorString));
+		const selectorString = selector.selectorString;
+		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => r.selector.selectorString !== selectorString);
 	}
 
 	public deregisterTokenType(id: string): void {
 		delete this.tokenTypeById[id];
 		delete this.tokenStylingSchema.properties[id];
+		this.typeHierarchy = {};
 	}
 
 	public deregisterTokenModifier(id: string): void {
@@ -321,6 +335,19 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	public getTokenStylingDefaultRules(): TokenStylingDefaultRule[] {
 		return this.tokenStylingDefaultRules;
+	}
+
+	private getTypeHierarchy(typeId: string): string[] {
+		let hierarchy = this.typeHierarchy[typeId];
+		if (!hierarchy) {
+			this.typeHierarchy[typeId] = hierarchy = [typeId];
+			let type = this.tokenTypeById[typeId];
+			while (type && type.superType) {
+				hierarchy.push(type.superType);
+				type = this.tokenTypeById[type.superType];
+			}
+		}
+		return hierarchy;
 	}
 
 
@@ -346,18 +373,21 @@ platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassific
 registerDefaultClassifications();
 
 function registerDefaultClassifications(): void {
-	function registerTokenType(id: string, description: string, scopesToProbe: ProbeScope[] = [], extendsTC?: string, deprecationMessage?: string): string {
-		tokenClassificationRegistry.registerTokenType(id, description, deprecationMessage);
-
-		if (scopesToProbe || extendsTC) {
-			try {
-				const selector = tokenClassificationRegistry.parseTokenSelector(id);
-				tokenClassificationRegistry.registerTokenStyleDefault(selector, { scopesToProbe, light: extendsTC, dark: extendsTC, hc: extendsTC });
-			} catch (e) {
-				console.log(e);
-			}
+	function registerTokenType(id: string, description: string, scopesToProbe: ProbeScope[] = [], superType?: string, deprecationMessage?: string): string {
+		tokenClassificationRegistry.registerTokenType(id, description, superType, deprecationMessage);
+		if (scopesToProbe) {
+			registerTokenStyleDefault(id, scopesToProbe);
 		}
 		return id;
+	}
+
+	function registerTokenStyleDefault(selectorString: string, scopesToProbe: ProbeScope[]) {
+		try {
+			const selector = tokenClassificationRegistry.parseTokenSelector(selectorString);
+			tokenClassificationRegistry.registerTokenStyleDefault(selector, { scopesToProbe });
+		} catch (e) {
+			console.log(e);
+		}
 	}
 
 	// default token types
