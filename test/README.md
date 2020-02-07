@@ -9,7 +9,19 @@ This folder contains the various test runners for VSCode. Please refer to the do
 * `ui`: our suite of manual UI tests
 
 
-### Browser Unit Tests
+
+### Unit Tests (Electron-runner)
+
+```
+./scripts/test.[sh|bat]
+```
+
+All unit tests are run inside a electron-browser environment which access to DOM and Nodejs api. This is the closest to the enviroment in which VS Code itself ships. Notes:
+
+- use the `--debug` to see an electron window with dev tools which allows for debugging
+- to run only a subset of tests use the `--run` or `--glob` options
+
+### Unit Tests (Browser-runner)
 
 ```
 yarn test-browser --browser webkit --browser chromium
