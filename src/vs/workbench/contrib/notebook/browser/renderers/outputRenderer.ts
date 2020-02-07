@@ -130,6 +130,15 @@ class RichDisplayRenderer implements IMimeRenderer {
 					shadowContent: str,
 					hasDynamicHeight
 				};
+			} else if (output.data['image/svg+xml']) {
+				let data = output.data['image/svg+xml'];
+				let str = isArray(data) ? data.join('') : data;
+				hasDynamicHeight = false;
+				return {
+					element: outputNode,
+					shadowContent: str,
+					hasDynamicHeight
+				};
 			} else if (output.data['text/markdown']) {
 				let data = output.data['text/markdown'];
 				const str = isArray(data) ? data.join('') : data;
