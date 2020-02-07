@@ -35,6 +35,10 @@
 	opacity: .5;
 }
 
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents .monaco-icon-label.delete .monaco-icon-label-container {
+	text-decoration: line-through;
+}
+
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents .details {
 	margin-left: .5em;
 	opacity: .7;
