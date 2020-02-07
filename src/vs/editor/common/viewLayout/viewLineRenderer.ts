@@ -764,10 +764,11 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (partType.indexOf('mtkw') >= 0));
+		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		charOffsetInPart = 0;
 
 		sb.appendASCIIString('<span class="');
-		sb.appendASCIIString(partType);
+		sb.appendASCIIString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
 		sb.appendASCII(CharCode.DoubleQuote);
 
 		if (partRendersWhitespace) {
@@ -787,13 +788,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				}
 			}
 
-			if (!fontIsMonospace) {
-				const partIsOnlyWhitespace = (partType === 'mtkw');
-				if (partIsOnlyWhitespace || !containsForeignElements) {
-					sb.appendASCIIString(' style="display:inline-block;width:');
-					sb.appendASCIIString(String(spaceWidth * partContentCnt));
-					sb.appendASCIIString('px"');
-				}
+			if (partRendersWhitespaceWithWidth) {
+				sb.appendASCIIString(' style="width:');
+				sb.appendASCIIString(String(spaceWidth * partContentCnt));
+				sb.appendASCIIString('px"');
 			}
 			sb.appendASCII(CharCode.GreaterThan);
 

@@ -88,5 +88,6 @@ registerThemingParticipant((theme, collector) => {
 	const invisibles = theme.getColor(editorWhitespaces);
 	if (invisibles) {
 		collector.addRule(`.monaco-editor .mtkw { color: ${invisibles} !important; }`);
+		collector.addRule(`.monaco-editor .mtkz { color: ${invisibles} !important; }`);
 	}
 });
