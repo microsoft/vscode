@@ -6,8 +6,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { CellRenderTemplate, NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeObserver';
-import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
+import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/outputRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 

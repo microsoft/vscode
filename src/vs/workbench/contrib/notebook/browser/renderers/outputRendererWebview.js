@@ -22,8 +22,9 @@
 					newElement.id = id;
 					document.getElementById('container').appendChild(newElement);
 					newElement.innerHTML = content;
-					var arr = newElement.getElementsByTagName('script');
+					let arr = newElement.getElementsByTagName('script');
 					for (let n = 0; n < arr.length; n++) {
+						// eslint-disable-next-line no-eval
 						eval(arr[n].innerHTML); //run script inside div
 					}
 					vscode.postMessage({

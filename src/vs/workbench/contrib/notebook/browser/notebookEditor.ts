@@ -22,7 +22,7 @@ import { MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
+import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';

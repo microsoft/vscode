@@ -9,7 +9,7 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/c
 import { CellRenderTemplate, NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeObserver';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
