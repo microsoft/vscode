@@ -471,7 +471,13 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 
 		this.router = new RequestRouter(
 			[
-				{ server: this.getErrServer, preferredCommands: new Set<keyof TypeScriptRequests>(['geterr', 'geterrForProject']) },
+				{
+					server: this.getErrServer, preferredCommands: new Set<keyof TypeScriptRequests>([
+						'geterr',
+						'geterrForProject',
+						'compileOnSaveAffectedFileList'
+					])
+				},
 				{ server: this.mainServer, preferredCommands: undefined /* gets all other commands */ }
 			],
 			delegate);

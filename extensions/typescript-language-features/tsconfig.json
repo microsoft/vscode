@@ -11,6 +11,7 @@
 			]
 		}
 	},
+	"compileOnSave": true,
 	"include": [
 		"src/**/*"
 	]

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { coalesce } from '../utils/arrays';
+import { coalesce, flatten } from '../utils/arrays';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -294,19 +294,14 @@ class GetErrRequest {
 			this._done = true;
 			onDone();
 		} else {
-			const request = client.configuration.enableProjectDiagnostics
-				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
-				// too many diagnostics
-				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
-				: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
-
-			request.finally(() => {
-				if (this._done) {
-					return;
-				}
-				this._done = true;
-				onDone();
-			});
+			client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token)
+				.finally(() => {
+					if (this._done) {
+						return;
+					}
+					this._done = true;
+					onDone();
+				});
 		}
 	}
 
@@ -365,7 +360,34 @@ export default class BufferSyncSupport extends Disposable {
 		this.listening = true;
 		vscode.workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
 		vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
-		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
+		vscode.workspace.onDidChangeTextDocument(async e => {
+			const syncedBuffer = this.syncedBuffers.get(e.document.uri);
+			if (!syncedBuffer) {
+				return;
+			}
+
+			if (this.client.configuration.enableProjectDiagnostics) {
+				this.onDidChangeBuffer(syncedBuffer, e);
+
+				// TODO: Debounce this!
+				const response = await this.client.execute('compileOnSaveAffectedFileList', { file: syncedBuffer.filepath }, nulToken);
+				if (response.type === 'response') {
+					const newFilesToCheck = flatten(response.body.map(x => x.fileNames)).map(file => this.toResource(file))
+						.filter(resource => !this.pendingDiagnostics.has(resource));
+
+					if (newFilesToCheck.length) {
+						for (const resource of newFilesToCheck) {
+							const doc = await vscode.workspace.openTextDocument(resource);
+							// this.pendingDiagnostics.set(resource, Date.now());
+							this.openTextDocument(doc); // Note TS seems to require opening the file to generate errors about it
+						}
+					}
+				}
+			} else {
+				this.onDidChangeBuffer(syncedBuffer, e);
+			}
+		}, this, this._disposables);
+
 		vscode.window.onDidChangeVisibleTextEditors(e => {
 			for (const { document } of e) {
 				const syncedBuffer = this.syncedBuffers.get(document.uri);
@@ -481,12 +503,7 @@ export default class BufferSyncSupport extends Disposable {
 		this.closeResource(document.uri);
 	}
 
-	private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
-		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
-		if (!syncedBuffer) {
-			return;
-		}
-
+	private onDidChangeBuffer(syncedBuffer: SyncedBuffer, e: vscode.TextDocumentChangeEvent): void {
 		this._onWillChange.fire(syncedBuffer.resource);
 
 		syncedBuffer.onContentChanged(e.contentChanges);

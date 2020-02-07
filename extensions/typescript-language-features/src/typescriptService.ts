@@ -61,6 +61,7 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
+	'compileOnSaveAffectedFileList': [Proto.FileRequestArgs, Proto.CompileOnSaveAffectedFileListResponse]
 }
 
 interface NoResponseTsServerRequests {
