@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var express = require('express');
-var glob = require('glob');
-var path = require('path');
-var fs = require('fs');
+const express = require('express');
+const glob = require('glob');
+const path = require('path');
+const fs = require('fs');
 
-var port = 8887;
-var root = path.dirname(__dirname);
+const REPO_ROOT = path.join(__dirname, '../');
+const PORT = 8887;
 
 function template(str, env) {
 	return str.replace(/{{\s*([\w_\-]+)\s*}}/g, function (all, part) {
@@ -19,13 +19,13 @@ function template(str, env) {
 
 var app = express();
 
-app.use('/out', express.static(path.join(root, 'out')));
-app.use('/test', express.static(path.join(root, 'test')));
-app.use('/node_modules', express.static(path.join(root, 'node_modules')));
+app.use('/out', express.static(path.join(REPO_ROOT, 'out')));
+app.use('/test', express.static(path.join(REPO_ROOT, 'test')));
+app.use('/node_modules', express.static(path.join(REPO_ROOT, 'node_modules')));
 
 app.get('/', function (req, res) {
 	glob('**/vs/{base,platform,editor}/**/test/{common,browser}/**/*.test.js', {
-		cwd: path.join(root, 'out'),
+		cwd: path.join(REPO_ROOT, 'out'),
 		// ignore: ['**/test/{node,electron*}/**/*.js']
 	}, function (err, files) {
 		if (err) { return res.sendStatus(500); }
@@ -43,6 +43,6 @@ app.get('/', function (req, res) {
 	});
 });
 
-app.listen(port, function () {
+app.listen(PORT, function () {
 	console.log('http://localhost:8887/');
 });
