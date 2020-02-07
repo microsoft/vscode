@@ -92,6 +92,7 @@ export class AzureActiveDirectoryService {
 									scope: session.scope,
 									sessionId: session.id
 								});
+								this.pollForReconnect(session.id, session.refreshToken, session.scope);
 							}
 						} else {
 							await this.logout(session.id);
@@ -353,7 +354,10 @@ export class AzureActiveDirectoryService {
 					onDidChangeSessions.fire();
 				} catch (e) {
 					if (e.message === REFRESH_NETWORK_FAILURE) {
-						await this.handleRefreshNetworkError(token.sessionId, token.refreshToken, scope);
+						const didSucceedOnRetry = await this.handleRefreshNetworkError(token.sessionId, token.refreshToken, scope);
+						if (!didSucceedOnRetry) {
+							this.pollForReconnect(token.sessionId, token.refreshToken, token.scope);
+						}
 					} else {
 						await this.logout(token.sessionId);
 						onDidChangeSessions.fire();
@@ -492,6 +496,18 @@ export class AzureActiveDirectoryService {
 		}
 
 		this.clearSessionTimeout(sessionId);
+	}
+
+	private pollForReconnect(sessionId: string, refreshToken: string, scope: string): void {
+		this.clearSessionTimeout(sessionId);
+
+		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
+			try {
+				await this.refreshToken(refreshToken, scope);
+			} catch (e) {
+				this.pollForReconnect(sessionId, refreshToken, scope);
+			}
+		}, 1000 * 60 * 30));
 	}
 
 	private handleRefreshNetworkError(sessionId: string, refreshToken: string, scope: string, attempts: number = 1): Promise<boolean> {
