@@ -207,9 +207,13 @@ export const extractSearchQuery = (model: ITextModel | string): SearchConfigurat
 
 export const serializeSearchResultForEditor =
 	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, includeHeader: boolean): { matchRanges: Range[], text: string } => {
-		const header = includeHeader
+		const header = (includeHeader
 			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
-			: [];
+			: []);
+
+		const resultCount = searchResult.count() ? localize('resultCount', "{0} results in {1} files", searchResult.count(), searchResult.fileCount()) : localize('noResults', "No Results");
+		header.push(resultCount);
+		header.push('');
 
 		const allResults =
 			flattenSearchResultSerializations(
@@ -220,9 +224,7 @@ export const serializeSearchResultForEditor =
 
 		return {
 			matchRanges: allResults.matchRanges.map(translateRangeLines(header.length)),
-			text: header
-				.concat(allResults.text.length ? allResults.text : ['No Results'])
-				.join(lineDelimiter)
+			text: header.concat(allResults.text).join(lineDelimiter)
 		};
 	};
 
