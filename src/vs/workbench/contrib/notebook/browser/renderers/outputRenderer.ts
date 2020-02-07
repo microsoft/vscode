@@ -7,11 +7,16 @@ import * as DOM from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { isArray } from 'vs/base/common/types';
 import { IOutput } from 'vs/editor/common/modes';
 import * as marked from 'vs/base/common/marked/marked';
 import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { URI } from 'vs/base/common/uri';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
 	types.forEach(type => {
@@ -20,14 +25,12 @@ export function registerMineTypeRenderer(types: string[], renderer: IMimeRendere
 }
 
 export interface IRenderOutput {
-	element: HTMLElement;
-	whitespaceElement?: HTMLElement;
 	shadowContent?: string;
 	hasDynamicHeight: boolean;
 }
 
 interface IMimeRenderer {
-	render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService, notebookHandler?: NotebookHandler): IRenderOutput;
+	render(output: IOutput, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler?: NotebookHandler): IRenderOutput;
 }
 
 export class MimeTypeRenderer {
@@ -42,23 +45,24 @@ export class MimeTypeRenderer {
 		return this._renderers.get(type);
 	}
 
-	static render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService, notebookHandler?: NotebookHandler): IRenderOutput | null {
-		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, themeService, webviewService, notebookHandler) ?? null;
+	static render(output: IOutput, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler: NotebookHandler): IRenderOutput | null {
+		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, container, themeService, instantiationService, modelService, modeService, notebookHandler) ?? null;
 	}
 }
 
 registerMineTypeRenderer(['stream'], {
 	render: (
 		output: IOutput,
+		container: HTMLElement,
 		themeService: IThemeService,
-		webviewService: IWebviewService
+		instantiationService: IInstantiationService,
+		modelService: IModelService,
+		modeService: IModeService
 	) => {
-		const outputNode = document.createElement('div');
 		const contentNode = document.createElement('p');
 		contentNode.innerText = output.text;
-		outputNode.appendChild(contentNode);
+		container.appendChild(contentNode);
 		return {
-			element: outputNode,
 			hasDynamicHeight: false
 		};
 	}
@@ -67,10 +71,12 @@ registerMineTypeRenderer(['stream'], {
 registerMineTypeRenderer(['error'], {
 	render: (
 		output: IOutput,
+		container: HTMLElement,
 		themeService: IThemeService,
-		webviewService: IWebviewService
+		instantiationService: IInstantiationService,
+		modelService: IModelService,
+		modeService: IModeService
 	) => {
-		const outputNode = document.createElement('div');
 		const traceback = document.createElement('pre');
 		DOM.addClasses(traceback, 'traceback');
 		if (output.traceback) {
@@ -78,9 +84,8 @@ registerMineTypeRenderer(['error'], {
 				traceback.appendChild(handleANSIOutput(output.traceback[j], themeService));
 			}
 		}
-		outputNode.appendChild(traceback);
+		container.appendChild(traceback);
 		return {
-			element: outputNode,
 			hasDynamicHeight: false
 		};
 	}
@@ -104,20 +109,49 @@ registerMineTypeRenderer(['error'], {
 class RichDisplayRenderer implements IMimeRenderer {
 	private _mdRenderer: marked.Renderer = new marked.Renderer({ gfm: true });;
 
-	render(output: any, themeService: IThemeService, webviewService: IWebviewService, notebookHandler: NotebookHandler): IRenderOutput {
-		const display = document.createElement('div');
-		const outputNode = document.createElement('div');
+	render(output: any, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler: NotebookHandler): IRenderOutput {
 		let hasDynamicHeight = false;
-		DOM.addClasses(display, 'display');
 
 		if (output.data) {
-			if (output.data['application/javascript']) {
+			if (output.data['application/json']) {
+				let data = output.data['application/json'];
+				let str = JSON.stringify(data, null, '\t');
+
+				const editor = instantiationService.createInstance(CodeEditorWidget, container, {
+					...getJSONSimpleEditorOptions(),
+					dimension: {
+						width: 0,
+						height: 0
+					}
+				}, {
+					isSimpleWidget: true
+				});
+
+				let mode = modeService.create('json');
+				let resource = URI.parse(`notebook-output-${Date.now()}.json`);
+				const textModel = modelService.createModel(str, mode, resource, false);
+				editor.setModel(textModel);
+
+				let width = notebookHandler.getListDimension()!.width;
+				let fontInfo = notebookHandler.getFontInfo();
+				let height = Math.min(textModel.getLineCount(), 16) * (fontInfo?.lineHeight || 18);
+
+				editor.layout({
+					height,
+					width
+				});
+
+				container.style.height = `${height + 16}px`;
+
+				return {
+					hasDynamicHeight: true
+				};
+			} else if (output.data['application/javascript']) {
 				let data = output.data['application/javascript'];
 				let str = isArray(data) ? data.join('') : data;
 				let scriptVal = `<script type="application/javascript">${str}</script>`;
 				hasDynamicHeight = false;
 				return {
-					element: outputNode,
 					shadowContent: scriptVal,
 					hasDynamicHeight
 				};
@@ -126,7 +160,6 @@ class RichDisplayRenderer implements IMimeRenderer {
 				let str = isArray(data) ? data.join('') : data;
 				hasDynamicHeight = false;
 				return {
-					element: outputNode,
 					shadowContent: str,
 					hasDynamicHeight
 				};
@@ -135,7 +168,6 @@ class RichDisplayRenderer implements IMimeRenderer {
 				let str = isArray(data) ? data.join('') : data;
 				hasDynamicHeight = false;
 				return {
-					element: outputNode,
 					shadowContent: str,
 					hasDynamicHeight
 				};
@@ -144,31 +176,34 @@ class RichDisplayRenderer implements IMimeRenderer {
 				const str = isArray(data) ? data.join('') : data;
 				const mdOutput = document.createElement('div');
 				mdOutput.innerHTML = marked(str, { renderer: this._mdRenderer });
-				outputNode.appendChild(mdOutput);
+				container.appendChild(mdOutput);
 				hasDynamicHeight = true;
 			} else if (output.data['image/png']) {
 				const image = document.createElement('img');
 				image.src = `data:image/png;base64,${output.data['image/png']}`;
+				const display = document.createElement('div');
+				DOM.addClasses(display, 'display');
 				display.appendChild(image);
-				outputNode.appendChild(display);
+				container.appendChild(display);
 				hasDynamicHeight = true;
 			} else if (output.data['image/jpeg']) {
 				const image = document.createElement('img');
 				image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
+				const display = document.createElement('div');
+				DOM.addClasses(display, 'display');
 				display.appendChild(image);
-				outputNode.appendChild(display);
+				container.appendChild(display);
 				hasDynamicHeight = true;
 			} else if (output.data['text/plain']) {
 				let data = output.data['text/plain'];
 				let str = isArray(data) ? data.join('') : data;
 				const contentNode = document.createElement('p');
 				contentNode.innerText = str;
-				outputNode.appendChild(contentNode);
+				container.appendChild(contentNode);
 			}
 		}
 
 		return {
-			element: outputNode,
 			hasDynamicHeight
 		};
 	}
@@ -522,4 +557,26 @@ export function calcANSI8bitColor(colorNumber: number): RGBA | undefined {
 		// {{SQL CARBON EDIT}} @todo anthonydresser 4/12/19 this is necessary because we don't use strict null checks
 		return undefined;
 	}
+}
+
+export function getJSONSimpleEditorOptions(): IEditorOptions {
+	return {
+		wordWrap: 'on',
+		overviewRulerLanes: 0,
+		glyphMargin: false,
+		selectOnLineNumbers: false,
+		hideCursorInOverviewRuler: true,
+		selectionHighlight: false,
+		lineDecorationsWidth: 0,
+		overviewRulerBorder: false,
+		scrollBeyondLastLine: false,
+		renderLineHighlight: 'none',
+		minimap: {
+			enabled: false
+		},
+		lineNumbers: 'off',
+		scrollbar: {
+			alwaysConsumeMouseWheel: false
+		}
+	};
 }

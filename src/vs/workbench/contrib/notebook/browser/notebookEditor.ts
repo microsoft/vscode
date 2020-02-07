@@ -476,8 +476,8 @@ const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';
 registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
 	if (color) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .notebook-editor .margin-view-overlays { background: ${color}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-editor-background,
+			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays { background: ${color}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {

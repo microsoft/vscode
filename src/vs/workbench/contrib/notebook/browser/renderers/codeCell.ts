@@ -9,7 +9,9 @@ import { CellRenderTemplate, NotebookHandler, CELL_MARGIN } from 'vs/workbench/c
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
 import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/outputRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class CodeCell extends Disposable {
 	constructor(
@@ -17,7 +19,9 @@ export class CodeCell extends Disposable {
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		themeService: IThemeService,
-		webviewService: IWebviewService,
+		instantiationService: IInstantiationService,
+		modelService: IModelService,
+		modeService: IModeService,
 		height: number | undefined
 	) {
 		super();
@@ -96,10 +100,11 @@ export class CodeCell extends Disposable {
 			if (viewCell.outputs.length > 0) {
 				let hasDynamicHeight = true;
 				for (let i = 0; i < viewCell.outputs.length; i++) {
-					let result = MimeTypeRenderer.render(viewCell.outputs[i], themeService, webviewService);
+					let outputItemDiv = document.createElement('div');
+					let result = MimeTypeRenderer.render(viewCell.outputs[i], outputItemDiv, themeService, instantiationService, modelService, modeService, handler);
+					templateData.outputContainer?.appendChild(outputItemDiv);
 					if (result) {
 						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
-						templateData.outputContainer?.appendChild(result.element);
 						if (result.shadowContent) {
 							hasDynamicHeight = false;
 							handler.createContentWidget(viewCell, i, result.shadowContent, totalHeight + 8);
@@ -125,7 +130,6 @@ export class CodeCell extends Disposable {
 							elementSizeObserver.dispose();
 						}
 					});
-					// const elementSizeObserver = new ElementSizeObserver();
 					elementSizeObserver.startObserving();
 					if (!hasDynamicHeight && clientHeight !== 0) {
 						viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
@@ -140,10 +144,11 @@ export class CodeCell extends Disposable {
 		if (viewCell.outputs.length > 0) {
 			let hasDynamicHeight = true;
 			for (let i = 0; i < viewCell.outputs.length; i++) {
-				let result = MimeTypeRenderer.render(viewCell.outputs[i], themeService, webviewService);
+				let outputItemDiv = document.createElement('div');
+				let result = MimeTypeRenderer.render(viewCell.outputs[i], outputItemDiv, themeService, instantiationService, modelService, modeService, handler);
+				templateData.outputContainer?.appendChild(outputItemDiv);
 				if (result) {
 					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
-					templateData.outputContainer?.appendChild(result.element);
 					if (result.shadowContent) {
 						hasDynamicHeight = false;
 						handler.createContentWidget(viewCell, i, result.shadowContent, totalHeight + 8);

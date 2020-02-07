@@ -17,11 +17,12 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookHandler, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -268,7 +269,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IWebviewService private readonly webviewService: IWebviewService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super(handler, contextMenuService, configurationService, 'python');
 	}
@@ -329,7 +331,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.showContextMenu(listIndex, element, e.posx, top + height);
 		}));
 
-		elementDisposable?.add(new CodeCell(this.handler, element, templateData, this.themeService, this.webviewService, height));
+		elementDisposable?.add(new CodeCell(this.handler, element, templateData, this.themeService, this.instantiationService, this.modelService, this.modeService, height));
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
