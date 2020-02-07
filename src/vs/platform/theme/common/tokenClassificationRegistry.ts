@@ -412,10 +412,11 @@ function registerDefaultClassifications(): void {
 	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function.member'], ['support.function']]);
 	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.other.preprocessor.macro']], 'function');
 
-	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable'], ['entity.name.variable']]);
-	registerTokenType('constant', nls.localize('constant', "Style for constants."), [['variable.other.constant']], 'variable');
+	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable.other.readwrite'], ['entity.name.variable']]);
 	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), [['variable.parameter']], 'variable');
 	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']], 'variable');
+	registerTokenType('enumMember', nls.localize('enumMember', "Style for enum members."), [['variable.other.enummember']], 'variable');
+	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']], 'variable');
 
 	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
 
@@ -431,6 +432,7 @@ function registerDefaultClassifications(): void {
 	tokenClassificationRegistry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
 
 
+	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
