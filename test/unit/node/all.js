@@ -44,7 +44,7 @@ function main() {
 		nodeMain: __filename,
 		baseUrl: path.join(REPO_ROOT, 'src'),
 		paths: {
-			'vs/css': '../test/css.mock',
+			'vs/css': '../test/unit/node/css.mock',
 			'vs': `../${out}/vs`,
 			'lib': `../${out}/lib`,
 			'bootstrap-fork': `../${out}/bootstrap-fork`
