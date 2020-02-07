@@ -42,7 +42,7 @@ steps:
     ./scripts/test.sh --tfs "Unit Tests"
   displayName: Run Unit Tests
 - script: |
-    yarn browser-test
+    yarn test-browser
   displayName: Run Unit Tests (Browsers)
 - script: |
     ./scripts/test-integration.sh --tfs "Integration Tests"

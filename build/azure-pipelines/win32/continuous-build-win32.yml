@@ -47,7 +47,7 @@ steps:
     .\scripts\test.bat --tfs "Unit Tests"
   displayName: Run Unit Tests
 - powershell: |
-    yarn browser-test
+    yarn test-browser
   displayName: Run Unit Tests (Browser)
 - powershell: |
     .\scripts\test-integration.bat --tfs "Integration Tests"
