@@ -302,7 +302,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests",
-			"program": "${workspaceFolder}/test/electron/index.js",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
 			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"

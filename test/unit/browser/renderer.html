@@ -3,12 +3,12 @@
 <head>
 	<meta charset="utf-8">
 	<title>VSCode Tests</title>
-	<link href="../../node_modules/mocha/mocha.css" rel="stylesheet" />
+	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
 </head>
 
 <body>
 	<div id="mocha"></div>
-	<script src="../../node_modules/mocha/mocha.js"></script>
+	<script src="../../../node_modules/mocha/mocha.js"></script>
 	<script>
 		// !!! DO NOT CHANGE !!!
 		// Our unit tests may run in environments without
@@ -37,17 +37,17 @@
 		});
 	</script>
 
-	<script src="../../out/vs/loader.js"></script>
+	<script src="../../../out/vs/loader.js"></script>
 	<script>
 		// configure loader
 		const baseUrl = window.location.href;
 		require.config({
 			catchError: true,
-			baseUrl: new URL('../../src', baseUrl).href,
+			baseUrl: new URL('../../../src', baseUrl).href,
 			paths: {
-				'vs': new URL('../../out/vs', baseUrl).href,
-				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href
+				'vs': new URL('../../../out/vs', baseUrl).href,
+				assert: new URL('../../assert.js', baseUrl).href,
+				sinon: new URL('../../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href
 			}
 		});
 	</script>
@@ -102,7 +102,7 @@
 			runner.on('pending', test => window.mocha_report('pending', serializeRunnable(test)));
 		};
 
-		window.loadAndRun = async function loadAndRun (modules, manual = false) {
+		window.loadAndRun = async function loadAndRun(modules, manual = false) {
 			// load
 			// await Promise.all(modules.map(module => new Promise((resolve, reject) =>{
 			// 	require([module], resolve, err => {
@@ -120,7 +120,7 @@
 
 			// run
 			return new Promise((resolve, reject) => {
-				if(!manual) {
+				if (!manual) {
 					mocha.reporter(PlaywrightReporter);
 				}
 				mocha.run(failCount => resolve(failCount === 0));
@@ -129,7 +129,7 @@
 
 
 		const modules = new URL(window.location.href).searchParams.getAll('m');
-		if(Array.isArray(modules) && modules.length > 0){
+		if (Array.isArray(modules) && modules.length > 0) {
 			console.log('MANUALLY running tests', modules);
 
 			loadAndRun(modules, true).then(() => console.log('done'), err => console.log(err));

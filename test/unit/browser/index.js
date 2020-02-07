@@ -57,7 +57,7 @@ const withReporter = (function () {
 })()
 
 const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../${outdir}`);
+const out = path.join(__dirname, `../../../${outdir}`);
 
 const testModules = (async function () {
 
@@ -95,10 +95,9 @@ const testModules = (async function () {
 async function runTestsInBrowser(testModules, browserType) {
 
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
-	const context = await browser.newContext();
-
+	const page = (await browser.defaultContext().pages())[0]
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-	const page = await context.newPage(target.href);
+	await page.goto(target.href);
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
