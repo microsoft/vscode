@@ -1537,8 +1537,18 @@ export interface IStreamOutput {
  */
 export interface IErrorOutput {
 	output_type: 'error';
-	evalue: string;
-	traceback: string[];
+	/**
+	 * Exception Name
+	 */
+	ename?: string;
+	/**
+	 * Exception Value
+	 */
+	evalue?: string;
+	/**
+	 * Exception call stacks
+	 */
+	traceback?: string[];
 }
 
 /**
@@ -1546,6 +1556,9 @@ export interface IErrorOutput {
  */
 export interface IDisplayOutput {
 	output_type: 'display_data';
+	/**
+	 * { mime_type: value }
+	 */
 	data: { string: string };
 }
 

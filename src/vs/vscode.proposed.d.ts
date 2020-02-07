@@ -1394,12 +1394,39 @@ declare module 'vscode' {
 
 	export interface CellErrorOutput {
 		output_type: 'error';
+		/**
+		 * Exception Name
+		 */
+		ename: string;
+		/**
+		 * Exception Value
+		 */
 		evalue: string;
+		/**
+		 * Exception call stack
+		 */
 		traceback: string[];
 	}
 
 	export interface CellDisplayOutput {
-		output_type: 'display_data';
+		output_type: 'display_data' | 'execute_result';
+		/**
+		 * { mime_type: value }
+		 *
+		 * Example:
+		 * ```json
+		 * {
+		 *   "output_type": "execute_result",
+		 *   "data": {
+		 *      "text/html": [
+		 *          "<h1>Hello</h1>"
+		 *       ],
+		 *      "text/plain": [
+		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
+		 *      ]
+		 *   }
+		 * }
+		 */
 		data: { [key: string]: any };
 	}
 
