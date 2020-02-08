@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path='../../../../src/vs/vscode.d.ts'/>
-/// <reference path='../../../../src/vs/vscode.proposed.d.ts'/>
-/// <reference path="../../../types/lib.textEncoder.d.ts" />
+// Define TextEncoder + TextDecoder globals for both browser and node runtimes
+//
+// Proper fix: https://github.com/microsoft/TypeScript/issues/31535
+
+declare var TextDecoder: typeof import('util').TextDecoder;
+declare var TextEncoder: typeof import('util').TextEncoder;
