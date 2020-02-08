@@ -636,7 +636,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
-							if (buttons[choice]) {
+							if (typeof choice !== 'undefined' && buttons[choice]) {
 								buttons[choice].callback();
 							} else {
 								showProgress(ProgressLocation.Notification, buttons);
@@ -651,7 +651,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
-							if (buttons[choice]) {
+							if (typeof choice !== 'undefined' && buttons[choice]) {
 								buttons[choice].callback();
 							} else {
 								hideProgress();
