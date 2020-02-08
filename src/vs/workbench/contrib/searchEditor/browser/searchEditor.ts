@@ -168,7 +168,7 @@ export class SearchEditor extends BaseEditor {
 		this.messageDisposables = [];
 
 		if (show) {
-			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runAgain', "Run Again")));
+			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
 			this.messageDisposables.push(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
 				await this.runSearch(true, true);
 				this.toggleRunAgainMessage(false);
