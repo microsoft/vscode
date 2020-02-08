@@ -272,7 +272,7 @@ class ExtHostQuickInput implements QuickInput {
 
 	set ok(ok: boolean) {
 		this._ok = ok;
-		this.update({ ok })
+		this.update({ ok });
 	}
 
 	get title() {
