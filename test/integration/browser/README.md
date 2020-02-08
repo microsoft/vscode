@@ -8,6 +8,6 @@
 scripts/test-integration.sh
 
 # Dev (Web)
-node test/integration/browser/out/index.js
+resources/server/test/test-web-integration.sh
 
 ```
