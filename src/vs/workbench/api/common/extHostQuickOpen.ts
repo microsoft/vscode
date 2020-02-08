@@ -51,11 +51,12 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		const instance = ++this._instances;
 
 		const quickPickWidget = this._proxy.$show(instance, {
-			placeHolder: options && options.placeHolder,
-			matchOnDescription: options && options.matchOnDescription,
-			matchOnDetail: options && options.matchOnDetail,
-			ignoreFocusLost: options && options.ignoreFocusOut,
-			canPickMany: options && options.canPickMany
+			placeHolder: options?.placeHolder,
+			matchOnDescription: options?.matchOnDescription,
+			matchOnDetail: options?.matchOnDetail,
+			ignoreFocusLost: options?.ignoreFocusOut,
+			canPickMany: options?.canPickMany,
+			ok: options?.ok
 		}, token);
 
 		const widgetClosedMarker = {};
@@ -252,6 +253,7 @@ class ExtHostQuickInput implements QuickInput {
 	private readonly _onDidHideEmitter = new Emitter<void>();
 	private _updateTimeout: any;
 	private _pendingUpdate: TransferQuickInput = { id: this._id };
+	private _ok: boolean = false;
 
 	private _disposed = false;
 	protected _disposables: IDisposable[] = [
@@ -262,6 +264,15 @@ class ExtHostQuickInput implements QuickInput {
 	];
 
 	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: ExtensionIdentifier, private _onDidDispose: () => void) {
+	}
+
+	get ok(): boolean {
+		return this._ok;
+	}
+
+	set ok(ok: boolean) {
+		this._ok = ok;
+		this.update({ ok })
 	}
 
 	get title() {

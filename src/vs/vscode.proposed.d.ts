@@ -1358,6 +1358,21 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region allow QuickPicks to have an optional ok button at the end
+	export interface QuickPickOptions {
+		/**
+		 * An optional flag to make the picker show an ok button at the end of the picker. Default: false
+		 */
+		ok?: boolean;
+	}
+
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+		/**
+		 * An optional flag to make the picker show an ok button at the end of the picker. Default: false
+		 */
+		ok: boolean;
+	}
+
 	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
 
 	export interface CodeAction {

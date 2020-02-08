@@ -1257,6 +1257,8 @@ export class QuickInputController extends Disposable {
 			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
+			input.ok = !!options.ok;
+
 			input.busy = true;
 			Promise.all<QuickPickInput<T>[], T | undefined>([picks, options.activeItem])
 				.then(([items, _activeItem]) => {

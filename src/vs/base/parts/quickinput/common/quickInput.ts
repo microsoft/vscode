@@ -85,6 +85,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 */
 	activeItem?: Promise<T> | T;
 
+	/**
+	 * an optional flag to show ok button
+	 */
+	ok?: boolean
+
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
 	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
