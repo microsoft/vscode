@@ -43,6 +43,7 @@ import { InSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/consta
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { extractSearchQuery, serializeSearchConfiguration, serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -68,6 +69,7 @@ export class SearchEditor extends BaseEditor {
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
 	private messageDisposables: IDisposable[] = [];
+	private container: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -77,24 +79,30 @@ export class SearchEditor extends BaseEditor {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
 	) {
 		super(SearchEditor.ID, telemetryService, themeService, storageService);
-		this.inSearchEditorContextKey = InSearchEditor.bindTo(contextKeyService);
-		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(contextKeyService);
+		this.container = DOM.$('.search-editor');
+
+		const scopedContextKeyService = contextKeyService.createScoped(this.container);
+		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
+
+		this.inSearchEditorContextKey = InSearchEditor.bindTo(scopedContextKeyService);
+		this.inSearchEditorContextKey.set(true);
+		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 	}
 
 	createEditor(parent: HTMLElement) {
-		DOM.addClass(parent, 'search-editor');
+		DOM.append(parent, this.container);
 
-		this.createQueryEditor(parent);
-		this.createResultsEditor(parent);
+		this.createQueryEditor(this.container);
+		this.createResultsEditor(this.container);
 	}
 
 	private createQueryEditor(parent: HTMLElement) {
@@ -406,7 +414,6 @@ export class SearchEditor extends BaseEditor {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, token);
-		this.inSearchEditorContextKey.set(true);
 
 		const { body, header } = await newInput.getModels();
 
@@ -478,7 +485,6 @@ export class SearchEditor extends BaseEditor {
 	clearInput() {
 		this.saveViewState();
 		super.clearInput();
-		this.inSearchEditorContextKey.set(false);
 	}
 }
 
