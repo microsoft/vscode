@@ -1113,13 +1113,21 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	}
 };
 
-export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
+const openFileHandler = async (preserveFocus: boolean, accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 
 	await editorService.openEditors(stats.filter(s => !s.isDirectory).map(s => ({
 		resource: s.resource,
-		options: { preserveFocus: true }
+		options: { preserveFocus: preserveFocus }
 	})));
+};
+
+export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
+	openFileHandler(true, accessor);
+};
+
+export const openFileDontPreserveFocusHandler = async (accessor: ServicesAccessor) => {
+	openFileHandler(false, accessor);
 };
