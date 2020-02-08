@@ -1335,7 +1335,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	@debounce(50)
-	private _resize(): void {
+	private async _resize(): Promise<void> {
 		let cols = this.cols;
 		let rows = this.rows;
 
@@ -1385,7 +1385,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(cols, rows));
+		await this._processManager.ptyProcessReady;
+		this._processManager.setDimensions(cols, rows);
 	}
 
 	public setShellType(shellType: TerminalShellType) {
