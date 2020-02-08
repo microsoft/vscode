@@ -90,9 +90,9 @@ steps:
 
 - script: |
     set -e
-    yarn test-browser --browser chromium --browser webkit
+    yarn test-browser --browser chromium
   continueOnError: true
-  displayName: Run unit tests (Chromium, Safari)
+  displayName: Run unit tests (Chromium)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
@@ -106,17 +106,17 @@ steps:
 - script: |
     set -e
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
-    ./resources/server/test/test-web-integration.sh --browser webkit
+    yarn smoketest --web --headless --browser chromium
   continueOnError: true
-  displayName: Run integration tests (Safari)
+  displayName: Run web smoke tests (Chromium)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
-    yarn smoketest --web --headless --browser chromium
+    yarn smoketest --web --headless --browser firefox
   continueOnError: true
-  displayName: Run web smoke tests (Chromium)
+  displayName: Run web smoke tests (Firefox)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   # upload only the workbench.web.api.js source maps because
