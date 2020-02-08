@@ -5,8 +5,10 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Delayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -14,34 +16,33 @@ import type { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
+import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
-import { Delayer } from 'vs/base/common/async';
-import { serializeSearchResultForEditor, serializeSearchConfiguration, extractSearchQuery } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
-import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import type { SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { searchEditorFindMatchBorder, searchEditorFindMatch, registerColor, inputBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { InSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
+import { extractSearchQuery, serializeSearchConfiguration, serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
+import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -57,6 +58,7 @@ export class SearchEditor extends BaseEditor {
 	private inputPatternExcludes!: ExcludePatternInputWidget;
 	private includesExcludesContainer!: HTMLElement;
 	private toggleQueryDetailsButton!: HTMLElement;
+	private messageBox!: HTMLElement;
 
 	private runSearchDelayer = new Delayer(300);
 	private pauseSearching: boolean = false;
@@ -65,6 +67,7 @@ export class SearchEditor extends BaseEditor {
 	private inputFocusContextKey: IContextKey<boolean>;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
+	private messageDisposables: IDisposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -153,6 +156,24 @@ export class SearchEditor extends BaseEditor {
 
 		[this.queryEditorWidget.searchInput, this.inputPatternIncludes, this.inputPatternExcludes].map(input =>
 			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
+
+		// Messages
+		this.messageBox = DOM.append(this.queryEditorContainer, DOM.$('.messages'));
+	}
+
+
+	private toggleRunAgainMessage(show: boolean) {
+		DOM.clearNode(this.messageBox);
+		dispose(this.messageDisposables);
+		this.messageDisposables = [];
+
+		if (show) {
+			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runAgain', "Run Again")));
+			this.messageDisposables.push(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
+				await this.runSearch(true, true);
+				this.toggleRunAgainMessage(false);
+			}));
+		}
 	}
 
 	private createResultsEditor(parent: HTMLElement) {
@@ -265,7 +286,7 @@ export class SearchEditor extends BaseEditor {
 
 	async runSearch(resetCursor = true, instant = false) {
 		if (!this.pauseSearching) {
-			this.runSearchDelayer.trigger(async () => {
+			await this.runSearchDelayer.trigger(async () => {
 				await this.doRunSearch();
 				if (resetCursor) {
 					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
@@ -393,6 +414,7 @@ export class SearchEditor extends BaseEditor {
 		this.pauseSearching = true;
 
 		const config = extractSearchQuery(header);
+		this.toggleRunAgainMessage(body.getLineCount() === 1 && body.getValue() === '' && config.query !== '');
 
 		this.queryEditorWidget.setValue(config.query, true);
 		this.queryEditorWidget.searchInput.setCaseSensitive(config.caseSensitive);
