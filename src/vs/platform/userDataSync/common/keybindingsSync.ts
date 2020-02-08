@@ -18,6 +18,7 @@ import { isUndefined } from 'vs/base/common/types';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractFileSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISyncContent {
 	mac?: string;
@@ -46,8 +47,9 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService);
+		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService, telemetryService);
 	}
 
 	protected getRemoteDataResourceKey(): string { return 'keybindings'; }
@@ -137,18 +139,16 @@ export class KeybindingsSynchroniser extends AbstractFileSynchroniser implements
 
 	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableKeybindings')) {
-			this.logService.trace('Keybindings: Skipping synchronizing keybindings as it is disabled.');
+			this.logService.info('Keybindings: Skipping synchronizing keybindings as it is disabled.');
 			return;
 		}
-
 		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Keybindings: Skipping synchronizing keybindings as it is running already.');
+			this.logService.info('Keybindings: Skipping synchronizing keybindings as it is running already.');
 			return;
 		}
 
 		this.logService.trace('Keybindings: Started synchronizing keybindings...');
 		this.setStatus(SyncStatus.Syncing);
-
 		return this.doSync();
 	}
 

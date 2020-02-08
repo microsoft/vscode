@@ -13,6 +13,11 @@ import { joinPath, dirname } from 'vs/base/common/resources';
 import { toLocalISOString } from 'vs/base/common/date';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+type SyncConflictsClassification = {
+	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 export abstract class AbstractSynchroniser extends Disposable {
 
@@ -34,6 +39,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
@@ -43,8 +49,17 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected setStatus(status: SyncStatus): void {
 		if (this._status !== status) {
+			const oldStatus = this._status;
 			this._status = status;
 			this._onDidChangStatus.fire(status);
+			if (status === SyncStatus.HasConflicts) {
+				// Log to telemetry when there is a sync conflict
+				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsDetected', { source: this.source });
+			}
+			if (oldStatus === SyncStatus.HasConflicts && status === SyncStatus.Idle) {
+				// Log to telemetry when conflicts are resolved
+				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsResolved', { source: this.source });
+			}
 		}
 	}
 
@@ -112,8 +127,9 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(source, fileService, environmentService, userDataSyncStoreService);
+		super(source, fileService, environmentService, userDataSyncStoreService, telemetryService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(file))(() => this._onDidChangeLocal.fire()));
 	}

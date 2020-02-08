@@ -15,6 +15,7 @@ import { localize } from 'vs/nls';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -41,8 +42,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService);
+		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, telemetryService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -114,15 +116,15 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
-			this.logService.trace('Extensions: Skipping synchronizing extensions as it is disabled.');
+			this.logService.info('Extensions: Skipping synchronizing extensions as it is disabled.');
 			return;
 		}
 		if (!this.extensionGalleryService.isEnabled()) {
-			this.logService.trace('Extensions: Skipping synchronizing extensions as gallery is disabled.');
+			this.logService.info('Extensions: Skipping synchronizing extensions as gallery is disabled.');
 			return;
 		}
 		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Extensions: Skipping synchronizing extensions as it is running already.');
+			this.logService.info('Extensions: Skipping synchronizing extensions as it is running already.');
 			return;
 		}
 

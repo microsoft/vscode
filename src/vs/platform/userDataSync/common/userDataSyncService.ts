@@ -14,10 +14,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-type SyncConflictsClassification = {
-	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
-
 type SyncErrorClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
@@ -259,18 +255,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private updateStatus(): void {
 		const status = this.computeStatus();
 		if (this._status !== status) {
-			const oldStatus = this._status;
-			const oldConflictsSource = this._conflictsSource;
 			this._conflictsSource = this.computeConflictsSource();
 			this._status = status;
-			if (status === SyncStatus.HasConflicts) {
-				// Log to telemetry when there is a sync conflict
-				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsDetected', { source: this._conflictsSource! });
-			}
-			if (oldStatus === SyncStatus.HasConflicts && status === SyncStatus.Idle) {
-				// Log to telemetry when conflicts are resolved
-				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsResolved', { source: oldConflictsSource! });
-			}
 			this._onDidChangeStatus.fire(status);
 		}
 	}

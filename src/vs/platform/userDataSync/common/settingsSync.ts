@@ -20,6 +20,7 @@ import * as objects from 'vs/base/common/objects';
 import { isEmptyObject, isUndefinedOrNull } from 'vs/base/common/types';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { AbstractFileSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -50,8 +51,9 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.settingsResource, SyncSource.Settings, fileService, environmentService, userDataSyncStoreService);
+		super(environmentService.settingsResource, SyncSource.Settings, fileService, environmentService, userDataSyncStoreService, telemetryService);
 	}
 
 	protected getRemoteDataResourceKey(): string { return 'settings'; }
@@ -165,12 +167,11 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 
 	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableSettings')) {
-			this.logService.trace('Settings: Skipping synchronizing settings as it is disabled.');
+			this.logService.info('Settings: Skipping synchronizing settings as it is disabled.');
 			return;
 		}
-
 		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Settings: Skipping synchronizing settings as it is running already.');
+			this.logService.info('Settings: Skipping synchronizing settings as it is running already.');
 			return;
 		}
 

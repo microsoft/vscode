@@ -15,6 +15,7 @@ import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parse } from 'vs/base/common/json';
 import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const argvProperties: string[] = ['locale'];
 
@@ -33,8 +34,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService);
+		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, telemetryService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
 	}
@@ -98,12 +100,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	async sync(): Promise<void> {
 		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
-			this.logService.trace('UI State: Skipping synchronizing UI state as it is disabled.');
+			this.logService.info('UI State: Skipping synchronizing UI state as it is disabled.');
 			return;
 		}
-
 		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('UI State: Skipping synchronizing ui state as it is running already.');
+			this.logService.info('UI State: Skipping synchronizing ui state as it is running already.');
 			return;
 		}
 
