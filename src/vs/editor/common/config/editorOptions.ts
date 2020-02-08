@@ -367,13 +367,9 @@ export interface IEditorOptions {
 	 */
 	quickSuggestionsDelay?: number;
 	/**
-	 * Controls the spacing between the bottom of the editor and the last line.
+	 * Controls the spacing around the editor.
 	 */
-	paddingBottom?: number;
-	/**
-	 * Controls the spacing between the top of the editor and the first line.
-	 */
-	paddingTop?: number;
+	padding?: IEditorPaddingOptions;
 	/**
 	 * Parameter hint options.
 	 */
