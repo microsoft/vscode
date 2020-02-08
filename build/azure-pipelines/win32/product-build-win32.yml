@@ -112,7 +112,7 @@ steps:
   displayName: Run unit tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - powershell: |
+- powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     exec { yarn test-browser --browser chromium }
