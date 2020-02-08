@@ -56,7 +56,8 @@ export class DebugTaskRunner {
 		try {
 			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
-			if (this.canceled) {
+			if (this.canceled || (taskSummary && taskSummary.exitCode === undefined)) {
+				// User canceled, either debugging, or the prelaunch task
 				return TaskRunResult.Failure;
 			}
 
@@ -77,7 +78,9 @@ export class DebugTaskRunner {
 				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
 					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
-					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary ? taskSummary.exitCode : 0);
+					: taskSummary && typeof taskSummary.exitCode === 'number'
+						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
+						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
 
 			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], {
 				checkbox: {

@@ -69,7 +69,7 @@ import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDa
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);

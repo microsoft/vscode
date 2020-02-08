@@ -268,7 +268,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action: QuickFixAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
+			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
@@ -830,7 +830,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		const elements = (data as ElementsDragAndDropData<TreeElement>).elements;
 		const resources: URI[] = elements
 			.filter(e => e instanceof ResourceMarkers)
-			.map((resourceMarker: ResourceMarkers) => resourceMarker.resource);
+			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application

@@ -13,7 +13,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
@@ -22,13 +22,12 @@ import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { FolderMatch, FileMatch, FileMatchOrMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult, openNewSearchEditor } from 'vs/workbench/contrib/search/browser/searchEditorActions';
-import type { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
-import { SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorInput';
 import { IViewsService } from 'vs/workbench/common/views';
+import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
+import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -68,14 +67,6 @@ export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
-export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const input = editorService.activeEditor;
-	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleCaseSensitive();
-	}
-};
-
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
 	if (searchView) {
@@ -83,34 +74,10 @@ export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
-export const toggleSearchEditorWholeWordCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const input = editorService.activeEditor;
-	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleWholeWords();
-	}
-};
-
 export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
 	if (searchView) {
 		searchView.toggleRegex();
-	}
-};
-
-export const toggleSearchEditorRegexCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const input = editorService.activeEditor;
-	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleRegex();
-	}
-};
-
-export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const input = editorService.activeEditor;
-	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleContextLines();
 	}
 };
 
@@ -515,84 +482,6 @@ export class CancelSearchAction extends Action {
 		return Promise.resolve(undefined);
 	}
 }
-
-export class OpenSearchEditorAction extends Action {
-
-	static readonly ID: string = Constants.OpenNewEditorCommandId;
-	static readonly LABEL = nls.localize('search.openNewEditor', "Open New Search Editor");
-
-	constructor(id: string, label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super(id, label, 'codicon-new-file');
-	}
-
-	update() {
-		// pass
-	}
-
-	get enabled(): boolean {
-		return true;
-	}
-
-	async run() {
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.instantiationService.invokeFunction(openNewSearchEditor);
-		}
-	}
-}
-
-export class OpenResultsInEditorAction extends Action {
-
-	static readonly ID: string = Constants.OpenInEditorCommandId;
-	static readonly LABEL = nls.localize('search.openResultsInEditor', "Open Results in Editor");
-
-	constructor(id: string, label: string,
-		@IViewsService private viewsService: IViewsService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super(id, label, 'codicon-go-to-file');
-	}
-
-	get enabled(): boolean {
-		const searchView = getSearchView(this.viewsService);
-		return !!searchView && searchView.hasSearchResults();
-	}
-
-	update() {
-		this._setEnabled(this.enabled);
-	}
-
-	async run() {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
-		}
-	}
-}
-
-
-export class ReRunSearchEditorSearchAction extends Action {
-
-	static readonly ID = 'searchEditor.rerunSerach';
-	static readonly LABEL = nls.localize('search.rerunSearch', "Rerun Search in Editor");
-
-	constructor(id: string, label: string,
-		@IEditorService private readonly editorService: IEditorService) {
-		super(id, label);
-	}
-
-	async run() {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			await (this.editorService.activeControl as SearchEditor).runSearch(false, true);
-		}
-	}
-}
-
-
 
 export class FocusNextSearchResultAction extends Action {
 	static readonly ID = 'search.action.focusNextSearchResult';

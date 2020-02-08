@@ -1,24 +1,13 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es6",
-		"outDir": "out",
-		"lib": [
-			"es6",
-			"es2016",
-			"dom"
-		],
+		"outDir": "./out",
+		"experimentalDecorators": true,
 		"typeRoots": [
-			"node_modules/@types",
-			"src/typings"
-		],
-		"sourceMap": true,
-		"rootDir": "src",
-		"strict": true,
-		"noImplicitAny": true
+			"./node_modules/@types"
+		]
 	},
-	"exclude": [
-		"node_modules",
-		".vscode-test"
+	"include": [
+		"src/**/*"
 	]
 }

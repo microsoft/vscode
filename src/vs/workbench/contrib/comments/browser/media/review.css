@@ -353,6 +353,7 @@
 	width: auto;
 	padding: 4px 10px;
 	margin-left: 5px;
+	margin-bottom: 5px;
 }
 
 .monaco-editor .review-widget .body .comment-form .monaco-text-button {

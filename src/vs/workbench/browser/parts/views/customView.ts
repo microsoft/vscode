@@ -151,6 +151,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
 
+	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
+
 	constructor(
 		private id: string,
 		private _title: string,
@@ -500,8 +502,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		return 0;
 	}
 
-	refresh(elements?: ITreeItem[]): Promise<void> {
+	async refresh(elements?: ITreeItem[]): Promise<void> {
 		if (this.dataProvider && this.tree) {
+			if (this.refreshing) {
+				await Event.toPromise(this._onDidCompleteRefresh.event);
+			}
 			if (!elements) {
 				elements = [this.root];
 				// remove all waiting elements to refresh if root is asked to refresh
@@ -526,7 +531,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				}
 			}
 		}
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
@@ -578,6 +583,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.refreshing = true;
 			await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
 			this.refreshing = false;
+			this._onDidCompleteRefresh.fire();
 			this.updateContentAreas();
 			if (this.focused) {
 				this.focus(false);
@@ -761,6 +767,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
+			templateData.icon.style.backgroundImage = '';
 		}
 
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };

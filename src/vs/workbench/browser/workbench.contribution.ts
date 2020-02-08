@@ -185,7 +185,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+				'description': nls.localize('sideBarLocation', "Controls the location of the sidebar and activity bar. They can either show on the left or right of the workbench.")
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',

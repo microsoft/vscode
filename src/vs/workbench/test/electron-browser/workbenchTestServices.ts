@@ -29,6 +29,7 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 export const TestWindowConfiguration: IWindowConfiguration = {
 	windowId: 0,
@@ -61,7 +62,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IRemotePathService remotePathService: IRemotePathService
 	) {
 		super(
 			fileService,
@@ -77,7 +79,8 @@ export class TestTextFileService extends NativeTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			notificationService
+			notificationService,
+			remotePathService
 		);
 	}
 

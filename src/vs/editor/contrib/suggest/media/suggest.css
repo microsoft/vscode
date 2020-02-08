@@ -136,13 +136,11 @@
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
 
-	padding: 1px 8px 1px 4px;
+	padding: 0 8px 0 4px;
 
 	box-shadow: 0 -.5px 3px #ddd;
 }
-.monaco-editor .suggest-widget > .suggest-status-bar span {
-	opacity: 0.7;
-}
+
 .monaco-editor .suggest-widget.list-right.docs-side > .suggest-status-bar {
 	left: auto;
 	right: 0;

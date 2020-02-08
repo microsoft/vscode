@@ -22,6 +22,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CompletionProviderRegistry, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { Event } from 'vs/base/common/event';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 
 suite('SuggestController', function () {
 
@@ -46,6 +47,13 @@ suite('SuggestController', function () {
 			[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
 				memorize(): void { }
 				select(): number { return 0; }
+			}],
+			[IMenuService, new class extends mock<IMenuService>() {
+				createMenu() {
+					return new class extends mock<IMenu>() {
+						onDidChange = Event.None;
+					};
+				}
 			}]
 		);
 

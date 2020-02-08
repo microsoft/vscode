@@ -111,8 +111,8 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		['--browser', 'none', '--driver', 'web'],
 		{ env }
 	);
-	server.stderr?.on('data', e => console.log('Server stderr: ' + e));
-	server.stdout?.on('data', e => console.log('Server stdout: ' + e));
+	server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
+	server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	process.on('exit', teardown);
 	process.on('SIGINT', teardown);
 	process.on('SIGTERM', teardown);
@@ -148,7 +148,7 @@ export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'fire
 		await page.setViewport({ width, height });
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}`);
 		const result = {
-			client: { dispose: () => teardown() },
+			client: { dispose: () => browser.close() && teardown() },
 			driver: buildDriver(browser, page)
 		};
 		c(result);

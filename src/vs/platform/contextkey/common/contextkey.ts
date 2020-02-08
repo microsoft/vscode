@@ -534,7 +534,7 @@ export class ContextKeyNotRegexExpr implements ContextKeyExpr {
 
 export class ContextKeyAndExpr implements ContextKeyExpr {
 
-	public static create(_expr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr | undefined {
+	public static create(_expr: ReadonlyArray<ContextKeyExpr | null | undefined>): ContextKeyExpr | undefined {
 		const expr = ContextKeyAndExpr._normalizeArr(_expr);
 		if (expr.length === 0) {
 			return undefined;
@@ -594,31 +594,28 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 		return true;
 	}
 
-	private static _normalizeArr(arr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
-		let expr: ContextKeyExpr[] = [];
+	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
+		const expr: ContextKeyExpr[] = [];
 
-		if (arr) {
-			for (let i = 0, len = arr.length; i < len; i++) {
-				let e: ContextKeyExpr | null | undefined = arr[i];
-				if (!e) {
-					continue;
-				}
-
-				if (e instanceof ContextKeyAndExpr) {
-					expr = expr.concat(e.expr);
-					continue;
-				}
-
-				if (e instanceof ContextKeyOrExpr) {
-					// Not allowed, because we don't have parens!
-					throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
-				}
-
-				expr.push(e);
+		for (const e of arr) {
+			if (!e) {
+				continue;
 			}
 
-			expr.sort(cmp);
+			if (e instanceof ContextKeyAndExpr) {
+				expr.push(...e.expr);
+				continue;
+			}
+
+			if (e instanceof ContextKeyOrExpr) {
+				// Not allowed, because we don't have parens!
+				throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
+			}
+
+			expr.push(e);
 		}
+
+		expr.sort(cmp);
 
 		return expr;
 	}
@@ -650,7 +647,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 export class ContextKeyOrExpr implements ContextKeyExpr {
 
-	public static create(_expr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr | undefined {
+	public static create(_expr: ReadonlyArray<ContextKeyExpr | null | undefined>): ContextKeyExpr | undefined {
 		const expr = ContextKeyOrExpr._normalizeArr(_expr);
 		if (expr.length === 0) {
 			return undefined;
@@ -694,7 +691,7 @@ export class ContextKeyOrExpr implements ContextKeyExpr {
 		return false;
 	}
 
-	private static _normalizeArr(arr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
+	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
 		let expr: ContextKeyExpr[] = [];
 
 		if (arr) {

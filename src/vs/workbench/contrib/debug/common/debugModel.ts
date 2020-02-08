@@ -17,7 +17,7 @@ import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
 	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
 } from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
+import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -515,6 +515,7 @@ interface IBreakpointSessionData extends DebugProtocol.Breakpoint {
 	supportsLogPoints: boolean;
 	supportsFunctionBreakpoints: boolean;
 	supportsDataBreakpoints: boolean;
+	sessionId: string;
 }
 
 function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: DebugProtocol.Capabilities): IBreakpointSessionData {
@@ -549,6 +550,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 		if (!data) {
 			this.sessionData.delete(sessionId);
 		} else {
+			data.sessionId = sessionId;
 			this.sessionData.set(sessionId, data);
 		}
 
@@ -596,7 +598,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	constructor(
-		public uri: uri,
+		private _uri: uri,
 		private _lineNumber: number,
 		private _column: number | undefined,
 		enabled: boolean,
@@ -616,10 +618,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	get verified(): boolean {
 		if (this.data) {
-			return this.data.verified && !this.textFileService.isDirty(this.uri);
+			return this.data.verified && !this.textFileService.isDirty(this._uri);
 		}
 
 		return true;
+	}
+
+	get uri(): uri {
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId) : this._uri;
 	}
 
 	get column(): number | undefined {

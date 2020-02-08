@@ -27,7 +27,7 @@ import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/s
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition } from 'vs/workbench/services/themes/common/colorThemeData';
-import { TokenStylingRule, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStylingRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditorSemanticHighlightingOptions {
@@ -546,9 +546,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		} else if (isTokenStylingRule(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
-				return `User settings`; // todo: print selector and style once selector is a string
+				return `User settings: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;
 			} else if (scope === 'theme') {
-				return `Color theme`; // todo: print selector and style once selector is a string
+				return `Color theme: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;
 			}
 			return '';
 		} else if (typeof definition === 'string') {
@@ -560,7 +560,14 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 			return '';
 		} else {
-			return String(definition[property]);
+			return this._renderStyleProperty(definition, property);
+		}
+	}
+
+	private _renderStyleProperty(style: TokenStyle, property: keyof TokenStyleData) {
+		switch (property) {
+			case 'foreground': return style.foreground ? Color.Format.CSS.formatHexA(style.foreground, true) : '';
+			default: return style[property] !== undefined ? String(style[property]) : '';
 		}
 	}
 

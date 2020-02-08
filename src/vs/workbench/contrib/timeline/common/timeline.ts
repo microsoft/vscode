@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -32,30 +32,50 @@ export interface TimelineItemWithSource extends TimelineItem {
 	source: string;
 }
 
-export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
-	onDidChange?: Event<URI | undefined>;
+export interface TimelineChangeEvent {
+	id: string;
+	uri?: URI;
+}
 
-	provideTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]>;
+export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
+	onDidChange?: Event<TimelineChangeEvent>;
+
+	provideTimeline(uri: URI, token: CancellationToken): Promise<TimelineItemWithSource[]>;
 }
 
 export interface TimelineProviderDescriptor {
-	source: string;
-	sourceDescription: string;
+	id: string;
+	label: string;
 
-	replaceable?: boolean;
 	// selector: DocumentSelector;
+}
+
+export interface TimelineProvidersChangeEvent {
+	readonly added?: string[];
+	readonly removed?: string[];
+}
+
+export interface TimelineRequest {
+	readonly items: Promise<TimelineItemWithSource[]>;
+	readonly source: string;
+	readonly tokenSource: CancellationTokenSource;
+	readonly uri: URI;
 }
 
 export interface ITimelineService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeProviders: Event<void>;
-	onDidChangeTimeline: Event<URI | undefined>;
+	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
+	onDidChangeTimeline: Event<TimelineChangeEvent>;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
-	unregisterTimelineProvider(source: string): void;
+	unregisterTimelineProvider(id: string): void;
+
+	getSources(): string[];
 
 	getTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]>;
+
+	getTimelineRequest(id: string, uri: URI, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

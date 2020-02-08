@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -23,7 +23,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { timeout } from 'vs/base/common/async';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -49,7 +48,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 const enum AuthStatus {
 	Initializing = 'Initializing',
 	SignedIn = 'SignedIn',
-	SignedOut = 'SignedOut'
+	SignedOut = 'SignedOut',
+	Unavailable = 'Unavailable'
 }
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthStatus.Initializing);
 
@@ -66,10 +66,6 @@ function getSyncAreaLabel(source: SyncSource): string {
 
 type FirstTimeSyncClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
-
-type SyncErrorClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
@@ -118,9 +114,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(userDataAutoSyncService.onError(({ code, source }) => this.onAutoSyncError(code, source)));
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
-				if (isWeb) {
-					this._register(instantiationService.createInstance(UserDataAutoSyncService));
-				} else {
+				if (!isWeb) {
 					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
 				}
 			});
@@ -138,13 +132,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (sessions.length === 0) {
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 			return;
 		}
 
 		if (sessions.length === 1) {
 			this.logAuthenticatedEvent(sessions[0]);
-			this.activeAccount = sessions[0];
+			this.setActiveAccount(sessions[0]);
 			return;
 		}
 
@@ -158,7 +152,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (selectedAccount) {
 			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
 			this.logAuthenticatedEvent(selected);
-			this.activeAccount = selected;
+			this.setActiveAccount(selected);
 		}
 	}
 
@@ -179,12 +173,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return this._activeAccount;
 	}
 
-	set activeAccount(account: AuthenticationSession | undefined) {
+	async setActiveAccount(account: AuthenticationSession | undefined) {
 		this._activeAccount = account;
 
 		if (account) {
-			this.userDataAuthTokenService.setToken(account.accessToken);
-			this.authenticationState.set(AuthStatus.SignedIn);
+			try {
+				const token = await account.accessToken();
+				this.userDataAuthTokenService.setToken(token);
+				this.authenticationState.set(AuthStatus.SignedIn);
+			} catch (e) {
+				this.userDataAuthTokenService.setToken(undefined);
+				this.authenticationState.set(AuthStatus.Unavailable);
+			}
 		} else {
 			this.userDataAuthTokenService.setToken(undefined);
 			this.authenticationState.set(AuthStatus.SignedOut);
@@ -199,7 +199,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				// Try to update existing account, case where access token has been refreshed
 				const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
 				const matchingAccount = accounts.filter(a => a.id === this.activeAccount?.id)[0];
-				this.activeAccount = matchingAccount;
+				this.setActiveAccount(matchingAccount);
 			} else {
 				this.initializeActiveAccount();
 			}
@@ -214,7 +214,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidUnregisterAuthenticationProvider(providerId: string) {
 		if (providerId === this.userDataSyncStore!.authenticationProviderId) {
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 			this.authenticationState.reset();
 		}
 	}
@@ -279,27 +279,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onAutoSyncError(code: UserDataSyncErrorCode, source?: SyncSource): void {
 		switch (code) {
-			case UserDataSyncErrorCode.TooManyFailures:
-				this.telemetryService.publicLog2('sync/errorTooMany');
-				this.disableSync();
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: localize('too many errors', "Turned off sync because of too many failure attempts. Please open Sync log to check the failures and turn on sync."),
-					actions: {
-						primary: [new Action('open sync log', localize('open log', "Show logs"), undefined, true, () => this.showSyncLog())]
-					}
-				});
-				return;
 			case UserDataSyncErrorCode.TooLarge:
-				this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source: source! });
 				if (source === SyncSource.Keybindings || source === SyncSource.Settings) {
 					const sourceArea = getSyncAreaLabel(source);
-					this.disableSync();
 					this.notificationService.notify({
 						severity: Severity.Error,
-						message: localize('too large', "Turned off sync because size of the {0} file to sync is larger than {1}. Please open the file and reduce the size and turn on sync", sourceArea, '1MB'),
+						message: localize('too large', "Disabled synchronizing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
 						actions: {
-							primary: [new Action('open sync log', localize('open file', "Show {0} file", sourceArea), undefined, true,
+							primary: [new Action('open sync file', localize('open file', "Show {0} file", sourceArea), undefined, true,
 								() => source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
 						}
 					});
@@ -485,13 +472,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private disableSync(): Promise<void> {
-		return this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, undefined, ConfigurationTarget.USER);
+	private disableSync(source?: SyncSource): Promise<void> {
+		let key: string = UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING;
+		switch (source) {
+			case SyncSource.Settings: key = 'sync.enableSettings'; break;
+			case SyncSource.Keybindings: key = 'sync.enableKeybindings'; break;
+			case SyncSource.Extensions: key = 'sync.enableExtensions'; break;
+			case SyncSource.GlobalState: key = 'sync.enableUIState'; break;
+		}
+		return this.configurationService.updateValue(key, false, ConfigurationTarget.USER);
 	}
 
 	private async signIn(): Promise<void> {
 		try {
-			this.activeAccount = await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']);
+			this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
 		} catch (e) {
 			this.notificationService.error(e);
 			throw e;
@@ -501,7 +495,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async signOut(): Promise<void> {
 		if (this.activeAccount) {
 			await this.authenticationService.logout(this.userDataSyncStore!.authenticationProviderId, this.activeAccount.id);
-			this.activeAccount = undefined;
+			this.setActiveAccount(undefined);
 		}
 	}
 
@@ -800,11 +794,15 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 						try {
 							await this.userDataSyncService.accept(conflictsSource!, model.getValue());
 						} catch (e) {
-							this.userDataSyncService.restart().then(() => {
-								if (conflictsSource === this.userDataSyncService.conflictsSource) {
-									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
-								}
-							});
+							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.NewLocal) {
+								this.userDataSyncService.restart().then(() => {
+									if (conflictsSource === this.userDataSyncService.conflictsSource) {
+										this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+									}
+								});
+							} else {
+								this.notificationService.error(e);
+							}
 						}
 					}
 				}

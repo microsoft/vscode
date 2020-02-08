@@ -1,32 +1,36 @@
-# Tests
+# VSCode Tests
 
-## Run
+## Contents
 
-The best way to run the Code tests is from the terminal. To make development changes to unit tests you need to be running `yarn run watch`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details. From the `vscode` folder run:
-
-**OS X and Linux**
-
-	./scripts/test.sh
-
-**Windows**
-
-	scripts\test
+This folder contains the various test runners for VSCode. Please refer to the documentation within for how to run them:
+* `unit`: our suite of unit tests
+* `integration`: our suite of API tests
+* `smoke`: our suite of automated UI tests
+* `ui`: our suite of manual UI tests
 
 
-## Debug
 
-To debug tests use `--debug` when running the test script. Also, the set of tests can be reduced with the `--run` and `--runGlob` flags. Both require a file path/pattern. Like so:
+### Unit Tests (Electron-runner)
 
-	./scripts/test.sh --debug --runGrep **/extHost*.test.js
+```
+./scripts/test.[sh|bat]
+```
 
-## Coverage
+All unit tests are run inside a electron-browser environment which access to DOM and Nodejs api. This is the closest to the enviroment in which VS Code itself ships. Notes:
 
-The following command will create a `coverage` folder at the root of the workspace:
+- use the `--debug` to see an electron window with dev tools which allows for debugging
+- to run only a subset of tests use the `--run` or `--glob` options
 
-**OS X and Linux**
+### Unit Tests (Browser-runner)
 
-	./scripts/test.sh --coverage
+```
+yarn test-browser --browser webkit --browser chromium
+```
 
-**Windows**
+Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon’ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
 
-	scripts\test --coverage
+- these tests are part of the continuous build, that means you might have test failures that only happen with webkit on _windows_ or _chromium_ on linux
+- you can these tests locally via yarn `test-browser --browser chromium --browser webkit`
+- to debug, open  `<vscode>/test/unit/browser/renderer.html` inside a browser and use the `?m=<amd_module>`-query to specify what AMD module to load, e.g `file:///Users/jrieken/Code/vscode/test/unit/browser/renderer.html?m=vs/base/test/common/strings.test` runs all tests from `strings.test.ts`
+- to run only a subset of tests use the `--run` or `--glob` options
+
