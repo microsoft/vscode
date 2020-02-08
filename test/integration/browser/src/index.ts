@@ -52,7 +52,11 @@ async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStrin
 	page.on('console', async (msg: playwright.ConsoleMessage) => {
 		const msgText = msg.text();
 		if (msgText.indexOf('vscode:exit') >= 0) {
-			await fkill(`:${endpoint.port}`);
+			try {
+				await fkill(`:${endpoint.port}`);
+			} catch (error) {
+				// ignore - may not exist anymore
+			}
 
 			process.exit(msgText === 'vscode:exit 0' ? 0 : 1);
 		}
@@ -93,6 +97,10 @@ async function launchServer(): Promise<url.UrlWithStringQuery> {
 	if (optimist.argv.debug) {
 		serverProcess?.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	}
+
+	process.on('exit', () => serverProcess.kill());
+	process.on('SIGINT', () => serverProcess.kill());
+	process.on('SIGTERM', () => serverProcess.kill());
 
 	return new Promise(c => {
 		serverProcess?.stdout?.on('data', data => {
