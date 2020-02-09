@@ -19,6 +19,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -208,7 +209,6 @@ export interface ISynchroniser {
 	push(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;
-	restart(): Promise<void>;
 	hasPreviouslySynced(): Promise<boolean>
 	hasRemoteData(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
@@ -219,17 +219,20 @@ export interface IUserDataSynchroniser extends ISynchroniser {
 	readonly source: SyncSource;
 	getRemoteContent(preivew?: boolean): Promise<string | null>;
 	accept(content: string): Promise<void>;
+	restart(): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
-	readonly conflictsSource: SyncSource | null;
+	readonly conflictsSources: SyncSource[];
+	readonly onDidChangeConflicts: Event<SyncSource[]>;
 	isFirstTimeSyncAndHasUserData(): Promise<boolean>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
 	accept(source: SyncSource, content: string): Promise<void>;
+	restart(source: SyncSource): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -283,4 +286,13 @@ export function toRemoteContentResource(source: SyncSource): URI {
 }
 export function getSyncSourceFromRemoteContentResource(uri: URI): SyncSource | undefined {
 	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.GlobalState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
+}
+export function getSyncSourceFromPreviewResource(uri: URI, environmentService: IEnvironmentService): SyncSource | undefined {
+	if (isEqual(uri, environmentService.settingsSyncPreviewResource)) {
+		return SyncSource.Settings;
+	}
+	if (isEqual(uri, environmentService.keybindingsSyncPreviewResource)) {
+		return SyncSource.Keybindings;
+	}
+	return undefined;
 }

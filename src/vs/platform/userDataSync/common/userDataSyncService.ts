@@ -11,8 +11,8 @@ import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensio
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { equals } from 'vs/base/common/arrays';
 
 type SyncErrorClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -31,8 +31,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	readonly onDidChangeLocal: Event<void>;
 
-	private _conflictsSource: SyncSource | null = null;
-	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
+	private _conflictsSources: SyncSource[] = [];
+	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
+	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
+	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
 
 	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
@@ -100,31 +102,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (!(await this.userDataAuthTokenService.getToken())) {
 			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
-		if (this.status === SyncStatus.HasConflicts) {
-			throw new Error(localize('resolve conflicts', "Please resolve conflicts before resuming sync."));
-		}
 		const startTime = new Date().getTime();
 		this.logService.trace('Started Syncing...');
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.sync();
-				// do not continue if synchroniser has conflicts
-				if (synchroniser.status === SyncStatus.HasConflicts) {
-					break;
-				}
 			} catch (e) {
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
 		this.logService.trace(`Finished Syncing. Took ${new Date().getTime() - startTime}ms`);
-	}
-
-	async accept(source: SyncSource, content: string): Promise<void> {
-		const synchroniser = this.getSynchroniser(source);
-		await synchroniser.accept(content);
-		if (synchroniser.status !== SyncStatus.HasConflicts) {
-			await this.sync();
-		}
 	}
 
 	async stop(): Promise<void> {
@@ -136,15 +123,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async restart(): Promise<void> {
-		const synchroniser = this.getSynchroniserInConflicts();
-		if (!synchroniser) {
-			throw new Error(localize('no synchroniser with conflicts', "No conflicts detected."));
-		}
+	async restart(source: SyncSource): Promise<void> {
+		const synchroniser = this.getSynchroniser(source);
 		await synchroniser.restart();
-		if (synchroniser.status !== SyncStatus.HasConflicts) {
-			await this.sync();
-		}
+	}
+
+	async accept(source: SyncSource, content: string): Promise<void> {
+		const synchroniser = this.getSynchroniser(source);
+		return synchroniser.accept(content);
 	}
 
 	async hasPreviouslySynced(): Promise<boolean> {
@@ -253,9 +239,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private updateStatus(): void {
+		const conflictsSources = this.computeConflictsSources();
+		if (!equals(this._conflictsSources, conflictsSources)) {
+			this._conflictsSources = this.computeConflictsSources();
+			this._onDidChangeConflicts.fire(conflictsSources);
+		}
 		const status = this.computeStatus();
 		if (this._status !== status) {
-			this._conflictsSource = this.computeConflictsSource();
 			this._status = status;
 			this._onDidChangeStatus.fire(status);
 		}
@@ -286,14 +276,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.error(`${source}: ${toErrorMessage(e)}`);
 	}
 
-	private computeConflictsSource(): SyncSource | null {
-		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		return synchroniser ? synchroniser.source : null;
-	}
-
-	private getSynchroniserInConflicts(): IUserDataSynchroniser | null {
-		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		return synchroniser || null;
+	private computeConflictsSources(): SyncSource[] {
+		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts).map(s => s.source);
 	}
 
 	private getSynchroniser(source: SyncSource): IUserDataSynchroniser {
