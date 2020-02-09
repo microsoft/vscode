@@ -31,7 +31,8 @@ export class SharedProcess implements ISharedProcess {
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
-		this._whenReady = new Promise<void>(c => ipcMain.once('handshake:sharedprocess-init-ready', () => c(undefined)));
+		// overall ready promise when shared process signals initialization is done
+		this._whenReady = new Promise<void>(c => ipcMain.once('shared-process->electron-main: init-done', () => c(undefined)));
 	}
 
 	@memoize
@@ -102,16 +103,19 @@ export class SharedProcess implements ISharedProcess {
 		});
 
 		return new Promise<void>(c => {
-			const onHello = Event.once(Event.fromNodeEventEmitter(ipcMain, 'handshake:sharedprocess-hello', ({ sender }: { sender: WebContents }) => sender));
-			disposables.add(onHello(sender => {
-				sender.send('handshake:main-payload', {
+			// send payload once shared process is ready to receive it
+			disposables.add(Event.once(Event.fromNodeEventEmitter(ipcMain, 'shared-process->electron-main: ready-for-payload', ({ sender }: { sender: WebContents }) => sender))(sender => {
+				sender.send('electron-main->shared-process: payload', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args,
 					logLevel: this.logService.getLevel()
 				});
 
-				disposables.add(toDisposable(() => sender.send('handshake:mainprocess-goodbye')));
-				ipcMain.once('handshake:sharedprocess-ipc-ready', () => c(undefined));
+				// signal exit to shared process when we get disposed
+				disposables.add(toDisposable(() => sender.send('electron-main->shared-process: exit')));
+
+				// complete IPC-ready promise when shared process signals this to us
+				ipcMain.once('shared-process->electron-main: ipc-ready', () => c(undefined));
 			}));
 		});
 	}

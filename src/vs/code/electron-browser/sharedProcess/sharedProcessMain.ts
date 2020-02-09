@@ -103,7 +103,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
-	ipcRenderer.once('handshake:mainprocess-goodbye', onExit);
+	ipcRenderer.once('electron-main->shared-process: exit', onExit);
 
 	disposables.add(server);
 
@@ -280,18 +280,19 @@ function setupIPC(hook: string): Promise<Server> {
 
 async function handshake(configuration: ISharedProcessConfiguration): Promise<void> {
 
-	// shared process -> main: give me payload for IPC connection
-	// main -> shared process: payload for IPC connection
+	// receive payload from electron-main to start things
 	const data = await new Promise<ISharedProcessInitData>(c => {
-		ipcRenderer.once('handshake:main-payload', (_: any, r: ISharedProcessInitData) => c(r));
-		ipcRenderer.send('handshake:sharedprocess-hello');
+		ipcRenderer.once('electron-main->shared-process: payload', (_: any, r: ISharedProcessInitData) => c(r));
+
+		// tell electron-main we are ready to receive payload
+		ipcRenderer.send('shared-process->electron-main: ready-for-payload');
 	});
 
-	// shared process => main: IPC connection established
+	// await IPC connection and signal this back to electron-main
 	const server = await setupIPC(data.sharedIPCHandle);
-	ipcRenderer.send('handshake:sharedprocess-ipc-ready');
+	ipcRenderer.send('shared-process->electron-main: ipc-ready');
 
-	// shared process => main: initialization done
+	// await initialization and signal this back to electron-main
 	await main(server, data, configuration);
-	ipcRenderer.send('handshake:sharedprocess-init-ready');
+	ipcRenderer.send('shared-process->electron-main: init-done');
 }
