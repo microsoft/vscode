@@ -6,6 +6,7 @@
 .monaco-editor .peekview-widget .head {
 	box-sizing:	border-box;
 	display: flex;
+	flex-direction: row-reverse;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title {
@@ -13,6 +14,7 @@
 	align-items: center;
 	font-size: 13px;
 	margin-left: 20px;
+	margin-right: 2px;
 	cursor: pointer;
 }
 
@@ -32,8 +34,8 @@
 
 .monaco-editor .peekview-widget .head .peekview-actions {
 	flex: 1;
-	text-align: right;
-	padding-right: 2px;
+	text-align: left;
+	margin-left: 20px;
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar {
