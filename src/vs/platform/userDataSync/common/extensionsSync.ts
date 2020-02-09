@@ -33,6 +33,8 @@ interface ILastSyncUserData extends IUserData {
 
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
+	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableExtensions') === true; }
+
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
@@ -57,7 +59,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	protected getRemoteDataResourceKey(): string { return 'extensions'; }
 
 	async pull(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
+		if (!this.enabled) {
 			this.logService.info('Extensions: Skipped pulling extensions as it is disabled.');
 			return;
 		}
@@ -90,7 +92,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async push(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
+		if (!this.enabled) {
 			this.logService.info('Extensions: Skipped pushing extensions as it is disabled.');
 			return;
 		}
@@ -115,7 +117,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async sync(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
+		if (!this.enabled) {
 			this.logService.info('Extensions: Skipping synchronizing extensions as it is disabled.');
 			return;
 		}
@@ -149,10 +151,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async stop(): Promise<void> { }
-
-	async restart(): Promise<void> {
-		throw new Error('Extensions: Conflicts should not occur');
-	}
 
 	accept(content: string): Promise<void> {
 		throw new Error('Extensions: Conflicts should not occur');

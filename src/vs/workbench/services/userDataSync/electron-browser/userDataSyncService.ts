@@ -79,11 +79,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
-	async restart(source: SyncSource): Promise<void> {
-		const status = await this.channel.call<SyncStatus>('restart', [source]);
-		await this.updateStatus(status);
-	}
-
 	hasPreviouslySynced(): Promise<boolean> {
 		return this.channel.call('hasPreviouslySynced');
 	}

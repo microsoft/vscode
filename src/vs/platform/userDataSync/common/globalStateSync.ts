@@ -28,6 +28,8 @@ interface ISyncPreviewResult {
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
+	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableUIState') === true; }
+
 	constructor(
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
@@ -44,7 +46,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	protected getRemoteDataResourceKey(): string { return 'globalState'; }
 
 	async pull(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
+		if (!this.enabled) {
 			this.logService.info('UI State: Skipped pulling ui state as it is disabled.');
 			return;
 		}
@@ -75,7 +77,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async push(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
+		if (!this.enabled) {
 			this.logService.info('UI State: Skipped pushing UI State as it is disabled.');
 			return;
 		}
@@ -99,7 +101,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async sync(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
+		if (!this.enabled) {
 			this.logService.info('UI State: Skipping synchronizing UI state as it is disabled.');
 			return;
 		}
@@ -129,10 +131,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async stop(): Promise<void> { }
-
-	async restart(): Promise<void> {
-		throw new Error('UI State: Conflicts should not occur');
-	}
 
 	accept(content: string): Promise<void> {
 		throw new Error('UI State: Conflicts should not occur');

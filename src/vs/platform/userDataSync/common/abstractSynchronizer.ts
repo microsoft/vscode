@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileContent } from 'vs/platform/files/common/files';
+import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname } from 'vs/base/common/resources';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -116,6 +116,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	protected abstract readonly enabled: boolean;
 	protected abstract getRemoteDataResourceKey(): string;
 }
 
@@ -131,7 +132,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	) {
 		super(source, fileService, environmentService, userDataSyncStoreService, telemetryService);
 		this._register(this.fileService.watch(dirname(file)));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(file))(() => this._onDidChangeLocal.fire()));
+		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 	}
 
 	protected async getLocalFileContent(): Promise<IFileContent | null> {
@@ -143,14 +144,44 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	}
 
 	protected async updateLocalFileContent(newContent: string, oldContent: IFileContent | null): Promise<void> {
-		if (oldContent) {
-			// file exists already
-			await this.backupLocal(oldContent.value);
-			await this.fileService.writeFile(this.file, VSBuffer.fromString(newContent), oldContent);
-		} else {
-			// file does not exist
-			await this.fileService.createFile(this.file, VSBuffer.fromString(newContent), { overwrite: false });
+		try {
+			if (oldContent) {
+				// file exists already
+				await this.backupLocal(oldContent.value);
+				await this.fileService.writeFile(this.file, VSBuffer.fromString(newContent), oldContent);
+			} else {
+				// file does not exist
+				await this.fileService.createFile(this.file, VSBuffer.fromString(newContent), { overwrite: false });
+			}
+		} catch (e) {
+			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
+				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
+				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.NewLocal);
+			} else {
+				throw e;
+			}
 		}
 	}
 
+	private onFileChanges(e: FileChangesEvent): void {
+		if (!e.contains(this.file)) {
+			return;
+		}
+		if (!this.enabled) {
+			return;
+		}
+		// Sync again if local file has changed and current status is in conflicts
+		if (this.status === SyncStatus.HasConflicts) {
+			this.cancel();
+			this.doSync();
+		}
+		// Otherwise fire change event
+		else {
+			this._onDidChangeLocal.fire();
+		}
+
+	}
+
+	protected abstract cancel(): void;
+	protected abstract doSync(): Promise<void>;
 }

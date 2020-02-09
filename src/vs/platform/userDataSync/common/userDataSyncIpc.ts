@@ -31,7 +31,6 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
 			case 'stop': this.service.stop(); return Promise.resolve();
-			case 'restart': return this.service.restart(args[0]).then(() => this.service.status);
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
@@ -63,7 +62,6 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'accept': return this.service.accept(args[0]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
-			case 'restart': return this.service.restart().then(() => this.service.status);
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
 			case 'stop': this.service.stop(); return Promise.resolve();

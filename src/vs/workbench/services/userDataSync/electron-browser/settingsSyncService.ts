@@ -63,11 +63,6 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('stop');
 	}
 
-	async restart(): Promise<void> {
-		const status = await this.channel.call<SyncStatus>('restart');
-		await this.updateStatus(status);
-	}
-
 	resetLocal(): Promise<void> {
 		return this.channel.call('resetLocal');
 	}

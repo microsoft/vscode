@@ -219,7 +219,6 @@ export interface IUserDataSynchroniser extends ISynchroniser {
 	readonly source: SyncSource;
 	getRemoteContent(preivew?: boolean): Promise<string | null>;
 	accept(content: string): Promise<void>;
-	restart(): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -232,7 +231,6 @@ export interface IUserDataSyncService extends ISynchroniser {
 	resetLocal(): Promise<void>;
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
 	accept(source: SyncSource, content: string): Promise<void>;
-	restart(source: SyncSource): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');

@@ -123,11 +123,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async restart(source: SyncSource): Promise<void> {
-		const synchroniser = this.getSynchroniser(source);
-		await synchroniser.restart();
-	}
-
 	async accept(source: SyncSource, content: string): Promise<void> {
 		const synchroniser = this.getSynchroniser(source);
 		return synchroniser.accept(content);

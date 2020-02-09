@@ -835,11 +835,9 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 							await this.userDataSyncService.accept(conflictsSource, model.getValue());
 						} catch (e) {
 							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.NewLocal) {
-								this.userDataSyncService.restart(conflictsSource).then(() => {
-									if (this.userDataSyncService.conflictsSources.indexOf(conflictsSource) !== -1) {
-										this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
-									}
-								});
+								if (this.userDataSyncService.conflictsSources.indexOf(conflictsSource) !== -1) {
+									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+								}
 							} else {
 								this.notificationService.error(e);
 							}
