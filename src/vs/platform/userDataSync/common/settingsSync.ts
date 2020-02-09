@@ -236,6 +236,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 	async accept(content: string): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
 			const preview = await this.syncPreviewResultPromise!;
+			this.cancel();
 			const formatUtils = await this.getFormattingOptions();
 			// Add ignored settings from local file content
 			content = updateIgnoredSettings(content, preview.fileContent ? preview.fileContent.value.toString() : '{}', getIgnoredSettings(this.configurationService), formatUtils);
@@ -348,7 +349,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
-		const formatUtils = await this.getFormattingOptions();
+		const formattingOptions = await this.getFormattingOptions();
 
 		let content: string | null = null;
 		let hasLocalChanged: boolean = false;
@@ -366,7 +367,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 
 			else {
 				this.logService.trace('Settings: Merging remote settings with local settings...');
-				const result = merge(localContent, remoteUserData.content, lastSyncUserData ? lastSyncUserData.content : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formatUtils);
+				const result = merge(localContent, remoteUserData.content, lastSyncUserData ? lastSyncUserData.content : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formattingOptions);
 				content = result.localContent || result.remoteContent;
 				hasLocalChanged = result.localContent !== null;
 				hasRemoteChanged = result.remoteContent !== null;
@@ -384,7 +385,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 
 		if (content && !token.isCancellationRequested) {
 			// Remove the ignored settings from the preview.
-			const previewContent = updateIgnoredSettings(content, '{}', getIgnoredSettings(this.configurationService), formatUtils);
+			const previewContent = updateIgnoredSettings(content, '{}', getIgnoredSettings(this.configurationService), formattingOptions);
 			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(previewContent));
 		}
 
