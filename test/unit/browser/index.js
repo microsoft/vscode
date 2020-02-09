@@ -121,7 +121,10 @@ async function runTestsInBrowser(testModules, browserType) {
 
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
 	const page = (await browser.defaultContext().pages())[0]
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	const target = url.pathToFileURL(path.join(__dirname, `renderer.html`));
+	if (argv.build) {
+		target.search = `?build=true`;
+	}
 	await page.goto(target.href);
 
 	const emitter = new events.EventEmitter();

@@ -112,13 +112,13 @@ steps:
   displayName: Run unit tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-# Fails with error: Evaluation failed: ReferenceError: require is not defined???
-# - powershell: |
-#     . build/azure-pipelines/win32/exec.ps1
-#     $ErrorActionPreference = "Stop"
-#     exec { yarn test-browser --browser chromium }
-#   displayName: Run unit tests (Browser)
-#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { yarn test-browser --browser chromium --build }
+  continueOnError: true
+  displayName: Run unit tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
     # Figure out the full absolute path of the product we just built

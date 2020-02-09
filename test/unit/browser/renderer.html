@@ -4,6 +4,16 @@
 	<meta charset="utf-8">
 	<title>VSCode Tests</title>
 	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
+	<script>
+		const urlParams = new URLSearchParams(window.location.search);
+		const isBuild = urlParams.get('build');
+
+		// Add loader.js depending on build flag
+		const script = document.createElement('script');
+		script.setAttribute('type', 'text/javascript');
+		script.setAttribute('src', `../../../${!!isBuild ? 'out-build' : 'out'}/vs/loader.js`);
+		document.getElementsByTagName('head')[0].appendChild(script);
+	</script>
 </head>
 
 <body>
@@ -37,7 +47,6 @@
 		});
 	</script>
 
-	<script src="../../../out/vs/loader.js"></script>
 	<script>
 		// configure loader
 		const baseUrl = window.location.href;
