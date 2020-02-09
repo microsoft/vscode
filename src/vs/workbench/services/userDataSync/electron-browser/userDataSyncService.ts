@@ -55,10 +55,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('pull');
 	}
 
-	push(): Promise<void> {
-		return this.channel.call('push');
-	}
-
 	sync(): Promise<void> {
 		return this.channel.call('sync');
 	}
@@ -79,24 +75,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
-	hasPreviouslySynced(): Promise<boolean> {
-		return this.channel.call('hasPreviouslySynced');
-	}
-
-	hasRemoteData(): Promise<boolean> {
-		return this.channel.call('hasRemoteData');
-	}
-
-	hasLocalData(): Promise<boolean> {
-		return this.channel.call('hasLocalData');
+	isTurnedOffEverywhere(): Promise<boolean> {
+		return this.channel.call('isTurnedOffEverywhere');
 	}
 
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
 		return this.channel.call('getRemoteContent', [source, preview]);
 	}
 
-	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncAndHasUserData');
+	isFirstTimeSyncWithMerge(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncWithMerge');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

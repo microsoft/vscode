@@ -444,12 +444,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async handleFirstTimeSync(): Promise<void> {
-		const hasRemote = await this.userDataSyncService.hasRemoteData();
-		if (!hasRemote) {
-			return;
-		}
-		const isFirstSyncAndHasUserData = await this.userDataSyncService.isFirstTimeSyncAndHasUserData();
-		if (!isFirstSyncAndHasUserData) {
+		const isFirstSyncWithMerge = await this.userDataSyncService.isFirstTimeSyncWithMerge();
+		if (!isFirstSyncWithMerge) {
 			return;
 		}
 		const result = await this.dialogService.show(

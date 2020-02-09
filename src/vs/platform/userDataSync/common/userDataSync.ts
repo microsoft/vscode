@@ -201,36 +201,50 @@ export const enum SyncStatus {
 	HasConflicts = 'hasConflicts',
 }
 
-export interface ISynchroniser {
+export interface IUserDataSynchroniser {
+
+	readonly source: SyncSource;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
+
 	pull(): Promise<void>;
 	push(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;
+
 	hasPreviouslySynced(): Promise<boolean>
 	hasRemoteData(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
-}
 
-export interface IUserDataSynchroniser extends ISynchroniser {
-	readonly source: SyncSource;
 	getRemoteContent(preivew?: boolean): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
-export interface IUserDataSyncService extends ISynchroniser {
+export interface IUserDataSyncService {
 	_serviceBrand: any;
+
+	readonly status: SyncStatus;
+	readonly onDidChangeStatus: Event<SyncStatus>;
+
 	readonly conflictsSources: SyncSource[];
 	readonly onDidChangeConflicts: Event<SyncSource[]>;
-	isFirstTimeSyncAndHasUserData(): Promise<boolean>;
-	reset(): Promise<void>;
-	resetLocal(): Promise<void>;
+
+	readonly onDidChangeLocal: Event<void>;
+
+	pull(): Promise<void>;
+	sync(): Promise<void>;
+	stop(): Promise<void>;
+
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
 	accept(source: SyncSource, content: string): Promise<void>;
+
+	isFirstTimeSyncWithMerge(): Promise<boolean>;
+	isTurnedOffEverywhere(): Promise<boolean>;
+	reset(): Promise<void>;
+	resetLocal(): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');

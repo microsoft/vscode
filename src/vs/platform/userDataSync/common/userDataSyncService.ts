@@ -143,13 +143,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return false;
 	}
 
-	async hasRemoteData(): Promise<boolean> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+	private async hasRemoteData(): Promise<boolean> {
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasRemoteData()) {
 				return true;
@@ -158,7 +152,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return false;
 	}
 
-	async hasLocalData(): Promise<boolean> {
+	private async hasLocalData(): Promise<boolean> {
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
@@ -182,17 +176,32 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return null;
 	}
 
-	async isFirstTimeSyncAndHasUserData(): Promise<boolean> {
+	async isFirstTimeSyncWithMerge(): Promise<boolean> {
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
 		if (!(await this.userDataAuthTokenService.getToken())) {
 			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
+		if (!await this.hasRemoteData()) {
+			return false;
+		}
 		if (await this.hasPreviouslySynced()) {
 			return false;
 		}
 		return await this.hasLocalData();
+	}
+
+	async isTurnedOffEverywhere(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		const hasRemote = await this.hasRemoteData();
+		const hasPreviouslySynced = await this.hasPreviouslySynced();
+		return !hasRemote && hasPreviouslySynced;
 	}
 
 	async reset(): Promise<void> {

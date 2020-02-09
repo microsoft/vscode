@@ -60,7 +60,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (this.enabled) {
 			try {
 				if (auto) {
-					if (await this.isTurnedOffEverywhere()) {
+					if (await this.userDataSyncService.isTurnedOffEverywhere()) {
 						// Turned off everywhere. Reset & Stop Sync.
 						this.logService.info('Auto Sync: Turning off sync as it is turned off everywhere.');
 						await this.userDataSyncService.resetLocal();
@@ -86,12 +86,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		} else {
 			this.logService.trace('Auto Sync: Not syncing as it is disabled.');
 		}
-	}
-
-	private async isTurnedOffEverywhere(): Promise<boolean> {
-		const hasRemote = await this.userDataSyncService.hasRemoteData();
-		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
-		return !hasRemote && hasPreviouslySynced;
 	}
 
 	private async isAutoSyncEnabled(): Promise<boolean> {
