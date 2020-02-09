@@ -18,7 +18,7 @@ const playwright = require('playwright');
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 const optimist = require('optimist')
 	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	// .describe('build', 'run with build output (out-build)').boolean('build')
+	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
 	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('debug', 'do not run browsers headless').boolean('debug')

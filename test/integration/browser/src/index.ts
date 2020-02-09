@@ -13,9 +13,9 @@ import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 
 const optimist = require('optimist')
-	.describe('workspacePath', 'path to the workspace to open in the test').string()
-	.describe('extensionDevelopmentPath', 'path to the extension to test').string()
-	.describe('extensionTestsPath', 'path to the extension tests').string()
+	.describe('workspacePath', 'path to the workspace to open in the test').string('workspacePath')
+	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
+	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
 	.describe('help', 'show the help').alias('help', 'h');
@@ -126,4 +126,7 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 
 launchServer().then(async ({ endpoint, server }) => {
 	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
-}, console.error);
+}, error => {
+	console.error(error);
+	process.exit(1);
+});
