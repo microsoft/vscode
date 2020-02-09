@@ -8,7 +8,7 @@ import { debug, workspace, Disposable, commands, window } from 'vscode';
 import { disposeAll } from '../utils';
 import { basename } from 'path';
 
-suite('Debug', function () {
+suite.skip('Debug', function () {
 
 	test('breakpoints', async function () {
 		assert.equal(debug.breakpoints.length, 0);

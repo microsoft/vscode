@@ -10,7 +10,7 @@ import * as  url from 'url';
 import * as  tmp from 'tmp';
 import * as  rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
-import * as fkill from 'fkill';
+import * as kill from 'tree-kill';
 
 const optimist = require('optimist')
 	.describe('workspacePath', 'path to the workspace to open in the test').string()
@@ -28,7 +28,7 @@ if (optimist.argv.help) {
 const width = 1200;
 const height = 800;
 
-async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStringQuery): Promise<void> {
+async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const page = (await browser.defaultContext().pages())[0];
 	await page.setViewport({ width, height });
@@ -53,9 +53,15 @@ async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStrin
 		const msgText = msg.text();
 		if (msgText.indexOf('vscode:exit') >= 0) {
 			try {
-				await fkill(`:${endpoint.port}`);
+				await browser.close();
 			} catch (error) {
-				// ignore - may not exist anymore
+				console.error(`Error when closing browser: ${error}`);
+			}
+
+			try {
+				await pkill(server.pid);
+			} catch (error) {
+				console.error(`Error when killing server process tree: ${error}`);
 			}
 
 			process.exit(msgText === 'vscode:exit 0' ? 0 : 1);
@@ -63,7 +69,13 @@ async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStrin
 	});
 }
 
-async function launchServer(): Promise<url.UrlWithStringQuery> {
+function pkill(pid: number): Promise<void> {
+	return new Promise((c, e) => {
+		kill(pid, error => error ? e(error) : c());
+	});
+}
+
+async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -106,12 +118,12 @@ async function launchServer(): Promise<url.UrlWithStringQuery> {
 		serverProcess?.stdout?.on('data', data => {
 			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
-				c(url.parse(matches[1]));
+				c({ endpoint: url.parse(matches[1]), server: serverProcess });
 			}
 		});
 	});
 }
 
-launchServer().then(async endpoint => {
-	return runTestsInBrowser(optimist.argv.browser, endpoint);
+launchServer().then(async ({ endpoint, server }) => {
+	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
 }, console.error);
