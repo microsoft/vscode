@@ -101,15 +101,16 @@ steps:
 - script: |
     set -e
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
+  continueOnError: true
   displayName: Run unit tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-# Fails with cryptic error (e.g. https://github.com/microsoft/vscode/pull/90292/checks?check_run_id=433681926#step:13:9)
-# - script: |
-#     set -e
-#     DISPLAY=:10 yarn test-browser --browser chromium
-#   displayName: Run unit tests (Browser)
-#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+- script: |
+    set -e
+    DISPLAY=:10 yarn test-browser --browser chromium --build
+  continueOnError: true
+  displayName: Run unit tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     # Figure out the full absolute path of the product we just built
@@ -121,6 +122,7 @@ steps:
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
+  continueOnError: true
   displayName: Run integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 

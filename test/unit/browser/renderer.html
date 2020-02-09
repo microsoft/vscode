@@ -48,13 +48,16 @@
 	</script>
 
 	<script>
+		const urlParams = new URLSearchParams(window.location.search);
+		const isBuild = urlParams.get('build');
+
 		// configure loader
 		const baseUrl = window.location.href;
 		require.config({
 			catchError: true,
 			baseUrl: new URL('../../../src', baseUrl).href,
 			paths: {
-				'vs': new URL('../../../out/vs', baseUrl).href,
+				'vs': new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
 				assert: new URL('../assert.js', baseUrl).href,
 				sinon: new URL('../../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href
 			}

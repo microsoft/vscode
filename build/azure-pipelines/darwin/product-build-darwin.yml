@@ -103,12 +103,13 @@ steps:
 - script: |
     set -e
     ./scripts/test.sh --build --tfs "Unit Tests"
+  continueOnError: true
   displayName: Run unit tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
-    yarn test-browser --browser chromium --browser webkit  --build
+    yarn test-browser --browser chromium --browser webkit --build
   continueOnError: true
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -123,6 +124,7 @@ steps:
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
+  continueOnError: true
   displayName: Run integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
