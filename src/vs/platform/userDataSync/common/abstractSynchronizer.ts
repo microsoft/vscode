@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname } from 'vs/base/common/resources';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -66,7 +66,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	async sync(): Promise<void> {
+	async sync(ref?: string): Promise<void> {
 		if (!this.enabled) {
 			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is disabled.`);
 			return;
@@ -78,18 +78,15 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 		this.logService.trace(`${this.source}: Started synchronizing ${this.source.toLowerCase()}...`);
 		this.setStatus(SyncStatus.Syncing);
-		return this.doSync();
+
+		const lastSyncUserData = await this.getLastSyncUserData();
+		const remoteUserData = ref && lastSyncUserData && lastSyncUserData.ref === ref ? lastSyncUserData : await this.getRemoteUserData(lastSyncUserData);
+		return this.doSync(remoteUserData, lastSyncUserData);
 	}
 
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
 		return !!lastSyncData;
-	}
-
-	async hasRemoteData(): Promise<boolean> {
-		const lastSyncData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getRemoteUserData(lastSyncData);
-		return remoteUserData.content !== null;
 	}
 
 	async getRemoteContent(): Promise<string | null> {
@@ -118,11 +115,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async getRemoteUserData(lastSyncData: IUserData | null): Promise<IUserData> {
-		return this.userDataSyncStoreService.read(this.remoteDataResourceKey, lastSyncData, this.source);
+		return this.userDataSyncStoreService.read(this.resourceKey, lastSyncData, this.source);
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<string> {
-		return this.userDataSyncStoreService.write(this.remoteDataResourceKey, content, ref, this.source);
+		return this.userDataSyncStoreService.write(this.resourceKey, content, ref, this.source);
 	}
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
@@ -140,9 +137,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	abstract readonly resourceKey: ResourceKey;
 	protected abstract readonly enabled: boolean;
-	protected abstract readonly remoteDataResourceKey: string;
-	protected abstract doSync(): Promise<void>;
+	protected abstract doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null): Promise<void>;
 }
 
 export interface IFileSyncPreviewResult {
@@ -222,14 +219,19 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		if (!e.contains(this.file)) {
 			return;
 		}
+
 		if (!this.enabled) {
 			return;
 		}
+
 		// Sync again if local file has changed and current status is in conflicts
 		if (this.status === SyncStatus.HasConflicts) {
-			this.cancel();
-			this.doSync();
+			this.syncPreviewResultPromise?.then(result => {
+				this.cancel();
+				this.doSync(result.remoteUserData, result.lastSyncUserData);
+			});
 		}
+
 		// Otherwise fire change event
 		else {
 			this._onDidChangeLocal.fire();

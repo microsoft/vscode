@@ -32,7 +32,6 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'isTurnedOffEverywhere': return this.service.isTurnedOffEverywhere();
 			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
 			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
 		}
@@ -64,7 +63,6 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemoteData': return this.service.hasRemoteData();
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
 			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);

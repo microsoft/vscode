@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource, IUserData, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -26,7 +26,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	_serviceBrand: any;
 
-	protected get remoteDataResourceKey(): string { return 'settings'; }
+	readonly resourceKey: ResourceKey = 'settings';
 	protected get conflictsPreviewResource(): URI { return this.environmentService.settingsSyncPreviewResource; }
 	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableSettings') === true; }
 
@@ -196,14 +196,15 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	async resolveSettingsConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
+			const preview = await this.syncPreviewResultPromise!;
 			this.cancel();
-			await this.doSync(resolvedConflicts);
+			await this.doSync(preview.remoteUserData, preview.lastSyncUserData, resolvedConflicts);
 		}
 	}
 
-	protected async doSync(resolvedConflicts: { key: string, value: any | undefined }[] = []): Promise<void> {
+	protected async doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null, resolvedConflicts: { key: string, value: any | undefined }[] = []): Promise<void> {
 		try {
-			const result = await this.getPreview(resolvedConflicts);
+			const result = await this.getPreview(remoteUserData, lastSyncUserData, resolvedConflicts);
 			if (result.hasConflicts) {
 				this.logService.info('Settings: Detected conflicts while synchronizing settings.');
 				this.setStatus(SyncStatus.HasConflicts);
@@ -227,7 +228,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 					case UserDataSyncErrorCode.NewLocal:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
-						return this.sync();
+						return this.sync(remoteUserData.ref);
 				}
 			}
 			throw e;
@@ -279,17 +280,14 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		this.syncPreviewResultPromise = null;
 	}
 
-	private getPreview(resolvedConflicts: { key: string, value: any }[]): Promise<IFileSyncPreviewResult> {
+	private getPreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null, resolvedConflicts: { key: string, value: any }[]): Promise<IFileSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(resolvedConflicts, token));
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, resolvedConflicts, token));
 		}
 		return this.syncPreviewResultPromise;
 	}
 
-	protected async generatePreview(resolvedConflicts: { key: string, value: any }[], token: CancellationToken): Promise<IFileSyncPreviewResult> {
-		const lastSyncUserData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-		// Get file content last to get the latest
+	protected async generatePreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null, resolvedConflicts: { key: string, value: any }[], token: CancellationToken): Promise<IFileSyncPreviewResult> {
 		const fileContent = await this.getLocalFileContent();
 		const formattingOptions = await this.getFormattingOptions();
 

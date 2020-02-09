@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -28,7 +28,7 @@ interface ISyncPreviewResult {
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	protected get remoteDataResourceKey(): string { return 'globalState'; }
+	readonly resourceKey: ResourceKey = 'globalState';
 	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableUIState') === true; }
 
 	constructor(
@@ -121,9 +121,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return null;
 	}
 
-	protected async doSync(): Promise<void> {
+	protected async doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null): Promise<void> {
 		try {
-			const result = await this.getPreview();
+			const result = await this.getPreview(remoteUserData, lastSyncUserData);
 			await this.apply(result);
 			this.logService.trace('UI State: Finished synchronizing ui state.');
 		} catch (e) {
@@ -139,12 +139,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	private async getPreview(): Promise<ISyncPreviewResult> {
-		const lastSyncUserData = await this.getLastSyncUserData();
-		const lastSyncGlobalState = lastSyncUserData && lastSyncUserData.content ? JSON.parse(lastSyncUserData.content) : null;
-
-		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+	private async getPreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null, ): Promise<ISyncPreviewResult> {
 		const remoteGlobalState: IGlobalState = remoteUserData.content ? JSON.parse(remoteUserData.content) : null;
+		const lastSyncGlobalState = lastSyncUserData && lastSyncUserData.content ? JSON.parse(lastSyncUserData.content) : null;
 
 		const localGloablState = await this.getLocalGlobalState();
 

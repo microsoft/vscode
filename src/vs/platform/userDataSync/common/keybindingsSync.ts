@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser, IUserData, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
@@ -29,7 +29,7 @@ interface ISyncContent {
 
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
-	protected get remoteDataResourceKey(): string { return 'keybindings'; }
+	readonly resourceKey: ResourceKey = 'keybindings';
 	protected get conflictsPreviewResource(): URI { return this.environmentService.keybindingsSyncPreviewResource; }
 	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableKeybindings') === true; }
 
@@ -160,9 +160,9 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
-	protected async doSync(): Promise<void> {
+	protected async doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null): Promise<void> {
 		try {
-			const result = await this.getPreview();
+			const result = await this.getPreview(remoteUserData, lastSyncUserData);
 			if (result.hasConflicts) {
 				this.logService.info('Keybindings: Detected conflicts while synchronizing keybindings.');
 				this.setStatus(SyncStatus.HasConflicts);
@@ -186,7 +186,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 					case UserDataSyncErrorCode.NewLocal:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new local version available. Synchronizing again...');
-						return this.sync();
+						return this.sync(remoteUserData.ref);
 				}
 			}
 			throw e;
@@ -237,18 +237,16 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		this.syncPreviewResultPromise = null;
 	}
 
-	private getPreview(): Promise<IFileSyncPreviewResult> {
+	private getPreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null): Promise<IFileSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(token));
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, token));
 		}
 		return this.syncPreviewResultPromise;
 	}
 
-	private async generatePreview(token: CancellationToken): Promise<IFileSyncPreviewResult> {
-		const lastSyncUserData = await this.getLastSyncUserData();
-		const lastSyncContent = lastSyncUserData && lastSyncUserData.content ? this.getKeybindingsContentFromSyncContent(lastSyncUserData.content) : null;
-		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+	private async generatePreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null, token: CancellationToken): Promise<IFileSyncPreviewResult> {
 		const remoteContent = remoteUserData.content ? this.getKeybindingsContentFromSyncContent(remoteUserData.content) : null;
+		const lastSyncContent = lastSyncUserData && lastSyncUserData.content ? this.getKeybindingsContentFromSyncContent(lastSyncUserData.content) : null;
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
 		const formattingOptions = await this.getFormattingOptions();

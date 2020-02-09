@@ -75,10 +75,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
-	isTurnedOffEverywhere(): Promise<boolean> {
-		return this.channel.call('isTurnedOffEverywhere');
-	}
-
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
 		return this.channel.call('getRemoteContent', [source, preview]);
 	}
