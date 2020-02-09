@@ -28,22 +28,21 @@ interface ISyncPreviewResult {
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
+	protected get remoteDataResourceKey(): string { return 'globalState'; }
 	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableUIState') === true; }
 
 	constructor(
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, telemetryService);
+		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
 	}
-
-	protected getRemoteDataResourceKey(): string { return 'globalState'; }
 
 	async pull(): Promise<void> {
 		if (!this.enabled) {
@@ -100,36 +99,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	}
 
-	async sync(): Promise<void> {
-		if (!this.enabled) {
-			this.logService.info('UI State: Skipping synchronizing UI state as it is disabled.');
-			return;
-		}
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.info('UI State: Skipping synchronizing ui state as it is running already.');
-			return;
-		}
-
-		this.logService.trace('UI State: Started synchronizing ui state...');
-		this.setStatus(SyncStatus.Syncing);
-
-		try {
-			const result = await this.getPreview();
-			await this.apply(result);
-			this.logService.trace('UI State: Finished synchronizing ui state.');
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('UI State: Failed to synchronize ui state as there is a new remote version available. Synchronizing again...');
-				return this.sync();
-			}
-			throw e;
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
-	}
-
 	async stop(): Promise<void> { }
 
 	accept(content: string): Promise<void> {
@@ -150,6 +119,24 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	async getRemoteContent(): Promise<string | null> {
 		return null;
+	}
+
+	protected async doSync(): Promise<void> {
+		try {
+			const result = await this.getPreview();
+			await this.apply(result);
+			this.logService.trace('UI State: Finished synchronizing ui state.');
+		} catch (e) {
+			this.setStatus(SyncStatus.Idle);
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+				// Rejected as there is a new remote version. Syncing again,
+				this.logService.info('UI State: Failed to synchronize ui state as there is a new remote version available. Synchronizing again...');
+				return this.sync();
+			}
+			throw e;
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
 	}
 
 	private async getPreview(): Promise<ISyncPreviewResult> {

@@ -33,7 +33,8 @@ interface ILastSyncUserData extends IUserData {
 
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableExtensions') === true; }
+	protected get remoteDataResourceKey(): string { return 'extensions'; }
+	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableExtensions') === true && this.extensionGalleryService.isEnabled(); }
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -41,12 +42,12 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, telemetryService);
+		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -55,8 +56,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					this.extensionEnablementService.onDidChangeEnablement),
 				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
 	}
-
-	protected getRemoteDataResourceKey(): string { return 'extensions'; }
 
 	async pull(): Promise<void> {
 		if (!this.enabled) {
@@ -117,37 +116,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async sync(): Promise<void> {
-		if (!this.enabled) {
-			this.logService.info('Extensions: Skipping synchronizing extensions as it is disabled.');
-			return;
-		}
 		if (!this.extensionGalleryService.isEnabled()) {
 			this.logService.info('Extensions: Skipping synchronizing extensions as gallery is disabled.');
 			return;
 		}
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.info('Extensions: Skipping synchronizing extensions as it is running already.');
-			return;
-		}
-
-		this.logService.trace('Extensions: Started synchronizing extensions...');
-		this.setStatus(SyncStatus.Syncing);
-
-		try {
-			const previewResult = await this.getPreview();
-			await this.apply(previewResult);
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
-				return this.sync();
-			}
-			throw e;
-		}
-
-		this.logService.trace('Extensions: Finished synchronizing extensions.');
-		this.setStatus(SyncStatus.Idle);
+		return super.sync();
 	}
 
 	async stop(): Promise<void> { }
@@ -170,6 +143,24 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async getRemoteContent(): Promise<string | null> {
 		return null;
+	}
+
+	protected async doSync(): Promise<void> {
+		try {
+			const previewResult = await this.getPreview();
+			await this.apply(previewResult);
+		} catch (e) {
+			this.setStatus(SyncStatus.Idle);
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+				// Rejected as there is a new remote version. Syncing again,
+				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
+				return this.sync();
+			}
+			throw e;
+		}
+
+		this.logService.trace('Extensions: Finished synchronizing extensions.');
+		this.setStatus(SyncStatus.Idle);
 	}
 
 	private async getPreview(): Promise<ISyncPreviewResult> {

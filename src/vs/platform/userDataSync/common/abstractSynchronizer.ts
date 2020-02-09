@@ -7,13 +7,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname } from 'vs/base/common/resources';
 import { toLocalISOString } from 'vs/base/common/date';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, CancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ParseError, parse } from 'vs/base/common/json';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 type SyncConflictsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -40,6 +42,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
@@ -63,6 +66,21 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	async sync(): Promise<void> {
+		if (!this.enabled) {
+			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is disabled.`);
+			return;
+		}
+		if (this.status !== SyncStatus.Idle) {
+			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is running already.`);
+			return;
+		}
+
+		this.logService.trace(`${this.source}: Started synchronizing ${this.source.toLowerCase()}...`);
+		this.setStatus(SyncStatus.Syncing);
+		return this.doSync();
+	}
+
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
 		return !!lastSyncData;
@@ -72,6 +90,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const lastSyncData = await this.getLastSyncUserData();
 		const remoteUserData = await this.getRemoteUserData(lastSyncData);
 		return remoteUserData.content !== null;
+	}
+
+	async getRemoteContent(): Promise<string | null> {
+		const lastSyncData = await this.getLastSyncUserData();
+		const remoteUserData = await this.getRemoteUserData(lastSyncData);
+		return remoteUserData.content;
 	}
 
 	async resetLocal(): Promise<void> {
@@ -94,11 +118,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async getRemoteUserData(lastSyncData: IUserData | null): Promise<IUserData> {
-		return this.userDataSyncStoreService.read(this.getRemoteDataResourceKey(), lastSyncData, this.source);
+		return this.userDataSyncStoreService.read(this.remoteDataResourceKey, lastSyncData, this.source);
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<string> {
-		return this.userDataSyncStoreService.write(this.getRemoteDataResourceKey(), content, ref, this.source);
+		return this.userDataSyncStoreService.write(this.remoteDataResourceKey, content, ref, this.source);
 	}
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
@@ -117,22 +141,53 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected abstract readonly enabled: boolean;
-	protected abstract getRemoteDataResourceKey(): string;
+	protected abstract readonly remoteDataResourceKey: string;
+	protected abstract doSync(): Promise<void>;
+}
+
+export interface IFileSyncPreviewResult {
+	readonly fileContent: IFileContent | null;
+	readonly remoteUserData: IUserData;
+	readonly lastSyncUserData: IUserData | null;
+	readonly content: string | null;
+	readonly hasLocalChanged: boolean;
+	readonly hasRemoteChanged: boolean;
+	readonly hasConflicts: boolean;
 }
 
 export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
+	protected syncPreviewResultPromise: CancelablePromise<IFileSyncPreviewResult> | null = null;
+
 	constructor(
 		protected readonly file: URI,
-		readonly source: SyncSource,
+		source: SyncSource,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 	) {
-		super(source, fileService, environmentService, userDataSyncStoreService, telemetryService);
+		super(source, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+	}
+
+	async stop(): Promise<void> {
+		this.cancel();
+		this.logService.trace(`${this.source}: Stopped synchronizing ${this.source.toLowerCase()}.`);
+		await this.fileService.del(this.conflictsPreviewResource);
+		this.setStatus(SyncStatus.Idle);
+	}
+
+	async getRemoteContent(preview?: boolean): Promise<string | null> {
+		if (preview) {
+			if (this.syncPreviewResultPromise) {
+				const result = await this.syncPreviewResultPromise;
+				return result.remoteUserData ? result.remoteUserData.content : null;
+			}
+		}
+		return super.getRemoteContent();
 	}
 
 	protected async getLocalFileContent(): Promise<IFileContent | null> {
@@ -182,6 +237,43 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 	}
 
-	protected abstract cancel(): void;
-	protected abstract doSync(): Promise<void>;
+	protected cancel(): void {
+		if (this.syncPreviewResultPromise) {
+			this.syncPreviewResultPromise.cancel();
+			this.syncPreviewResultPromise = null;
+		}
+	}
+
+	protected abstract readonly conflictsPreviewResource: URI;
+}
+
+export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroniser {
+
+	constructor(
+		file: URI,
+		source: SyncSource,
+		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
+	) {
+		super(file, source, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
+	}
+
+	protected hasErrors(content: string): boolean {
+		const parseErrors: ParseError[] = [];
+		parse(content, parseErrors, { allowEmptyContent: true, allowTrailingComma: true });
+		return parseErrors.length > 0;
+	}
+
+	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;
+	protected getFormattingOptions(): Promise<FormattingOptions> {
+		if (!this._formattingOptions) {
+			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.file);
+		}
+		return this._formattingOptions;
+	}
+
 }
