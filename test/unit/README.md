@@ -2,9 +2,7 @@
 
 ## Run (inside Electron)
 
-```
-./scripts/test.[sh|bat]
-```
+	./scripts/test.[sh|bat]
 
 All unit tests are run inside a electron-browser environment which access to DOM and Nodejs api. This is the closest to the enviroment in which VS Code itself ships. Notes:
 
@@ -13,9 +11,7 @@ All unit tests are run inside a electron-browser environment which access to DOM
 
 ## Run (inside browser)
 
-```
-yarn test-browser --browser webkit --browser chromium
-```
+	yarn test-browser --browser webkit --browser chromium
 
 Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon’ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
 
