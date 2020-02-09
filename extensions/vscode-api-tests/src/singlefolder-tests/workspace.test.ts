@@ -606,7 +606,7 @@ suite('workspace-namespace', () => {
 		edit.insert(resource, new vscode.Position(0, 0), '');
 
 		let success = await vscode.workspace.applyEdit(edit);
-		assert.equal(success, false);
+		assert.equal(success, true);
 	}));
 
 	test('applyEdit should fail when renaming deleted resource', withLogDisabled(async () => {
