@@ -393,7 +393,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 			id: 'editor.action.measureExtHostLatency',
 			title: {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
-				original: 'Developer: Measure Extension Host Latency'
+				original: 'Measure Extension Host Latency'
 			},
 			category: nls.localize('developer', "Developer"),
 			f1: true
