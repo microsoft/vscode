@@ -117,7 +117,7 @@ steps:
 #     . build/azure-pipelines/win32/exec.ps1
 #     $ErrorActionPreference = "Stop"
 #     exec { yarn test-browser --browser chromium }
-#   displayName: Run unit tests (Browsers)
+#   displayName: Run unit tests (Browser)
 #   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |

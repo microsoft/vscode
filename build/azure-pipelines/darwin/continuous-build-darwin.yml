@@ -43,7 +43,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 - script: |
     yarn test-browser --browser chromium --browser webkit
-  displayName: Run Unit Tests (Browsers)
+  displayName: Run Unit Tests (Browser)
 - script: |
     ./scripts/test-integration.sh --tfs "Integration Tests"
   displayName: Run Integration Tests (Electron)

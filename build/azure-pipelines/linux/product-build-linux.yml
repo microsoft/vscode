@@ -108,7 +108,7 @@ steps:
 # - script: |
 #     set -e
 #     DISPLAY=:10 yarn test-browser --browser chromium
-#   displayName: Run unit tests (Browsers)
+#   displayName: Run unit tests (Browser)
 #   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
@@ -129,7 +129,7 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
     DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
   continueOnError: true
-  displayName: Run integration tests (Chromium)
+  displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |

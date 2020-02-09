@@ -110,7 +110,7 @@ steps:
 # - script: |
 #     set -e
 #     yarn test-browser --browser chromium --browser webkit
-#   displayName: Run unit tests (Browsers)
+#   displayName: Run unit tests (Browser)
 #   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
@@ -131,7 +131,7 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
     ./resources/server/test/test-web-integration.sh --browser chromium
   continueOnError: true
-  displayName: Run integration tests (Safari)
+  displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
@@ -139,7 +139,7 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
     yarn smoketest --web --headless --browser chromium
   continueOnError: true
-  displayName: Run smoke tests (Safari)
+  displayName: Run smoke tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
