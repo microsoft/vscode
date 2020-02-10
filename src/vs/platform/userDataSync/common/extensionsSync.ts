@@ -243,7 +243,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					} else {
 						this.logService.trace('Extensions: Disabling extension...', e.identifier.id);
 						await this.extensionEnablementService.disableExtension(e.identifier);
-						this.logService.info('Extensions: Disabled extension.', e.identifier.id);
+						this.logService.info('Extensions: Disabled extension', e.identifier.id);
 					}
 					removeFromSkipped.push(e.identifier);
 					return;
