@@ -169,7 +169,7 @@ export class ElectronWindow extends Disposable {
 			}
 		});
 
-		// Support open event for opener service
+		// Support open event for opener service in desktop only
 		ipc.on('vscode:open', (_: IpcEvent, url: string) => this.openerService.open(url));
 
 		// Support openFiles event for existing and new files
