@@ -287,10 +287,6 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tiw-metadata-key">language</td><td class="tiw-metadata-value">${escape(tmMetadata?.languageIdentifier.language || '')}</td></tr>`;
 		result += `<tr><td class="tiw-metadata-key">standard token type</td><td class="tiw-metadata-value">${this._tokenTypeToString(tmMetadata?.tokenType || StandardTokenType.Other)}</td></tr>`;
 
-		result += `</tbody></table>`;
-
-		result += `<hr class="tiw-metadata-separator"/>`;
-		result += `<table class="tiw-metadata-table"><tbody>`;
 		result += this._formatMetadata(semMetadata, tmMetadata);
 		result += `</tbody></table>`;
 
