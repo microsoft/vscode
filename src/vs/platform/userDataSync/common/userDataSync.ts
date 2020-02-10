@@ -23,13 +23,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
-export const DEFAULT_IGNORED_SETTINGS = [
-	CONFIGURATION_SYNC_STORE_KEY,
-	'sync.enable',
-	'sync.enableSettings',
-	'sync.enableExtensions',
-];
-
 export interface ISyncConfiguration {
 	sync: {
 		enable: boolean,
@@ -54,33 +47,33 @@ export function registerConfiguration(): IDisposable {
 		properties: {
 			'sync.enable': {
 				type: 'boolean',
-				description: localize('sync.enable', "Enable synchronization."),
 				default: false,
-				scope: ConfigurationScope.APPLICATION
+				scope: ConfigurationScope.APPLICATION,
+				deprecationMessage: 'deprecated'
 			},
 			'sync.enableSettings': {
 				type: 'boolean',
-				description: localize('sync.enableSettings', "Enable synchronizing settings."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
+				deprecationMessage: 'deprecated'
 			},
 			'sync.enableKeybindings': {
 				type: 'boolean',
-				description: localize('sync.enableKeybindings', "Enable synchronizing keybindings."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
+				deprecationMessage: 'Deprecated'
 			},
 			'sync.enableUIState': {
 				type: 'boolean',
-				description: localize('sync.enableUIState', "Enable synchronizing UI state (Only Display Language)."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
+				deprecationMessage: 'deprecated'
 			},
 			'sync.enableExtensions': {
 				type: 'boolean',
-				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
+				deprecationMessage: 'deprecated'
 			},
 			'sync.keybindingsPerPlatform': {
 				type: 'boolean',
@@ -97,7 +90,7 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.ignoredSettings': {
 				'type': 'array',
-				description: localize('sync.ignoredSettings', "Configure settings to be ignored while synchronizing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
+				description: localize('sync.ignoredSettings', "Configure settings to be ignored while synchronizing."),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,
@@ -111,7 +104,7 @@ export function registerConfiguration(): IDisposable {
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
-				enum: [...Object.keys(allSettings.properties).filter(setting => DEFAULT_IGNORED_SETTINGS.indexOf(setting) === -1), ...DEFAULT_IGNORED_SETTINGS.map(setting => `-${setting}`)]
+				enum: Object.keys(allSettings.properties)
 			}
 		};
 		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
@@ -136,6 +129,7 @@ export function getUserDataSyncStore(configurationService: IConfigurationService
 	return value && value.url && value.authenticationProviderId ? value : undefined;
 }
 
+export const ALL_RESOURCE_KEYS: ResourceKey[] = ['settings', 'keybindings', 'extensions', 'globalState'];
 export type ResourceKey = 'settings' | 'keybindings' | 'extensions' | 'globalState';
 
 export interface IUserDataManifest {
@@ -247,6 +241,20 @@ export interface IUserDataSynchroniser {
 
 // #region User Data Sync Services
 
+export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
+export interface IUserDataSyncEnablementService {
+	_serviceBrand: any;
+
+	readonly onDidChangeEnablement: Event<boolean>;
+	readonly onDidChangeResourceEnablement: Event<[ResourceKey, boolean]>;
+
+	isEnabled(): boolean;
+	setEnablement(enabled: boolean): void;
+
+	isResourceEnabled(key: ResourceKey): boolean;
+	setResourceEnablement(key: ResourceKey, enabled: boolean): void;
+}
+
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
 	_serviceBrand: any;
@@ -280,7 +288,6 @@ export interface IUserDataAutoSyncService {
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 export interface IUserDataSyncUtilService {
 	_serviceBrand: undefined;
-	updateConfigurationValue(key: string, value: any): Promise<void>;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 }

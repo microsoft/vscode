@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode, UserDataSyncError, getSyncSourceFromPreviewResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode, UserDataSyncError, getSyncSourceFromPreviewResource, IUserDataSyncEnablementService, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey, ContextKeyRegexExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -51,10 +51,11 @@ const enum AuthStatus {
 	SignedOut = 'SignedOut',
 	Unavailable = 'Unavailable'
 }
+const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthStatus.Initializing);
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
-type ConfigureSyncQuickPickItem = { id: string, label: string, description?: string };
+type ConfigureSyncQuickPickItem = { id: ResourceKey, label: string, description?: string };
 
 function getSyncAreaLabel(source: SyncSource): string {
 	switch (source) {
@@ -71,9 +72,8 @@ type FirstTimeSyncClassification = {
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
-	private static readonly ENABLEMENT_SETTING = 'sync.enable';
-
 	private readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	private readonly syncEnablementContext: IContextKey<boolean>;
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly authenticationState: IContextKey<string>;
 	private readonly conflictsSources: IContextKey<string>;
@@ -83,12 +83,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private _activeAccount: AuthenticationSession | undefined;
 
 	constructor(
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -103,6 +104,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
+		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.authenticationState = CONTEXT_AUTH_TOKEN_STATE.bindTo(contextKeyService);
 		this.conflictsSources = CONTEXT_CONFLICTS_SOURCES.bindTo(contextKeyService);
@@ -110,9 +112,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			registerConfiguration();
 			this.onDidChangeSyncStatus(this.userDataSyncService.status);
 			this.onDidChangeConflicts(this.userDataSyncService.conflictsSources);
+			this.onDidChangeEnablement(this.userDataSyncEnablementService.isEnabled());
 			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflictsSources)));
-			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING))(() => this.onDidChangeEnablement()));
+			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.onDidChangeEnablement(enabled)));
 			this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => this.onDidRegisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this.onDidUnregisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidChangeSessions(e => this.onDidChangeSessions(e)));
@@ -288,9 +291,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private onDidChangeEnablement() {
+	private onDidChangeEnablement(enabled: boolean) {
+		this.syncEnablementContext.set(enabled);
 		this.updateBadge();
-		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authenticationState.get() === AuthStatus.SignedOut) {
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
@@ -334,7 +337,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
-		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING) && this.authenticationState.get() === AuthStatus.SignedOut) {
+		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataSyncEnablementService.isEnabled() && this.authenticationState.get() === AuthStatus.SignedOut) {
 			badge = new NumberBadge(1, () => localize('sign in to sync', "Sign in to Sync"));
 		} else if (this.userDataSyncService.conflictsSources.length) {
 			badge = new NumberBadge(this.userDataSyncService.conflictsSources.length, () => localize('has conflicts', "Sync: Conflicts Detected"));
@@ -369,10 +372,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ignoreFocusOut = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 				if (quickPick.selectedItems.length) {
-					await this.updateConfiguration(items, quickPick.selectedItems);
+					this.updateConfiguration(items, quickPick.selectedItems);
 					this.doTurnOn().then(c, e);
 					quickPick.hide();
 				}
@@ -387,32 +390,32 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			await this.signIn();
 		}
 		await this.handleFirstTimeSync();
-		await this.enableSync();
+		this.userDataSyncEnablementService.setEnablement(true);
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
 		return [{
-			id: 'sync.enableSettings',
+			id: 'settings',
 			label: getSyncAreaLabel(SyncSource.Settings)
 		}, {
-			id: 'sync.enableKeybindings',
+			id: 'keybindings',
 			label: getSyncAreaLabel(SyncSource.Keybindings)
 		}, {
-			id: 'sync.enableExtensions',
+			id: 'extensions',
 			label: getSyncAreaLabel(SyncSource.Extensions)
 		}, {
-			id: 'sync.enableUIState',
+			id: 'globalState',
 			label: getSyncAreaLabel(SyncSource.GlobalState),
 			description: localize('ui state description', "only 'Display Language' for now")
 		}];
 	}
 
-	private async updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): Promise<void> {
+	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {
 		for (const item of items) {
-			const wasEnabled = this.configurationService.getValue(item.id);
+			const wasEnabled = this.userDataSyncEnablementService.isResourceEnabled(item.id);
 			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
 			if (wasEnabled !== isEnabled) {
-				await this.configurationService.updateValue(item.id!, isEnabled);
+				this.userDataSyncEnablementService.setResourceEnablement(item.id!, isEnabled);
 			}
 		}
 	}
@@ -426,9 +429,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
+			quickPick.ok = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
 					await this.updateConfiguration(items, quickPick.selectedItems);
@@ -475,10 +479,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private enableSync(): Promise<void> {
-		return this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
-	}
-
 	private async turnOff(): Promise<void> {
 		const result = await this.dialogService.confirm({
 			type: 'info',
@@ -500,15 +500,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private disableSync(source?: SyncSource): Promise<void> {
-		let key: string = UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING;
-		switch (source) {
-			case SyncSource.Settings: key = 'sync.enableSettings'; break;
-			case SyncSource.Keybindings: key = 'sync.enableKeybindings'; break;
-			case SyncSource.Extensions: key = 'sync.enableExtensions'; break;
-			case SyncSource.GlobalState: key = 'sync.enableUIState'; break;
+	private disableSync(source?: SyncSource): void {
+		if (source === undefined) {
+			this.userDataSyncEnablementService.setEnablement(false);
+		} else {
+			switch (source) {
+				case SyncSource.Settings: return this.userDataSyncEnablementService.setResourceEnablement('settings', false);
+				case SyncSource.Keybindings: return this.userDataSyncEnablementService.setResourceEnablement('keybindings', false);
+				case SyncSource.Extensions: return this.userDataSyncEnablementService.setResourceEnablement('extensions', false);
+				case SyncSource.GlobalState: return this.userDataSyncEnablementService.setResourceEnablement('globalState', false);
+			}
 		}
-		return this.configurationService.updateValue(key, false, ConfigurationTarget.USER);
 	}
 
 	private async signIn(): Promise<void> {
@@ -573,7 +575,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerActions(): void {
 
 		const turnOnSyncCommandId = 'workbench.userData.actions.syncStart';
-		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.notEqualsTo(AuthStatus.Initializing));
+		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_AUTH_TOKEN_STATE.notEqualsTo(AuthStatus.Initializing));
 		CommandsRegistry.registerCommand(turnOnSyncCommandId, async () => {
 			try {
 				await this.turnOn();
@@ -600,7 +602,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 
 		const signInCommandId = 'workbench.userData.actions.signin';
-		const signInWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedOut));
+		const signInWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT, CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedOut));
 		CommandsRegistry.registerCommand(signInCommandId, () => this.signIn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
@@ -626,14 +628,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: stopSyncCommandId,
 				title: localize('global activity stop sync', "Turn off Sync")
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.HasConflicts))
+			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.HasConflicts))
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: stopSyncCommandId,
 				title: localize('stop sync', "Sync: Turn off Sync")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
 		});
 
 		const resolveSettingsConflictsCommandId = 'workbench.userData.actions.resolveSettingsConflicts';
@@ -692,7 +694,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: configureSyncCommandId,
 				title: localize('configure sync', "Sync: Configure")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
 		});
 
 		const showSyncLogCommandId = 'workbench.userData.actions.showSyncLog';
