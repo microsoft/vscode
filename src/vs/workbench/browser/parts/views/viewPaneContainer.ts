@@ -39,9 +39,9 @@ import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/browser/linkedText';
-import { Link } from 'vs/workbench/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { Link } from 'vs/platform/opener/browser/link';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
