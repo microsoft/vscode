@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as modes from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -11,7 +11,7 @@ import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class AuthenticationProviderWrapper implements vscode.AuthenticationProvider {
-	onDidChangeSessions: Event<void>;
+	readonly onDidChangeSessions: vscode.Event<void>;
 
 	constructor(private _requestingExtension: IExtensionDescription,
 		private _provider: vscode.AuthenticationProvider,
