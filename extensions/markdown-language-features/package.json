@@ -332,7 +332,7 @@
 	"dependencies": {
 		"highlight.js": "9.15.10",
 		"markdown-it": "^10.0.0",
-		"markdown-it-front-matter": "^0.1.2",
+		"markdown-it-front-matter": "^0.2.1",
 		"vscode-extension-telemetry": "0.1.1",
 		"vscode-nls": "^4.0.0"
 	},
