@@ -268,7 +268,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			// Delete the preview
 			await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
 		} else {
-			this.logService.trace('Settings: No changes found during synchronizing settings.');
+			this.logService.info('Settings: No changes found during synchronizing settings.');
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {

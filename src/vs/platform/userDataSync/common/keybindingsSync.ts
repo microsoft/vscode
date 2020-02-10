@@ -224,7 +224,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			// Delete the preview
 			await this.fileService.del(this.environmentService.keybindingsSyncPreviewResource);
 		} else {
-			this.logService.trace('Keybindings: No changes found during synchronizing keybindings.');
+			this.logService.info('Keybindings: No changes found during synchronizing keybindings.');
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref && (content !== null || fileContent !== null)) {

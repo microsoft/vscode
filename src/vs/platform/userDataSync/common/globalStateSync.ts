@@ -161,7 +161,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const hasChanges = local || remote;
 
 		if (!hasChanges) {
-			this.logService.trace('UI State: No changes found during synchronizing ui state.');
+			this.logService.info('UI State: No changes found during synchronizing ui state.');
 		}
 
 		if (local) {

@@ -190,7 +190,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const hasChanges = added.length || removed.length || updated.length || remote;
 
 		if (!hasChanges) {
-			this.logService.trace('Extensions: No changes found during synchronizing extensions.');
+			this.logService.info('Extensions: No changes found during synchronizing extensions.');
 		}
 
 		if (added.length || removed.length || updated.length) {
