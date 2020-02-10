@@ -2136,6 +2136,20 @@ declare module 'vscode' {
 		isPreferred?: boolean;
 
 		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
+		 */
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the code actions UI.
+			 */
+			readonly reason: string;
+		};
+
+		/**
 		 * Creates a new code action.
 		 *
 		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)

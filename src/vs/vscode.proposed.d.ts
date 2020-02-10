@@ -1358,26 +1358,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
-
-	export interface CodeAction {
-		/**
-		 * Marks that the code action cannot currently be applied.
-		 *
-		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
-		 */
-		disabled?: {
-			/**
-			 * Human readable description of why the code action is currently disabled.
-			 *
-			 * This is displayed in the UI.
-			 */
-			reason: string;
-		};
-	}
-
-	//#endregion
-
 	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
 
 	export interface MarkdownString {
