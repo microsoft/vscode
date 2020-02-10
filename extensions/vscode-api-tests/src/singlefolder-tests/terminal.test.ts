@@ -378,40 +378,40 @@ suite('window namespace tests', () => {
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			// test('should respect dimension overrides', (done) => {
-			// 	disposables.push(window.onDidOpenTerminal(term => {
-			// 		try {
-			// 			equal(terminal, term);
-			// 		} catch (e) {
-			// 			done(e);
-			// 		}
-			// 		term.show();
-			// 		disposables.push(window.onDidChangeTerminalDimensions(e => {
-			// 			if (e.dimensions.columns === 0 || e.dimensions.rows === 0) {
-			// 				// HACK: Ignore the event if dimension(s) are zero (#83778)
-			// 				return;
-			// 			}
-			// 			try {
-			// 				equal(e.dimensions.columns, 10);
-			// 				equal(e.dimensions.rows, 5);
-			// 				equal(e.terminal, terminal);
-			// 			} catch (e) {
-			// 				done(e);
-			// 			}
-			// 			disposables.push(window.onDidCloseTerminal(() => done()));
-			// 			terminal.dispose();
-			// 		}));
-			// 	}));
-			// 	const writeEmitter = new EventEmitter<string>();
-			// 	const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
-			// 	const pty: Pseudoterminal = {
-			// 		onDidWrite: writeEmitter.event,
-			// 		onDidOverrideDimensions: overrideDimensionsEmitter.event,
-			// 		open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
-			// 		close: () => { }
-			// 	};
-			// 	const terminal = window.createTerminal({ name: 'foo', pty });
-			// });
+			test.skip('should respect dimension overrides', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+					} catch (e) {
+						done(e);
+					}
+					term.show();
+					disposables.push(window.onDidChangeTerminalDimensions(e => {
+						if (e.dimensions.columns === 0 || e.dimensions.rows === 0) {
+							// HACK: Ignore the event if dimension(s) are zero (#83778)
+							return;
+						}
+						try {
+							equal(e.dimensions.columns, 10);
+							equal(e.dimensions.rows, 5);
+							equal(e.terminal, terminal);
+						} catch (e) {
+							done(e);
+						}
+						disposables.push(window.onDidCloseTerminal(() => done()));
+						terminal.dispose();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidOverrideDimensions: overrideDimensionsEmitter.event,
+					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
 
 			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
