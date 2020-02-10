@@ -11,9 +11,10 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 export class ProviderProgressMananger extends Disposable {
 	private _onProviderComplete: Emitter<string> = new Emitter();
 	private _stillProviding: Set<string> = new Set();
+	private _totalProviders: number = 0;
 	private _onDone: Emitter<void> = new Emitter();
 	private _isDone: boolean = false;
-	private _showProgress: ((remaining: string[]) => void) | undefined;
+	private _showProgress: ((remaining: string[], total: number) => void) | undefined;
 	public canceled: CancellationTokenSource = new CancellationTokenSource();
 
 	constructor() {
@@ -25,12 +26,13 @@ export class ProviderProgressMananger extends Disposable {
 				this._onDone.fire();
 			}
 			if (this._showProgress) {
-				this._showProgress(Array.from(this._stillProviding));
+				this._showProgress(Array.from(this._stillProviding), this._totalProviders);
 			}
 		}));
 	}
 
 	public addProvider(taskType: string, provider: Promise<TaskSet>) {
+		this._totalProviders++;
 		this._stillProviding.add(taskType);
 		provider.then(() => this._onProviderComplete.fire(taskType));
 	}
@@ -39,9 +41,9 @@ export class ProviderProgressMananger extends Disposable {
 		this._register(this._onDone.event(onDoneListener));
 	}
 
-	set showProgress(progressDisplayFunction: (remaining: string[]) => void) {
+	set showProgress(progressDisplayFunction: (remaining: string[], total: number) => void) {
 		this._showProgress = progressDisplayFunction;
-		this._showProgress(Array.from(this._stillProviding));
+		this._showProgress(Array.from(this._stillProviding), this._totalProviders);
 	}
 
 	get isDone(): boolean {
@@ -51,7 +53,7 @@ export class ProviderProgressMananger extends Disposable {
 	public cancel() {
 		this._isDone = true;
 		if (this._showProgress) {
-			this._showProgress([]);
+			this._showProgress([], 0);
 		}
 		this._onDone.fire();
 		this.canceled.cancel();

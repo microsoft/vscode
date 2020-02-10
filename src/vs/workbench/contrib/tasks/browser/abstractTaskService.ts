@@ -2097,10 +2097,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const progressManager = this._providerProgressManager;
 		const progressTimeout = setTimeout(() => {
 			if (progressManager) {
-				progressManager.showProgress = (stillProviding) => {
+				progressManager.showProgress = (stillProviding, total) => {
 					let message = undefined;
 					if (stillProviding.length > 0) {
-						message = nls.localize('pickProgressManager.description', 'Getting tasks from extensions. {0} extension(s) remaining: {1}', stillProviding.length, stillProviding.join(', '));
+						message = nls.localize('pickProgressManager.description', 'Detecting tasks ({0} of {1}): {2} in progress', total - stillProviding.length, total, stillProviding.join(', '));
 					}
 					picker.description = message;
 				};
@@ -2109,7 +2109,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					picker.customButton = false;
 				});
 				if (!progressManager.isDone) {
-					picker.customLabel = nls.localize('taskQuickPick.cancel', "Cancel Remaining Extensions");
+					picker.customLabel = nls.localize('taskQuickPick.cancel', "Stop detecting");
 					picker.onDidCustom(() => {
 						this._providerProgressManager?.cancel();
 					});
