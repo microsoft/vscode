@@ -401,12 +401,12 @@ function registerDefaultClassifications(): void {
 
 	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
 
-	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type'], ['support.class']]);
+	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type']]);
 	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']]);
-	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class']]);
+	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class'], ['support.class']]);
 	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']]);
 	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']]);
-	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), [['entity.name.type', 'meta.type.parameters']]);
+	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), [['entity.name.type.parameter']]);
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
 	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function.member'], ['support.function']]);
