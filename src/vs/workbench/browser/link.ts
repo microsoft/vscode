@@ -10,24 +10,36 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
-export interface ILink {
+export interface ILinkDescriptor {
 	readonly label: string;
 	readonly href: string;
 	readonly title?: string;
 }
 
+export interface ILinkStyles {
+	readonly textLinkForeground?: Color;
+}
+
 export class Link extends Disposable {
 
 	readonly el: HTMLAnchorElement;
+	private styles: ILinkStyles = {
+		textLinkForeground: Color.fromHex('#006AB1')
+	};
 
 	constructor(
-		link: ILink,
+		link: ILinkDescriptor,
 		@IOpenerService openerService: IOpenerService
 	) {
 		super();
 
-		this.el = $<HTMLAnchorElement>('a', { href: link.href, title: link.title }, link.label);
+		this.el = $<HTMLAnchorElement>('a', {
+			tabIndex: 0,
+			href: link.href,
+			title: link.title
+		}, link.label);
 
 		const onClick = domEvent(this.el, 'click');
 		const onEnterPress = Event.chain(domEvent(this.el, 'keypress'))
@@ -37,5 +49,16 @@ export class Link extends Disposable {
 		const onOpen = Event.any(onClick, onEnterPress);
 
 		this._register(onOpen(_ => openerService.open(link.href)));
+
+		this.applyStyles();
+	}
+
+	style(styles: ILinkStyles): void {
+		this.styles = styles;
+		this.applyStyles();
+	}
+
+	private applyStyles(): void {
+		this.el.style.color = this.styles.textLinkForeground?.toString() || '';
 	}
 }

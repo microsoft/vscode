@@ -7,7 +7,7 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping, attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -331,9 +331,12 @@ export abstract class ViewPane extends Pane implements IView {
 							disposables.add(attachButtonStyler(button, a.get(IThemeService)));
 						});
 					} else {
-						const link = this.instantiationService.createInstance(Link, node);
-						append(p, link.el);
-						disposables.add(link);
+						this.instantiationService.invokeFunction(a => {
+							const link = a.get(IInstantiationService).createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, a.get(IThemeService)));
+						});
 					}
 				}
 			}
