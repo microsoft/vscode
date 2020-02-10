@@ -295,7 +295,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const disabledExtensions = await this.extensionEnablementService.getDisabledExtensionsAsync();
+		const disabledExtensions = await this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
 			.map(({ identifier }) => ({ identifier, enabled: !disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier)) }));
 	}

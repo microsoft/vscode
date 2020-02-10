@@ -119,10 +119,45 @@ export function registerConfiguration(): IDisposable {
 	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
 }
 
+// #region User Data Sync Store
+
 export interface IUserData {
 	ref: string;
 	content: string | null;
 }
+
+export interface IUserDataSyncStore {
+	url: string;
+	authenticationProviderId: string;
+}
+
+export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
+	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
+	return value && value.url && value.authenticationProviderId ? value : undefined;
+}
+
+export type ResourceKey = 'settings' | 'keybindings' | 'extensions' | 'globalState';
+
+export interface IUserDataManifest {
+	settings: string;
+	keybindings: string;
+	extensions: string;
+	globalState: string;
+}
+
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	_serviceBrand: undefined;
+	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	read(key: ResourceKey, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData>;
+	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string>;
+	manifest(): Promise<IUserDataManifest | null>;
+	clear(): Promise<void>;
+}
+
+//#endregion
+
+// #region User Data Sync Error
 
 export enum UserDataSyncErrorCode {
 	Unauthorized = 'Unauthorized',
@@ -158,34 +193,9 @@ export class UserDataSyncError extends Error {
 
 export class UserDataSyncStoreError extends UserDataSyncError { }
 
-export interface IUserDataSyncStore {
-	url: string;
-	authenticationProviderId: string;
-}
+//#endregion
 
-export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
-	return value && value.url && value.authenticationProviderId ? value : undefined;
-}
-
-export type ResourceKey = 'settings' | 'keybindings' | 'extensions' | 'globalState';
-
-export interface IUserDataManifest {
-	settings: string;
-	keybindings: string;
-	extensions: string;
-	globalState: string;
-}
-
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService {
-	_serviceBrand: undefined;
-	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	read(key: ResourceKey, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData>;
-	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string>;
-	manifest(): Promise<IUserDataManifest | null>;
-	clear(): Promise<void>;
-}
+// #region User Data Synchroniser
 
 export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
@@ -232,6 +242,10 @@ export interface IUserDataSynchroniser {
 	getRemoteContent(preivew?: boolean): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
+
+//#endregion
+
+// #region User Data Sync Services
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
@@ -298,6 +312,8 @@ export interface ISettingsSyncService extends IUserDataSynchroniser {
 	readonly conflicts: IConflictSetting[];
 	resolveSettingsConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
 }
+
+//#endregion
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
