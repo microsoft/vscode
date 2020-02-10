@@ -1340,7 +1340,7 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	accessToken: string;
+	accessToken(): Promise<string>;
 	accountName: string;
 }
 

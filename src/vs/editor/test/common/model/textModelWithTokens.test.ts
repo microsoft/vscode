@@ -572,207 +572,178 @@ suite('TextModelWithTokens regression tests', () => {
 });
 
 suite('TextModel.getLineIndentGuide', () => {
-	function assertIndentGuides(lines: [number, string][]): void {
-		let text = lines.map(l => l[1]).join('\n');
+	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
+		let text = lines.map(l => l[4]).join('\n');
 		let model = TextModel.createFromString(text);
+		model.updateOptions({ tabSize: tabSize });
 
 		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
 
-		let actual: [number, string][] = [];
+		let actual: [number, number, number, number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
-			actual[line - 1] = [actualIndents[line - 1], model.getLineContent(line)];
+			const activeIndentGuide = model.getActiveIndentGuide(line, 1, model.getLineCount());
+			actual[line - 1] = [actualIndents[line - 1], activeIndentGuide.startLineNumber, activeIndentGuide.endLineNumber, activeIndentGuide.indent, model.getLineContent(line)];
 		}
 
 		assert.deepEqual(actual, lines);
 
-		// Also test getActiveIndentGuide
-		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-			let startLineNumber = lineNumber;
-			let endLineNumber = lineNumber;
-			let indent = actualIndents[lineNumber - 1];
-
-			if (indent !== 0) {
-				for (let i = lineNumber - 1; i >= 1; i--) {
-					const currIndent = actualIndents[i - 1];
-					if (currIndent >= indent) {
-						startLineNumber = i;
-					} else {
-						break;
-					}
-				}
-				for (let i = lineNumber + 1; i <= model.getLineCount(); i++) {
-					const currIndent = actualIndents[i - 1];
-					if (currIndent >= indent) {
-						endLineNumber = i;
-					} else {
-						break;
-					}
-				}
-			}
-
-			const expected = { startLineNumber, endLineNumber, indent };
-			const actual = model.getActiveIndentGuide(lineNumber, 1, model.getLineCount());
-
-			assert.deepEqual(actual, expected, `line number ${lineNumber}`);
-		}
-
 		model.dispose();
 	}
 
-	test('getLineIndentGuide one level', () => {
+	test('getLineIndentGuide one level 2', () => {
 		assertIndentGuides([
-			[0, 'A'],
-			[1, '  A'],
-			[1, '  A'],
-			[1, '  A'],
-		]);
+			[0, 2, 4, 1, 'A'],
+			[1, 2, 4, 1, '  A'],
+			[1, 2, 4, 1, '  A'],
+			[1, 2, 4, 1, '  A'],
+		], 2);
 	});
 
 	test('getLineIndentGuide two levels', () => {
 		assertIndentGuides([
-			[0, 'A'],
-			[1, '  A'],
-			[1, '  A'],
-			[1, '    A'],
-			[1, '    A'],
-		]);
+			[0, 2, 5, 1, 'A'],
+			[1, 2, 5, 1, '  A'],
+			[1, 4, 5, 2, '  A'],
+			[2, 4, 5, 2, '    A'],
+			[2, 4, 5, 2, '    A'],
+		], 2);
 	});
 
 	test('getLineIndentGuide three levels', () => {
 		assertIndentGuides([
-			[0, 'A'],
-			[1, '  A'],
-			[1, '    A'],
-			[2, '      A'],
-			[0, 'A'],
-		]);
+			[0, 2, 4, 1, 'A'],
+			[1, 3, 4, 2, '  A'],
+			[2, 4, 4, 3, '    A'],
+			[3, 4, 4, 3, '      A'],
+			[0, 5, 5, 0, 'A'],
+		], 2);
 	});
 
 	test('getLineIndentGuide decreasing indent', () => {
 		assertIndentGuides([
-			[1, '    A'],
-			[1, '  A'],
-			[0, 'A'],
-		]);
+			[2, 1, 1, 2, '    A'],
+			[1, 1, 1, 2, '  A'],
+			[0, 1, 2, 1, 'A'],
+		], 2);
 	});
 
 	test('getLineIndentGuide Java', () => {
 		assertIndentGuides([
-			/* 1*/[0, 'class A {'],
-			/* 2*/[1, '  void foo() {'],
-			/* 3*/[1, '    console.log(1);'],
-			/* 4*/[1, '    console.log(2);'],
-			/* 5*/[1, '  }'],
-			/* 6*/[1, ''],
-			/* 7*/[1, '  void bar() {'],
-			/* 8*/[1, '    console.log(3);'],
-			/* 9*/[1, '  }'],
-			/*10*/[0, '}'],
-			/*11*/[0, 'interface B {'],
-			/*12*/[1, '  void bar();'],
-			/*13*/[0, '}'],
-		]);
+			/* 1*/[0, 2, 9, 1, 'class A {'],
+			/* 2*/[1, 3, 4, 2, '  void foo() {'],
+			/* 3*/[2, 3, 4, 2, '    console.log(1);'],
+			/* 4*/[2, 3, 4, 2, '    console.log(2);'],
+			/* 5*/[1, 3, 4, 2, '  }'],
+			/* 6*/[1, 2, 9, 1, ''],
+			/* 7*/[1, 8, 8, 2, '  void bar() {'],
+			/* 8*/[2, 8, 8, 2, '    console.log(3);'],
+			/* 9*/[1, 8, 8, 2, '  }'],
+			/*10*/[0, 2, 9, 1, '}'],
+			/*11*/[0, 12, 12, 1, 'interface B {'],
+			/*12*/[1, 12, 12, 1, '  void bar();'],
+			/*13*/[0, 12, 12, 1, '}'],
+		], 2);
 	});
 
 	test('getLineIndentGuide Javadoc', () => {
 		assertIndentGuides([
-			[0, '/**'],
-			[1, ' * Comment'],
-			[1, ' */'],
-			[0, 'class A {'],
-			[1, '  void foo() {'],
-			[1, '  }'],
-			[0, '}'],
-		]);
+			[0, 2, 3, 1, '/**'],
+			[1, 2, 3, 1, ' * Comment'],
+			[1, 2, 3, 1, ' */'],
+			[0, 5, 6, 1, 'class A {'],
+			[1, 5, 6, 1, '  void foo() {'],
+			[1, 5, 6, 1, '  }'],
+			[0, 5, 6, 1, '}'],
+		], 2);
 	});
 
 	test('getLineIndentGuide Whitespace', () => {
 		assertIndentGuides([
-			[0, 'class A {'],
-			[1, ''],
-			[1, '  void foo() {'],
-			[1, '     '],
-			[2, '     return 1;'],
-			[1, '  }'],
-			[1, '      '],
-			[0, '}'],
-		]);
+			[0, 2, 7, 1, 'class A {'],
+			[1, 2, 7, 1, ''],
+			[1, 4, 5, 2, '  void foo() {'],
+			[2, 4, 5, 2, '    '],
+			[2, 4, 5, 2, '    return 1;'],
+			[1, 4, 5, 2, '  }'],
+			[1, 2, 7, 1, '      '],
+			[0, 2, 7, 1, '}']
+		], 2);
 	});
 
 	test('getLineIndentGuide Tabs', () => {
 		assertIndentGuides([
-			[0, 'class A {'],
-			[1, '\t\t'],
-			[1, '\tvoid foo() {'],
-			[2, '\t \t//hello'],
-			[2, '\t    return 2;'],
-			[1, '  \t}'],
-			[1, '      '],
-			[0, '}'],
-		]);
+			[0, 2, 7, 1, 'class A {'],
+			[1, 2, 7, 1, '\t\t'],
+			[1, 4, 5, 2, '\tvoid foo() {'],
+			[2, 4, 5, 2, '\t \t//hello'],
+			[2, 4, 5, 2, '\t    return 2;'],
+			[1, 4, 5, 2, '  \t}'],
+			[1, 2, 7, 1, '      '],
+			[0, 2, 7, 1, '}']
+		], 4);
 	});
 
 	test('getLineIndentGuide checker.ts', () => {
 		assertIndentGuides([
-			/* 1*/[0, '/// <reference path="binder.ts"/>'],
-			/* 2*/[0, ''],
-			/* 3*/[0, '/* @internal */'],
-			/* 4*/[0, 'namespace ts {'],
-			/* 5*/[1, '    let nextSymbolId = 1;'],
-			/* 6*/[1, '    let nextNodeId = 1;'],
-			/* 7*/[1, '    let nextMergeId = 1;'],
-			/* 8*/[1, '    let nextFlowId = 1;'],
-			/* 9*/[1, ''],
-			/*10*/[1, '    export function getNodeId(node: Node): number {'],
-			/*11*/[2, '        if (!node.id) {'],
-			/*12*/[3, '            node.id = nextNodeId;'],
-			/*13*/[3, '            nextNodeId++;'],
-			/*14*/[2, '        }'],
-			/*15*/[2, '        return node.id;'],
-			/*16*/[1, '    }'],
-			/*17*/[0, '}'],
-		]);
+			/* 1*/[0, 1, 1, 0, '/// <reference path="binder.ts"/>'],
+			/* 2*/[0, 2, 2, 0, ''],
+			/* 3*/[0, 3, 3, 0, '/* @internal */'],
+			/* 4*/[0, 5, 16, 1, 'namespace ts {'],
+			/* 5*/[1, 5, 16, 1, '    let nextSymbolId = 1;'],
+			/* 6*/[1, 5, 16, 1, '    let nextNodeId = 1;'],
+			/* 7*/[1, 5, 16, 1, '    let nextMergeId = 1;'],
+			/* 8*/[1, 5, 16, 1, '    let nextFlowId = 1;'],
+			/* 9*/[1, 5, 16, 1, ''],
+			/*10*/[1, 11, 15, 2, '    export function getNodeId(node: Node): number {'],
+			/*11*/[2, 12, 13, 3, '        if (!node.id) {'],
+			/*12*/[3, 12, 13, 3, '            node.id = nextNodeId;'],
+			/*13*/[3, 12, 13, 3, '            nextNodeId++;'],
+			/*14*/[2, 12, 13, 3, '        }'],
+			/*15*/[2, 11, 15, 2, '        return node.id;'],
+			/*16*/[1, 11, 15, 2, '    }'],
+			/*17*/[0, 5, 16, 1, '}']
+		], 4);
 	});
 
 	test('issue #8425 - Missing indentation lines for first level indentation', () => {
 		assertIndentGuides([
-			[1, '\tindent1'],
-			[2, '\t\tindent2'],
-			[2, '\t\tindent2'],
-			[1, '\tindent1'],
-		]);
+			[1, 2, 3, 2, '\tindent1'],
+			[2, 2, 3, 2, '\t\tindent2'],
+			[2, 2, 3, 2, '\t\tindent2'],
+			[1, 2, 3, 2, '\tindent1']
+		], 4);
 	});
 
 	test('issue #8952 - Indentation guide lines going through text on .yml file', () => {
 		assertIndentGuides([
-			[0, 'properties:'],
-			[1, '    emailAddress:'],
-			[2, '        - bla'],
-			[2, '        - length:'],
-			[3, '            max: 255'],
-			[0, 'getters:'],
-		]);
+			[0, 2, 5, 1, 'properties:'],
+			[1, 3, 5, 2, '    emailAddress:'],
+			[2, 3, 5, 2, '        - bla'],
+			[2, 5, 5, 3, '        - length:'],
+			[3, 5, 5, 3, '            max: 255'],
+			[0, 6, 6, 0, 'getters:']
+		], 4);
 	});
 
 	test('issue #11892 - Indent guides look funny', () => {
 		assertIndentGuides([
-			[0, 'function test(base) {'],
-			[1, '\tswitch (base) {'],
-			[2, '\t\tcase 1:'],
-			[3, '\t\t\treturn 1;'],
-			[2, '\t\tcase 2:'],
-			[3, '\t\t\treturn 2;'],
-			[1, '\t}'],
-			[0, '}'],
-		]);
+			[0, 2, 7, 1, 'function test(base) {'],
+			[1, 3, 6, 2, '\tswitch (base) {'],
+			[2, 4, 4, 3, '\t\tcase 1:'],
+			[3, 4, 4, 3, '\t\t\treturn 1;'],
+			[2, 6, 6, 3, '\t\tcase 2:'],
+			[3, 6, 6, 3, '\t\t\treturn 2;'],
+			[1, 2, 7, 1, '\t}'],
+			[0, 2, 7, 1, '}']
+		], 4);
 	});
 
 	test('issue #12398 - Problem in indent guidelines', () => {
 		assertIndentGuides([
-			[2, '\t\t.bla'],
-			[3, '\t\t\tlabel(for)'],
-			[0, 'include script'],
-		]);
+			[2, 2, 2, 3, '\t\t.bla'],
+			[3, 2, 2, 3, '\t\t\tlabel(for)'],
+			[0, 3, 3, 0, 'include script']
+		], 4);
 	});
 
 	test('issue #49173', () => {
@@ -794,5 +765,37 @@ suite('TextModel.getLineIndentGuide', () => {
 		const actual = model.getActiveIndentGuide(2, 4, 9);
 		assert.deepEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
+	});
+
+	test('tweaks - no active', () => {
+		assertIndentGuides([
+			[0, 1, 1, 0, 'A'],
+			[0, 2, 2, 0, 'A']
+		], 2);
+	});
+
+	test('tweaks - inside scope', () => {
+		assertIndentGuides([
+			[0, 2, 2, 1, 'A'],
+			[1, 2, 2, 1, '  A']
+		], 2);
+	});
+
+	test('tweaks - scope start', () => {
+		assertIndentGuides([
+			[0, 2, 2, 1, 'A'],
+			[1, 2, 2, 1, '  A'],
+			[0, 2, 2, 1, 'A']
+		], 2);
+	});
+
+	test('tweaks - empty line', () => {
+		assertIndentGuides([
+			[0, 2, 4, 1, 'A'],
+			[1, 2, 4, 1, '  A'],
+			[1, 2, 4, 1, ''],
+			[1, 2, 4, 1, '  A'],
+			[0, 2, 4, 1, 'A']
+		], 2);
 	});
 });

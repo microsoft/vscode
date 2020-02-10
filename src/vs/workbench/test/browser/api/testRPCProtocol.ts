@@ -79,12 +79,13 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
 	private _createProxy<T>(proxyId: string): T {
 		let handler = {
-			get: (target: any, name: string) => {
-				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
+			get: (target: any, name: PropertyKey) => {
+				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
 						return this._remoteCall(proxyId, name, myArgs);
 					};
 				}
+
 				return target[name];
 			}
 		};

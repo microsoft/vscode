@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/bulkEdit';
+import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
@@ -196,6 +196,10 @@ export class BulkEditPane extends ViewPane {
 		});
 	}
 
+	hasInput(): boolean {
+		return Boolean(this._currentInput);
+	}
+
 	private async _setTreeInput(input: BulkFileOperations) {
 
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
@@ -243,6 +247,15 @@ export class BulkEditPane extends ViewPane {
 		this._done(false);
 	}
 
+	private _done(accept: boolean): void {
+		if (this._currentResolve) {
+			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
+		}
+		this._currentInput = undefined;
+		this._setState(State.Message);
+		this._sessionDisposables.clear();
+	}
+
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
@@ -278,15 +291,6 @@ export class BulkEditPane extends ViewPane {
 			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
-	}
-
-	private _done(accept: boolean): void {
-		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
-			this._currentInput = undefined;
-		}
-		this._setState(State.Message);
-		this._sessionDisposables.clear();
 	}
 
 	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | null>): Promise<void> {

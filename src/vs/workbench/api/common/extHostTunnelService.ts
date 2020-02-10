@@ -33,7 +33,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	readonly _serviceBrand: undefined;
 	openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
 	getTunnels(): Promise<vscode.TunnelDescription[]>;
-	onDidTunnelsChange: vscode.Event<void>;
+	onDidChangeTunnels: vscode.Event<void>;
 	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
 }
 
@@ -41,7 +41,7 @@ export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IEx
 
 export class ExtHostTunnelService implements IExtHostTunnelService {
 	_serviceBrand: undefined;
-	onDidTunnelsChange: vscode.Event<void> = (new Emitter<void>()).event;
+	onDidChangeTunnels: vscode.Event<void> = (new Emitter<void>()).event;
 
 	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		return undefined;

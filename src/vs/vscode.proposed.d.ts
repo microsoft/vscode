@@ -20,7 +20,7 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		id: string;
-		accessToken: string;
+		accessToken(): Promise<string>;
 		accountName: string;
 		scopes: string[]
 	}
@@ -170,10 +170,15 @@ declare module 'vscode' {
 
 		/**
 		 * Fired when the list of tunnels has changed.
+		 * @deprecated use onDidChangeTunnels instead
 		 */
 		// TODO@alexr
 		// eslint-disable-next-line vscode-dts-event-naming
 		export const onDidTunnelsChange: Event<void>;
+		/**
+		 * Fired when the list of tunnels has changed.
+		 */
+		export const onDidChangeTunnels: Event<void>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -1459,10 +1464,31 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/77728
 
+	/**
+	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
+	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
+	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
+	 */
 	export interface WorkspaceEditMetadata {
+
+		/**
+		 * A flag which indicates that user confirmation is needed.
+		 */
 		needsConfirmation: boolean;
+
+		/**
+		 * A human-readable string which is rendered prominent.
+		 */
 		label: string;
+
+		/**
+		 * A human-readable string which is rendered less prominent in the same line.
+		 */
 		description?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
+		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
@@ -1620,6 +1646,21 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
+	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/90208
+
+	export interface ExtensionContext {
+		/**
+		 * Get the uri of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The uri of the resource.
+		 */
+		asExtensionUri(relativePath: string): Uri;
 	}
 
 	//#endregion

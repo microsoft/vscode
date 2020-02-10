@@ -154,6 +154,7 @@ suite('Decoration Render Options', () => {
 				sheet.indexOf('background: url(\'file:///c%3A/files/miles/more.png\') center center no-repeat;') > 0
 				|| sheet.indexOf('background: url("file:///c%3A/files/miles/more.png") center center no-repeat;') > 0
 				|| sheet.indexOf('background: url("file:///c:/files/miles/more.png") center center no-repeat;') > 0
+				|| sheet.indexOf('background-image: url("file:///c:/files/miles/more.png"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
 			);
 			s.removeDecorationType('example');
 		}

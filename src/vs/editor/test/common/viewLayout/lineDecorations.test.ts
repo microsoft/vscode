@@ -27,13 +27,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
 		let result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(15, 21, 'vs-whitespace', InlineDecorationType.Regular),
+			new LineDecoration(15, 21, 'mtkw', InlineDecorationType.Regular),
 			new LineDecoration(20, 21, 'inline-folded', InlineDecorationType.Regular),
 		]);
 
 		assert.deepEqual(result, [
-			new DecorationSegment(14, 18, 'vs-whitespace'),
-			new DecorationSegment(19, 19, 'vs-whitespace inline-folded')
+			new DecorationSegment(14, 18, 'mtkw'),
+			new DecorationSegment(19, 19, 'mtkw inline-folded')
 		]);
 	});
 

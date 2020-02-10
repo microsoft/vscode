@@ -74,7 +74,10 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
+			if (endsWith(resource.path, '.code-search')) {
+				this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
+			}
+
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: resource });
 			const opened = editorService.openEditor(input, { ...options, pinned: resource.scheme === SearchEditorConstants.SearchEditorScheme, ignoreOverrides: true }, group);
 			return { override: Promise.resolve(opened) };
@@ -171,11 +174,11 @@ registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
 		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
 		ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey, SearchEditorConstants.EnableSearchEditorPreview)),
-	'Search: Open Results in Editor', category,
+	'Search Editor: Open Results in Editor', category,
 	ContextKeyExpr.and(SearchEditorConstants.EnableSearchEditorPreview));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
-	'Search: Open New Search Editor', category,
+	'Search Editor: Open New Search Editor', category,
 	ContextKeyExpr.and(SearchEditorConstants.EnableSearchEditorPreview));
 //#endregion
