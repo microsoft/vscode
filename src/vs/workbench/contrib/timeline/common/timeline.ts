@@ -46,8 +46,7 @@ export interface TimelineProvider extends TimelineProviderDescriptor, IDisposabl
 export interface TimelineProviderDescriptor {
 	id: string;
 	label: string;
-
-	// selector: DocumentSelector;
+	scheme: string | string[];
 }
 
 export interface TimelineProvidersChangeEvent {

@@ -1641,11 +1641,11 @@ declare module 'vscode' {
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
 		 * not cause a failure of the whole operation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
 		 * @param provider A timeline provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
-		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
+		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
 	}
 
 	//#endregion
