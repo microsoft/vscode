@@ -106,6 +106,8 @@ export abstract class ViewPane extends Pane implements IView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@IThemeService protected themeService: IThemeService,
 	) {
 		super(options);
 
@@ -322,21 +324,16 @@ export abstract class ViewPane extends Pane implements IView {
 					if (typeof node === 'string') {
 						append(p, document.createTextNode(node));
 					} else if (linkedText.length === 1) {
-						this.instantiationService.invokeFunction(a => {
-							const openerService = a.get(IOpenerService);
-							const button = new Button(p, { title: node.title });
-							button.label = node.label;
-							button.onDidClick(_ => openerService.open(node.href), null, disposables);
-							disposables.add(button);
-							disposables.add(attachButtonStyler(button, a.get(IThemeService)));
-						});
+						const button = new Button(p, { title: node.title });
+						button.label = node.label;
+						button.onDidClick(_ => this.openerService.open(node.href), null, disposables);
+						disposables.add(button);
+						disposables.add(attachButtonStyler(button, this.themeService));
 					} else {
-						this.instantiationService.invokeFunction(a => {
-							const link = a.get(IInstantiationService).createInstance(Link, node);
-							append(p, link.el);
-							disposables.add(link);
-							disposables.add(attachLinkStyler(link, a.get(IThemeService)));
-						});
+						const link = this.instantiationService.createInstance(Link, node);
+						append(p, link.el);
+						disposables.add(link);
+						disposables.add(attachLinkStyler(link, this.themeService));
 					}
 				}
 			}
