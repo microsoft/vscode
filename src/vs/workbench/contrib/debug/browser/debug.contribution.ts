@@ -70,7 +70,7 @@ class OpenDebugViewletAction extends ShowViewletAction {
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	name: nls.localize('runAndDebug', "Run and Debug"),
+	name: nls.localize('run', "Run"),
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
 	icon: 'codicon-debug-alt',
 	order: 3
@@ -345,7 +345,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '3_views',
 	command: {
 		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")
+		title: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
 	},
 	order: 4
 });
