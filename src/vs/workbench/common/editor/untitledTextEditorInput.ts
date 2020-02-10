@@ -53,6 +53,10 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 		}
 	}
 
+	get model(): UntitledTextEditorModel | undefined {
+		return this.cachedModel;
+	}
+
 	get hasAssociatedFilePath(): boolean {
 		return this._hasAssociatedFilePath;
 	}

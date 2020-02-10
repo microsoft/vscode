@@ -21,7 +21,13 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
-export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
+export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
+
+	/**
+	 * Wether this untitled text model has an associated file path.
+	 */
+	readonly hasAssociatedFilePath: boolean;
+}
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 

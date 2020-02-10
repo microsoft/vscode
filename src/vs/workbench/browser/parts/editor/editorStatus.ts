@@ -1010,7 +1010,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 

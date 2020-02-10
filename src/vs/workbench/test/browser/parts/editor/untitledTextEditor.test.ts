@@ -50,17 +50,17 @@ suite('Untitled text editors', () => {
 		const input1 = service.create();
 		await input1.resolve();
 		assert.equal(input1, service.create({ untitledResource: input1.getResource() }));
-		assert.equal(service.get(input1.getResource()), input1);
+		assert.equal(service.get(input1.getResource()), input1.model);
 
-		assert.ok(service.exists(input1.getResource()));
-		assert.ok(!service.exists(URI.file('testing')));
+		assert.ok(service.get(input1.getResource()));
+		assert.ok(!service.get(URI.file('testing')));
 
 		const input2 = service.create();
-		assert.equal(service.get(input2.getResource()), input2);
+		assert.equal(service.get(input2.getResource()), input2.model);
 
 		// get()
-		assert.equal(service.get(input1.getResource()), input1);
-		assert.equal(service.get(input2.getResource()), input2);
+		assert.equal(service.get(input1.getResource()), input1.model);
+		assert.equal(service.get(input2.getResource()), input2.model);
 
 		// revert()
 		await input1.revert(0);
@@ -70,7 +70,7 @@ suite('Untitled text editors', () => {
 		// dirty
 		const model = await input2.resolve();
 		assert.equal(await service.resolve({ untitledResource: input2.getResource() }), model);
-		assert.ok(service.exists(model.resource));
+		assert.ok(service.get(model.resource));
 
 		assert.ok(!input2.isDirty());
 
@@ -99,10 +99,10 @@ suite('Untitled text editors', () => {
 
 		assert.equal(await input1.revert(0), false);
 		assert.ok(input1.isDisposed());
-		assert.ok(!service.exists(input1.getResource()));
+		assert.ok(!service.get(input1.getResource()));
 
 		input2.dispose();
-		assert.ok(!service.exists(input2.getResource()));
+		assert.ok(!service.get(input2.getResource()));
 	});
 
 	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
@@ -120,7 +120,7 @@ suite('Untitled text editors', () => {
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const untitled = service.create({ associatedResource: file });
 
-		assert.ok(service.hasAssociatedFilePath(untitled.getResource()));
+		assert.ok(untitled.hasAssociatedFilePath);
 		assert.equal(untitled.isDirty(), true);
 
 		untitled.dispose();
@@ -165,7 +165,7 @@ suite('Untitled text editors', () => {
 
 		const file = URI.file(join('C:\\', '/foo/file44.txt'));
 		const model4 = await service.create({ associatedResource: file }).resolve();
-		assert.ok(service.hasAssociatedFilePath(model4.resource));
+		assert.ok(model4.hasAssociatedFilePath);
 		assert.ok(model4.isDirty());
 
 		model1.dispose();

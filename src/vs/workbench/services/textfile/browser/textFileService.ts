@@ -570,9 +570,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Untitled without associated file path
 				const mode = model.getMode();
 				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					suggestedFilename = suggestFilename(mode, model.getName());
+					suggestedFilename = suggestFilename(mode, model.name);
 				} else {
-					suggestedFilename = model.getName();
+					suggestedFilename = model.name;
 				}
 			}
 		}
@@ -595,7 +595,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.exists(resource) ? await this.untitled.resolve({ untitledResource: resource }) : undefined;
+			const model = this.untitled.get(resource);
 			if (model) {
 				return model.revert(options);
 			}
