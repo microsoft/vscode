@@ -180,7 +180,9 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	async stop(): Promise<void> {
 		this.cancel();
 		this.logService.trace(`${this.source}: Stopped synchronizing ${this.source.toLowerCase()}.`);
-		await this.fileService.del(this.conflictsPreviewResource);
+		try {
+			await this.fileService.del(this.conflictsPreviewResource);
+		} catch (e) { /* ignore */ }
 		this.setStatus(SyncStatus.Idle);
 	}
 
