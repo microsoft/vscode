@@ -41,6 +41,7 @@ import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addon
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IViewsService } from 'vs/workbench/common/views';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -282,7 +283,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IPanelService private readonly _panelService: IPanelService,
+		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -963,8 +964,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _refreshSelectionContextKey() {
-		const activePanel = this._panelService.getActivePanel();
-		const isActive = !!activePanel && activePanel.getId() === TERMINAL_VIEW_ID;
+		const isActive = !!this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 

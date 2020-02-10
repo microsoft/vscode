@@ -289,7 +289,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return false;
 		}
 		const activeTerminalInstance = this.terminalService.getActiveInstance();
-		const isPanelShowingTerminal = this.panelService.getActivePanel()?.getId() === TERMINAL_VIEW_ID;
+		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		return isPanelShowingTerminal && (activeTerminalInstance?.id === terminalData.terminal.id);
 	}
 
