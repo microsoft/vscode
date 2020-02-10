@@ -92,6 +92,7 @@ export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.Te
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
 export import TestStorageService = CommonWorkbenchTestServices.TestStorageService;
 export import TestWorkingCopyService = CommonWorkbenchTestServices.TestWorkingCopyService;
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -118,7 +119,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IRemotePathService remotePathService: IRemotePathService
 	) {
 		super(
 			fileService,
@@ -133,7 +135,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			notificationService
+			notificationService,
+			remotePathService
 		);
 	}
 

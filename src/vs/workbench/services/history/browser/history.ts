@@ -273,7 +273,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const input = arg1 as IResourceInput;
 
-		this.workspacesService.removeFromRecentlyOpened([input.resource]);
+		this.workspacesService.removeRecentlyOpened([input.resource]);
 	}
 
 	clear(): void {

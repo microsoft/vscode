@@ -518,7 +518,7 @@ export class DebugService implements IDebugService {
 		try {
 			await session.initialize(dbgr!);
 			await session.launchOrAttach(session.configuration);
-			if (forceFocus || !this.viewModel.focusedSession) {
+			if (forceFocus || !this.viewModel.focusedSession || session.parentSession === this.viewModel.focusedSession) {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {
@@ -912,7 +912,13 @@ export class DebugService implements IDebugService {
 	private sendExceptionBreakpoints(session?: IDebugSession): Promise<void> {
 		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
 
-		return sendToOneOrAllSessions(this.model, session, s => s.sendExceptionBreakpoints(enabledExceptionBps));
+		return sendToOneOrAllSessions(this.model, session, async s => {
+			if (s.capabilities.supportsConfigurationDoneRequest && (!s.capabilities.exceptionBreakpointFilters || s.capabilities.exceptionBreakpointFilters.length === 0)) {
+				// Only call `setExceptionBreakpoints` as specified in dap protocol #90001
+				return;
+			}
+			await s.sendExceptionBreakpoints(enabledExceptionBps);
+		});
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

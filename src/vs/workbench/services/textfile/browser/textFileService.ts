@@ -13,7 +13,7 @@ import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMet
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
+import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -35,6 +35,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { suggestFilename } from 'vs/base/common/mime';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -84,7 +85,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService
 	) {
 		super();
 
@@ -320,12 +322,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Untitled with associated file path don't need to prompt
 				if (model.hasAssociatedFilePath) {
-					targetUri = this.suggestSavePath(resource);
+					targetUri = await this.suggestSavePath(resource);
 				}
 
 				// Otherwise ask user
 				else {
-					targetUri = await this.fileDialogService.pickFileToSave(this.suggestSavePath(resource), options?.availableFileSystems);
+					targetUri = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(resource), options?.availableFileSystems);
 				}
 
 				// Save as if target provided
@@ -366,7 +368,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Get to target resource
 		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(this.suggestSavePath(source), options?.availableFileSystems);
+			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(source), options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -545,7 +547,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
-	private suggestSavePath(resource: URI): URI {
+	private async suggestSavePath(resource: URI): Promise<URI> {
 
 		// Just take the resource as is if the file service can handle it
 		if (this.fileService.canHandleResource(resource)) {
@@ -568,9 +570,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Untitled without associated file path
 				const mode = model.getMode();
 				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					suggestedFilename = suggestFilename(mode, model.getName());
+					suggestedFilename = suggestFilename(mode, model.name);
 				} else {
-					suggestedFilename = model.getName();
+					suggestedFilename = model.name;
 				}
 			}
 		}
@@ -581,13 +583,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Try to place where last active file was if any
-		const defaultFilePath = this.fileDialogService.defaultFilePath();
-		if (defaultFilePath) {
-			return joinPath(defaultFilePath, suggestedFilename);
-		}
-
-		// Finally fallback to suggest just the file name
-		return toLocalResource(resource.with({ path: suggestedFilename }), remoteAuthority);
+		// Otherwise fallback to user home
+		return joinPath(this.fileDialogService.defaultFilePath() || (await this.remotePathService.userHome), suggestedFilename);
 	}
 
 	//#endregion
@@ -598,7 +595,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.exists(resource) ? await this.untitled.resolve({ untitledResource: resource }) : undefined;
+			const model = this.untitled.get(resource);
 			if (model) {
 				return model.revert(options);
 			}

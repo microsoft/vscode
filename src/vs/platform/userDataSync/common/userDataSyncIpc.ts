@@ -17,6 +17,7 @@ export class UserDataSyncChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
+			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -24,21 +25,15 @@ export class UserDataSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
+			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflictsSources]);
 			case 'sync': return this.service.sync();
-			case 'resolveConflictsAndContinueSync': return this.service.resolveConflictsAndContinueSync(args[0], args[1]);
+			case 'accept': return this.service.accept(args[0], args[1]);
 			case 'pull': return this.service.pull();
-			case 'push': return this.service.push();
-			case '_getInitialStatus': return Promise.resolve(this.service.status);
-			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
 			case 'stop': this.service.stop(); return Promise.resolve();
-			case 'restart': return this.service.restart().then(() => this.service.status);
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemoteData': return this.service.hasRemoteData();
-			case 'hasLocalData': return this.service.hasLocalData();
-			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
-			case 'isFirstTimeSyncAndHasUserData': return this.service.isFirstTimeSyncAndHasUserData();
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
+			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
 		}
 		throw new Error('Invalid call');
 	}
@@ -60,19 +55,17 @@ export class SettingsSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'sync': return this.service.sync();
-			case 'resolveConflicts': return this.service.resolveConflicts(args[0], args[1]);
+			case 'accept': return this.service.accept(args[0]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
-			case 'restart': return this.service.restart().then(() => this.service.status);
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemoteData': return this.service.hasRemoteData();
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
-			case 'getRemoteContent': return this.service.getRemoteContent();
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
 		}
 		throw new Error('Invalid call');
 	}

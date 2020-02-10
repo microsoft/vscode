@@ -3,39 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource, IUserData, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { parse, ParseError } from 'vs/base/common/json';
+import { parse } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { updateIgnoredSettings, merge, getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { isEmptyObject } from 'vs/base/common/types';
 import { edit } from 'vs/platform/userDataSync/common/content';
-import { AbstractFileSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { URI } from 'vs/base/common/uri';
 
-interface ISyncPreviewResult {
-	readonly fileContent: IFileContent | null;
-	readonly remoteUserData: IUserData;
-	readonly lastSyncUserData: IUserData | null;
-	readonly localContent: string | null;
-	readonly remoteContent: string | null;
-	readonly hasConflicts: boolean;
-	readonly conflictSettings: IConflictSetting[];
-}
-
-export class SettingsSynchroniser extends AbstractFileSynchroniser implements ISettingsSyncService {
+export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implements ISettingsSyncService {
 
 	_serviceBrand: any;
 
-	private syncPreviewResultPromise: CancelablePromise<ISyncPreviewResult> | null = null;
+	readonly resourceKey: ResourceKey = 'settings';
+	protected get conflictsPreviewResource(): URI { return this.environmentService.settingsSyncPreviewResource; }
+	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableSettings') === true; }
 
 	private _conflicts: IConflictSetting[] = [];
 	get conflicts(): IConflictSetting[] { return this._conflicts; }
@@ -46,14 +39,13 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.settingsResource, SyncSource.Settings, fileService, environmentService, userDataSyncStoreService);
+		super(environmentService.settingsResource, SyncSource.Settings, fileService, environmentService, userDataSyncStoreService, telemetryService, logService, userDataSyncUtilService);
 	}
-
-	protected getRemoteDataResourceKey(): string { return 'settings'; }
 
 	protected setStatus(status: SyncStatus): void {
 		super.setStatus(status);
@@ -72,7 +64,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 	}
 
 	async pull(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableSettings')) {
+		if (!this.enabled) {
 			this.logService.info('Settings: Skipped pulling settings as it is disabled.');
 			return;
 		}
@@ -89,18 +81,16 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 			if (remoteUserData.content !== null) {
 				const fileContent = await this.getLocalFileContent();
 				const formatUtils = await this.getFormattingOptions();
-				// Update ignored settings
-				const localContent = updateIgnoredSettings(remoteUserData.content, fileContent ? fileContent.value.toString() : '{}', getIgnoredSettings(this.configurationService), formatUtils);
-				await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(localContent));
-
-				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISyncPreviewResult>({
-					hasConflicts: false,
-					conflictSettings: [],
+				// Update ignored settings from local file content
+				const content = updateIgnoredSettings(remoteUserData.content, fileContent ? fileContent.value.toString() : '{}', getIgnoredSettings(this.configurationService), formatUtils);
+				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<IFileSyncPreviewResult>({
 					fileContent,
-					localContent,
-					remoteContent: null,
 					remoteUserData,
 					lastSyncUserData,
+					content,
+					hasLocalChanged: true,
+					hasRemoteChanged: false,
+					hasConflicts: false,
 				}));
 
 				await this.apply();
@@ -118,7 +108,7 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 	}
 
 	async push(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableSettings')) {
+		if (!this.enabled) {
 			this.logService.info('Settings: Skipped pushing settings as it is disabled.');
 			return;
 		}
@@ -135,21 +125,20 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 				const formatUtils = await this.getFormattingOptions();
 				// Remove ignored settings
 				const content = updateIgnoredSettings(fileContent.value.toString(), '{}', getIgnoredSettings(this.configurationService), formatUtils);
-				await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(content));
 				const lastSyncUserData = await this.getLastSyncUserData();
 				const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 
-				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISyncPreviewResult>({
-					conflictSettings: [],
-					hasConflicts: false,
+				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<IFileSyncPreviewResult>({
 					fileContent,
-					localContent: null,
-					remoteContent: content,
 					remoteUserData,
 					lastSyncUserData,
+					content,
+					hasRemoteChanged: true,
+					hasLocalChanged: false,
+					hasConflicts: false,
 				}));
 
-				await this.apply(undefined, true);
+				await this.apply(true);
 			}
 
 			// No local exists to push
@@ -161,32 +150,6 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
-	}
-
-	async sync(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableSettings')) {
-			this.logService.trace('Settings: Skipping synchronizing settings as it is disabled.');
-			return;
-		}
-
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Settings: Skipping synchronizing settings as it is running already.');
-			return;
-		}
-
-		this.logService.trace('Settings: Started synchronizing settings...');
-		this.setStatus(SyncStatus.Syncing);
-		return this.doSync([]);
-	}
-
-	async stop(): Promise<void> {
-		if (this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise.cancel();
-			this.syncPreviewResultPromise = null;
-			this.logService.trace('Settings: Stopped synchronizing settings.');
-		}
-		await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
-		this.setStatus(SyncStatus.Idle);
 	}
 
 	async hasLocalData(): Promise<boolean> {
@@ -208,60 +171,40 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		return false;
 	}
 
-	async getRemoteContent(): Promise<string | null> {
-		let content: string | null | undefined = null;
-		if (this.syncPreviewResultPromise) {
-			const preview = await this.syncPreviewResultPromise;
-			content = preview.remoteUserData?.content;
-		} else {
-			const lastSyncData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncData);
-			content = remoteUserData.content;
+	async getRemoteContent(preview?: boolean): Promise<string | null> {
+		let content = await super.getRemoteContent(preview);
+		if (preview && content !== null) {
+			const formatUtils = await this.getFormattingOptions();
+			// remove ignored settings from the remote content for preview
+			content = updateIgnoredSettings(content, '{}', getIgnoredSettings(this.configurationService), formatUtils);
 		}
-		return content !== undefined ? content : null;
+		return content;
 	}
 
-	async restart(): Promise<void> {
+	async accept(content: string): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
-			this.syncPreviewResultPromise!.cancel();
-			this.syncPreviewResultPromise = null;
-			await this.doSync([]);
-		}
-	}
-
-	async resolveConflicts(content: string, remote: boolean): Promise<void> {
-		if (this.status === SyncStatus.HasConflicts) {
-			try {
-				if (remote) {
-					const { fileContent } = await this.syncPreviewResultPromise!;
-					const formatUtils = await this.getFormattingOptions();
-					// Update ignored settings
-					content = updateIgnoredSettings(content, fileContent ? fileContent.value.toString() : '{}', getIgnoredSettings(this.configurationService), formatUtils);
-				}
-				await this.apply(content, true);
-				this.setStatus(SyncStatus.Idle);
-			} catch (e) {
-				this.logService.error(e);
-				if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
-					(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-					throw new Error('New local version available.');
-				}
-				throw e;
-			}
+			const preview = await this.syncPreviewResultPromise!;
+			this.cancel();
+			const formatUtils = await this.getFormattingOptions();
+			// Add ignored settings from local file content
+			content = updateIgnoredSettings(content, preview.fileContent ? preview.fileContent.value.toString() : '{}', getIgnoredSettings(this.configurationService), formatUtils);
+			this.syncPreviewResultPromise = createCancelablePromise(async () => ({ ...preview, content }));
+			await this.apply(true);
+			this.setStatus(SyncStatus.Idle);
 		}
 	}
 
 	async resolveSettingsConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
-			this.syncPreviewResultPromise!.cancel();
-			this.syncPreviewResultPromise = null;
-			await this.doSync(resolvedConflicts);
+			const preview = await this.syncPreviewResultPromise!;
+			this.cancel();
+			await this.doSync(preview.remoteUserData, preview.lastSyncUserData, resolvedConflicts);
 		}
 	}
 
-	private async doSync(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
+	protected async doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null, resolvedConflicts: { key: string, value: any | undefined }[] = []): Promise<void> {
 		try {
-			const result = await this.getPreview(resolvedConflicts);
+			const result = await this.getPreview(remoteUserData, lastSyncUserData, resolvedConflicts);
 			if (result.hasConflicts) {
 				this.logService.info('Settings: Detected conflicts while synchronizing settings.');
 				this.setStatus(SyncStatus.HasConflicts);
@@ -276,36 +219,30 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Settings: Failed to synchronise settings as there is a new remote version available. Synchronizing again...');
-				return this.sync();
-			}
-			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
-				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-				// Rejected as there is a new local version. Syncing again.
-				this.logService.info('Settings: Failed to synchronise settings as there is a new local version available. Synchronizing again...');
-				return this.sync();
+			if (e instanceof UserDataSyncError) {
+				switch (e.code) {
+					case UserDataSyncErrorCode.Rejected:
+						// Rejected as there is a new remote version. Syncing again,
+						this.logService.info('Settings: Failed to synchronize settings as there is a new remote version available. Synchronizing again...');
+						return this.sync();
+					case UserDataSyncErrorCode.NewLocal:
+						// Rejected as there is a new local version. Syncing again.
+						this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
+						return this.sync(remoteUserData.ref);
+				}
 			}
 			throw e;
 		}
 	}
 
-	private async apply(content?: string, forcePush?: boolean): Promise<void> {
+	private async apply(forcePush?: boolean): Promise<void> {
 		if (!this.syncPreviewResultPromise) {
 			return;
 		}
 
-		let { fileContent, remoteUserData, lastSyncUserData, localContent, remoteContent } = await this.syncPreviewResultPromise;
+		let { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
 
-		if (content === undefined) {
-			if (await this.fileService.exists(this.environmentService.settingsSyncPreviewResource)) {
-				const settingsPreivew = await this.fileService.readFile(this.environmentService.settingsSyncPreviewResource);
-				content = settingsPreivew.value.toString();
-			}
-		}
-
-		if (content !== undefined) {
+		if (content !== null) {
 
 			if (this.hasErrors(content)) {
 				const error = new Error(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
@@ -313,18 +250,18 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 				throw error;
 			}
 
-			if (localContent === null && remoteContent === null) {
-				this.logService.trace('Settings: No changes found during synchronizing settings.');
-			}
-			if (localContent !== null) {
-				this.logService.info('Settings: Updating local settings');
+			if (hasLocalChanged) {
+				this.logService.trace('Settings: Updating local settings...');
 				await this.updateLocalFileContent(content, fileContent);
+				this.logService.info('Settings: Updated local settings');
 			}
-			if (remoteContent !== null) {
+			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
+				// Update ignored settings from remote
 				content = updateIgnoredSettings(content, remoteUserData.content || '{}', getIgnoredSettings(this.configurationService, content), formatUtils);
-				this.logService.info('Settings: Updating remote settings');
+				this.logService.trace('Settings: Updating remote settings...');
 				const ref = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+				this.logService.info('Settings: Updated remote settings');
 				remoteUserData = { ref, content };
 			}
 
@@ -335,78 +272,65 @@ export class SettingsSynchroniser extends AbstractFileSynchroniser implements IS
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			this.logService.info('Settings: Updating last synchronised settings');
+			this.logService.trace('Settings: Updating last synchronized settings...');
 			await this.updateLastSyncUserData(remoteUserData);
+			this.logService.info('Settings: Updated last synchronized settings');
 		}
 
 		this.syncPreviewResultPromise = null;
 	}
 
-	private hasErrors(content: string): boolean {
-		const parseErrors: ParseError[] = [];
-		parse(content, parseErrors, { allowEmptyContent: true, allowTrailingComma: true });
-		return parseErrors.length > 0;
-	}
-
-	private getPreview(resolvedConflicts: { key: string, value: any }[]): Promise<ISyncPreviewResult> {
+	private getPreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null, resolvedConflicts: { key: string, value: any }[]): Promise<IFileSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(resolvedConflicts, token));
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, resolvedConflicts, token));
 		}
 		return this.syncPreviewResultPromise;
 	}
 
-	private async generatePreview(resolvedConflicts: { key: string, value: any }[], token: CancellationToken): Promise<ISyncPreviewResult> {
-		const lastSyncUserData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-		// Get file content last to get the latest
+	protected async generatePreview(remoteUserData: IUserData, lastSyncUserData: IUserData | null, resolvedConflicts: { key: string, value: any }[], token: CancellationToken): Promise<IFileSyncPreviewResult> {
 		const fileContent = await this.getLocalFileContent();
-		let localContent: string | null = null;
-		let remoteContent: string | null = null;
+		const formattingOptions = await this.getFormattingOptions();
+
+		let content: string | null = null;
+		let hasLocalChanged: boolean = false;
+		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
 		let conflictSettings: IConflictSetting[] = [];
-		let previewContent: string | null = null;
 
 		if (remoteUserData.content) {
-			const content: string = fileContent ? fileContent.value.toString() : '{}';
+			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
 
 			// No action when there are errors
-			if (this.hasErrors(content)) {
+			if (this.hasErrors(localContent)) {
 				this.logService.error('Settings: Unable to sync settings as there are errors/warning in settings file.');
 			}
 
 			else {
 				this.logService.trace('Settings: Merging remote settings with local settings...');
-				const formatUtils = await this.getFormattingOptions();
-				const result = merge(content, remoteUserData.content, lastSyncUserData ? lastSyncUserData.content : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formatUtils);
+				const result = merge(localContent, remoteUserData.content, lastSyncUserData ? lastSyncUserData.content : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formattingOptions);
+				content = result.localContent || result.remoteContent;
+				hasLocalChanged = result.localContent !== null;
+				hasRemoteChanged = result.remoteContent !== null;
 				hasConflicts = result.hasConflicts;
 				conflictSettings = result.conflictsSettings;
-				localContent = result.localContent;
-				remoteContent = result.remoteContent;
-				previewContent = result.localContent || result.remoteContent;
 			}
 		}
 
 		// First time syncing to remote
 		else if (fileContent) {
 			this.logService.trace('Settings: Remote settings does not exist. Synchronizing settings for the first time.');
-			previewContent = fileContent.value.toString();
-			remoteContent = fileContent.value.toString();
+			content = fileContent.value.toString();
+			hasRemoteChanged = true;
 		}
 
-		if (previewContent && !token.isCancellationRequested) {
+		if (content && !token.isCancellationRequested) {
+			// Remove the ignored settings from the preview.
+			const previewContent = updateIgnoredSettings(content, '{}', getIgnoredSettings(this.configurationService), formattingOptions);
 			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(previewContent));
 		}
 
 		this.setConflicts(conflictSettings);
-		return { fileContent, remoteUserData, lastSyncUserData, remoteContent, localContent, conflictSettings, hasConflicts };
-	}
-
-	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;
-	private getFormattingOptions(): Promise<FormattingOptions> {
-		if (!this._formattingOptions) {
-			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.settingsResource);
-		}
-		return this._formattingOptions;
+		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
 
 }

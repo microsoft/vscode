@@ -549,7 +549,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 }
 
 /**
- * Whitespace is rendered by "replacing" tokens with a special-purpose `vs-whitespace` type that is later recognized in the rendering phase.
+ * Whitespace is rendered by "replacing" tokens with a special-purpose `mtkw` type that is later recognized in the rendering phase.
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
@@ -616,7 +616,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 			// was in whitespace token
 			if (!isInWhitespace || (!useMonospaceOptimizations && tmpIndent >= tabSize)) {
 				// leaving whitespace token or entering a new indent
-				result[resultLen++] = new LinePart(charIndex, 'vs-whitespace');
+				result[resultLen++] = new LinePart(charIndex, 'mtkw');
 				tmpIndent = tmpIndent % tabSize;
 			}
 		} else {
@@ -661,7 +661,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 		}
 	}
 
-	result[resultLen++] = new LinePart(len, generateWhitespace ? 'vs-whitespace' : tokenType);
+	result[resultLen++] = new LinePart(len, generateWhitespace ? 'mtkw' : tokenType);
 
 	return result;
 }
@@ -763,11 +763,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 		const part = parts[partIndex];
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
-		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (partType.indexOf('vs-whitespace') >= 0));
+		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (partType.indexOf('mtkw') >= 0));
+		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		charOffsetInPart = 0;
 
 		sb.appendASCIIString('<span class="');
-		sb.appendASCIIString(partType);
+		sb.appendASCIIString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
 		sb.appendASCII(CharCode.DoubleQuote);
 
 		if (partRendersWhitespace) {
@@ -787,13 +788,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				}
 			}
 
-			if (!fontIsMonospace) {
-				const partIsOnlyWhitespace = (partType === 'vs-whitespace');
-				if (partIsOnlyWhitespace || !containsForeignElements) {
-					sb.appendASCIIString(' style="display:inline-block;width:');
-					sb.appendASCIIString(String(spaceWidth * partContentCnt));
-					sb.appendASCIIString('px"');
-				}
+			if (partRendersWhitespaceWithWidth) {
+				sb.appendASCIIString(' style="width:');
+				sb.appendASCIIString(String(spaceWidth * partContentCnt));
+				sb.appendASCIIString('px"');
 			}
 			sb.appendASCII(CharCode.GreaterThan);
 

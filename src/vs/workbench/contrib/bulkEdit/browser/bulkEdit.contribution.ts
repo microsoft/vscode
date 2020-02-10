@@ -10,10 +10,9 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
-import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { PaneCompositePanel } from 'vs/workbench/browser/panel';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -28,12 +27,8 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-async function getBulkEditPane(panelService: IPanelService): Promise<BulkEditPane | undefined> {
-	let view: ViewPane | undefined;
-	const activePanel = await panelService.openPanel(BulkEditPane.ID, true);
-	if (activePanel instanceof PaneCompositePanel) {
-		view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
-	}
+async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
+	const view = await viewsService.openView(BulkEditPane.ID, true);
 	if (view instanceof BulkEditPane) {
 		return view;
 	}
@@ -101,6 +96,7 @@ class BulkEditPreviewContribution {
 
 	constructor(
 		@IPanelService private readonly _panelService: IPanelService,
+		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -124,7 +120,7 @@ class BulkEditPreviewContribution {
 
 		// the actual work...
 		try {
-			const view = await getBulkEditPane(this._panelService);
+			const view = await getBulkEditPane(this._viewsService);
 			if (!view) {
 				return edit;
 			}
@@ -175,8 +171,8 @@ registerAction2(class ApplyAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<any> {
-		const panelService = accessor.get(IPanelService);
-		const view = await getBulkEditPane(panelService);
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.accept();
 		}
@@ -204,8 +200,8 @@ registerAction2(class DiscardAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = await getBulkEditPane(panelService);
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.discard();
 		}
@@ -235,8 +231,8 @@ registerAction2(class ToggleAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = await getBulkEditPane(panelService);
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.toggleChecked();
 		}
@@ -264,8 +260,8 @@ registerAction2(class GroupByFile extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = await getBulkEditPane(panelService);
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.groupByFile();
 		}
@@ -291,8 +287,8 @@ registerAction2(class GroupByType extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = await getBulkEditPane(panelService);
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.groupByType();
 		}
@@ -317,8 +313,8 @@ registerAction2(class ToggleGrouping extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = await getBulkEditPane(panelService);
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.toggleGrouping();
 		}

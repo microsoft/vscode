@@ -131,11 +131,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				try {
 					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
+					// Make sure to add the new workspace to the history to find it again
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+					this.workspacesService.addRecentlyOpened([{
+						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
+						workspace: newWorkspaceIdentifier
+					}]);
 
-					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.workspacesService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
-
+					// Delete the untitled one
 					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
 					// ignore

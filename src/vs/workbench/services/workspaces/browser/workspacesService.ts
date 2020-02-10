@@ -35,6 +35,8 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	) {
 		super();
 
+		// Opening a workspace should push it as most
+		// recently used to the workspaces history
 		this.addWorkspaceToRecentlyOpened();
 
 		this.registerListeners();
@@ -76,13 +78,13 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 		recents.forEach(recent => {
 			if (isRecentFile(recent)) {
-				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.fileUri]);
+				this.doRemoveRecentlyOpened(recentlyOpened, [recent.fileUri]);
 				recentlyOpened.files.unshift(recent);
 			} else if (isRecentFolder(recent)) {
-				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.folderUri]);
+				this.doRemoveRecentlyOpened(recentlyOpened, [recent.folderUri]);
 				recentlyOpened.workspaces.unshift(recent);
 			} else {
-				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
+				this.doRemoveRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
 				recentlyOpened.workspaces.unshift(recent);
 			}
 		});
@@ -90,15 +92,15 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		return this.saveRecentlyOpened(recentlyOpened);
 	}
 
-	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
+	async removeRecentlyOpened(paths: URI[]): Promise<void> {
 		const recentlyOpened = await this.getRecentlyOpened();
 
-		this.doRemoveFromRecentlyOpened(recentlyOpened, paths);
+		this.doRemoveRecentlyOpened(recentlyOpened, paths);
 
 		return this.saveRecentlyOpened(recentlyOpened);
 	}
 
-	private doRemoveFromRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
+	private doRemoveRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
 		recentlyOpened.files = recentlyOpened.files.filter(file => {
 			return !paths.some(path => path.toString() === file.fileUri.toString());
 		});

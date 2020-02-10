@@ -5,7 +5,7 @@
 
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -80,7 +80,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).createActionViewItem();
 				}

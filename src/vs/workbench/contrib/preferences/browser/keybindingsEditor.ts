@@ -373,7 +373,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		const actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
 					return new CheckboxActionViewItem(null, action);
 				}
@@ -461,7 +461,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			overrideStyles: {
 				listBackground: editorBackground
 			}
-		}));
+		})) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {

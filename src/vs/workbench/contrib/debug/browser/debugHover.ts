@@ -16,7 +16,7 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -230,7 +230,6 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				preserveWhitespace: true,
 				colorize: true
 			});
 			this.valueContainer.title = '';
@@ -248,7 +247,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueContainer.hidden = false;
 
 		await this.tree.setInput(expression);
-		this.complexValueTitle.textContent = replaceWhitespace(expression.value);
+		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
 		this.layoutTreeAndContainer();
 		this.editor.layoutContentWidget(this);
@@ -274,11 +273,13 @@ export class DebugHoverWidget implements IContentWidget {
 			return;
 		}
 
+		if (dom.isAncestor(document.activeElement, this.domNode)) {
+			this.editor.focus();
+		}
 		this._isVisible = false;
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
-		this.editor.focus();
 	}
 
 	getPosition(): IContentWidgetPosition | null {
