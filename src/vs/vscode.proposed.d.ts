@@ -1553,10 +1553,31 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/77728
 
+	/**
+	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
+	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
+	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
+	 */
 	export interface WorkspaceEditMetadata {
+
+		/**
+		 * A flag which indicates that user confirmation is needed.
+		 */
 		needsConfirmation: boolean;
+
+		/**
+		 * A human-readable string which is rendered prominent.
+		 */
 		label: string;
+
+		/**
+		 * A human-readable string which is rendered less prominent in the same line.
+		 */
 		description?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
+		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
@@ -1587,9 +1608,9 @@ declare module 'vscode' {
 			value: string | number;
 
 			/**
-			 * A link to a URI with more information about the diagnostic error.
+			 * A target URI to open with more information about the diagnostic error.
 			 */
-			link: Uri;
+			target: Uri;
 		}
 	}
 
@@ -1709,11 +1730,11 @@ declare module 'vscode' {
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
 		 * not cause a failure of the whole operation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
 		 * @param provider A timeline provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
-		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
+		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
 	}
 
 	//#endregion

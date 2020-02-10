@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { TERMINAL_PANEL_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -78,7 +78,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, TERMINAL_PANEL_ID, panelService, layoutService);
+		super(id, label, TERMINAL_VIEW_ID, panelService, layoutService);
 	}
 
 	public run(event?: any): Promise<any> {

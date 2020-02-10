@@ -140,8 +140,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	public _onExtensionHostExit(code: number): void {
-		console.log(`vscode:exit`, code);
-		// ipc.send('vscode:exit', code);
+		// We log the exit code to the console. Do NOT remove this
+		// code as the automated integration tests in browser rely
+		// on this message to exit properly.
+		console.log(`vscode:exit ${code}`);
 	}
 }
 

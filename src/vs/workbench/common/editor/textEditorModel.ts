@@ -77,6 +77,10 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		this.modelService.setMode(this.textEditorModel, this.modeService.create(mode));
 	}
 
+	getMode(): string | undefined {
+		return this.textEditorModel?.getModeId();
+	}
+
 	/**
 	 * Creates the text editor model with the provided value, optional preferred mode
 	 * (can be comma separated for multiple values) and optional resource URL.

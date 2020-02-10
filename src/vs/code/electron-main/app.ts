@@ -364,7 +364,14 @@ export class CodeApplication extends Disposable {
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
-		const sharedProcessClient = sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
+			this.logService.trace('Shared process: IPC ready');
+			return connect(this.environmentService.sharedIPCHandle, 'main');
+		});
+		const sharedProcessReady = sharedProcess.whenReady().then(() => {
+			this.logService.trace('Shared process: init ready');
+			return sharedProcessClient;
+		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
 				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
@@ -374,7 +381,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Services
-		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessClient);
+		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessReady);
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
@@ -391,7 +398,7 @@ export class CodeApplication extends Disposable {
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
 
 		// Post Open Windows Tasks
-		this.afterWindowOpen();
+		appInstantiationService.invokeFunction(this.afterWindowOpen.bind(this));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentService.args.trace) {
@@ -424,7 +431,7 @@ export class CodeApplication extends Disposable {
 		return { machineId, trueMachineId };
 	}
 
-	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
+	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		const fileService = this._register(new FileService(this.logService));
@@ -456,7 +463,7 @@ export class CodeApplication extends Disposable {
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
-		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
+		const diagnosticsChannel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
@@ -477,7 +484,7 @@ export class CodeApplication extends Disposable {
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('telemetryAppender')));
+			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
@@ -571,6 +578,7 @@ export class CodeApplication extends Disposable {
 		const storageMainService = accessor.get(IStorageMainService);
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
+		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
 		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('logger', loggerChannel);
@@ -706,13 +714,18 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private afterWindowOpen(): void {
-
+	private afterWindowOpen(accessor: ServicesAccessor): void {
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();
+
+		// Initialize update service
+		const updateService = accessor.get(IUpdateService);
+		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
+			updateService.initialize();
+		}
 	}
 
 	private handleRemoteAuthorities(): void {

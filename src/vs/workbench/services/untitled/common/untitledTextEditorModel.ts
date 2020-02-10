@@ -21,7 +21,13 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 
-export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
+export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
+
+	/**
+	 * Wether this untitled text model has an associated file path.
+	 */
+	readonly hasAssociatedFilePath: boolean;
+}
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
@@ -55,6 +61,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	private dirty = false;
+	private ignoreDirtyOnModelContentChange = false;
+
 	private versionId = 0;
 	private configuredEncoding: string | undefined;
 
@@ -121,6 +129,18 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Emit if it changed
 		if (oldEncoding !== this.preferredEncoding) {
 			this._onDidChangeEncoding.fire();
+		}
+	}
+
+	setValue(value: string, ignoreDirty?: boolean): void {
+		if (ignoreDirty) {
+			this.ignoreDirtyOnModelContentChange = true;
+		}
+
+		try {
+			this.updateTextEditorModel(createTextBufferFactory(value));
+		} finally {
+			this.ignoreDirtyOnModelContentChange = false;
 		}
 	}
 
@@ -212,15 +232,17 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private onModelContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
 		this.versionId++;
 
-		// mark the untitled text editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
-			this.setDirty(false);
-		}
+		if (!this.ignoreDirtyOnModelContentChange) {
+			// mark the untitled text editor as non-dirty once its content becomes empty and we do
+			// not have an associated path set. we never want dirty indicator in that case.
+			if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
+				this.setDirty(false);
+			}
 
-		// turn dirty otherwise
-		else {
-			this.setDirty(true);
+			// turn dirty otherwise
+			else {
+				this.setDirty(true);
+			}
 		}
 
 		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_MAX_LENGTH columns

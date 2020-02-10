@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
-export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
+export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);

@@ -477,12 +477,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private serviceStarted(resendModels: boolean): void {
 		this.bufferSyncSupport.reset();
 
+		const watchOptions = this.apiVersion.gte(API.v380)
+			? vscode.workspace.getConfiguration('typescript').get<Proto.WatchOptions | undefined>('tsserver.watchOptions')
+			: undefined;
+
 		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode',
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
-			}
+			},
+			watchOptions
 		};
 		this.executeWithoutWaitingForResponse('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);

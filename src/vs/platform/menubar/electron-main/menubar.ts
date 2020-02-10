@@ -306,9 +306,9 @@ export class Menubar {
 
 		// Debug
 		const debugMenu = new Menu();
-		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
+		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")), submenu: debugMenu });
 
-		this.setMenuById(debugMenu, 'Debug');
+		this.setMenuById(debugMenu, 'Run');
 		menubar.append(debugMenuItem);
 
 		// Terminal

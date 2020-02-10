@@ -625,7 +625,8 @@ class ClipboardEventUtils {
 
 		if ((<any>window).clipboardData) {
 			e.preventDefault();
-			return (<any>window).clipboardData.getData('Text');
+			const text: string = (<any>window).clipboardData.getData('Text');
+			return [text, null];
 		}
 
 		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');

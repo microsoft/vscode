@@ -1067,7 +1067,7 @@ declare namespace monaco.editor {
 		tabSize?: number;
 		/**
 		 * Insert spaces when pressing `Tab`.
-		 * This setting is overridden based on the file contents when detectIndentation` is on.
+		 * This setting is overridden based on the file contents when `detectIndentation` is on.
 		 * Defaults to true.
 		 */
 		insertSpaces?: boolean;
@@ -1184,7 +1184,7 @@ declare namespace monaco.editor {
 		severity: MarkerSeverity;
 		code?: string | {
 			value: string;
-			link: Uri;
+			target: Uri;
 		};
 		message: string;
 		source?: string;
@@ -1202,7 +1202,7 @@ declare namespace monaco.editor {
 	export interface IMarkerData {
 		code?: string | {
 			value: string;
-			link: Uri;
+			target: Uri;
 		};
 		severity: MarkerSeverity;
 		message: string;
@@ -4665,6 +4665,7 @@ declare namespace monaco.editor {
 		readonly canUseHalfwidthRightwardsArrow: boolean;
 		readonly spaceWidth: number;
 		readonly middotWidth: number;
+		readonly wsmiddotWidth: number;
 		readonly maxDigitWidth: number;
 	}
 
