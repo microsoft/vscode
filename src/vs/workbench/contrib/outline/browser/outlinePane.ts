@@ -316,7 +316,7 @@ export class OutlinePane extends ViewPane {
 		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._treeFilter = this._instantiationService.createInstance(OutlineFilter, 'outline');
-		this._tree = this._instantiationService.createInstance(
+		this._tree = <WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePane',
 			treeContainer,
