@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -84,6 +84,22 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return newRef;
 	}
 
+	async manifest(): Promise<IUserDataManifest | null> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', 'latest').toString();
+		const headers: IHeaders = { 'Content-Type': 'application/json' };
+
+		const context = await this.request({ type: 'GET', url, headers }, undefined, CancellationToken.None);
+		if (!isSuccess(context)) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown);
+		}
+
+		return asJson(context);
+	}
+
 	async clear(): Promise<void> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
@@ -107,7 +123,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		options.headers = options.headers || {};
 		options.headers['authorization'] = `Bearer ${authToken}`;
 
-		this.logService.trace('Sending request to server', { url: options.url, headers: { ...options.headers, ...{ authorization: undefined } } });
+		this.logService.trace('Sending request to server', { url: options.url, type: options.type, headers: { ...options.headers, ...{ authorization: undefined } } });
 
 		let context;
 		try {

@@ -198,7 +198,7 @@ export class ExtHostConfigProvider {
 						};
 						return isObject(target) ?
 							new Proxy(target, {
-								get: (target: any, property: string) => {
+								get: (target: any, property: PropertyKey) => {
 									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
 										cloneTarget();
 										return () => clonedTarget;
@@ -213,21 +213,21 @@ export class ExtHostConfigProvider {
 									}
 									return result;
 								},
-								set: (_target: any, property: string, value: any) => {
+								set: (_target: any, property: PropertyKey, value: any) => {
 									cloneTarget();
 									if (clonedTarget) {
 										clonedTarget[property] = value;
 									}
 									return true;
 								},
-								deleteProperty: (_target: any, property: string) => {
+								deleteProperty: (_target: any, property: PropertyKey) => {
 									cloneTarget();
 									if (clonedTarget) {
 										delete clonedTarget[property];
 									}
 									return true;
 								},
-								defineProperty: (_target: any, property: string, descriptor: any) => {
+								defineProperty: (_target: any, property: PropertyKey, descriptor: any) => {
 									cloneTarget();
 									if (clonedTarget) {
 										Object.defineProperty(clonedTarget, property, descriptor);
@@ -284,10 +284,10 @@ export class ExtHostConfigProvider {
 		const readonlyProxy = (target: any): any => {
 			return isObject(target) ?
 				new Proxy(target, {
-					get: (target: any, property: string) => readonlyProxy(target[property]),
-					set: (_target: any, property: string, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
-					deleteProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
-					defineProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
+					get: (target: any, property: PropertyKey) => readonlyProxy(target[property]),
+					set: (_target: any, property: PropertyKey, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${String(property)}' of object`); },
+					deleteProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot delete read only property '${String(property)}' of object`); },
+					defineProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot define property '${String(property)}' for a readonly object`); },
 					setPrototypeOf: (_target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
 					isExtensible: () => false,
 					preventExtensions: () => true

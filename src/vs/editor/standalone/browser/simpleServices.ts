@@ -84,6 +84,10 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	public isResolved(): boolean {
 		return true;
 	}
+
+	public getMode(): string | undefined {
+		return this.model.getModeId();
+	}
 }
 
 export interface IOpenEditorDelegate {

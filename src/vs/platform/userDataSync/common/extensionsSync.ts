@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -15,6 +15,7 @@ import { localize } from 'vs/nls';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -32,17 +33,21 @@ interface ILastSyncUserData extends IUserData {
 
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
+	readonly resourceKey: ResourceKey = 'extensions';
+	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableExtensions') === true && this.extensionGalleryService.isEnabled(); }
+
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService);
+		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -52,10 +57,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
 	}
 
-	protected getRemoteDataResourceKey(): string { return 'extensions'; }
-
 	async pull(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
+		if (!this.enabled) {
 			this.logService.info('Extensions: Skipped pulling extensions as it is disabled.');
 			return;
 		}
@@ -88,7 +91,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async push(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
+		if (!this.enabled) {
 			this.logService.info('Extensions: Skipped pushing extensions as it is disabled.');
 			return;
 		}
@@ -112,45 +115,15 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	}
 
-	async sync(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
-			this.logService.trace('Extensions: Skipping synchronizing extensions as it is disabled.');
-			return;
-		}
+	async sync(ref?: string): Promise<void> {
 		if (!this.extensionGalleryService.isEnabled()) {
-			this.logService.trace('Extensions: Skipping synchronizing extensions as gallery is disabled.');
+			this.logService.info('Extensions: Skipping synchronizing extensions as gallery is disabled.');
 			return;
 		}
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Extensions: Skipping synchronizing extensions as it is running already.');
-			return;
-		}
-
-		this.logService.trace('Extensions: Started synchronizing extensions...');
-		this.setStatus(SyncStatus.Syncing);
-
-		try {
-			const previewResult = await this.getPreview();
-			await this.apply(previewResult);
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
-				return this.sync();
-			}
-			throw e;
-		}
-
-		this.logService.trace('Extensions: Finished synchronizing extensions.');
-		this.setStatus(SyncStatus.Idle);
+		return super.sync(ref);
 	}
 
 	async stop(): Promise<void> { }
-
-	async restart(): Promise<void> {
-		throw new Error('Extensions: Conflicts should not occur');
-	}
 
 	accept(content: string): Promise<void> {
 		throw new Error('Extensions: Conflicts should not occur');
@@ -172,13 +145,28 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return null;
 	}
 
-	private async getPreview(): Promise<ISyncPreviewResult> {
-		const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
+	protected async doSync(remoteUserData: IUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
+		try {
+			const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
+			await this.apply(previewResult);
+		} catch (e) {
+			this.setStatus(SyncStatus.Idle);
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+				// Rejected as there is a new remote version. Syncing again,
+				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
+				return this.sync();
+			}
+			throw e;
+		}
+
+		this.logService.trace('Extensions: Finished synchronizing extensions.');
+		this.setStatus(SyncStatus.Idle);
+	}
+
+	private async getPreview(remoteUserData: IUserData, lastSyncUserData: ILastSyncUserData | null): Promise<ISyncPreviewResult> {
+		const remoteExtensions: ISyncExtension[] = remoteUserData.content ? JSON.parse(remoteUserData.content) : null;
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? JSON.parse(lastSyncUserData.content!) : null;
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
-
-		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-		const remoteExtensions: ISyncExtension[] = remoteUserData.content ? JSON.parse(remoteUserData.content) : null;
 
 		const localExtensions = await this.getLocalExtensions();
 

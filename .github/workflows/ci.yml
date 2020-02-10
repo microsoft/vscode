@@ -46,9 +46,12 @@ jobs:
     - run: yarn download-builtin-extensions
       name: Download Built-in Extensions
     - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
-      name: Run Unit Tests
+      name: Run Unit Tests (Electron)
+    # Fails with cryptic error (e.g. https://github.com/microsoft/vscode/pull/90292/checks?check_run_id=433681926#step:13:9)
+    # - run: DISPLAY=:10 yarn test-browser --browser chromium
+    #   name: Run Unit Tests (Browser)
     - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
-      name: Run Integration Tests
+      name: Run Integration Tests (Electron)
 
   windows:
     runs-on: windows-2016
@@ -78,9 +81,11 @@ jobs:
     - run: yarn download-builtin-extensions
       name: Download Built-in Extensions
     - run: .\scripts\test.bat --tfs "Unit Tests"
-      name: Run Unit Tests
+      name: Run Unit Tests (Electron)
+    - run: yarn test-browser --browser chromium
+      name: Run Unit Tests (Browser)
     - run: .\scripts\test-integration.bat --tfs "Integration Tests"
-      name: Run Integration Tests
+      name: Run Integration Tests (Electron)
 
   darwin:
     runs-on: macos-latest
@@ -107,6 +112,8 @@ jobs:
     - run: yarn download-builtin-extensions
       name: Download Built-in Extensions
     - run: ./scripts/test.sh --tfs "Unit Tests"
-      name: Run Unit Tests
+      name: Run Unit Tests (Electron)
+    - run: yarn test-browser --browser chromium --browser webkit
+      name: Run Unit Tests (Browser)
     - run: ./scripts/test-integration.sh --tfs "Integration Tests"
-      name: Run Integration Tests
+      name: Run Integration Tests (Electron)
