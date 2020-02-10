@@ -386,7 +386,11 @@ export class Configuration extends CommonEditorConfiguration {
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: this.accessibilityService.isScreenReaderOptimized() ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled
+			accessibilitySupport: (
+				this.accessibilityService.isScreenReaderOptimized()
+					? AccessibilitySupport.Enabled
+					: this.accessibilityService.getAccessibilitySupport()
+			)
 		};
 	}
 

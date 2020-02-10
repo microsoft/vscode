@@ -225,6 +225,7 @@ export class TestAccessibilityService implements IAccessibilityService {
 	isScreenReaderOptimized(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
+	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 }
 
 export class TestDecorationsService implements IDecorationsService {
