@@ -232,7 +232,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(10), 9);
 	});
 
-	test('Padding', () => {
+	test('LinesLayout Padding', () => {
 		// Start off with 10 lines
 		let linesLayout = new LinesLayout(10, 10, 15, 20);
 
