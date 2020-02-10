@@ -187,7 +187,7 @@ export class TimelinePane extends ViewPane {
 			let request = this._pendingRequests.get(source);
 			request?.tokenSource.dispose(true);
 
-			request = this.timelineService.getTimelineRequest(source, this._uri, new CancellationTokenSource())!;
+			request = this.timelineService.getTimeline(source, this._uri, {}, new CancellationTokenSource())!;
 
 			this._pendingRequests.set(source, request);
 			request.tokenSource.token.onCancellationRequested(() => this._pendingRequests.delete(source));
@@ -199,7 +199,7 @@ export class TimelinePane extends ViewPane {
 	private async handleRequest(request: TimelineRequest) {
 		let items;
 		try {
-			items = await this.progressService.withProgress({ location: VIEWLET_ID }, () => request.items);
+			items = await this.progressService.withProgress({ location: VIEWLET_ID }, () => request.result.then(r => r?.items ?? []));
 		}
 		catch { }
 

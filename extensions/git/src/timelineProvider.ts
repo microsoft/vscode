@@ -6,7 +6,7 @@
 import * as dayjs from 'dayjs';
 import * as advancedFormat from 'dayjs/plugin/advancedFormat';
 import * as relativeTime from 'dayjs/plugin/relativeTime';
-import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, TimelineItem, TimelineProvider, Uri, workspace, TimelineChangeEvent } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineCursor, TimelineItem, TimelineProvider, Uri, workspace } from 'vscode';
 import { Model } from './model';
 import { Repository } from './repository';
 import { debounce } from './decorators';
@@ -44,7 +44,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		this._disposable.dispose();
 	}
 
-	async provideTimeline(uri: Uri, _token: CancellationToken): Promise<TimelineItem[]> {
+	async provideTimeline(uri: Uri, _cursor: TimelineCursor, _token: CancellationToken): Promise<Timeline> {
 		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
 
 		const repo = this._model.getRepository(uri);
@@ -53,7 +53,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			this._repoStatusDate = undefined;
 			this._repo = undefined;
 
-			return [];
+			return { items: [] };
 		}
 
 		if (this._repo?.root !== repo.root) {
@@ -181,7 +181,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			items.push(item);
 		}
 
-		return items;
+		return { items: items };
 	}
 
 	private onRepositoriesChanged(_repo: Repository) {

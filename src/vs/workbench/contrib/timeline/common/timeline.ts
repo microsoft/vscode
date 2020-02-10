@@ -37,10 +37,24 @@ export interface TimelineChangeEvent {
 	uri?: URI;
 }
 
+export interface TimelineCursor {
+	cursor?: any;
+	before?: boolean;
+	limit?: number;
+}
+
+export interface Timeline {
+	source: string;
+	items: TimelineItemWithSource[];
+
+	cursor?: any;
+	more?: boolean;
+}
+
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, token: CancellationToken): Promise<TimelineItemWithSource[]>;
+	provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken): Promise<Timeline | undefined>;
 }
 
 export interface TimelineProviderDescriptor {
@@ -55,7 +69,7 @@ export interface TimelineProvidersChangeEvent {
 }
 
 export interface TimelineRequest {
-	readonly items: Promise<TimelineItemWithSource[]>;
+	readonly result: Promise<Timeline | undefined>;
 	readonly source: string;
 	readonly tokenSource: CancellationTokenSource;
 	readonly uri: URI;
@@ -72,9 +86,7 @@ export interface ITimelineService {
 
 	getSources(): string[];
 
-	getTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]>;
-
-	getTimelineRequest(id: string, uri: URI, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, pagination: TimelineCursor, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

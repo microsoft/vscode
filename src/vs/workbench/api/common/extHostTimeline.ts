@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { TimelineItemWithSource, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
+import { Timeline, TimelineCursor, TimelineItemWithSource, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
@@ -16,7 +16,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
-	$getTimeline(id: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItemWithSource[]>;
+	$getTimeline(id: string, uri: UriComponents, cursor: vscode.TimelineCursor, token: vscode.CancellationToken): Promise<Timeline | undefined>;
 }
 
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
@@ -34,9 +34,9 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTimeline);
 	}
 
-	async $getTimeline(id: string, uri: UriComponents, token: vscode.CancellationToken): Promise<TimelineItemWithSource[]> {
+	async $getTimeline(id: string, uri: UriComponents, cursor: vscode.TimelineCursor, token: vscode.CancellationToken): Promise<Timeline | undefined> {
 		const provider = this._providers.get(id);
-		return provider?.provideTimeline(URI.revive(uri), token) ?? [];
+		return provider?.provideTimeline(URI.revive(uri), cursor, token);
 	}
 
 	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
@@ -53,15 +53,21 @@ export class ExtHostTimeline implements IExtHostTimeline {
 			...provider,
 			scheme: scheme,
 			onDidChange: undefined,
-			async provideTimeline(uri: URI, token: CancellationToken) {
+			async provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken) {
 				timelineDisposables.clear();
 
-				const results = await provider.provideTimeline(uri, token);
+				const result = await provider.provideTimeline(uri, cursor, token);
 				// Intentional == we don't know how a provider will respond
 				// eslint-disable-next-line eqeqeq
-				return results != null
-					? results.map(item => convertTimelineItem(item))
-					: [];
+				if (result == null) {
+					return undefined;
+				}
+
+				return {
+					...result,
+					source: provider.id,
+					items: result.items.map(convertTimelineItem)
+				};
 			},
 			dispose() {
 				disposable?.dispose();
