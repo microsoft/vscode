@@ -26,7 +26,17 @@
         "no-throw-literal": "warn",
         "no-unsafe-finally": "warn",
         "no-unused-labels": "warn",
-        "no-restricted-globals": ["warn", "name", "length", "event", "closed", "external", "status", "origin", "orientation"], // non-complete list of globals that are easy to access unintentionally
+        "no-restricted-globals": [
+            "warn",
+            "name",
+            "length",
+            "event",
+            "closed",
+            "external",
+            "status",
+            "origin",
+            "orientation"
+        ], // non-complete list of globals that are easy to access unintentionally
         "no-var": "warn",
         "jsdoc/no-types": "warn",
         "semi": "off",
@@ -605,6 +615,17 @@
                 ]
             },
             {
+                "target": "**/test/integration/**",
+                "restrictions": [
+                    "**/test/integration/**",
+                    "*"
+                ]
+            },
+            {
+                "target": "{**/api/**.test.ts,}",
+                "restrictions": "{**/vs/**,assert,sinon,crypto,vscode}"
+            },
+            {
                 "target": "{**/**.test.ts,**/test/**}",
                 "restrictions": "{**/vs/**,assert,sinon,crypto}"
             },
@@ -621,6 +642,50 @@
             ],
             "rules": {
                 "jsdoc/no-types": "off"
+            }
+        },
+        {
+            "files": [
+                "**/vscode.d.ts",
+                "**/vscode.proposed.d.ts"
+            ],
+            "rules": {
+                "vscode-dts-create-func": "warn",
+                "vscode-dts-literal-or-types": "warn",
+                "vscode-dts-interface-naming": "warn",
+                "vscode-dts-event-naming": [
+                    "warn",
+                    {
+                        "allowed": [
+                            "onCancellationRequested",
+                            "event"
+                        ],
+                        "verbs": [
+                            "accept",
+                            "change",
+                            "close",
+                            "collapse",
+                            "create",
+                            "delete",
+                            "dispose",
+                            "end",
+                            "expand",
+                            "hide",
+                            "open",
+                            "override",
+                            "receive",
+                            "register",
+                            "rename",
+                            "save",
+                            "send",
+                            "start",
+                            "terminate",
+                            "trigger",
+                            "unregister",
+                            "write"
+                        ]
+                    }
+                ]
             }
         }
     ]

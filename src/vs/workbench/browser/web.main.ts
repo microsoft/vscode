@@ -7,11 +7,11 @@ import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, addDisposableListener, EventType, addClass, EventHelper } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -50,6 +50,7 @@ import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedD
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { coalesce } from 'vs/base/common/arrays';
 
 class BrowserMain extends Disposable {
 
@@ -235,17 +236,19 @@ class BrowserMain extends Disposable {
 				}
 			}
 
-			const consoleLogService = new ConsoleLogService(logService.getLevel());
-			const fileLogService = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
-			logService.logger = new MultiplexLogService([consoleLogService, fileLogService]);
+			logService.logger = new MultiplexLogService(coalesce([
+				new ConsoleLogService(logService.getLevel()),
+				new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService),
+				// Extension development test CLI: forward everything to test runner
+				environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationService(logService.getLevel()) : undefined
+			]));
 		})();
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 
 			// Remote file system
-			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 
 			if (!this.configuration.userDataProvider) {

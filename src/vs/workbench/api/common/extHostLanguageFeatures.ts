@@ -819,19 +819,20 @@ class SuggestAdapter {
 			const disposables = new DisposableStore();
 			this._disposables.set(pid, disposables);
 
+			const completions: extHostProtocol.ISuggestDataDto[] = [];
 			const result: extHostProtocol.ISuggestResultDto = {
 				x: pid,
-				b: [],
-				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined
+				[extHostProtocol.ISuggestResultDtoField.completions]: completions,
+				[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
+				[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem(list.items[i], pos, [pid, i]);
-				// check for bad completion item
-				// for the converter did warn
-				if (suggestion) {
-					result.b.push(suggestion);
+				const item = list.items[i];
+				// check for bad completion item first
+				if (this._validateCompletionItem(item, pos)) {
+					const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
+					completions.push(dto);
 				}
 			}
 
@@ -850,12 +851,13 @@ class SuggestAdapter {
 			return Promise.resolve(undefined);
 		}
 
+		const pos = typeConvert.Position.to(position);
 		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
 		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
 
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
-			if (!resolvedItem) {
+			if (!resolvedItem || !this._validateCompletionItem(resolvedItem, pos)) {
 				return undefined;
 			}
 
@@ -885,8 +887,7 @@ class SuggestAdapter {
 				this._didWarnShould = true;
 			}
 
-			const pos = typeConvert.Position.to(position);
-			return this._convertCompletionItem(resolvedItem, pos, id);
+			return this._convertCompletionItem(resolvedItem, id);
 		});
 	}
 
@@ -896,11 +897,7 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: extHostProtocol.ChainedCacheId): extHostProtocol.ISuggestDataDto | undefined {
-		if (typeof item.label !== 'string' || item.label.length === 0) {
-			this._logService.warn('INVALID text edit -> must have at least a label');
-			return undefined;
-		}
+	private _convertCompletionItem(item: vscode.CompletionItem, id: extHostProtocol.ChainedCacheId, defaultInsertRange?: vscode.Range, defaultReplaceRange?: vscode.Range): extHostProtocol.ISuggestDataDto {
 
 		const disposables = this._disposables.get(id[0]);
 		if (!disposables) {
@@ -928,9 +925,7 @@ class SuggestAdapter {
 
 		// 'insertText'-logic
 		if (item.textEdit) {
-			this._apiDeprecation.report('CompletionItem.textEdit', this._extension,
-				`Use 'CompletionItem.insertText' and 'CompletionItem.range' instead.`);
-
+			this._apiDeprecation.report('CompletionItem.textEdit', this._extension, `Use 'CompletionItem.insertText' and 'CompletionItem.range' instead.`);
 			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
@@ -949,36 +944,44 @@ class SuggestAdapter {
 			range = item.range;
 		}
 
-		if (range) {
-			if (Range.isRange(range)) {
-				if (!SuggestAdapter._isValidRangeForCompletion(range, position)) {
-					this._logService.trace('INVALID range -> must be single line and on the same line');
-					return undefined;
-				}
-				result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
+		if (Range.isRange(range)) {
+			// "old" range
+			result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
 
-			} else {
-				if (
-					!SuggestAdapter._isValidRangeForCompletion(range.inserting, position)
-					|| !SuggestAdapter._isValidRangeForCompletion(range.replacing, position)
-					|| !range.inserting.start.isEqual(range.replacing.start)
-					|| !range.replacing.contains(range.inserting)
-				) {
-					this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
-					return undefined;
-				}
-				result[extHostProtocol.ISuggestDataDtoField.range] = {
-					insert: typeConvert.Range.from(range.inserting),
-					replace: typeConvert.Range.from(range.replacing)
-				};
-			}
+		} else if (range && !defaultInsertRange?.isEqual(range.inserting) && !defaultReplaceRange?.isEqual(range.replacing)) {
+			// ONLY send range when it's different from the default ranges (safe bandwidth)
+			result[extHostProtocol.ISuggestDataDtoField.range] = {
+				insert: typeConvert.Range.from(range.inserting),
+				replace: typeConvert.Range.from(range.replacing)
+			};
 		}
 
 		return result;
 	}
 
-	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
-		return range.isSingleLine || range.start.line === position.line;
+	private _validateCompletionItem(item: vscode.CompletionItem, position: vscode.Position): boolean {
+		if (typeof item.label !== 'string' || item.label.length === 0) {
+			this._logService.warn('INVALID text edit -> must have at least a label');
+			return false;
+		}
+
+		if (Range.isRange(item.range)) {
+			if (!item.range.isSingleLine || item.range.start.line !== position.line) {
+				this._logService.trace('INVALID range -> must be single line and on the same line');
+				return false;
+			}
+
+		} else if (item.range) {
+			if (!item.range.inserting.isSingleLine || item.range.inserting.start.line !== position.line
+				|| !item.range.replacing.isSingleLine || item.range.replacing.start.line !== position.line
+				|| !item.range.inserting.start.isEqual(item.range.replacing.start)
+				|| !item.range.replacing.contains(item.range.inserting)
+			) {
+				this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static _mustNotChangeHash(item: vscode.CompletionItem) {

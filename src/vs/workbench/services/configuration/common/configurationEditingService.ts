@@ -21,7 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
 import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -82,6 +82,11 @@ export const enum ConfigurationEditingErrorCode {
 	 * Error when trying to write and save to the configuration file while it is dirty in the editor.
 	 */
 	ERROR_CONFIGURATION_FILE_DIRTY,
+
+	/**
+	 * Error when trying to write and save to the configuration file while it is not the latest in the disk.
+	 */
+	ERROR_CONFIGURATION_FILE_MODIFIED_SINCE,
 
 	/**
 	 * Error when trying to write to a configuration file that contains JSON errors.
@@ -165,26 +170,35 @@ export class ConfigurationEditingService {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
 			.then(() => { },
-				error => {
+				async error => {
 					if (!options.donotNotifyError) {
-						this.onError(error, operation, options.scopes);
+						await this.onError(error, operation, options.scopes);
 					}
 					return Promise.reject(error);
 				})));
 	}
 
-	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
+	private async doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
 		const checkDirtyConfiguration = !(options.force || options.donotSave);
 		const saveConfiguration = options.force || !options.donotSave;
-		return this.resolveAndValidate(operation.target, operation, checkDirtyConfiguration, options.scopes || {})
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration)
-				.then(() => reference.dispose()));
+		const reference = await this.resolveAndValidate(operation.target, operation, checkDirtyConfiguration, options.scopes || {});
+		try {
+			await this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration);
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				await this.textFileService.revert(operation.resource!);
+				return this.reject(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE, operation.target, operation);
+			}
+			throw error;
+		} finally {
+			reference.dispose();
+		}
 	}
 
 	private async writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): Promise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (edit && this.applyEditsToBuffer(edit, model) && save) {
-			return this.textFileService.save(operation.resource!, { skipSaveParticipants: true /* programmatic change */ });
+			await this.textFileService.save(operation.resource!, { skipSaveParticipants: true /* programmatic change */, ignoreErrorHandler: true /* handle error self */ });
 		}
 	}
 
@@ -201,7 +215,7 @@ export class ConfigurationEditingService {
 		return false;
 	}
 
-	private onError(error: ConfigurationEditingError, operation: IConfigurationEditOperation, scopes: IConfigurationOverrides | undefined): void {
+	private async onError(error: ConfigurationEditingError, operation: IConfigurationEditOperation, scopes: IConfigurationOverrides | undefined): Promise<void> {
 		switch (error.code) {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
 				this.onInvalidConfigurationError(error, operation);
@@ -209,6 +223,8 @@ export class ConfigurationEditingService {
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY:
 				this.onConfigurationFileDirtyError(error, operation, scopes);
 				break;
+			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE:
+				return this.doWriteConfiguration(operation, { scopes });
 			default:
 				this.notificationService.error(error.message);
 		}
@@ -366,6 +382,23 @@ export class ConfigurationEditingService {
 				}
 				return '';
 			}
+			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE:
+				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
+					return nls.localize('errorTasksConfigurationFileModifiedSince', "Unable to write into tasks configuration file because the content of the file is newer.");
+				}
+				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
+					return nls.localize('errorLaunchConfigurationFileModifiedSince', "Unable to write into launch configuration file because the content of the file is newer.");
+				}
+				switch (target) {
+					case EditableConfigurationTarget.USER_LOCAL:
+						return nls.localize('errorConfigurationFileModifiedSince', "Unable to write into user settings because the content of the file is newer.");
+					case EditableConfigurationTarget.USER_REMOTE:
+						return nls.localize('errorRemoteConfigurationFileModifiedSince', "Unable to write into remote user settings because the content of the file is newer.");
+					case EditableConfigurationTarget.WORKSPACE:
+						return nls.localize('errorConfigurationFileModifiedSinceWorkspace', "Unable to write into workspace settings because the content of the file is newer.");
+					case EditableConfigurationTarget.WORKSPACE_FOLDER:
+						return nls.localize('errorConfigurationFileModifiedSinceFolder', "Unable to write into folder settings because the content of the file is newer.");
+				}
 		}
 	}
 

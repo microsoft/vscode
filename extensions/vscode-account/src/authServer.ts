@@ -87,8 +87,8 @@ export async function startServer(server: http.Server): Promise<string> {
 			}
 		});
 
-		server.on('error', err => {
-			reject(err);
+		server.on('error', _ => {
+			reject(new Error('Error listening to server'));
 		});
 
 		server.on('close', () => {

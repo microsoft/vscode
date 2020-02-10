@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfiguration, IViewState } from 'vs/editor/common/editorCommon';
@@ -68,7 +68,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		} else {
 			const options = this.configuration.options;
 			const fontInfo = options.get(EditorOption.fontInfo);
-			const wrappingAlgorithm = options.get(EditorOption.wrappingAlgorithm);
+			const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
@@ -78,7 +78,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				monospaceLineBreaksComputerFactory,
 				fontInfo,
 				this.model.getOptions().tabSize,
-				wrappingAlgorithm,
+				wrappingStrategy,
 				wrappingInfo.wrappingColumn,
 				wrappingIndent
 			);
@@ -165,11 +165,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		const options = this.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
-		const wrappingAlgorithm = options.get(EditorOption.wrappingAlgorithm);
+		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(fontInfo, wrappingAlgorithm, wrappingInfo.wrappingColumn, wrappingIndent)) {
+		if (this.lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -596,7 +596,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
-		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.options.get(EditorOption.readOnly), theme);
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, filterValidationDecorations(this.configuration.options), theme);
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
@@ -717,8 +717,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getHTMLToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): string | null {
-		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
+	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
+		const languageId = this.model.getLanguageIdentifier();
+		if (languageId.id === LanguageId.PlainText) {
 			return null;
 		}
 
@@ -741,19 +742,22 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		const colorMap = this._getColorMap();
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return (
-			`<div style="`
-			+ `color: ${colorMap[ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
-			+ `font-family: ${fontFamily};`
-			+ `font-weight: ${fontInfo.fontWeight};`
-			+ `font-size: ${fontInfo.fontSize}px;`
-			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this._getHTMLToCopy(range, colorMap)
-			+ '</div>'
-		);
+		return {
+			mode: languageId.language,
+			html: (
+				`<div style="`
+				+ `color: ${colorMap[ColorId.DefaultForeground]};`
+				+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
+				+ `font-family: ${fontFamily};`
+				+ `font-weight: ${fontInfo.fontWeight};`
+				+ `font-size: ${fontInfo.fontSize}px;`
+				+ `line-height: ${fontInfo.lineHeight}px;`
+				+ `white-space: pre;`
+				+ `">`
+				+ this._getHTMLToCopy(range, colorMap)
+				+ '</div>'
+			)
+		};
 	}
 
 	private _getHTMLToCopy(modelRange: Range, colorMap: string[]): string {

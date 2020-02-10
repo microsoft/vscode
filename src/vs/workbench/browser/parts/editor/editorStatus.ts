@@ -12,7 +12,7 @@ import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
@@ -51,7 +51,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { find } from 'vs/base/common/arrays';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
@@ -353,7 +353,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeTextEditorWidget)) {
+		if (this.editorService.activeEditor?.isReadonly()) {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
@@ -390,7 +390,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					text: nls.localize('tabFocusModeEnabled', "Tab Moves Focus"),
 					tooltip: nls.localize('disableTabMode', "Disable Accessibility Mode"),
 					command: 'editor.action.toggleTabFocusMode',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND)
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
+					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
 				}, 'status.editor.tabFocusMode', nls.localize('status.editor.tabFocusMode', "Accessibility Mode"), StatusbarAlignment.RIGHT, 100.7);
 			}
 		} else {
@@ -405,7 +406,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					text: nls.localize('screenReaderDetected', "Screen Reader Optimized"),
 					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
 					command: 'showEditorScreenReaderNotification',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND)
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
+					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
 				}, 'status.editor.screenReaderMode', nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"), StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
@@ -573,13 +575,14 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private updateStatusBar(): void {
+		const activeInput = this.editorService.activeEditor;
 		const activeControl = this.editorService.activeControl;
 		const activeCodeEditor = activeControl ? withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
-		this.onModeChange(activeCodeEditor);
+		this.onModeChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
 		this.onEncodingChange(activeControl, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
@@ -607,7 +610,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 			// Hook Listener for mode changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
-				this.onModeChange(activeCodeEditor);
+				this.onModeChange(activeCodeEditor, activeInput);
 			}));
 
 			// Hook Listener for content changes
@@ -661,11 +664,11 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private onModeChange(editorWidget: ICodeEditor | undefined): void {
+	private onModeChange(editorWidget: ICodeEditor | undefined, editorInput: IEditorInput | undefined): void {
 		let info: StateDelta = { mode: undefined };
 
 		// We only support text based editors
-		if (editorWidget) {
+		if (editorWidget && editorInput && toEditorWithModeSupport(editorInput)) {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
@@ -709,7 +712,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		// We only support text based editors
 		if (editorWidget) {
-			const screenReaderDetected = (this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled);
+			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
 			if (screenReaderDetected) {
 				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {
@@ -958,18 +961,6 @@ function compareMarker(a: IMarker, b: IMarker): number {
 	return res;
 }
 
-
-function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
-	if (!codeEditor) {
-		return false;
-	}
-	return !codeEditor.getOption(EditorOption.readOnly);
-}
-
-function isWritableBaseEditor(e: IBaseEditor): boolean {
-	return e && isWritableCodeEditor(withNullAsUndefined(getCodeEditor(e.getControl())));
-}
-
 export class ShowLanguageExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.action.showLanguageExtensions';
@@ -1019,7 +1010,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 
@@ -1215,7 +1206,7 @@ export class ChangeEOLAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeTextEditorWidget)) {
+		if (this.editorService.activeEditor?.isReadonly()) {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
@@ -1231,7 +1222,7 @@ export class ChangeEOLAction extends Action {
 		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
-			if (activeCodeEditor?.hasModel() && isWritableCodeEditor(activeCodeEditor)) {
+			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
 				textModel.pushEOL(eol.eol);
 			}
@@ -1289,7 +1280,7 @@ export class ChangeEncodingAction extends Action {
 		let action: IQuickPickItem;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
-		} else if (!isWritableBaseEditor(activeControl)) {
+		} else if (activeControl.input.isReadonly()) {
 			action = reopenWithEncodingPick;
 		} else {
 			action = await this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });

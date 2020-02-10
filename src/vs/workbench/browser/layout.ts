@@ -485,12 +485,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Panel to restore
 		if (!this.state.panel.hidden) {
-			const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-
-			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
-			if (!panelRegistry.hasPanel(panelToRestore)) {
-				panelToRestore = panelRegistry.getDefaultPanelId(); // fallback to default if panel is unknown
-			}
+			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId());
 
 			if (panelToRestore) {
 				this.state.panel.panelToRestore = panelToRestore;
@@ -1236,7 +1231,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Otherwise, save the height of the panel
 			if (position === Position.BOTTOM) {
 				this.state.panel.lastNonMaximizedWidth = size.width;
-			} else {
+			} else if (positionFromString(oldPositionValue) === Position.BOTTOM) {
 				this.state.panel.lastNonMaximizedHeight = size.height;
 			}
 		}

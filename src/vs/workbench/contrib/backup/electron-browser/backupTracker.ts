@@ -44,27 +44,32 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// Dirty working copies need treatment on shutdown
 		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
 		if (dirtyWorkingCopies.length) {
-
-			// If auto save is enabled, save all non-untitled working copies
-			// and then check again for dirty copies
-			if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO).then(() => {
-
-					// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
-					const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-					if (remainingDirtyWorkingCopies.length) {
-						return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
-					}
-
-					return false; // no veto (there are no remaining dirty working copies)
-				});
-			}
-
-			// Auto save is not enabled
-			return this.handleDirtyBeforeShutdown(dirtyWorkingCopies, reason);
+			return this.onBeforeShutdownWithDirty(reason, dirtyWorkingCopies);
 		}
 
 		return false; // no veto (no dirty working copies)
+	}
+
+	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, workingCopies: IWorkingCopy[]): Promise<boolean> {
+
+		// If auto save is enabled, save all non-untitled working copies
+		// and then check again for dirty copies
+		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
+
+			// Save all files
+			await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+
+			// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
+			const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
+			if (remainingDirtyWorkingCopies.length) {
+				return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
+			}
+
+			return false; // no veto (there are no remaining dirty working copies)
+		}
+
+		// Auto save is not enabled
+		return this.handleDirtyBeforeShutdown(workingCopies, reason);
 	}
 
 	private async handleDirtyBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
@@ -95,14 +100,14 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		try {
 			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => backups.indexOf(workingCopy) === -1));
 		} catch (error) {
-			this.showErrorDialog(localize('backupTrackerConfirmFailed', "Editors that are dirty could not be saved or reverted."), error);
+			this.showErrorDialog(localize('backupTrackerConfirmFailed', "One or many editors that are dirty could not be saved or reverted."), error);
 
 			return true; // veto (save or revert failed)
 		}
 	}
 
 	private showErrorDialog(msg: string, error?: Error): void {
-		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail: localize('backupErrorDetails', "Try saving the dirty editors first and then try again.") });
+		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail: localize('backupErrorDetails', "Try saving or reverting the dirty editors first and then try again.") });
 
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
@@ -174,23 +179,22 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// Save
 		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.name));
 		if (confirm === ConfirmResult.SAVE) {
-			const dirtyCount = this.workingCopyService.dirtyCount;
+			const dirtyCountBeforeSave = this.workingCopyService.dirtyCount;
 			await this.doSaveAllBeforeShutdown(workingCopies, SaveReason.EXPLICIT);
 
-			const savedWorkingCopies = dirtyCount - this.workingCopyService.dirtyCount;
+			const savedWorkingCopies = dirtyCountBeforeSave - this.workingCopyService.dirtyCount;
 			if (savedWorkingCopies < workingCopies.length) {
 				return true; // veto (save failed or was canceled)
 			}
 
-			return this.noVeto(dirtyCount === workingCopies.length ? true /* all */ : workingCopies); // no veto (dirty saved)
+			return this.noVeto(workingCopies); // no veto (dirty saved)
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			const dirtyCount = this.workingCopyService.dirtyCount;
 			await this.doRevertAllBeforeShutdown(workingCopies);
 
-			return this.noVeto(dirtyCount === workingCopies.length ? true /* all */ : workingCopies); // no veto (dirty reverted)
+			return this.noVeto(workingCopies); // no veto (dirty reverted)
 		}
 
 		// Cancel
@@ -225,7 +229,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		}
 	}
 
-	private async doRevertAllBeforeShutdown(workingCopies = this.workingCopyService.dirtyWorkingCopies): Promise<void> {
+	private async doRevertAllBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<void> {
 
 		// Soft revert is good enough on shutdown
 		const revertOptions = { soft: true };
@@ -243,7 +247,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		}
 	}
 
-	private noVeto(backupsToDiscardOrAll: IWorkingCopy[] | boolean): boolean | Promise<boolean> {
+	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
 		if (this.lifecycleService.phase < LifecyclePhase.Restored) {
 			return false; // if editors have not restored, we are not up to speed with backups and thus should not discard them
 		}
@@ -252,16 +256,6 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false; // extension development does not track any backups
 		}
 
-		if (backupsToDiscardOrAll === true) {
-			// discard all backups
-			return this.backupFileService.discardAllBackups().then(() => false, () => false);
-		}
-
-		if (Array.isArray(backupsToDiscardOrAll)) {
-			// otherwise, discard individually
-			return Promise.all(backupsToDiscardOrAll.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
-		}
-
-		return false;
+		return Promise.all(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
 	}
 }

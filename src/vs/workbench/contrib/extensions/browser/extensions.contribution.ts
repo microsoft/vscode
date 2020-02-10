@@ -252,6 +252,7 @@ CommandsRegistry.registerCommand({
 			}
 		} catch (e) {
 			onUnexpectedError(e);
+			throw e;
 		}
 	}
 });
@@ -284,6 +285,7 @@ CommandsRegistry.registerCommand({
 			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);
+			throw e;
 		}
 	}
 });
@@ -394,7 +396,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.configure',
-			title: { value: localize('workbench.extensions.action.configure', "Configure..."), original: 'Configure...' },
+			title: { value: localize('workbench.extensions.action.configure', "Extension Settings"), original: 'Extension Settings' },
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',

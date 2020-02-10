@@ -7,7 +7,6 @@ import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/t
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,31 +23,148 @@ import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 
 // --- VIEW MODEL
 
-export class FileElement {
-
-	readonly uri: URI;
-
-	constructor(
-		readonly parent: BulkCategory | undefined,
-		readonly edit: BulkFileOperation
-	) {
-		this.uri = edit.uri;
-	}
+export interface ICheckable {
+	isChecked(): boolean;
+	setChecked(value: boolean): void;
 }
 
-export class TextEditElement {
+export class CategoryElement {
 
 	constructor(
-		readonly parent: FileElement,
-		readonly edit: BulkTextEdit,
-		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
+		readonly parent: BulkFileOperations,
+		readonly category: BulkCategory
 	) { }
 }
 
-export type BulkEditElement = BulkCategory | FileElement | TextEditElement;
+export class FileElement implements ICheckable {
+
+	constructor(
+		readonly parent: CategoryElement | BulkFileOperations,
+		readonly edit: BulkFileOperation
+	) { }
+
+	isChecked(): boolean {
+		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+
+		let checked = true;
+
+		// only text edit children -> reflect children state
+		if (this.edit.type === BulkFileOperationType.TextEdit) {
+			checked = !this.edit.textEdits.every(edit => !model.checked.isChecked(edit.textEdit));
+		}
+
+		// multiple file edits -> reflect single state
+		this.edit.originalEdits.forEach(edit => {
+			if (WorkspaceFileEdit.is(edit)) {
+				checked = checked && model.checked.isChecked(edit);
+			}
+		});
+
+		// multiple categories and text change -> read all elements
+		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
+			for (let category of model.categories) {
+				for (let file of category.fileOperations) {
+					if (file.uri.toString() === this.edit.uri.toString()) {
+						file.originalEdits.forEach(edit => {
+							if (WorkspaceFileEdit.is(edit)) {
+								checked = checked && model.checked.isChecked(edit);
+							}
+						});
+					}
+				}
+			}
+		}
+
+		return checked;
+	}
+
+	setChecked(value: boolean): void {
+		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+		this.edit.originalEdits.forEach(edit => {
+			model.checked.updateChecked(edit, value);
+		});
+
+		// multiple categories and file change -> update all elements
+		if (this.parent instanceof CategoryElement && this.edit.type !== BulkFileOperationType.TextEdit) {
+			for (let category of model.categories) {
+				for (let file of category.fileOperations) {
+					if (file.uri.toString() === this.edit.uri.toString()) {
+						file.originalEdits.forEach(edit => {
+							model.checked.updateChecked(edit, value);
+						});
+					}
+				}
+			}
+		}
+	}
+
+	isDisabled(): boolean {
+		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
+			let model = this.parent.parent;
+			let checked = true;
+			for (let category of model.categories) {
+				for (let file of category.fileOperations) {
+					if (file.uri.toString() === this.edit.uri.toString()) {
+						file.originalEdits.forEach(edit => {
+							if (WorkspaceFileEdit.is(edit)) {
+								checked = checked && model.checked.isChecked(edit);
+							}
+						});
+					}
+				}
+			}
+			return !checked;
+		}
+		return false;
+	}
+}
+
+export class TextEditElement implements ICheckable {
+
+	constructor(
+		readonly parent: FileElement,
+		readonly idx: number,
+		readonly edit: BulkTextEdit,
+		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
+	) { }
+
+	isChecked(): boolean {
+		let model = this.parent.parent;
+		if (model instanceof CategoryElement) {
+			model = model.parent;
+		}
+		return model.checked.isChecked(this.edit.textEdit);
+	}
+
+	setChecked(value: boolean): void {
+		let model = this.parent.parent;
+		if (model instanceof CategoryElement) {
+			model = model.parent;
+		}
+
+		// check/uncheck this element
+		model.checked.updateChecked(this.edit.textEdit, value);
+
+		// make sure parent is checked when this element is checked...
+		if (value) {
+			this.parent.edit.originalEdits.forEach(edit => {
+				if (WorkspaceFileEdit.is(edit)) {
+					(<BulkFileOperations>model).checked.updateChecked(edit, value);
+				}
+			});
+		}
+	}
+
+	isDisabled(): boolean {
+		return this.parent.isDisabled();
+	}
+}
+
+export type BulkEditElement = CategoryElement | FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
@@ -73,13 +189,13 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		// root -> file/text edits
 		if (element instanceof BulkFileOperations) {
 			return this.groupByFile
-				? element.fileOperations.map(op => new FileElement(undefined, op))
-				: element.categories;
+				? element.fileOperations.map(op => new FileElement(element, op))
+				: element.categories.map(cat => new CategoryElement(element, cat));
 		}
 
 		// category
-		if (element instanceof BulkCategory) {
-			return element.fileOperations.map(op => new FileElement(element, op));
+		if (element instanceof CategoryElement) {
+			return element.category.fileOperations.map(op => new FileElement(element, op));
 		}
 
 		// file: text edit
@@ -96,7 +212,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModelDisposable = textModel;
 			}
 
-			const result = element.edit.textEdits.map(edit => {
+			const result = element.edit.textEdits.map((edit, idx) => {
 				const range = Range.lift(edit.textEdit.edit.range);
 
 				//prefix-math
@@ -115,6 +231,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 				return new TextEditElement(
 					element,
+					idx,
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
@@ -209,11 +326,11 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 
 	getId(element: BulkEditElement): { toString(): string; } {
 		if (element instanceof FileElement) {
-			return element.uri + JSON.stringify(element.parent?.metadata);
+			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
 		} else if (element instanceof TextEditElement) {
-			return element.parent.uri.toString() + JSON.stringify(element.edit.textEdit);
+			return element.parent.edit.uri.toString() + element.idx;
 		} else {
-			return JSON.stringify(element.metadata);
+			return JSON.stringify(element.category.metadata);
 		}
 	}
 }
@@ -248,7 +365,7 @@ class CategoryElementTemplate {
 	}
 }
 
-export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, FuzzyScore, CategoryElementTemplate> {
+export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, FuzzyScore, CategoryElementTemplate> {
 
 	static readonly id: string = 'CategoryElementRenderer';
 
@@ -258,12 +375,12 @@ export class CategoryElementRenderer implements ITreeRenderer<BulkCategory, Fuzz
 		return new CategoryElementTemplate(container);
 	}
 
-	renderElement(node: ITreeNode<BulkCategory, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
+	renderElement(node: ITreeNode<CategoryElement, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
 
 		template.icon.style.setProperty('--background-dark', null);
 		template.icon.style.setProperty('--background-light', null);
 
-		const { metadata } = node.element;
+		const { metadata } = node.element.category;
 		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
 			// css
 			const className = ThemeIcon.asClassName(metadata.iconPath);
@@ -322,42 +439,41 @@ class FileElementTemplate {
 
 	set(element: FileElement, score: FuzzyScore | undefined) {
 		this._localDisposables.clear();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
 
-		if (element.edit.type === BulkFileOperationType.TextEdit && element.edit.textEdits.every(edit => !edit.isChecked())) {
-			this._checkbox.checked = false;
-		} else {
-			this._checkbox.checked = element.edit.isChecked();
-		}
+		this._checkbox.checked = element.isChecked();
+		this._checkbox.disabled = element.isDisabled();
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
+			element.setChecked(this._checkbox.checked);
+		}));
 
 		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
-			// rename: NEW NAME (old name)
-			this._label.setFile(element.edit.newUri, {
-				matches: createMatches(score),
-				fileKind: FileKind.FILE,
-				fileDecorations: { colors: true, badges: false },
+			// rename: oldName → newName
+			this._label.setResource({
+				resource: element.edit.uri,
+				name: localize('rename.label', "{0} → {1}", this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })),
+			}, {
+				fileDecorations: { colors: true, badges: false }
 			});
 
-			this._details.innerText = localize(
-				'detail.rename', "(renaming from {0})",
-				this._labelService.getUriLabel(element.uri, { relative: true })
-			);
+			this._details.innerText = localize('detail.rename', "(renaming)");
 
 		} else {
 			// create, delete, edit: NAME
-			this._label.setFile(element.uri, {
+			const options = {
 				matches: createMatches(score),
 				fileKind: FileKind.FILE,
 				fileDecorations: { colors: true, badges: false },
-			});
-
+				extraClasses: <string[]>[]
+			};
 			if (element.edit.type & BulkFileOperationType.Create) {
 				this._details.innerText = localize('detail.create', "(creating)");
 			} else if (element.edit.type & BulkFileOperationType.Delete) {
 				this._details.innerText = localize('detail.del', "(deleting)");
+				options.extraClasses.push('delete');
 			} else {
 				this._details.innerText = '';
 			}
+			this._label.setFile(element.edit.uri, options);
 		}
 	}
 }
@@ -412,21 +528,18 @@ class TextEditElementTemplate {
 
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
-			if (element.parent.edit.isChecked()) {
-				element.edit.updateChecked(this._checkbox.checked);
-			}
+
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', e => {
+			element.setChecked(this._checkbox.checked);
+			e.preventDefault();
 		}));
-
-		if (element.parent.edit.isChecked()) {
-			this._checkbox.checked = element.edit.isChecked();
-			this._checkbox.disabled = false;
+		if (element.parent.isChecked()) {
+			this._checkbox.checked = element.isChecked();
+			this._checkbox.disabled = element.isDisabled();
 		} else {
-			this._checkbox.checked = element.edit.isChecked();
-			this._checkbox.disabled = true;
+			this._checkbox.checked = element.isChecked();
+			this._checkbox.disabled = element.isDisabled();
 		}
-
-		dom.toggleClass(this._checkbox, 'disabled', !element.edit.parent.isChecked());
 
 		let value = '';
 		value += element.prefix;
@@ -489,9 +602,9 @@ export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvid
 
 	getKeyboardNavigationLabel(element: BulkEditElement) {
 		if (element instanceof FileElement) {
-			return basename(element.uri);
-		} else if (element instanceof BulkCategory) {
-			return element.metadata.label;
+			return basename(element.edit.uri);
+		} else if (element instanceof CategoryElement) {
+			return element.category.metadata.label;
 		}
 		return undefined;
 	}

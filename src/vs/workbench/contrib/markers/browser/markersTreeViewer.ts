@@ -14,7 +14,7 @@ import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/contri
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
@@ -43,6 +43,11 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -148,7 +153,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
 		@IThemeService private readonly themeService: IThemeService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
 	}
@@ -172,7 +178,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (resourceMarkers.resource.scheme === network.Schemas.file || resourceMarkers.resource.scheme === network.Schemas.untitled) {
+		if (this.fileService.canHandleResource(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
 			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
@@ -217,14 +223,16 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	constructor(
 		private readonly markersViewState: MarkersViewModel,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	templateId = TemplateId.Marker;
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this._configurationService, this.instantiationService);
 		return data;
 	}
 
@@ -238,6 +246,8 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 }
 
+type ModifierKey = 'meta' | 'ctrl' | 'alt';
+
 class MarkerWidget extends Disposable {
 
 	private readonly actionBar: ActionBar;
@@ -246,18 +256,25 @@ class MarkerWidget extends Disposable {
 	private readonly messageAndDetailsContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
+	private _clickModifierKey: ModifierKey;
+	private _codeLink?: HTMLElement;
+
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
-		instantiationService: IInstantiationService
+		private readonly _openerService: IOpenerService,
+		private readonly _configurationService: IConfigurationService,
+		_instantiationService: IInstantiationService
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action: QuickFixAction) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
+			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
+
+		this._clickModifierKey = this._getClickModifierKey();
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -273,6 +290,15 @@ class MarkerWidget extends Disposable {
 		this.renderMessageAndDetails(element, filterData);
 		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
 		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_LEAVE, () => this.markersViewModel.onMarkerMouseLeave(element)));
+
+		this.disposables.add((this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.multiCursorModifier')) {
+				this._clickModifierKey = this._getClickModifierKey();
+				if (this._codeLink) {
+					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
+				}
+			}
+		})));
 	}
 
 	private renderQuickfixActionbar(marker: Marker): void {
@@ -335,14 +361,62 @@ class MarkerWidget extends Disposable {
 			source.set(marker.source, sourceMatches);
 
 			if (marker.code) {
-				const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
-				const codeMatches = filterData && filterData.codeMatches || [];
-				code.set(marker.code, codeMatches);
+				if (typeof marker.code === 'string') {
+					const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
+					const codeMatches = filterData && filterData.codeMatches || [];
+					code.set(marker.code, codeMatches);
+				} else {
+					this._codeLink = dom.$('a.code-link');
+					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
+
+					const codeUri = marker.code.link;
+					const codeLink = codeUri.toString();
+
+					dom.append(parent, this._codeLink);
+					this._codeLink.setAttribute('href', codeLink);
+
+					this._codeLink.onclick = (e) => {
+						e.preventDefault();
+						if ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)) {
+							this._openerService.open(codeUri);
+							e.stopPropagation();
+						}
+					};
+
+					const code = new HighlightedLabel(dom.append(this._codeLink, dom.$('.marker-code')), false);
+					const codeMatches = filterData && filterData.codeMatches || [];
+					code.set(marker.code.value, codeMatches);
+				}
 			}
 		}
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+	}
+
+	private _getClickModifierKey(): ModifierKey {
+		const value = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
+		if (value === 'ctrlCmd') {
+			return 'alt';
+		} else {
+			if (OS === OperatingSystem.Macintosh) {
+				return 'meta';
+			} else {
+				return 'ctrl';
+			}
+		}
+	}
+
+	private _getCodelinkTooltip(): string {
+		const tooltipLabel = localize('links.navigate.follow', 'Follow link');
+		const tooltipKeybinding = this._clickModifierKey === 'ctrl'
+			? localize('links.navigate.kb.meta', 'ctrl + click')
+			:
+			this._clickModifierKey === 'meta'
+				? OS === OperatingSystem.Macintosh ? localize('links.navigate.kb.meta.mac', 'cmd + click') : localize('links.navigate.kb.meta', 'ctrl + click')
+				: OS === OperatingSystem.Macintosh ? localize('links.navigate.kb.alt.mac', 'option + click') : localize('links.navigate.kb.alt', 'alt + click');
+
+		return `${tooltipLabel} (${tooltipKeybinding})`;
 	}
 }
 
@@ -451,7 +525,14 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			lineMatches.push(FilterOptions._messageFilter(this.options.textFilter, line) || []);
 		}
 		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
-		const codeMatches = marker.marker.code && FilterOptions._filter(this.options.textFilter, marker.marker.code);
+
+		let codeMatches: IMatch[] | null | undefined;
+		if (marker.marker.code) {
+			const codeText = typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value;
+			codeMatches = FilterOptions._filter(this.options.textFilter, codeText);
+		} else {
+			codeMatches = undefined;
+		}
 
 		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
 			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
@@ -749,7 +830,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		const elements = (data as ElementsDragAndDropData<TreeElement>).elements;
 		const resources: URI[] = elements
 			.filter(e => e instanceof ResourceMarkers)
-			.map((resourceMarker: ResourceMarkers) => resourceMarker.resource);
+			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
@@ -760,3 +841,10 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 	drop(data: IDragAndDropData, targetElement: TreeElement, targetIndex: number, originalEvent: DragEvent): void {
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const linkFg = theme.getColor(textLinkForeground);
+	if (linkFg) {
+		collector.addRule(`.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link span:hover { color: ${linkFg}; }`);
+	}
+});

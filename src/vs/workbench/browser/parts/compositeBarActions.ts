@@ -51,10 +51,10 @@ export interface ICompositeBar {
 
 export class ActivityAction extends Action {
 
-	private readonly _onDidChangeActivity = this._register(new Emitter<this>());
+	private readonly _onDidChangeActivity = this._register(new Emitter<ActivityAction>());
 	readonly onDidChangeActivity = this._onDidChangeActivity.event;
 
-	private readonly _onDidChangeBadge = this._register(new Emitter<this>());
+	private readonly _onDidChangeBadge = this._register(new Emitter<ActivityAction>());
 	readonly onDidChangeBadge = this._onDidChangeBadge.event;
 
 	private badge: IBadge | undefined;
@@ -463,6 +463,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
+		private compositeContextMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
@@ -596,6 +597,12 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private showContextMenu(container: HTMLElement): void {
 		const actions: Action[] = [this.toggleCompositePinnedAction];
+
+		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
+		if (compositeContextMenuActions.length) {
+			actions.push(...compositeContextMenuActions);
+		}
+
 		if ((<any>this.compositeActivityAction.activity).extensionId) {
 			actions.push(new Separator());
 			actions.push(CompositeActionViewItem.manageExtensionAction);

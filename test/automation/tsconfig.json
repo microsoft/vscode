@@ -16,6 +16,6 @@
 	"exclude": [
 		"node_modules",
 		"out",
-		"tools",
+		"tools"
 	]
 }

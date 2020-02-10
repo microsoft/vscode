@@ -7,6 +7,7 @@
 // how we load it
 import * as keytarType from 'keytar';
 import { env } from 'vscode';
+import Logger from './logger';
 
 function getKeytar(): Keytar | undefined {
 	try {
@@ -44,22 +45,27 @@ export class Keychain {
 			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
 		} catch (e) {
 			// Ignore
+			Logger.error(`Setting token failed: ${e}`);
 		}
 	}
 
-	async getToken() {
+	async getToken(): Promise<string | null | undefined> {
 		try {
 			return await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
 		} catch (e) {
 			// Ignore
+			Logger.error(`Getting token failed: ${e}`);
+			return Promise.resolve(undefined);
 		}
 	}
 
-	async deleteToken() {
+	async deleteToken(): Promise<boolean | undefined> {
 		try {
 			return await this.keytar.deletePassword(SERVICE_ID, ACCOUNT_ID);
 		} catch (e) {
 			// Ignore
+			Logger.error(`Deleting token failed: ${e}`);
+			return Promise.resolve(undefined);
 		}
 	}
 }

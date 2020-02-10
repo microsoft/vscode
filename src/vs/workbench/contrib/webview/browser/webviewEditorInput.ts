@@ -39,9 +39,11 @@ export class WebviewInput extends EditorInput {
 	}
 
 	dispose() {
-		if (!this._didSomeoneTakeMyWebview) {
-			this._webview?.rawValue?.dispose();
-			this._onDisposeWebview.fire();
+		if (!this.isDisposed()) {
+			if (!this._didSomeoneTakeMyWebview) {
+				this._webview?.rawValue?.dispose();
+				this._onDisposeWebview.fire();
+			}
 		}
 		super.dispose();
 	}

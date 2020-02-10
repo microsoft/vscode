@@ -8,7 +8,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/abstractAccessibilityService';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -19,11 +19,10 @@ type AccessibilityMetricsClassification = {
 	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-export class AccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
+export class NodeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
 	_serviceBrand: undefined;
 
-	private _accessibilitySupport = AccessibilitySupport.Unknown;
 	private didSendTelemetry = false;
 
 	constructor(
@@ -56,22 +55,13 @@ export class AccessibilityService extends AbstractAccessibilityService implement
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
+		super.setAccessibilitySupport(accessibilitySupport);
 
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {
 			this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: true });
 			this.didSendTelemetry = true;
 		}
 	}
-
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
-	}
 }
 
-registerSingleton(IAccessibilityService, AccessibilityService, true);
+registerSingleton(IAccessibilityService, NodeAccessibilityService, true);

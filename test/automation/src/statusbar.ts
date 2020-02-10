@@ -20,8 +20,6 @@ export const enum StatusBarElement {
 export class StatusBar {
 
 	private readonly mainSelector = 'div[id="workbench.parts.statusbar"]';
-	private readonly leftSelector = '.statusbar-item.left';
-	private readonly rightSelector = '.statusbar-item.right';
 
 	constructor(private code: Code) { }
 
@@ -44,23 +42,23 @@ export class StatusBar {
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-git-branch`;
+				return `.statusbar-item[id="status.scm"] .codicon.codicon-git-branch`;
 			case StatusBarElement.SYNC_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-sync`;
+				return `.statusbar-item[id="status.scm"] .codicon.codicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-error`;
+				return `.statusbar-item[id="status.problems"]`;
 			case StatusBarElement.SELECTION_STATUS:
-				return `${this.mainSelector} ${this.rightSelector}[title="Go to Line"]`;
+				return `.statusbar-item[id="status.editor.selection"]`;
 			case StatusBarElement.INDENTATION_STATUS:
-				return `${this.mainSelector} ${this.rightSelector}[title="Select Indentation"]`;
+				return `.statusbar-item[id="status.editor.indentation"]`;
 			case StatusBarElement.ENCODING_STATUS:
-				return `${this.mainSelector} ${this.rightSelector}[title="Select Encoding"]`;
+				return `.statusbar-item[id="status.editor.encoding"]`;
 			case StatusBarElement.EOL_STATUS:
-				return `${this.mainSelector} ${this.rightSelector}[title="Select End of Line Sequence"]`;
+				return `.statusbar-item[id="status.editor.eol"]`;
 			case StatusBarElement.LANGUAGE_STATUS:
-				return `${this.mainSelector} ${this.rightSelector}[title="Select Language Mode"]`;
+				return `.statusbar-item[id="status.editor.mode"]`;
 			case StatusBarElement.FEEDBACK_ICON:
-				return `${this.mainSelector} .statusbar-item.right[id="status.feedback"]`;
+				return `.statusbar-item[id="status.feedback"]`;
 			default:
 				throw new Error(element);
 		}

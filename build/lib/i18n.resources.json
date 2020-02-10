@@ -143,6 +143,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/searchEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/snippets",
 			"project": "vscode-workbench"
 		},
@@ -320,6 +324,10 @@
 		},
 		{
 			"name": "vs/workbench/services/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/timeline",
 			"project": "vscode-workbench"
 		}
 	]

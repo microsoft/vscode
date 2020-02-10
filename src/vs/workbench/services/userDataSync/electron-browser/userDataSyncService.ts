@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -24,30 +24,43 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	get onDidChangeLocal(): Event<void> { return this.channel.listen('onDidChangeLocal'); }
 
-	private _conflictsSource: SyncSource | null = null;
-	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
+	private _conflictsSources: SyncSource[] = [];
+	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
+	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
+	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {
 		super();
-		this.channel = sharedProcessService.getChannel('userDataSync');
-		this.channel.call<SyncStatus>('_getInitialStatus').then(status => {
+		const userDataSyncChannel = sharedProcessService.getChannel('userDataSync');
+		this.channel = {
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				return userDataSyncChannel.call(command, arg, cancellationToken)
+					.then(null, error => { throw UserDataSyncError.toUserDataSyncError(error); });
+			},
+			listen<T>(event: string, arg?: any): Event<T> {
+				return userDataSyncChannel.listen(event, arg);
+			}
+		};
+		this.channel.call<[SyncStatus, SyncSource[]]>('_getInitialData').then(([status, conflicts]) => {
 			this.updateStatus(status);
+			this.updateConflicts(conflicts);
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
 		});
+		this._register(this.channel.listen<SyncSource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
 	}
 
 	pull(): Promise<void> {
 		return this.channel.call('pull');
 	}
 
-	push(): Promise<void> {
-		return this.channel.call('push');
+	sync(): Promise<void> {
+		return this.channel.call('sync');
 	}
 
-	sync(_continue?: boolean): Promise<boolean> {
-		return this.channel.call('sync', [_continue]);
+	accept(source: SyncSource, content: string): Promise<void> {
+		return this.channel.call('accept', [source, content]);
 	}
 
 	reset(): Promise<void> {
@@ -58,38 +71,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	stop(): void {
-		this.channel.call('stop');
+	stop(): Promise<void> {
+		return this.channel.call('stop');
 	}
 
-	hasPreviouslySynced(): Promise<boolean> {
-		return this.channel.call('hasPreviouslySynced');
+	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [source, preview]);
 	}
 
-	hasRemoteData(): Promise<boolean> {
-		return this.channel.call('hasRemoteData');
-	}
-
-	hasLocalData(): Promise<boolean> {
-		return this.channel.call('hasLocalData');
-	}
-
-	getRemoteContent(source: SyncSource): Promise<string | null> {
-		return this.channel.call('getRemoteContent', [source]);
-	}
-
-	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncAndHasUserData');
-	}
-
-	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
-		return this.channel.call('removeExtension', [identifier]);
+	isFirstTimeSyncWithMerge(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncWithMerge');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {
-		this._conflictsSource = await this.channel.call<SyncSource>('getConflictsSource');
 		this._status = status;
 		this._onDidChangeStatus.fire(status);
+	}
+
+	private async updateConflicts(conflicts: SyncSource[]): Promise<void> {
+		this._conflictsSources = conflicts;
+		this._onDidChangeConflicts.fire(conflicts);
 	}
 
 }

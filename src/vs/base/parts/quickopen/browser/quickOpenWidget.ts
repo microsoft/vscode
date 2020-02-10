@@ -754,6 +754,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 		else if (autoFocus.autoFocusLastEntry) {
 			if (entries.length > 1) {
 				this.tree.focusLast();
+				this.tree.reveal(this.tree.getFocus());
 			}
 		}
 	}

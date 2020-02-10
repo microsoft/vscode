@@ -13,7 +13,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-browser/backupTracker';
-import { TestTextFileService, workbenchInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestContextService, TestFileService, TestElectronService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
+import { TestLifecycleService, TestFilesConfigurationService, TestContextService, TestFileService, TestFileDialogService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -42,6 +42,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { TestTextFileService, TestElectronService, workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -279,11 +280,11 @@ suite('BackupTracker', () => {
 
 		let veto = event.value;
 		if (typeof veto === 'boolean') {
-			assert.ok(accessor.backupFileService.didDiscardAllBackups);
+			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
 			assert.ok(!veto);
 		} else {
 			veto = await veto;
-			assert.ok(accessor.backupFileService.didDiscardAllBackups);
+			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
 			assert.ok(!veto);
 		}
 
@@ -452,7 +453,7 @@ suite('BackupTracker', () => {
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			const veto = await (<Promise<boolean>>event.value);
-			assert.ok(!accessor.backupFileService.didDiscardAllBackups); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.equal(veto, shouldVeto);
 
 			part.dispose();

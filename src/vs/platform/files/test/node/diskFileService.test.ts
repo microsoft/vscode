@@ -19,7 +19,7 @@ import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, File
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
 import { find } from 'vs/base/common/arrays';
 
@@ -440,17 +440,22 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - invalid symbolic link does not break', async () => {
+	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
 		if (isWindows) {
 			return; // not reliable on windows
 		}
 
-		const link = URI.file(join(testDir, 'foo'));
-		await symlink(link.fsPath, join(testDir, 'bar'));
+		await symlink(join(testDir, 'foo'), join(testDir, 'bar'));
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
-		assert.equal(resolved.children!.length, 8);
+		assert.equal(resolved.children!.length, 9);
+
+		const resolvedLink = resolved.children?.filter(child => child.name === 'bar' && child.isSymbolicLink)[0];
+		assert.ok(resolvedLink);
+
+		assert.ok(!resolvedLink?.isDirectory);
+		assert.ok(!resolvedLink?.isFile);
 	});
 
 	test('deleteFile', async () => {
@@ -477,6 +482,52 @@ suite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+	});
+
+	test('deleteFile - symbolic link (exists)', async () => {
+		if (isWindows) {
+			return; // not reliable on windows
+		}
+
+		const target = URI.file(join(testDir, 'lorem.txt'));
+		const link = URI.file(join(testDir, 'lorem.txt-linked'));
+		await symlink(target.fsPath, link.fsPath);
+
+		const source = await service.resolve(link);
+
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		await service.del(source.resource);
+
+		assert.equal(existsSync(source.resource.fsPath), false);
+
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, link.fsPath);
+		assert.equal(event!.operation, FileOperation.DELETE);
+
+		assert.equal(existsSync(target.fsPath), true); // target the link pointed to is never deleted
+	});
+
+	test('deleteFile - symbolic link (pointing to non-existing file)', async () => {
+		if (isWindows) {
+			return; // not reliable on windows
+		}
+
+		const target = URI.file(join(testDir, 'foo'));
+		const link = URI.file(join(testDir, 'bar'));
+		await symlink(target.fsPath, link.fsPath);
+
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		await service.del(link);
+
+		assert.equal(existsSync(link.fsPath), false);
+
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, link.fsPath);
+		assert.equal(event!.operation, FileOperation.DELETE);
 	});
 
 	test('deleteFolder (recursive)', async () => {
@@ -1865,6 +1916,47 @@ suite('Disk File Service', function () {
 		}
 
 		assert.ok(!error);
+	});
+
+	test('writeFile - no error when writing to same non-existing folder multiple times different new files', async () => {
+		const newFolder = URI.file(join(testDir, 'some', 'new', 'folder'));
+
+		const file1 = joinPath(newFolder, 'file-1');
+		const file2 = joinPath(newFolder, 'file-2');
+		const file3 = joinPath(newFolder, 'file-3');
+
+		// this essentially verifies that the mkdirp logic implemented
+		// in the file service is able to receive multiple requests for
+		// the same folder and will not throw errors if another racing
+		// call succeeded first.
+		const newContent = 'Updates to the small file';
+		await Promise.all([
+			service.writeFile(file1, VSBuffer.fromString(newContent)),
+			service.writeFile(file2, VSBuffer.fromString(newContent)),
+			service.writeFile(file3, VSBuffer.fromString(newContent))
+		]);
+
+		assert.ok(service.exists(file1));
+		assert.ok(service.exists(file2));
+		assert.ok(service.exists(file3));
+	});
+
+	test('writeFile - error when writing to folder that is a file', async () => {
+		const existingFile = URI.file(join(testDir, 'my-file'));
+
+		await service.createFile(existingFile);
+
+		const newFile = joinPath(existingFile, 'file-1');
+
+		let error;
+		const newContent = 'Updates to the small file';
+		try {
+			await service.writeFile(newFile, VSBuffer.fromString(newContent));
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
 	});
 
 	const runWatchTests = isLinux;

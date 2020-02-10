@@ -223,11 +223,11 @@ export class CommentsPanel extends Panel {
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.focusCommentsPanel',
-	handler: (accessor) => {
+	handler: async (accessor) => {
 		const panelService = accessor.get(IPanelService);
 		const panels = panelService.getPanels();
 		if (panels.some(panelIdentifier => panelIdentifier.id === COMMENTS_PANEL_ID)) {
-			panelService.openPanel(COMMENTS_PANEL_ID, true);
+			await panelService.openPanel(COMMENTS_PANEL_ID, true);
 		}
 	}
 });

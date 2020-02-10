@@ -1313,7 +1313,22 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
-export function triggerDownload(uri: URI, name: string): void {
+
+export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
+
+	// If the data is provided as Buffer, we create a
+	// blog URL out of it to produce a valid link
+	let url: string;
+	if (URI.isUri(dataOrUri)) {
+		url = dataOrUri.toString(true);
+	} else {
+		const blob = new Blob([dataOrUri]);
+		url = URL.createObjectURL(blob);
+
+		// Ensure to free the data from DOM eventually
+		setTimeout(() => URL.revokeObjectURL(url));
+	}
+
 	// In order to download from the browser, the only way seems
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
@@ -1321,7 +1336,7 @@ export function triggerDownload(uri: URI, name: string): void {
 	const anchor = document.createElement('a');
 	document.body.appendChild(anchor);
 	anchor.download = name;
-	anchor.href = uri.toString(true);
+	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually

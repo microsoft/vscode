@@ -11,6 +11,7 @@ import { textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/comm
 interface ITokenTypeExtensionPoint {
 	id: string;
 	description: string;
+	superType?: string;
 }
 
 interface ITokenModifierExtensionPoint {
@@ -20,7 +21,7 @@ interface ITokenModifierExtensionPoint {
 
 interface ITokenStyleDefaultExtensionPoint {
 	selector: string;
-	scopes?: string[];
+	scope?: string[];
 	light?: {
 		foreground?: string;
 		fontStyle?: string;
@@ -41,22 +42,22 @@ const colorPattern = '^#([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$';
 const tokenClassificationRegistry: ITokenClassificationRegistry = getTokenClassificationRegistry();
 
 const tokenTypeExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenTypeExtensionPoint[]>({
-	extensionPoint: 'tokenTypes',
+	extensionPoint: 'semanticTokenTypes',
 	jsonSchema: {
-		description: nls.localize('contributes.tokenTypes', 'Contributes semantic token types.'),
+		description: nls.localize('contributes.semanticTokenTypes', 'Contributes semantic token types.'),
 		type: 'array',
 		items: {
 			type: 'object',
 			properties: {
 				id: {
 					type: 'string',
-					description: nls.localize('contributes.tokenTypes.id', 'The identifier of the token type'),
+					description: nls.localize('contributes.semanticTokenTypes.id', 'The identifier of the semantic token type'),
 					pattern: typeAndModifierIdPattern,
-					patternErrorMessage: nls.localize('contributes.tokenTypes.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*'),
+					patternErrorMessage: nls.localize('contributes.semanticTokenTypes.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*'),
 				},
 				description: {
 					type: 'string',
-					description: nls.localize('contributes.color.description', 'The description of the token type'),
+					description: nls.localize('contributes.color.description', 'The description of the semantic token type'),
 				}
 			}
 		}
@@ -64,21 +65,21 @@ const tokenTypeExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenTypeEx
 });
 
 const tokenModifierExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenModifierExtensionPoint[]>({
-	extensionPoint: 'tokenModifiers',
+	extensionPoint: 'semanticTokenModifiers',
 	jsonSchema: {
-		description: nls.localize('contributes.tokenModifiers', 'Contributes semantic token modifiers.'),
+		description: nls.localize('contributes.semanticTokenModifiers', 'Contributes semantic token modifiers.'),
 		type: 'array',
 		items: {
 			type: 'object',
 			properties: {
 				id: {
 					type: 'string',
-					description: nls.localize('contributes.tokenModifiers.id', 'The identifier of the token modifier'),
+					description: nls.localize('contributes.semanticTokenModifiers.id', 'The identifier of the semantic token modifier'),
 					pattern: typeAndModifierIdPattern,
-					patternErrorMessage: nls.localize('contributes.tokenModifiers.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*')
+					patternErrorMessage: nls.localize('contributes.semanticTokenModifiers.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*')
 				},
 				description: {
-					description: nls.localize('contributes.tokenModifiers.description', 'The description of the token modifier')
+					description: nls.localize('contributes.semanticTokenModifiers.description', 'The description of the semantic token modifier')
 				}
 			}
 		}
@@ -86,36 +87,36 @@ const tokenModifierExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenMo
 });
 
 const tokenStyleDefaultsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenStyleDefaultExtensionPoint[]>({
-	extensionPoint: 'tokenStyleDefaults',
+	extensionPoint: 'semanticTokenStyleDefaults',
 	jsonSchema: {
-		description: nls.localize('contributes.tokenStyleDefaults', 'Contributes semantic token style default.'),
+		description: nls.localize('contributes.semanticTokenStyleDefaults', 'Contributes semantic token style defaults.'),
 		type: 'array',
 		items: {
 			type: 'object',
 			properties: {
 				selector: {
 					type: 'string',
-					description: nls.localize('contributes.tokenStyleDefaults.selector', 'The selector matching token types and modifiers.'),
+					description: nls.localize('contributes.semanticTokenStyleDefaults.selector', 'The selector matching token types and modifiers.'),
 					pattern: selectorPattern,
-					patternErrorMessage: nls.localize('contributes.tokenStyleDefaults.selector.format', 'Selectors should be in the form (type|*)(.modifier)*'),
+					patternErrorMessage: nls.localize('contributes.semanticTokenStyleDefaults.selector.format', 'Selectors should be in the form (type|*)(.modifier)*'),
 				},
-				scopes: {
+				scope: {
 					type: 'array',
-					description: nls.localize('contributes.scopes.light', 'A list of textmate scopes that are matched against the current color theme to find a default style'),
+					description: nls.localize('contributes.semanticTokenStyleDefaults.scope', 'A TextMate scope against the current color theme is matched to find the style for the given selector'),
 					items: {
 						type: 'string'
 					}
 				},
 				light: {
-					description: nls.localize('contributes.tokenStyleDefaults.light', 'The default style used for light themes'),
+					description: nls.localize('contributes.semanticTokenStyleDefaults.light', 'The default style used for light themes'),
 					$ref: textmateColorSettingsSchemaId
 				},
 				dark: {
-					description: nls.localize('contributes.tokenStyleDefaults.dark', 'The default style used for dark themes'),
+					description: nls.localize('contributes.semanticTokenStyleDefaults.dark', 'The default style used for dark themes'),
 					$ref: textmateColorSettingsSchemaId
 				},
 				highContrast: {
-					description: nls.localize('contributes.tokenStyleDefaults.hc', 'The default style used for high contrast themes'),
+					description: nls.localize('contributes.semanticTokenStyleDefaults.hc', 'The default style used for high contrast themes'),
 					$ref: textmateColorSettingsSchemaId
 				}
 			}
@@ -136,6 +137,11 @@ export class TokenClassificationExtensionPoints {
 				collector.error(nls.localize('invalid.id.format', "'configuration.{0}.id' must follow the pattern letterOrDigit[-_letterOrDigit]*", extensionPoint));
 				return false;
 			}
+			const superType = (contribution as ITokenTypeExtensionPoint).superType;
+			if (superType && !superType.match(typeAndModifierIdPattern)) {
+				collector.error(nls.localize('invalid.superType.format', "'configuration.{0}.superType' must follow the pattern letterOrDigit[-_letterOrDigit]*", extensionPoint));
+				return false;
+			}
 			if (typeof contribution.description !== 'string' || contribution.id.length === 0) {
 				collector.error(nls.localize('invalid.description', "'configuration.{0}.description' must be defined and can not be empty", extensionPoint));
 				return false;
@@ -154,7 +160,7 @@ export class TokenClassificationExtensionPoints {
 			}
 			if (style.fontStyle) {
 				if (typeof style.fontStyle !== 'string' || !style.fontStyle.match(fontStylePattern)) {
-					collector.error(nls.localize('invalid.fontStyle', "'configuration.{0}.fontStyle'  must be a one or a compination of  \'italic\', \'bold\' or \'underline\' or the empty string", extensionPoint));
+					collector.error(nls.localize('invalid.fontStyle', "'configuration.{0}.fontStyle'  must be one or a combination of  \'italic\', \'bold\' or \'underline\' or the empty string", extensionPoint));
 					return undefined;
 				}
 			}
@@ -167,12 +173,12 @@ export class TokenClassificationExtensionPoints {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.tokenTypeConfiguration', "'configuration.tokenType' must be a array"));
+					collector.error(nls.localize('invalid.semanticTokenTypeConfiguration', "'configuration.semanticTokenType' must be an array"));
 					return;
 				}
 				for (const contribution of extensionValue) {
-					if (validateTypeOrModifier(contribution, 'tokenType', collector)) {
-						tokenClassificationRegistry.registerTokenType(contribution.id, contribution.description);
+					if (validateTypeOrModifier(contribution, 'semanticTokenType', collector)) {
+						tokenClassificationRegistry.registerTokenType(contribution.id, contribution.description, contribution.superType);
 					}
 				}
 			}
@@ -189,11 +195,11 @@ export class TokenClassificationExtensionPoints {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.tokenModifierConfiguration', "'configuration.tokenModifier' must be a array"));
+					collector.error(nls.localize('invalid.semanticTokenModifierConfiguration', "'configuration.semanticTokenModifier' must be an array"));
 					return;
 				}
 				for (const contribution of extensionValue) {
-					if (validateTypeOrModifier(contribution, 'tokenModifier', collector)) {
+					if (validateTypeOrModifier(contribution, 'semanticTokenModifier', collector)) {
 						tokenClassificationRegistry.registerTokenModifier(contribution.id, contribution.description);
 					}
 				}
@@ -211,46 +217,49 @@ export class TokenClassificationExtensionPoints {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.tokenStyleDefaultConfiguration', "'configuration.tokenStyleDefaults' must be a array"));
+					collector.error(nls.localize('invalid.semanticTokenStyleDefaultConfiguration', "'configuration.semanticTokenStyleDefaults' must be an array"));
 					return;
 				}
 				for (const contribution of extensionValue) {
 					if (typeof contribution.selector !== 'string' || contribution.selector.length === 0) {
-						collector.error(nls.localize('invalid.selector', "'configuration.tokenStyleDefaults.selector' must be defined and can not be empty"));
+						collector.error(nls.localize('invalid.selector', "'configuration.semanticTokenStyleDefaults.selector' must be defined and can not be empty"));
 						continue;
 					}
 					if (!contribution.selector.match(selectorPattern)) {
-						collector.error(nls.localize('invalid.selector.format', "'configuration.tokenStyleDefaults.selector' must be in the form (type|*)(.modifier)*"));
+						collector.error(nls.localize('invalid.selector.format', "'configuration.semanticTokenStyleDefaults.selector' must be in the form (type|*)(.modifier)*"));
 						continue;
 					}
 
 					const tokenStyleDefault: TokenStyleDefaults = {};
 
-					if (contribution.scopes) {
-						if ((!Array.isArray(contribution.scopes) || contribution.scopes.some(s => typeof s !== 'string'))) {
-							collector.error(nls.localize('invalid.scopes', "If defined, 'configuration.tokenStyleDefaults.scopes' must be an array or strings"));
+					if (contribution.scope) {
+						if ((!Array.isArray(contribution.scope) || contribution.scope.some(s => typeof s !== 'string'))) {
+							collector.error(nls.localize('invalid.scope', "If defined, 'configuration.semanticTokenStyleDefaults.scope' must be an array of strings"));
 							continue;
 						}
-						tokenStyleDefault.scopesToProbe = [contribution.scopes];
+						tokenStyleDefault.scopesToProbe = [contribution.scope];
 					}
-					tokenStyleDefault.light = validateStyle(contribution.light, 'tokenStyleDefaults.light', collector);
-					tokenStyleDefault.dark = validateStyle(contribution.dark, 'tokenStyleDefaults.dark', collector);
-					tokenStyleDefault.hc = validateStyle(contribution.highContrast, 'tokenStyleDefaults.highContrast', collector);
+					tokenStyleDefault.light = validateStyle(contribution.light, 'semanticTokenStyleDefaults.light', collector);
+					tokenStyleDefault.dark = validateStyle(contribution.dark, 'semanticTokenStyleDefaults.dark', collector);
+					tokenStyleDefault.hc = validateStyle(contribution.highContrast, 'semanticTokenStyleDefaults.highContrast', collector);
 
-					const [type, ...modifiers] = contribution.selector.split('.');
-					const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-					if (classification) {
-						tokenClassificationRegistry.registerTokenStyleDefault(classification, tokenStyleDefault);
+					try {
+						const selector = tokenClassificationRegistry.parseTokenSelector(contribution.selector);
+						tokenClassificationRegistry.registerTokenStyleDefault(selector, tokenStyleDefault);
+					} catch (e) {
+						collector.error(nls.localize('invalid.selector.parsing', "configuration.semanticTokenStyleDefaults.selector': Problems parsing {0}.", contribution.selector));
+						// invalid selector, ignore
 					}
 				}
 			}
 			for (const extension of delta.removed) {
 				const extensionValue = <ITokenStyleDefaultExtensionPoint[]>extension.value;
 				for (const contribution of extensionValue) {
-					const [type, ...modifiers] = contribution.selector.split('.');
-					const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-					if (classification) {
-						tokenClassificationRegistry.deregisterTokenStyleDefault(classification);
+					try {
+						const selector = tokenClassificationRegistry.parseTokenSelector(contribution.selector);
+						tokenClassificationRegistry.deregisterTokenStyleDefault(selector);
+					} catch (e) {
+						// invalid selector, ignore
 					}
 				}
 			}

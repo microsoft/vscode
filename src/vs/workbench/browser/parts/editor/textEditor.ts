@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone, assign } from 'vs/base/common/objects';
+import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -22,7 +23,6 @@ import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -42,7 +42,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
-	private inputDisposable: IDisposable | undefined;
 
 	constructor(
 		id: string,
@@ -63,6 +62,15 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
 
 			return this.handleConfigurationChangeEvent(value);
+		}));
+
+		// ARIA: if a group is added or removed, update the editor's ARIA
+		// label so that it appears in the label for when there are > 1 groups
+		this._register(Event.any(this.editorGroupService.onDidAddGroup, this.editorGroupService.onDidRemoveGroup)(() => {
+			const ariaLabel = this.computeAriaLabel();
+
+			this.editorContainer?.setAttribute('aria-label', ariaLabel);
+			this.editorControl?.updateOptions({ ariaLabel });
 		}));
 	}
 
@@ -96,8 +104,10 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private computeAriaLabel(): string {
 		let ariaLabel = this.getAriaLabel();
 
-		// Apply group information to help identify in which group we are
-		if (ariaLabel && this.group) {
+		// Apply group information to help identify in
+		// which group we are (only if more than one group
+		// is actually opened)
+		if (ariaLabel && this.group && this.editorGroupService.count > 1) {
 			ariaLabel = localize('editorLabelWithGroup', "{0}, {1}", ariaLabel, this.group.ariaLabel);
 		}
 
@@ -109,7 +119,10 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			readOnly: this.input?.isReadonly()
+			readOnly: this.input?.isReadonly(),
+			// render problems even in readonly editors
+			// https://github.com/microsoft/vscode/issues/89057
+			renderValidationDecorations: 'on'
 		};
 	}
 
@@ -149,10 +162,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		// Update aria label on editor
 		const editorContainer = assertIsDefined(this.editorContainer);
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
-
-		// Keep aria label up to date whenever editor label changes
-		dispose(this.inputDisposable);
-		this.inputDisposable = input.onDidChangeLabel(() => editorContainer.setAttribute('aria-label', this.computeAriaLabel()));
 	}
 
 	setOptions(options: EditorOptions | undefined): void {
@@ -300,12 +309,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	protected abstract getAriaLabel(): string;
-
-	clearInput(): void {
-		super.clearInput();
-
-		this.inputDisposable = dispose(this.inputDisposable);
-	}
 
 	dispose(): void {
 		this.lastAppliedEditorOptions = undefined;

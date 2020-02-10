@@ -24,26 +24,17 @@ export class DesktopHostService extends Disposable implements IHostService {
 		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super();
-
-		// Resolve initial window focus state
-		this._hasFocus = document.hasFocus();
-		electronService.isWindowFocused().then(focused => this._hasFocus = focused);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.onDidChangeFocus(focus => this._hasFocus = focus));
 	}
 
 	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
 	private _onDidChangeFocus: Event<boolean> = Event.any(
-		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronEnvironmentService.windowId), _ => true),
-		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.electronEnvironmentService.windowId), _ => false)
+		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronEnvironmentService.windowId), () => this.hasFocus),
+		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.electronEnvironmentService.windowId), () => this.hasFocus)
 	);
 
-	private _hasFocus: boolean;
-	get hasFocus(): boolean { return this._hasFocus; }
+	get hasFocus(): boolean {
+		return document.hasFocus();
+	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;

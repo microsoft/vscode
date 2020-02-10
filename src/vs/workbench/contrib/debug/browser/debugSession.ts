@@ -190,7 +190,7 @@ export class DebugSession implements IDebugSession {
 		try {
 			const customTelemetryService = await dbgr.getCustomTelemetryService();
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService);
+			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
 
 			await this.raw.start();
 			this.registerListeners();
@@ -693,7 +693,6 @@ export class DebugSession implements IDebugSession {
 						await this.raw.configurationDone();
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
-						this.notificationService.error(e);
 						if (this.raw) {
 							this.raw.disconnect();
 						}

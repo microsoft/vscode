@@ -43,7 +43,7 @@
     "minimist": "^1.2.0",
     "request": "^2.85.0",
     "terser": "4.3.8",
-    "typescript": " 3.8.0-beta",
+    "typescript": "^3.8.1-rc",
     "vsce": "1.48.0",
     "vscode-telemetry-extractor": "^1.5.4",
     "xml2js": "^0.4.17"

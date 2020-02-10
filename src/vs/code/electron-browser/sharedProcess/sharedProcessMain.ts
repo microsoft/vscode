@@ -26,7 +26,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
@@ -59,9 +58,12 @@ import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-browser/userDataAutoSyncService';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
+import { NativeStorageService } from 'vs/platform/storage/node/storageService';
+import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -101,7 +103,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
-	ipcRenderer.once('handshake:goodbye', onExit);
+	ipcRenderer.once('electron-main->shared-process: exit', onExit);
 
 	disposables.add(server);
 
@@ -120,6 +122,11 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.add(configurationService);
 	await configurationService.initialize();
 
+	const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
+	await storageService.initialize();
+	services.set(IStorageService, storageService);
+	disposables.add(toDisposable(() => storageService.flush()));
+
 	services.set(IEnvironmentService, environmentService);
 	services.set(IProductService, { _serviceBrand: undefined, ...product });
 	services.set(ILogService, logService);
@@ -130,9 +137,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
 	services.set(IElectronService, electronService);
-
-	const activeWindowManager = new ActiveWindowManager(electronService);
-	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 
 	// Files
 	const fileService = new FileService(logService);
@@ -184,8 +188,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
 		services.set(IUserDataAuthTokenService, new SyncDescriptor(UserDataAuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
-		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', activeWindowRouter)));
-		services.set(IGlobalExtensionEnablementService, new GlobalExtensionEnablementServiceClient(server.getChannel('globalExtensionEnablement', activeWindowRouter)));
+		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
+		services.set(IGlobalExtensionEnablementService, new GlobalExtensionEnablementServiceClient(server.getChannel('globalExtensionEnablement', client => client.ctx !== 'main')));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
 		services.set(ISettingsSyncService, new SyncDescriptor(SettingsSynchroniser));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
@@ -219,7 +223,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
 			server.registerChannel('userDataSync', userDataSyncChannel);
 
-			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSync);
+			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSyncService);
 			const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 			server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 
@@ -275,13 +279,20 @@ function setupIPC(hook: string): Promise<Server> {
 }
 
 async function handshake(configuration: ISharedProcessConfiguration): Promise<void> {
+
+	// receive payload from electron-main to start things
 	const data = await new Promise<ISharedProcessInitData>(c => {
-		ipcRenderer.once('handshake:hey there', (_: any, r: ISharedProcessInitData) => c(r));
-		ipcRenderer.send('handshake:hello');
+		ipcRenderer.once('electron-main->shared-process: payload', (_: any, r: ISharedProcessInitData) => c(r));
+
+		// tell electron-main we are ready to receive payload
+		ipcRenderer.send('shared-process->electron-main: ready-for-payload');
 	});
 
+	// await IPC connection and signal this back to electron-main
 	const server = await setupIPC(data.sharedIPCHandle);
+	ipcRenderer.send('shared-process->electron-main: ipc-ready');
 
+	// await initialization and signal this back to electron-main
 	await main(server, data, configuration);
-	ipcRenderer.send('handshake:im ready');
+	ipcRenderer.send('shared-process->electron-main: init-done');
 }

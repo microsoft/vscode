@@ -8,7 +8,6 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toResource, IEditorInput, SideBySideEditor, Verbosity } from 'vs/workbench/common/editor';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,13 +34,11 @@ export interface IResourceLabelProps {
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
 	fileDecorations?: { colors: boolean, badges: boolean };
-	descriptionVerbosity?: Verbosity;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
-	readonly parentCount?: number;
 }
 
 export interface IResourceLabel extends IDisposable {
@@ -64,11 +61,6 @@ export interface IResourceLabel extends IDisposable {
 	 * Convenient method to render a file label based on a resource.
 	 */
 	setFile(resource: URI, options?: IFileLabelOptions): void;
-
-	/**
-	 * Convenient method to apply a label by passing an editor along.
-	 */
-	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
 
 	/**
 	 * Resets the label to be empty.
@@ -174,7 +166,6 @@ export class ResourceLabels extends Disposable {
 			onDidRender: widget.onDidRender,
 			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
-			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
 			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
 			clear: () => widget.clear(),
 			dispose: () => this.disposeWidget(widget)
@@ -337,7 +328,60 @@ class ResourceLabelWidget extends IconLabel {
 		}
 	}
 
+	setFile(resource: URI, options?: IFileLabelOptions): void {
+		const hideLabel = options && options.hideLabel;
+		let name: string | undefined;
+		if (!hideLabel) {
+			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					name = workspaceFolder.name;
+				}
+			}
+
+			if (!name) {
+				name = resources.basenameOrAuthority(resource);
+			}
+		}
+
+		let description: string | undefined;
+		if (!options?.hidePath) {
+			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
+		}
+
+		this.setResource({ resource, name, description }, options);
+	}
+
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
+		if (label.resource?.scheme === Schemas.untitled) {
+			// Untitled labels are very dynamic because they may change
+			// whenever the content changes (unless a path is associated).
+			// As such we always ask the actual editor for it's name and
+			// description to get latest in case name/description are
+			// provided. If they are not provided from the label we got
+			// we assume that the client does not want to display them
+			// and as such do not override.
+			const untitledModel = this.textFileService.untitled.get(label.resource);
+			if (untitledModel && !untitledModel.hasAssociatedFilePath) {
+				if (typeof label.name === 'string') {
+					label.name = untitledModel.name;
+				}
+
+				if (typeof label.description === 'string') {
+					let untitledDescription: string;
+					if (untitledModel.hasAssociatedFilePath) {
+						untitledDescription = this.labelService.getUriLabel(resources.dirname(untitledModel.resource), { relative: true });
+					} else {
+						untitledDescription = untitledModel.resource.path;
+					}
+
+					if (label.name !== untitledDescription) {
+						label.description = untitledDescription;
+					}
+				}
+			}
+		}
+
 		const hasPathLabelChanged = this.hasPathLabelChanged(label, options);
 		const clearIconCache = this.clearIconCache(label, options);
 
@@ -377,39 +421,6 @@ class ResourceLabelWidget extends IconLabel {
 		const newResource = newLabel ? newLabel.resource : undefined;
 
 		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
-	}
-
-	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
-		this.setResource({
-			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-			name: editor.getName(),
-			description: editor.getDescription(options ? options.descriptionVerbosity : undefined)
-		}, options);
-	}
-
-	setFile(resource: URI, options?: IFileLabelOptions): void {
-		const hideLabel = options && options.hideLabel;
-		let name: string | undefined;
-		if (!hideLabel) {
-			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
-				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-				if (workspaceFolder) {
-					name = workspaceFolder.name;
-				}
-			}
-
-			if (!name) {
-				name = resources.basenameOrAuthority(resource);
-			}
-		}
-
-		let description: string | undefined;
-		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource));
-		if (!hidePath) {
-			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
-		}
-
-		this.setResource({ resource, name, description }, options);
 	}
 
 	clear(): void {
@@ -463,6 +474,7 @@ class ResourceLabelWidget extends IconLabel {
 		};
 
 		const resource = this.label.resource;
+		const label = this.label.name;
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
@@ -509,18 +521,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		let label = this.label.name || '';
-		if (resource?.scheme === Schemas.untitled) {
-			// Untitled labels are very dynamic because they may change
-			// whenever the content changes. As such we always ask the
-			// text file service for the name of the untitled editor
-			const untitledName = this.textFileService.untitled.get(resource)?.getName();
-			if (untitledName) {
-				label = untitledName;
-			}
-		}
-
-		this.setLabel(label, this.label.description, iconLabelOptions);
+		this.setLabel(label || '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 	}

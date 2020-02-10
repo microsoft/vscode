@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FinalNewLineParticipant, TrimFinalNewLinesParticipant } from 'vs/workbench/api/browser/mainThreadSaveParticipant';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -34,7 +34,6 @@ suite('MainThreadSaveParticipant', function () {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
 	test('insert final new line', async function () {

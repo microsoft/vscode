@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, find, mergeSort } from 'vs/base/common/arrays';
+import { CancelablePromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
@@ -11,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IEditor, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEditor, IRevertOptions, ISaveOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -36,7 +37,7 @@ export interface ICustomEditorService {
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
-	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): EditorInput;
+	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
@@ -74,6 +75,8 @@ export interface ICustomEditorModel extends IWorkingCopy {
 
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
+
+	onBackup(f: () => CancelablePromise<boolean>): void;
 
 	undo(): void;
 	redo(): void;

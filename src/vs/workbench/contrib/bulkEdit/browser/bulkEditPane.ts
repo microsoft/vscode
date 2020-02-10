@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/bulkEdit';
+import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -14,7 +14,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -36,6 +36,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const enum State {
 	Data = 'data',
@@ -48,6 +49,7 @@ export class BulkEditPane extends ViewPane {
 
 	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
+	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
 
 	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
 
@@ -58,6 +60,7 @@ export class BulkEditPane extends ViewPane {
 
 	private readonly _ctxHasCategories: IContextKey<boolean>;
 	private readonly _ctxGroupByFile: IContextKey<boolean>;
+	private readonly _ctxHasCheckedChanges: IContextKey<boolean>;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
@@ -76,18 +79,20 @@ export class BulkEditPane extends ViewPane {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
 			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, _contextKeyService, _instaService
+			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
+		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 	}
 
 	dispose(): void {
@@ -173,6 +178,7 @@ export class BulkEditPane extends ViewPane {
 		const hasCategories = input.categories.length > 1;
 		this._ctxHasCategories.set(hasCategories);
 		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
+		this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 
 		this._currentInput = input;
 
@@ -184,8 +190,9 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// refresh when check state changes
-			this._sessionDisposables.add(input.onDidChangeCheckedState(() => {
+			this._sessionDisposables.add(input.checked.onDidChange(() => {
 				this._tree.updateChildren();
+				this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 			}));
 		});
 	}
@@ -200,14 +207,14 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		// async expandAll is the default when no view state is given
-		const expand = [...this._tree.getNode(input).children];
+		// async expandAll (max=10) is the default when no view state is given
+		const expand = [...this._tree.getNode(input).children].slice(0, 10);
 		while (expand.length > 0) {
-			const { element } = expand.pop()!;
+			const { element } = expand.shift()!;
 			if (element instanceof FileElement) {
 				await this._tree.expand(element, true);
 			}
-			if (element instanceof BulkCategory) {
+			if (element instanceof CategoryElement) {
 				await this._tree.expand(element, true);
 				expand.push(...this._tree.getNode(element).children);
 			}
@@ -239,10 +246,8 @@ export class BulkEditPane extends ViewPane {
 
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
-		if (first instanceof FileElement) {
-			first.edit.updateChecked(!first.edit.isChecked());
-		} else if (first instanceof TextEditElement && first.parent.edit.isChecked()) {
-			first.edit.updateChecked(!first.edit.isChecked());
+		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
+			first.setChecked(!first.isChecked());
 		}
 	}
 
@@ -278,7 +283,7 @@ export class BulkEditPane extends ViewPane {
 
 	private _done(accept: boolean): void {
 		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.asWorkspaceEdit() : undefined);
+			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 			this._currentInput = undefined;
 		}
 		this._setState(State.Message);
@@ -305,40 +310,44 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		let leftResource: URI | undefined;
-		if (fileElement.edit.type & BulkFileOperationType.TextEdit) {
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
+
+		if (fileElement.edit.type & BulkFileOperationType.Delete) {
+			// delete -> show single editor
+			this._editorService.openEditor({
+				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
+				resource: previewUri,
+				options
+			});
+
+		} else {
+			// rename, create, edits -> show diff editr
+			let leftResource: URI | undefined;
 			try {
-				(await this._textModelService.createModelReference(fileElement.uri)).dispose();
-				leftResource = fileElement.uri;
+				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
+				leftResource = fileElement.edit.uri;
 			} catch {
 				leftResource = BulkEditPreviewProvider.emptyPreview;
 			}
-		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.uri);
-
-		if (leftResource) {
-			// show diff editor
-			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
-				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.uri)),
-				options
-			});
-		} else {
-			// show 'normal' editor
 			let typeLabel: string | undefined;
 			if (fileElement.edit.type & BulkFileOperationType.Rename) {
 				typeLabel = localize('rename', "rename");
 			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
 				typeLabel = localize('create', "create");
-			} else if (fileElement.edit.type & BulkFileOperationType.Delete) {
-				typeLabel = localize('delete', "delete");
+			}
+
+			let label: string;
+			if (typeLabel) {
+				label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
+			} else {
+				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
 			}
 
 			this._editorService.openEditor({
-				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.uri), typeLabel),
-				resource: previewUri,
+				leftResource,
+				rightResource: previewUri,
+				label,
 				options
 			});
 		}

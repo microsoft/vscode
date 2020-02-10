@@ -49,6 +49,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { TimelineItem, TimelineProviderDescriptor, TimelineChangeEvent, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -439,8 +440,10 @@ export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 	handle: number;
 }
 
-export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
+export interface TransferQuickInputButton {
 	handle: number;
+	iconPath: { dark: URI; light?: URI; } | { id: string; };
+	tooltip?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -612,6 +615,8 @@ export interface ExtHostWebviewsShape {
 
 	$onSave(resource: UriComponents, viewType: string): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
+
+	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -706,7 +711,7 @@ export interface SCMGroupFeatures {
 export type SCMRawResource = [
 	number /*handle*/,
 	UriComponents /*resourceUri*/,
-	string[] /*icons: light, dark*/,
+	UriComponents[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/
@@ -791,6 +796,14 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
+}
+
+export interface MainThreadTimelineShape extends IDisposable {
+	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
+	$unregisterTimelineProvider(source: string): void;
+	$emitTimelineChangeEvent(e: TimelineChangeEvent): void;
+
+	$getTimeline(uri: UriComponents, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // -- extension host
@@ -905,9 +918,10 @@ export interface ExtHostLabelServiceShape {
 }
 
 export interface ExtHostAuthenticationShape {
-	$getSessions(id: string): Promise<ReadonlyArray<modes.Session>>;
-	$login(id: string): Promise<modes.Session>;
-	$logout(id: string, accountId: string): Promise<void>;
+	$getSessions(id: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
+	$getSessionAccessToken(id: string, sessionId: string): Promise<string>;
+	$login(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
+	$logout(id: string, sessionId: string): Promise<void>;
 }
 
 export interface ExtHostSearchShape {
@@ -1030,11 +1044,17 @@ export interface ISuggestDataDto {
 	x?: ChainedCacheId;
 }
 
+export const enum ISuggestResultDtoField {
+	defaultRanges = 'a',
+	completions = 'b',
+	isIncomplete = 'c'
+}
+
 export interface ISuggestResultDto {
+	[ISuggestResultDtoField.defaultRanges]: { insert: IRange, replace: IRange; };
+	[ISuggestResultDtoField.completions]: ISuggestDataDto[];
+	[ISuggestResultDtoField.isIncomplete]: undefined | true;
 	x?: number;
-	a: { insert: IRange, replace: IRange; };
-	b: ISuggestDataDto[];
-	c?: true;
 }
 
 export interface ISignatureHelpDto {
@@ -1431,6 +1451,10 @@ export interface ExtHostTunnelServiceShape {
 	$onDidTunnelsChange(): Promise<void>;
 }
 
+export interface ExtHostTimelineShape {
+	$getTimeline(source: string, uri: UriComponents, token: CancellationToken): Promise<TimelineItemWithSource[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -1474,7 +1498,8 @@ export const MainContext = {
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
-	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService')
+	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
+	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline')
 };
 
 export const ExtHostContext = {
@@ -1511,5 +1536,6 @@ export const ExtHostContext = {
 	ExtHostLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
-	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication')
+	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
+	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline')
 };

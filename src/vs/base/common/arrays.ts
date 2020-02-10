@@ -584,3 +584,7 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
+
+export function getRandomElement<T>(arr: T[]): T | undefined {
+	return arr[Math.floor(Math.random() * arr.length)];
+}

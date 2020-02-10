@@ -68,9 +68,4 @@ export interface IBackupFileService {
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
 	discardBackup(resource: URI): Promise<void>;
-
-	/**
-	 * Discards all backups that exist.
-	 */
-	discardAllBackups(): Promise<void>;
 }
