@@ -1184,7 +1184,7 @@ declare namespace monaco.editor {
 		severity: MarkerSeverity;
 		code?: string | {
 			value: string;
-			link: Uri;
+			target: Uri;
 		};
 		message: string;
 		source?: string;
@@ -1202,7 +1202,7 @@ declare namespace monaco.editor {
 	export interface IMarkerData {
 		code?: string | {
 			value: string;
-			link: Uri;
+			target: Uri;
 		};
 		severity: MarkerSeverity;
 		message: string;

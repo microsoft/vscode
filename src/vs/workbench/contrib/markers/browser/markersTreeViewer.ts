@@ -369,7 +369,7 @@ class MarkerWidget extends Disposable {
 					this._codeLink = dom.$('a.code-link');
 					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
 
-					const codeUri = marker.code.link;
+					const codeUri = marker.code.target;
 					const codeLink = codeUri.toString();
 
 					dom.append(parent, this._codeLink);

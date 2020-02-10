@@ -1519,9 +1519,9 @@ declare module 'vscode' {
 			value: string | number;
 
 			/**
-			 * A link to a URI with more information about the diagnostic error.
+			 * A target URI to open with more information about the diagnostic error.
 			 */
-			link: Uri;
+			target: Uri;
 		}
 	}
 
