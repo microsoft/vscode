@@ -38,6 +38,7 @@ import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { parseLinkedText } from 'vs/base/browser/linkedText';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -295,7 +296,28 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		addClass(this.bodyContainer, 'empty');
-		this.emptyViewContainer.textContent = contents.map(c => c.content).join('');
+		this.emptyViewContainer.innerHTML = '';
+
+		for (const { content } of contents) {
+			const lines = content.split('\n');
+
+			for (const line of lines) {
+				if (!line) {
+					continue;
+				}
+
+				const p = append(this.emptyViewContainer, $('p'));
+				const linkedText = parseLinkedText(line);
+
+				for (const node of linkedText) {
+					if (typeof node === 'string') {
+						append(p, document.createTextNode(node));
+					} else {
+						append(p, $('a', { href: node.href, title: node.title }, node.label));
+					}
+				}
+			}
+		}
 	}
 
 	isEmpty(): boolean {
