@@ -91,7 +91,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		const startTime = new Date().getTime();
 		try {
-			this.logService.trace('Started Syncing...');
+			this.logService.trace('Sync started.');
 			if (this.status !== SyncStatus.HasConflicts) {
 				this.setStatus(SyncStatus.Syncing);
 			}
@@ -112,7 +112,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				}
 			}
 
-			this.logService.trace(`Finished Syncing. Took ${new Date().getTime() - startTime}ms`);
+			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 
 		} finally {
 			this.updateStatus();
