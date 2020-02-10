@@ -205,7 +205,7 @@ import 'vs/workbench/contrib/output/browser/outputView';
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminalView';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';

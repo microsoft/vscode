@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
+import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
@@ -29,6 +29,7 @@ import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform
 import { basename } from 'vs/base/common/path';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { find } from 'vs/base/common/arrays';
+import { IViewsService } from 'vs/workbench/common/views';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -100,6 +101,7 @@ export class TerminalService implements ITerminalService {
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private _quickInputService: IQuickInputService,
 		@IConfigurationService private _configurationService: IConfigurationService,
+		@IViewsService private _viewsService: IViewsService,
 		@optional(ITerminalNativeService) terminalNativeService: ITerminalNativeService
 	) {
 		// @optional could give undefined and properly typing it breaks service registration
@@ -421,9 +423,9 @@ export class TerminalService implements ITerminalService {
 
 	public showPanel(focus?: boolean): Promise<void> {
 		return new Promise<void>(async (complete) => {
-			const panel = this._panelService.getActivePanel();
-			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				await this._panelService.openPanel(TERMINAL_PANEL_ID, focus);
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+			if (!pane) {
+				await this._panelService.openPanel(TERMINAL_VIEW_ID, focus);
 				if (focus) {
 					// Do the focus call asynchronously as going through the
 					// command palette will force editor focus
@@ -655,34 +657,34 @@ export class TerminalService implements ITerminalService {
 
 	public focusFindWidget(): Promise<void> {
 		return this.showPanel(false).then(() => {
-			const panel = this._panelService.getActivePanel() as TerminalPanel;
-			panel.focusFindWidget();
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+			pane.focusFindWidget();
 			this._findWidgetVisible.set(true);
 		});
 	}
 
 	public hideFindWidget(): void {
-		const panel = this._panelService.getActivePanel() as TerminalPanel;
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.hideFindWidget();
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+		if (pane) {
+			pane.hideFindWidget();
 			this._findWidgetVisible.reset();
-			panel.focus();
+			pane.focus();
 		}
 	}
 
 	public findNext(): void {
-		const panel = this._panelService.getActivePanel() as TerminalPanel;
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.showFindWidget();
-			panel.getFindWidget().find(false);
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+		if (pane) {
+			pane.showFindWidget();
+			pane.getFindWidget().find(false);
 		}
 	}
 
 	public findPrevious(): void {
-		const panel = this._panelService.getActivePanel() as TerminalPanel;
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.showFindWidget();
-			panel.getFindWidget().find(true);
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+		if (pane) {
+			pane.showFindWidget();
+			pane.getFindWidget().find(true);
 		}
 	}
 
@@ -694,7 +696,7 @@ export class TerminalService implements ITerminalService {
 
 	public hidePanel(): void {
 		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+		if (panel && panel.getId() === TERMINAL_VIEW_ID) {
 			this._layoutService.setPanelHidden(true);
 		}
 	}
