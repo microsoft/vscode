@@ -13,13 +13,13 @@ yarn --cwd test/automation
 yarn smoketest
 
 # Dev (Web)
-yarn smoketest --web --browser <chromium|firefox|webkit>
+yarn smoketest --web --browser [chromium|firefox|webkit]
 
 # Build (Electron)
 yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
 
 # Build (Web - read instructions below)
-yarn smoketest --build <path to web server folder> --web --browser <chromium|firefox|webkit>
+yarn smoketest --build <path to web server folder> --web --browser [chromium|firefox|webkit]
 
 # Remote (Electron)
 yarn smoketest --build <path latest built version> --remote

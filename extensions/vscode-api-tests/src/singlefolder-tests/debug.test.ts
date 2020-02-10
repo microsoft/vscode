@@ -37,6 +37,7 @@ suite('Debug', function () {
 		disposeAll(toDispose);
 	});
 
+	// TODO@isidor seems to fail
 	test.skip('start debugging', async function () {
 		assert.equal(debug.activeDebugSession, undefined);
 		let stoppedEvents = 0;
