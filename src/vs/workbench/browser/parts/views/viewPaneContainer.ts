@@ -39,6 +39,8 @@ import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/browser/linkedText';
+import { createLink } from 'vs/workbench/browser/link';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -313,7 +315,7 @@ export abstract class ViewPane extends Pane implements IView {
 					if (typeof node === 'string') {
 						append(p, document.createTextNode(node));
 					} else {
-						append(p, $('a', { href: node.href, title: node.title }, node.label));
+						append(p, this.instantiationService.invokeFunction(a => createLink(node, a.get(IOpenerService))));
 					}
 				}
 			}
