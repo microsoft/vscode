@@ -93,6 +93,7 @@ export import TestContextService = CommonWorkbenchTestServices.TestContextServic
 export import TestStorageService = CommonWorkbenchTestServices.TestStorageService;
 export import TestWorkingCopyService = CommonWorkbenchTestServices.TestWorkingCopyService;
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { Direction } from 'vs/base/browser/ui/grid/grid';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -362,6 +363,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	registerPart(part: Part): void { }
 	isWindowMaximized() { return false; }
 	updateWindowMaximizedState(maximized: boolean): void { }
+	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
 }
 
 let activeViewlet: Viewlet = {} as any;
