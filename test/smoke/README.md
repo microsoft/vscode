@@ -1,6 +1,6 @@
 # VS Code Smoke Test
 
-Make sure you are on **Node v10.x**.
+Make sure you are on **Node v12.x**.
 
 ### Run
 

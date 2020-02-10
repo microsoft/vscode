@@ -5,7 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -13,7 +14,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
@@ -86,16 +86,6 @@ export interface IUntitledTextEditorModelManager {
 	readonly onDidDisposeModel: Event<URI>;
 
 	/**
-	 * Returns if an untitled resource with the given URI exists.
-	 */
-	exists(resource: URI): boolean;
-
-	/**
-	 * Returns an existing untitled input if already created before.
-	 */
-	get(resource: URI): UntitledTextEditorInput | undefined;
-
-	/**
 	 * Creates a new untitled input with the provided options. If the `untitledResource`
 	 * property is provided and the untitled input exists, it will return that existing
 	 * instance instead of creating a new one.
@@ -105,6 +95,11 @@ export interface IUntitledTextEditorModelManager {
 	create(options?: IExistingUntitledTextEditorOptions): UntitledTextEditorInput;
 
 	/**
+	 * Returns an existing untitled model if already created before.
+	 */
+	get(resource: URI): IUntitledTextEditorModel | undefined;
+
+	/**
 	 * Resolves an untitled editor model from the provided options. If the `untitledResource`
 	 * property is provided and the untitled input exists, it will return that existing
 	 * instance instead of creating a new one.
@@ -112,11 +107,6 @@ export interface IUntitledTextEditorModelManager {
 	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
 	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
 	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-
-	/**
-	 * A check to find out if a untitled resource has a file path associated or not.
-	 */
-	hasAssociatedFilePath(resource: URI): boolean;
 }
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
@@ -141,7 +131,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
 	private readonly mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
-	private readonly mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -150,12 +139,8 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		super();
 	}
 
-	exists(resource: URI): boolean {
-		return this.mapResourceToInput.has(resource);
-	}
-
-	get(resource: URI): UntitledTextEditorInput | undefined {
-		return this.mapResourceToInput.get(resource);
+	get(resource: URI): UntitledTextEditorModel | undefined {
+		return this.mapResourceToInput.get(resource)?.model;
 	}
 
 	resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
@@ -229,17 +214,22 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		// Create new input with provided options
 		const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledResource, !!options.associatedResource, options.mode, options.initialValue, options.encoding);
 
-		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(input.getResource()));
-		const labelListener = input.onDidChangeLabel(() => this._onDidChangeLabel.fire(input.getResource()));
-		const encodingListener = input.onDidModelChangeEncoding(() => this._onDidChangeEncoding.fire(input.getResource()));
-		const disposeListener = input.onDispose(() => this._onDidDisposeModel.fire(input.getResource()));
+		this.register(input);
+
+		return input;
+	}
+
+	private register(editor: UntitledTextEditorInput): void {
+		const dirtyListener = editor.onDidChangeDirty(() => this._onDidChangeDirty.fire(editor.getResource()));
+		const labelListener = editor.onDidChangeLabel(() => this._onDidChangeLabel.fire(editor.getResource()));
+		const encodingListener = editor.onDidModelChangeEncoding(() => this._onDidChangeEncoding.fire(editor.getResource()));
+		const disposeListener = editor.onDispose(() => this._onDidDisposeModel.fire(editor.getResource()));
 
 		// Remove from cache on dispose
-		Event.once(input.onDispose)(() => {
+		Event.once(editor.onDispose)(() => {
 
 			// Registry
-			this.mapResourceToInput.delete(input.getResource());
-			this.mapResourceToAssociatedFilePath.delete(input.getResource());
+			this.mapResourceToInput.delete(editor.getResource());
 
 			// Listeners
 			dirtyListener.dispose();
@@ -249,16 +239,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		});
 
 		// Add to cache
-		this.mapResourceToInput.set(untitledResource, input);
-		if (options.associatedResource) {
-			this.mapResourceToAssociatedFilePath.set(untitledResource, true);
-		}
-
-		return input;
-	}
-
-	hasAssociatedFilePath(resource: URI): boolean {
-		return this.mapResourceToAssociatedFilePath.has(resource);
+		this.mapResourceToInput.set(editor.getResource(), editor);
 	}
 }
 

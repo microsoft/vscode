@@ -7,6 +7,7 @@
 
 const path = require('path');
 const glob = require('glob');
+const fs = require('fs');
 const events = require('events');
 const mocha = require('mocha');
 const url = require('url');
@@ -16,9 +17,10 @@ const playwright = require('playwright');
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 const optimist = require('optimist')
-	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('run', 'only run tests matching <file_pattern>').alias('run', 'glob').string('runGlob')
-	.describe('build', 'run with build output (out-build)').boolean('build')
+	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
+	// .describe('build', 'run with build output (out-build)').boolean('build')
+	.describe('run', 'only run tests matching <relative_file_path>').string('run')
+	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
@@ -28,6 +30,11 @@ const optimist = require('optimist')
 
 // logic
 const argv = optimist.argv;
+
+if (argv.help) {
+	optimist.showHelp();
+	process.exit(0);
+}
 
 const withReporter = (function () {
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
@@ -57,37 +64,55 @@ const withReporter = (function () {
 })()
 
 const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../${outdir}`);
+const out = path.join(__dirname, `../../../${outdir}`);
+
+function ensureIsArray(a) {
+	return Array.isArray(a) ? a : [a];
+}
 
 const testModules = (async function () {
 
-	const defaultGlob = '**/*.test.js';
 	const excludeGlob = '**/{node,electron-browser,electron-main}/**/*.test.js';
-	const pattern = argv.glob || defaultGlob
+	let isDefaultModules = true;
+	let promise;
 
-	return new Promise((resolve, reject) => {
-		glob(pattern, { cwd: out }, (err, files) => {
-			if (err) {
-				reject(err);
-				return;
-			}
+	if (argv.run) {
+		// use file list (--run)
+		isDefaultModules = false;
+		promise = Promise.resolve(ensureIsArray(argv.run).map(file => {
+			file = file.replace(/^src/, 'out');
+			file = file.replace(/\.ts$/, '.js');
+			return path.relative(out, file);
+		}));
 
-			const modules = [];
-			const badFiles = [];
+	} else {
+		// glob patterns (--glob)
+		const defaultGlob = '**/*.test.js';
+		const pattern = argv.glob || defaultGlob
+		isDefaultModules = pattern === defaultGlob;
 
-			for (let file of files) {
-				if (minimatch(file, excludeGlob)) {
-					badFiles.push(file);
+		promise = new Promise((resolve, reject) => {
+			glob(pattern, { cwd: out }, (err, files) => {
+				if (err) {
+					reject(err);
 				} else {
-					modules.push(file.replace(/\.js$/, ''));
+					resolve(files)
 				}
-			}
-
-			if (badFiles.length > 0 && pattern !== defaultGlob) {
-				console.warn(`DROPPED ${badFiles.length} files because '${pattern}' includes files from invalid layers.${badFiles.map(file => `\n\t-${file}`)}`);
-			}
-			resolve(modules);
+			});
 		});
+	}
+
+	return promise.then(files => {
+		const modules = [];
+		for (let file of files) {
+			if (!minimatch(file, excludeGlob)) {
+				modules.push(file.replace(/\.js$/, ''));
+
+			} else if (!isDefaultModules) {
+				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+			}
+		}
+		return modules;
 	})
 })();
 
@@ -95,10 +120,9 @@ const testModules = (async function () {
 async function runTestsInBrowser(testModules, browserType) {
 
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
-	const context = await browser.newContext();
-
+	const page = (await browser.defaultContext().pages())[0]
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-	const page = await context.newPage(target.href);
+	await page.goto(target.href);
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
@@ -191,15 +215,29 @@ class EchoRunner extends events.EventEmitter {
 
 testModules.then(async modules => {
 
-	const browserTypes = Array.isArray(argv.browser) ? argv.browser : [argv.browser];
-	const promises = browserTypes.map(browserType => runTestsInBrowser(modules, browserType));
-	const messages = await Promise.all(promises);
+	// run tests in selected browsers
+	const browserTypes = Array.isArray(argv.browser)
+		? argv.browser : [argv.browser];
 
+	const promises = browserTypes.map(async browserType => {
+		try {
+			return await runTestsInBrowser(modules, browserType);
+		} catch (err) {
+			console.error(err);
+			process.exit(1);
+		}
+	});
+
+	// aftermath
+	let didFail = false;
+	const messages = await Promise.all(promises);
 	for (let msg of messages) {
 		if (msg) {
+			didFail = true;
 			console.log(msg);
 		}
 	}
+	process.exit(didFail ? 1 : 0);
 
 }).catch(err => {
 	console.error(err);

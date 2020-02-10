@@ -13,13 +13,11 @@
 //
 
 import * as vscode from 'vscode';
-import { URL } from 'url';
-import { TextEncoder, TextDecoder } from 'util';
+
+declare const window: unknown;
 
 const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
-
-declare const window: unknown;
 
 export function activate(context: vscode.ExtensionContext) {
 	if (typeof window !== 'undefined') {	// do not run under node.js
