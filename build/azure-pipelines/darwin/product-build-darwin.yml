@@ -100,6 +100,12 @@ steps:
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
+    set -e
+    yarn test-browser --build --browser chromium --browser webkit
+  displayName: Run unit tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
     # Figure out the full absolute path of the product we just built
     # including the remote server and configure the integration tests
     # to run with these builds instead of running out of sources.
