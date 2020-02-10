@@ -58,10 +58,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private async sync(loop: boolean, auto: boolean): Promise<void> {
 		if (this.enabled) {
 			try {
-				if (this.userDataSyncService.status !== SyncStatus.Idle) {
-					this.logService.trace('Auto Sync: Skipped once as it is syncing already');
-					return;
-				}
 				await this.userDataSyncService.sync();
 				this.resetFailures();
 			} catch (e) {

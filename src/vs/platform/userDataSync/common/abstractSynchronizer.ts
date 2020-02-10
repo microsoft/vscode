@@ -74,7 +74,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is disabled.`);
 			return;
 		}
-		if (this.status !== SyncStatus.Idle) {
+		if (this.status === SyncStatus.HasConflicts) {
+			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as there are conflicts.`);
+			return;
+		}
+		if (this.status === SyncStatus.Syncing) {
 			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is running already.`);
 			return;
 		}
