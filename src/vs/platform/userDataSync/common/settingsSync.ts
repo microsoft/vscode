@@ -221,11 +221,11 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.Rejected:
+					case UserDataSyncErrorCode.RemotePreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again,
 						this.logService.info('Settings: Failed to synchronize settings as there is a new remote version available. Synchronizing again...');
 						return this.sync();
-					case UserDataSyncErrorCode.NewLocal:
+					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
 						return this.sync(remoteUserData.ref);
@@ -245,9 +245,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		if (content !== null) {
 
 			if (this.hasErrors(content)) {
-				const error = new Error(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
-				this.logService.error(error);
-				throw error;
+				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
 			}
 
 			if (hasLocalChanged) {
@@ -304,7 +302,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 			// No action when there are errors
 			if (this.hasErrors(localContent)) {
-				this.logService.error('Settings: Unable to sync settings as there are errors/warning in settings file.');
+				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
 			}
 
 			else {

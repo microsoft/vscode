@@ -832,7 +832,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 						try {
 							await this.userDataSyncService.accept(conflictsSource, model.getValue());
 						} catch (e) {
-							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.NewLocal) {
+							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
 								if (this.userDataSyncService.conflictsSources.indexOf(conflictsSource) !== -1) {
 									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
 								}

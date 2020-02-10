@@ -217,7 +217,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		} catch (e) {
 			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
 				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.NewLocal);
+				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.LocalPreconditionFailed);
 			} else {
 				throw e;
 			}
