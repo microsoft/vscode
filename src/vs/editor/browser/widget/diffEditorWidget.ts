@@ -2163,6 +2163,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			0,
 			fontInfo.spaceWidth,
 			fontInfo.middotWidth,
+			fontInfo.wsmiddotWidth,
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),

@@ -4665,6 +4665,7 @@ declare namespace monaco.editor {
 		readonly canUseHalfwidthRightwardsArrow: boolean;
 		readonly spaceWidth: number;
 		readonly middotWidth: number;
+		readonly wsmiddotWidth: number;
 		readonly maxDigitWidth: number;
 	}
 
