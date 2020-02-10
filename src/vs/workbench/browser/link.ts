@@ -9,6 +9,7 @@ import { $ } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface ILink {
 	readonly label: string;
@@ -16,18 +17,25 @@ export interface ILink {
 	readonly title?: string;
 }
 
-export function createLink(link: ILink, openerService: IOpenerService): HTMLAnchorElement {
-	const result = $<HTMLAnchorElement>('a', { href: link.href, title: link.title }, link.label);
-	const onClick = domEvent(result, 'click');
-	const onEnterPress = Event.chain(domEvent(result, 'keypress'))
-		.map(e => new StandardKeyboardEvent(e))
-		.filter(e => e.keyCode === KeyCode.Enter)
-		.event;
+export class Link extends Disposable {
 
-	// no need to collect disposables
-	// simply remove the element from the DOM to garbage
-	// collect the event listeners
-	Event.any(onClick, onEnterPress)(_ => openerService.open(link.href));
+	readonly el: HTMLAnchorElement;
 
-	return result;
+	constructor(
+		link: ILink,
+		@IOpenerService openerService: IOpenerService
+	) {
+		super();
+
+		this.el = $<HTMLAnchorElement>('a', { href: link.href, title: link.title }, link.label);
+
+		const onClick = domEvent(this.el, 'click');
+		const onEnterPress = Event.chain(domEvent(this.el, 'keypress'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.keyCode === KeyCode.Enter)
+			.event;
+		const onOpen = Event.any(onClick, onEnterPress);
+
+		this._register(onOpen(_ => openerService.open(link.href)));
+	}
 }

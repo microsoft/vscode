@@ -7,10 +7,10 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
+import { attachStyler, IColorMapping, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
-import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionViewItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -39,8 +39,9 @@ import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/browser/linkedText';
-import { createLink } from 'vs/workbench/browser/link';
+import { Link } from 'vs/workbench/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Button } from 'vs/base/browser/ui/button/button';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -95,6 +96,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private bodyContainer!: HTMLElement;
 	private emptyViewContainer!: HTMLElement;
+	private emptyViewDisposable: IDisposable = Disposable.None;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -283,6 +285,8 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	private updateEmptyState(isEmpty: boolean): void {
+		this.emptyViewDisposable.dispose();
+
 		if (!isEmpty) {
 			removeClass(this.bodyContainer, 'empty');
 			this.emptyViewContainer.innerHTML = '';
@@ -297,13 +301,16 @@ export abstract class ViewPane extends Pane implements IView {
 			return;
 		}
 
+		const disposables = new DisposableStore();
 		addClass(this.bodyContainer, 'empty');
 		this.emptyViewContainer.innerHTML = '';
 
 		for (const { content } of contents) {
 			const lines = content.split('\n');
 
-			for (const line of lines) {
+			for (let line of lines) {
+				line = line.trim();
+
 				if (!line) {
 					continue;
 				}
@@ -314,12 +321,25 @@ export abstract class ViewPane extends Pane implements IView {
 				for (const node of linkedText) {
 					if (typeof node === 'string') {
 						append(p, document.createTextNode(node));
+					} else if (linkedText.length === 1) {
+						this.instantiationService.invokeFunction(a => {
+							const openerService = a.get(IOpenerService);
+							const button = new Button(p, { title: node.title });
+							button.label = node.label;
+							button.onDidClick(_ => openerService.open(node.href), null, disposables);
+							disposables.add(button);
+							disposables.add(attachButtonStyler(button, a.get(IThemeService)));
+						});
 					} else {
-						append(p, this.instantiationService.invokeFunction(a => createLink(node, a.get(IOpenerService))));
+						const link = this.instantiationService.createInstance(Link, node);
+						append(p, link.el);
+						disposables.add(link);
 					}
 				}
 			}
 		}
+
+		this.emptyViewDisposable = disposables;
 	}
 
 	isEmpty(): boolean {

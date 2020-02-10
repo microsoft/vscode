@@ -84,6 +84,13 @@
 	display: none;
 }
 
+.monaco-workbench .pane > .pane-body > .empty-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
 	display: none;
 }
