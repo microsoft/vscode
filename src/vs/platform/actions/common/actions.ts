@@ -114,7 +114,9 @@ export class MenuId {
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
-
+	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
+	static readonly TimelineTitle = new MenuId('TimelineTitle');
+	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;

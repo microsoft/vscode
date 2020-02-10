@@ -447,6 +447,22 @@
         "command": "git.stashDrop",
         "title": "%command.stashDrop%",
         "category": "Git"
+      },
+      {
+        "command": "git.timeline.openDiff",
+        "title": "%command.timelineOpenDiff%",
+        "icon": "$(compare-changes)",
+        "category": "Git"
+      },
+      {
+        "command": "git.timeline.copyCommitId",
+        "title": "%command.timelineCopyCommitId%",
+        "category": "Git"
+      },
+      {
+        "command": "git.timeline.copyCommitMessage",
+        "title": "%command.timelineCopyCommitMessage%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -718,6 +734,18 @@
         {
           "command": "git.stashDrop",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.timeline.openDiff",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.copyCommitId",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.copyCommitMessage",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1247,6 +1275,28 @@
         {
           "command": "git.revertChange",
           "when": "originalResourceScheme == git"
+        }
+      ],
+      "timeline/item/context": [
+        {
+          "command": "git.timeline.openDiff",
+          "group": "inline",
+          "when": "timelineItem =~ /git:file\\b/"
+        },
+        {
+          "command": "git.timeline.openDiff",
+          "group": "1_timeline",
+          "when": "timelineItem =~ /git:file\\b/"
+        },
+        {
+          "command": "git.timeline.copyCommitId",
+          "group": "2_timeline@1",
+          "when": "timelineItem =~ /git:file:commit\\b/"
+        },
+        {
+          "command": "git.timeline.copyCommitMessage",
+          "group": "2_timeline@2",
+          "when": "timelineItem =~ /git:file:commit\\b/"
         }
       ]
     },
@@ -1779,10 +1829,10 @@
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "^12.11.7",
+    "@types/vscode": "^1.42",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0",
     "mocha-junit-reporter": "^1.23.3",
-    "mocha-multi-reporters": "^1.1.7",
-    "vscode": "^1.1.36"
+    "mocha-multi-reporters": "^1.1.7"
   }
 }

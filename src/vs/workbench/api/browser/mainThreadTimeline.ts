@@ -39,8 +39,8 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		this._timelineService.registerTimelineProvider({
 			...provider,
 			onDidChange: onDidChange.event,
-			provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken) {
-				return proxy.$getTimeline(provider.id, uri, cursor, token);
+			provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken, options?: { cacheResults?: boolean }) {
+				return proxy.$getTimeline(provider.id, uri, cursor, token, options);
 			},
 			dispose() {
 				emitters.delete(provider.id);

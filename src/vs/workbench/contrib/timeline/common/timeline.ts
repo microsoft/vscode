@@ -16,9 +16,11 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 }
 
 export interface TimelineItem {
+	handle: string;
+	source: string;
+
 	timestamp: number;
 	label: string;
-	id?: string;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },
@@ -26,10 +28,6 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
-}
-
-export interface TimelineItemWithSource extends TimelineItem {
-	source: string;
 }
 
 export interface TimelineChangeEvent {
@@ -45,7 +43,7 @@ export interface TimelineCursor {
 
 export interface Timeline {
 	source: string;
-	items: TimelineItemWithSource[];
+	items: TimelineItem[];
 
 	cursor?: any;
 	more?: boolean;
@@ -54,7 +52,7 @@ export interface Timeline {
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken): Promise<Timeline | undefined>;
+	provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken, options?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
 }
 
 export interface TimelineProviderDescriptor {
@@ -86,7 +84,7 @@ export interface ITimelineService {
 
 	getSources(): string[];
 
-	getTimeline(id: string, uri: URI, pagination: TimelineCursor, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, cursor: TimelineCursor, tokenSource: CancellationTokenSource, options?: { cacheResults?: boolean }): TimelineRequest | undefined;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';
