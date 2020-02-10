@@ -2110,11 +2110,15 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEdito
 				'editor.padding.top': {
 					type: 'number',
 					default: 0,
+					minimum: 0,
+					maximum: 1000,
 					description: nls.localize('padding.top', "Controls the amount of space between the top edge of the editor and the first line.")
 				},
 				'editor.padding.bottom': {
 					type: 'number',
 					default: 0,
+					minimum: 0,
+					maximum: 1000,
 					description: nls.localize('padding.bottom', "Controls the amount of space between the bottom edge of the editor and the last line.")
 				}
 			}
