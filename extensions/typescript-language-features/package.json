@@ -647,6 +647,38 @@
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
+        "javascript.preferences.importModuleSpecifierEnding": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "index",
+            "js"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifierEnding.minimal%",
+            "%typescript.preferences.importModuleSpecifierEnding.index%",
+            "%typescript.preferences.importModuleSpecifierEnding.js%"
+          ],
+          "default": "minimal",
+          "description": "%typescript.preferences.importModuleSpecifierEnding%",
+          "scope": "resource"
+        },
+        "typescript.preferences.importModuleSpecifierEnding": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "index",
+            "js"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifierEnding.minimal%",
+            "%typescript.preferences.importModuleSpecifierEnding.index%",
+            "%typescript.preferences.importModuleSpecifierEnding.js%"
+          ],
+          "default": "minimal",
+          "description": "%typescript.preferences.importModuleSpecifierEnding%",
+          "scope": "resource"
+        },
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,

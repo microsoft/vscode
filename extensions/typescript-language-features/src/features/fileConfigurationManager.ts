@@ -185,6 +185,7 @@ export default class FileConfigurationManager extends Disposable {
 		return {
 			quotePreference: this.getQuoteStylePreference(config),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
+			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file',
 			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
@@ -204,6 +205,15 @@ function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguratio
 	switch (config.get<string>('importModuleSpecifier')) {
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
+		default: return undefined;
+	}
+}
+
+function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('importModuleSpecifierEnding')) {
+		case 'minimal': return 'minimal';
+		case 'index': return 'index';
+		case 'js': return 'js';
 		default: return undefined;
 	}
 }
