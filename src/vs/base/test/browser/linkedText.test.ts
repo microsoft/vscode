@@ -47,17 +47,12 @@ suite('LinkedText', () => {
 			{ label: 'two', href: 'http://foo' },
 			'...'
 		]);
+		assert.deepEqual(parseLinkedText('link\n[one](command:foo "nice")\nand link [two](http://foo)...'), [
+			'link\n',
+			{ label: 'one', href: 'command:foo', title: 'nice' },
+			'\nand link ',
+			{ label: 'two', href: 'http://foo' },
+			'...'
+		]);
 	});
 });
-
-/*
-[I'm an inline-style link](https://www.google.com)
-
-[I'm an inline-style link with title](https://www.google.com "Google's Homepage")
-
-[I'm a reference-style link][Arbitrary case-insensitive reference text]
-
-[I'm a relative reference to a repository file](../blob/master/LICENSE)
-
-[You can use numbers for reference-style link definitions][1]
-*/
