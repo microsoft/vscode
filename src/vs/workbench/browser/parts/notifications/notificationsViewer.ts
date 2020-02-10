@@ -5,8 +5,6 @@
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
@@ -126,14 +124,9 @@ export interface INotificationTemplateData {
 	renderer: NotificationTemplateRenderer;
 }
 
-interface IMessageActionHandler {
-	callback: (href: string) => void;
-	toDispose: DisposableStore;
-}
-
 class NotificationMessageRenderer {
 
-	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
+	static render(message: INotificationMessage): HTMLElement {
 		const messageContainer = document.createElement('span');
 
 		// Message has no links
@@ -155,10 +148,6 @@ class NotificationMessageRenderer {
 				anchor.textContent = link.name;
 				anchor.title = link.title;
 				anchor.href = link.href;
-
-				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(link.href)));
-				}
 
 				messageContainer.appendChild(anchor);
 
@@ -294,7 +283,6 @@ export class NotificationTemplateRenderer extends Disposable {
 	constructor(
 		private template: INotificationTemplateData,
 		private actionRunner: IActionRunner,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
@@ -369,10 +357,7 @@ export class NotificationTemplateRenderer extends Disposable {
 
 	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
-		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
-			callback: link => this.openerService.open(URI.parse(link)),
-			toDispose: this.inputDisposables
-		}));
+		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message));
 
 		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
 		if (messageOverflows) {

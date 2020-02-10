@@ -204,10 +204,9 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			contents.on('will-navigate', event => {
-				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
-
+			contents.on('will-navigate', (event, url) => {
 				event.preventDefault();
+				contents.send('vscode:open', url);
 			});
 
 			contents.on('new-window', (event: Event, url: string) => {
