@@ -81,7 +81,7 @@ export class TimelineService implements ITimelineService {
 		return [...this._providers.keys()];
 	}
 
-	getTimeline(id: string, uri: URI, cursor: TimelineCursor, tokenSource: CancellationTokenSource) {
+	getTimeline(id: string, uri: URI, cursor: TimelineCursor, tokenSource: CancellationTokenSource, options?: { cacheResults?: boolean }) {
 		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
 
 		const provider = this._providers.get(id);
@@ -98,7 +98,7 @@ export class TimelineService implements ITimelineService {
 		}
 
 		return {
-			result: provider.provideTimeline(uri, cursor, tokenSource.token)
+			result: provider.provideTimeline(uri, cursor, tokenSource.token, options)
 				.then(result => {
 					if (result === undefined) {
 						return undefined;
