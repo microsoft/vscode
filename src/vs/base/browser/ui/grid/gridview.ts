@@ -21,11 +21,18 @@ export interface IViewSize {
 	readonly height: number;
 }
 
-interface IBoundarySashes {
+interface IRelativeBoundarySashes {
 	readonly start?: Sash;
 	readonly end?: Sash;
 	readonly orthogonalStart?: Sash;
 	readonly orthogonalEnd?: Sash;
+}
+
+export interface IBoundarySashes {
+	readonly top?: Sash;
+	readonly right?: Sash;
+	readonly bottom?: Sash;
+	readonly left?: Sash;
 }
 
 export interface IView {
@@ -39,6 +46,7 @@ export interface IView {
 	readonly snap?: boolean;
 	layout(width: number, height: number, top: number, left: number): void;
 	setVisible?(visible: boolean): void;
+	setBoundarySashes?(sashes: IBoundarySashes): void;
 }
 
 export interface ISerializableView extends IView {
@@ -130,6 +138,22 @@ interface ILayoutContext {
 	readonly absoluteOrthogonalOffset: number;
 	readonly absoluteSize: number;
 	readonly absoluteOrthogonalSize: number;
+}
+
+function toAbsoluteBoundarySashes(sashes: IRelativeBoundarySashes, orientation: Orientation): IBoundarySashes {
+	if (orientation === Orientation.HORIZONTAL) {
+		return { left: sashes.start, right: sashes.end, top: sashes.orthogonalStart, bottom: sashes.orthogonalEnd };
+	} else {
+		return { top: sashes.start, bottom: sashes.end, left: sashes.orthogonalStart, right: sashes.orthogonalEnd };
+	}
+}
+
+function fromAbsoluteBoundarySashes(sashes: IBoundarySashes, orientation: Orientation): IRelativeBoundarySashes {
+	if (orientation === Orientation.HORIZONTAL) {
+		return { start: sashes.left, end: sashes.right, orthogonalStart: sashes.top, orthogonalEnd: sashes.bottom };
+	} else {
+		return { start: sashes.top, end: sashes.bottom, orthogonalStart: sashes.left, orthogonalEnd: sashes.right };
+	}
 }
 
 class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
@@ -224,13 +248,26 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	private splitviewSashResetDisposable: IDisposable = Disposable.None;
 	private childrenSashResetDisposable: IDisposable = Disposable.None;
 
-	private _boundarySashes: IBoundarySashes = {};
-	get boundarySashes(): IBoundarySashes { return this._boundarySashes; }
-	set boundarySashes(boundarySashes: IBoundarySashes) {
+	private _boundarySashes: IRelativeBoundarySashes = {};
+	get boundarySashes(): IRelativeBoundarySashes { return this._boundarySashes; }
+	set boundarySashes(boundarySashes: IRelativeBoundarySashes) {
 		this._boundarySashes = boundarySashes;
 
 		this.splitview.orthogonalStartSash = boundarySashes.orthogonalStart;
 		this.splitview.orthogonalEndSash = boundarySashes.orthogonalEnd;
+
+		for (let index = 0; index < this.children.length; index++) {
+			const child = this.children[index];
+			const first = index === 0;
+			const last = index === this.children.length - 1;
+
+			child.boundarySashes = {
+				start: boundarySashes.orthogonalStart,
+				end: boundarySashes.orthogonalEnd,
+				orthogonalStart: first ? boundarySashes.start : child.boundarySashes.orthogonalStart,
+				orthogonalEnd: last ? boundarySashes.end : child.boundarySashes.orthogonalEnd,
+			};
+		}
 	}
 
 	constructor(
@@ -694,9 +731,15 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumWidth : this.maximumHeight;
 	}
 
-	private _boundarySashes: IBoundarySashes = {};
-	get boundarySashes(): IBoundarySashes { return this._boundarySashes; }
-	set boundarySashes(boundarySashes: IBoundarySashes) { this._boundarySashes = boundarySashes; }
+	private _boundarySashes: IRelativeBoundarySashes = {};
+	get boundarySashes(): IRelativeBoundarySashes { return this._boundarySashes; }
+	set boundarySashes(boundarySashes: IRelativeBoundarySashes) {
+		this._boundarySashes = boundarySashes;
+
+		if (this.view.setBoundarySashes) {
+			this.view.setBoundarySashes(toAbsoluteBoundarySashes(boundarySashes, this.orientation));
+		}
+	}
 
 	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
 		if (!this.layoutController.isLayoutEnabled) {
@@ -799,6 +842,7 @@ export class GridView implements IDisposable {
 		const { size, orthogonalSize } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
 		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
+		this.boundarySashes = this.boundarySashes;
 	}
 
 	get width(): number { return this.root.width; }
@@ -811,6 +855,13 @@ export class GridView implements IDisposable {
 
 	private _onDidChange = new Relay<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
+
+	private _boundarySashes: IBoundarySashes = {};
+	get boundarySashes(): IBoundarySashes { return this._boundarySashes; }
+	set boundarySashes(boundarySashes: IBoundarySashes) {
+		this._boundarySashes = boundarySashes;
+		this.root.boundarySashes = fromAbsoluteBoundarySashes(boundarySashes, this.orientation);
+	}
 
 	/**
 	 * The first layout controller makes sure layout only propagates
@@ -933,6 +984,7 @@ export class GridView implements IDisposable {
 			// we must promote sibling to be the new root
 			parent.removeChild(0);
 			this.root = sibling;
+			this.boundarySashes = this.boundarySashes;
 			return node.view;
 		}
 
