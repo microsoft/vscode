@@ -141,13 +141,15 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: ITextBufferFactory, preferredMode?: string): void {
+	protected updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void {
 		if (!this.isResolved()) {
 			return;
 		}
 
 		// contents
-		this.modelService.updateModel(this.textEditorModel, newValue);
+		if (newValue) {
+			this.modelService.updateModel(this.textEditorModel, newValue);
+		}
 
 		// mode (only if specific and changed)
 		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getModeId() !== preferredMode) {

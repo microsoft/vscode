@@ -70,9 +70,6 @@ import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/works
 import { statSync } from 'fs';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
@@ -433,12 +430,6 @@ export class CodeApplication extends Disposable {
 
 	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
-
-		const fileService = this._register(new FileService(this.logService));
-		services.set(IFileService, fileService);
-
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(this.logService));
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		switch (process.platform) {
 			case 'win32':

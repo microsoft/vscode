@@ -238,9 +238,12 @@ export class ResourcesDropHandler {
 
 	private async handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
 
-		// Untitled: always ensure that we open a new untitled for each file we drop
+		// Untitled: always ensure that we open a new untitled editor for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.textFileService.untitled.create({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding }).getResource();
+			const untitledEditorResource = this.editorService.createInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).getResource();
+			if (untitledEditorResource) {
+				droppedDirtyEditor.resource = untitledEditorResource;
+			}
 		}
 
 		// File: ensure the file is not dirty or opened already

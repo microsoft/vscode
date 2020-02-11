@@ -20,7 +20,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -32,7 +32,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INewUntitledTextEditorOptions } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -43,6 +42,8 @@ import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker'
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { TestTextFileService, TestElectronService, workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -133,7 +134,7 @@ suite('BackupTracker', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	async function createTracker(): Promise<[ServiceAccessor, EditorPart, BackupTracker]> {
+	async function createTracker(): Promise<[ServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
@@ -153,18 +154,17 @@ suite('BackupTracker', () => {
 
 		const tracker = instantiationService.createInstance(TestBackupTracker);
 
-		return [accessor, part, tracker];
+		return [accessor, part, tracker, instantiationService];
 	}
 
-	async function untitledBackupTest(options?: INewUntitledTextEditorOptions): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceInput = {}): Promise<void> {
 		const [accessor, part, tracker] = await createTracker();
 
-		const untitledEditor = accessor.textFileService.untitled.create(options);
-		await accessor.editorService.openEditor(untitledEditor, { pinned: true });
+		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
 
 		const untitledModel = await untitledEditor.resolve();
 
-		if (!options?.initialValue) {
+		if (!untitled?.contents) {
 			untitledModel.textEditorModel.setValue('Super Good');
 		}
 
@@ -191,7 +191,7 @@ suite('BackupTracker', () => {
 	test('Track backups (untitled with initial contents)', function () {
 		this.timeout(20000);
 
-		return untitledBackupTest({ initialValue: 'Foo Bar' });
+		return untitledBackupTest({ contents: 'Foo Bar' });
 	});
 
 	test('Track backups (file)', async function () {

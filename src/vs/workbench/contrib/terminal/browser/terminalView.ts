@@ -298,9 +298,8 @@ export class TerminalViewPane extends ViewPane {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType).then(preparedPath => {
-						terminal.sendText(preparedPath, false);
-					});
+					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
+					terminal.sendText(preparedPath, false);
 				}
 			}
 		}));
