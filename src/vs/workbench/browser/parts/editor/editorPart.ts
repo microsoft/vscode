@@ -979,6 +979,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	setBoundarySashes(sashes: IBoundarySashes): void {
 		this.gridWidget.boundarySashes = sashes;
+		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
 	layout(width: number, height: number): void {

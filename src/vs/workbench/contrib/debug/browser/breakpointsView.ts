@@ -35,6 +35,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Gesture } from 'vs/base/browser/touch';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -64,20 +65,23 @@ export class BreakpointsView extends ViewPane {
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.minimumBodySize = this.maximumBodySize = getExpandedBodySize(this.debugService.getModel());
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 

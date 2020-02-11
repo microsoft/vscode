@@ -85,6 +85,8 @@ export namespace Event {
 	 * Given a collection of events, returns a single event which emits
 	 * whenever any of the provided events emit.
 	 */
+	export function any<T>(...events: Event<T>[]): Event<T>;
+	export function any(...events: Event<any>[]): Event<void>;
 	export function any<T>(...events: Event<T>[]): Event<T> {
 		return (listener, thisArgs = null, disposables?) => combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 	}

@@ -49,6 +49,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
 	const markersIt = Iterator.fromArray(resourceMarkers.markers);
@@ -104,8 +105,10 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 		this.panelFoucusContextKey = Constants.MarkerViewFocusContextKey.bindTo(contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
@@ -129,6 +132,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	}
 
 	public renderBody(parent: HTMLElement): void {
+		super.renderBody(parent);
 
 		dom.addClass(parent, 'markers-panel');
 
@@ -185,7 +189,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			return;
 		}
 
-		if (this.isEmpty() && this.messageBoxContainer) {
+		if (this.hasNoProblems() && this.messageBoxContainer) {
 			this.messageBoxContainer.focus();
 		} else if (this.tree) {
 			this.tree.getHTMLElement().focus();
@@ -525,7 +529,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		}
 	}
 
-	private isEmpty(): boolean {
+	private hasNoProblems(): boolean {
 		const { total, filtered } = this.getFilterStats();
 		return total === 0 || filtered === 0;
 	}
@@ -534,7 +538,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.cachedFilterStats = undefined;
 		this.resetTree();
 		if (this.tree) {
-			this.tree.toggleVisibility(this.isEmpty());
+			this.tree.toggleVisibility(this.hasNoProblems());
 		}
 		this.renderMessage();
 	}
