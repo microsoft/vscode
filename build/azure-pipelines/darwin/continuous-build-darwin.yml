@@ -45,7 +45,7 @@ steps:
     yarn test-browser --browser chromium --browser webkit
   displayName: Run Unit Tests (Browser)
 - script: |
-    ./scripts/test-integration.sh --tfs "Integration Tests"
+    ./scripts/test-integration.sh
   displayName: Run Integration Tests (Electron)
 - task: PublishTestResults@2
   displayName: Publish Tests Results

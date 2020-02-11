@@ -53,7 +53,7 @@ steps:
     DISPLAY=:10 yarn test-browser --browser chromium
   displayName: Run Unit Tests (Browser)
 - script: |
-    DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+    DISPLAY=:10 ./scripts/test-integration.sh
   displayName: Run Integration Tests (Electron)
 - task: PublishTestResults@2
   displayName: Publish Tests Results

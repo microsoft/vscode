@@ -50,7 +50,7 @@ steps:
     yarn test-browser --browser chromium
   displayName: Run Unit Tests (Browser)
 - powershell: |
-    .\scripts\test-integration.bat --tfs "Integration Tests"
+    .\scripts\test-integration.bat
   displayName: Run Integration Tests (Electron)
 - task: PublishTestResults@2
   displayName: Publish Tests Results

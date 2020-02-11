@@ -49,7 +49,7 @@ jobs:
       name: Run Unit Tests (Electron)
     - run: DISPLAY=:10 yarn test-browser --browser chromium
       name: Run Unit Tests (Browser)
-    - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+    - run: DISPLAY=:10 ./scripts/test-integration.sh
       name: Run Integration Tests (Electron)
 
   windows:
@@ -83,7 +83,7 @@ jobs:
       name: Run Unit Tests (Electron)
     - run: yarn test-browser --browser chromium
       name: Run Unit Tests (Browser)
-    - run: .\scripts\test-integration.bat --tfs "Integration Tests"
+    - run: .\scripts\test-integration.bat
       name: Run Integration Tests (Electron)
 
   darwin:
@@ -114,5 +114,5 @@ jobs:
       name: Run Unit Tests (Electron)
     - run: yarn test-browser --browser chromium --browser webkit
       name: Run Unit Tests (Browser)
-    - run: ./scripts/test-integration.sh --tfs "Integration Tests"
+    - run: ./scripts/test-integration.sh
       name: Run Integration Tests (Electron)

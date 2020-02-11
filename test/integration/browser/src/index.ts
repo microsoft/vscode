@@ -29,7 +29,7 @@ const width = 1200;
 const height = 800;
 
 async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), dumpio: true });
 	const page = (await browser.defaultContext().pages())[0];
 	await page.setViewport({ width, height });
 
