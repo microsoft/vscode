@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellLaunchConfig, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -289,7 +289,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return false;
 		}
 		const activeTerminalInstance = this.terminalService.getActiveInstance();
-		const isPanelShowingTerminal = this.panelService.getActivePanel()?.getId() === TERMINAL_PANEL_ID;
+		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		return isPanelShowingTerminal && (activeTerminalInstance?.id === terminalData.terminal.id);
 	}
 
@@ -312,7 +312,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.previousTerminalInstance = undefined;
 		} else {
 			this.previousPanelId = this.panelService.getActivePanel()?.getId();
-			if (this.previousPanelId === TERMINAL_PANEL_ID) {
+			if (this.previousPanelId === TERMINAL_VIEW_ID) {
 				this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);

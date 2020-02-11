@@ -26,6 +26,8 @@ import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/act
 import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -98,6 +100,7 @@ class BulkEditPreviewContribution {
 		@IPanelService private readonly _panelService: IPanelService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -107,6 +110,27 @@ class BulkEditPreviewContribution {
 
 	private async _previewEdit(edit: WorkspaceEdit) {
 		this._ctxEnabled.set(true);
+
+		const view = await getBulkEditPane(this._viewsService);
+		if (!view) {
+			this._ctxEnabled.set(false);
+			return edit;
+		}
+
+		// check for active preview session and let the user decide
+		if (view.hasInput()) {
+			const choice = await this._dialogService.show(
+				Severity.Info,
+				localize('overlap', "Another refactoring is being previewed."),
+				[localize('cancel', "Cancel"), localize('continue', "Continue")],
+				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
+			);
+
+			if (choice.choice === 0) {
+				// this refactoring is being cancelled
+				return { edits: [] };
+			}
+		}
 
 		// session
 		let session: PreviewSession;
@@ -120,10 +144,6 @@ class BulkEditPreviewContribution {
 
 		// the actual work...
 		try {
-			const view = await getBulkEditPane(this._viewsService);
-			if (!view) {
-				return edit;
-			}
 
 			const newEditOrUndefined = await view.setInput(edit, session.cts.token);
 			if (!newEditOrUndefined) {

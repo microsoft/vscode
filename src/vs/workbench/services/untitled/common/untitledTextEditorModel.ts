@@ -8,7 +8,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -20,8 +20,45 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy { }
+export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
+
+	/**
+	 * Emits an event when the encoding of this untitled model changes.
+	 */
+	readonly onDidChangeEncoding: Event<void>;
+
+	/**
+	 * Emits an event when the name of this untitled model changes.
+	 */
+	readonly onDidChangeName: Event<void>;
+
+	/**
+	 * Emits an event when this untitled model is reverted.
+	 */
+	readonly onDidRevert: Event<void>;
+
+	/**
+	 * Wether this untitled text model has an associated file path.
+	 */
+	readonly hasAssociatedFilePath: boolean;
+
+	/**
+	 * Sets the encoding to use for this untitled model.
+	 */
+	setEncoding(encoding: string): void;
+
+	/**
+	 * Load the untitled model.
+	 */
+	load(): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+
+	/**
+	 * Updates the value of the untitled model optionally allowing to ignore dirty.
+	 */
+	setValue(value: string, ignoreDirty?: boolean): void;
+}
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
@@ -39,6 +76,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
+	private readonly _onDidRevert = this._register(new Emitter<void>());
+	readonly onDidRevert = this._onDidRevert.event;
+
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
 	private cachedModelFirstLineWords: string | undefined = undefined;
@@ -55,14 +95,16 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	private dirty = false;
+	private ignoreDirtyOnModelContentChange = false;
+
 	private versionId = 0;
 	private configuredEncoding: string | undefined;
 
 	constructor(
-		private readonly preferredMode: string | undefined,
 		public readonly resource: URI,
 		public readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
+		private preferredMode: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -70,12 +112,17 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(modelService, modeService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
+
+		if (preferredMode) {
+			this.setMode(preferredMode);
+		}
 
 		this.registerListeners();
 	}
@@ -102,6 +149,24 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.versionId;
 	}
 
+	setMode(mode: string): void {
+		let actualMode: string | undefined = undefined;
+		if (mode === '${activeEditorLanguage}') {
+			// support the special '${activeEditorLanguage}' mode by
+			// looking up the language mode from the currently
+			// active text editor if any
+			actualMode = this.editorService.activeTextEditorMode;
+		} else {
+			actualMode = mode;
+		}
+
+		this.preferredMode = actualMode;
+
+		if (actualMode) {
+			super.setMode(actualMode);
+		}
+	}
+
 	getMode(): string | undefined {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getModeId();
@@ -121,6 +186,18 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Emit if it changed
 		if (oldEncoding !== this.preferredEncoding) {
 			this._onDidChangeEncoding.fire();
+		}
+	}
+
+	setValue(value: string, ignoreDirty?: boolean): void {
+		if (ignoreDirty) {
+			this.ignoreDirtyOnModelContentChange = true;
+		}
+
+		try {
+			this.updateTextEditorModel(createTextBufferFactory(value));
+		} finally {
+			this.ignoreDirtyOnModelContentChange = false;
 		}
 	}
 
@@ -149,6 +226,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	async revert(): Promise<boolean> {
 		this.setDirty(false);
+
+		// Emit as event
+		this._onDidRevert.fire();
 
 		// A reverted untitled model is invalid because it has
 		// no actual source on disk to revert to. As such we
@@ -212,15 +292,17 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private onModelContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
 		this.versionId++;
 
-		// mark the untitled text editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
-			this.setDirty(false);
-		}
+		if (!this.ignoreDirtyOnModelContentChange) {
+			// mark the untitled text editor as non-dirty once its content becomes empty and we do
+			// not have an associated path set. we never want dirty indicator in that case.
+			if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
+				this.setDirty(false);
+			}
 
-		// turn dirty otherwise
-		else {
-			this.setDirty(true);
+			// turn dirty otherwise
+			else {
+				this.setDirty(true);
+			}
 		}
 
 		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_MAX_LENGTH columns

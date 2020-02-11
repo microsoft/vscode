@@ -55,7 +55,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 						}
 					}
 					if (marker.code && typeof marker.code !== 'string') {
-						marker.code.link = URI.revive(marker.code.link);
+						marker.code.target = URI.revive(marker.code.target);
 					}
 				}
 			}

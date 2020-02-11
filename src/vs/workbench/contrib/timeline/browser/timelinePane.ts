@@ -289,10 +289,7 @@ export class TimelinePane extends ViewPane {
 		container.appendChild(this._treeElement);
 
 		const renderer = this.instantiationService.createInstance(TimelineTreeRenderer);
-		this._tree = this.instantiationService.createInstance<
-			typeof WorkbenchObjectTree,
-			WorkbenchObjectTree<TreeElement, FuzzyScore>
-		>(WorkbenchObjectTree, 'TimelinePane', this._treeElement, new TimelineListVirtualDelegate(), [renderer], {
+		this._tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane', this._treeElement, new TimelineListVirtualDelegate(), [renderer], {
 			identityProvider: new TimelineIdentityProvider(),
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider()
 		});

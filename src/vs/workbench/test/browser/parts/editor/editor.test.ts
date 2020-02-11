@@ -12,6 +12,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 
 class ServiceAccessor {
 	constructor(@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService) { }
@@ -55,7 +56,7 @@ suite('Workbench editor', () => {
 
 		assert.ok(!toResource(null!));
 
-		const untitled = service.create();
+		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 
 		assert.equal(toResource(untitled)!.toString(), untitled.getResource().toString());
 		assert.equal(toResource(untitled, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), untitled.getResource().toString());

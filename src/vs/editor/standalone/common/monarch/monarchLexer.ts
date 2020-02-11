@@ -501,7 +501,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			}
 
 			let result = line.search(regex);
-			if (result === -1) {
+			if (result === -1 || (result !== 0 && rule.matchOnlyAtLineStart)) {
 				continue;
 			}
 

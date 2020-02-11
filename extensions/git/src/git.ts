@@ -333,7 +333,7 @@ function sanitizePath(path: string): string {
 	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
 }
 
-const COMMIT_FORMAT = '%H\n%aN\n%aE\n%at\n%P\n%B';
+const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%P%n%B';
 
 export class Git {
 
@@ -801,8 +801,8 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
-		const args = ['log', '-' + maxEntries, `--format:${COMMIT_FORMAT}`, '-z'];
+		const maxEntries = options?.maxEntries ?? 32;
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -815,7 +815,7 @@ export class Repository {
 
 	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
 
 		const result = await this.run(args);
 		if (result.exitCode) {

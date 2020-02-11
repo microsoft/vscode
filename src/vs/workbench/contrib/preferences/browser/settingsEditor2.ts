@@ -46,6 +46,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 function createGroupIterator(group: SettingsTreeGroupElement): Iterator<ITreeElement<SettingsTreeGroupChild>> {
 	const groupsIt = Iterator.fromArray(group.children);
@@ -448,7 +449,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const actionBar = this._register(new ActionBar(this.controlsElement, {
 			animated: false,
-			actionViewItemProvider: (action: Action) => { return undefined; }
+			actionViewItemProvider: (_action) => { return undefined; }
 		}));
 
 		actionBar.push([clearInputAction], { label: false, icon: true });
@@ -882,8 +883,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private render(token: CancellationToken): Promise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((model: Settings2EditorModel) => {
-					if (token.isCancellationRequested) {
+				.then((model: IEditorModel | null) => {
+					if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
 						return undefined;
 					}
 

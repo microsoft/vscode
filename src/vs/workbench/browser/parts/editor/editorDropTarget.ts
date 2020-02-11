@@ -18,11 +18,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { find } from 'vs/base/common/arrays';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -48,8 +48,8 @@ class DropOverlay extends Themable {
 		private groupView: IEditorGroupView,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(themeService);
 
@@ -308,8 +308,11 @@ class DropOverlay extends Themable {
 								}
 
 								// Open as untitled file with the provided contents
-								const contents = VSBuffer.wrap(new Uint8Array(event.target.result)).toString();
-								const untitledEditor = this.textFileService.untitled.create({ associatedResource: proposedFilePath, initialValue: contents });
+								const untitledEditor = this.editorService.createInput({
+									resource: proposedFilePath,
+									forceUntitled: true,
+									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
+								});
 
 								if (!targetGroup) {
 									targetGroup = ensureTargetGroup();

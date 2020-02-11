@@ -18,7 +18,7 @@ const playwright = require('playwright');
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 const optimist = require('optimist')
 	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	// .describe('build', 'run with build output (out-build)').boolean('build')
+	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
 	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
@@ -122,6 +122,9 @@ async function runTestsInBrowser(testModules, browserType) {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
 	const page = (await browser.defaultContext().pages())[0]
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	if (argv.build) {
+		target.search = `?build=true`;
+	}
 	await page.goto(target.href);
 
 	const emitter = new events.EventEmitter();

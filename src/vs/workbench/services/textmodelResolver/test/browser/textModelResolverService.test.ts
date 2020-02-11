@@ -20,6 +20,7 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 
 class ServiceAccessor {
 	constructor(
@@ -110,7 +111,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve untitled', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 
 		await input.resolve();
 		const ref = await accessor.textModelResolverService.createModelReference(input.getResource());

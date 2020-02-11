@@ -316,23 +316,25 @@ suite('Themes - TokenStyleResolving', () => {
 
 	test('super type', async () => {
 		getTokenClassificationRegistry().registerTokenType('myTestInterface', 'A type just for testing', 'interface');
+		getTokenClassificationRegistry().registerTokenType('myTestSubInterface', 'A type just for testing', 'myTestInterface');
+
 		try {
 			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
 			themeData.setCustomColors({ 'editor.foreground': '#000000' });
 			themeData.setCustomTokenStyleRules({
-				'type': '#ff0000',
-				'interface': { fontStyle: 'italic' },
-				'type.static': { fontStyle: 'bold' }
+				'interface': '#ff0000',
+				'myTestInterface': { fontStyle: 'italic' },
+				'interface.static': { fontStyle: 'bold' }
 			});
 
-			assertTokenStyles(themeData, { 'myTestInterface': ts('#ff0000', { italic: true }) });
-			assertTokenStyles(themeData, { 'myTestInterface.static': ts('#ff0000', { italic: true, bold: true }) });
+			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff0000', { italic: true }) });
+			assertTokenStyles(themeData, { 'myTestSubInterface.static': ts('#ff0000', { italic: true, bold: true }) });
 
 			themeData.setCustomTokenStyleRules({
-				'type': '#ff0000',
-				'interface': { foreground: '#ff00ff', fontStyle: 'italic' }
+				'interface': '#ff0000',
+				'myTestInterface': { foreground: '#ff00ff', fontStyle: 'italic' }
 			});
-			assertTokenStyles(themeData, { 'myTestInterface': ts('#ff00ff', { italic: true }) });
+			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff00ff', { italic: true }) });
 		} finally {
 			getTokenClassificationRegistry().deregisterTokenType('myTestInterface');
 		}
