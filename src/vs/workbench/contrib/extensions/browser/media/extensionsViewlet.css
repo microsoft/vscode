@@ -133,6 +133,10 @@
 	justify-content: center;
 }
 
+.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
+}
+
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header > .extension-remote-badge-container {
 	margin-left: 6px;
 }

@@ -213,7 +213,7 @@ export class FileWalker {
 		onMessage({ message: rgCmd });
 
 		this.cmdResultCount = 0;
-		this.collectStdout(cmd, 'utf8', onMessage, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, 'utf8', onMessage, (err: Error | null, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
 				return;
@@ -300,7 +300,7 @@ export class FileWalker {
 	 */
 	readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error | null, stdout?: string) => void): void {
 		let all = '';
-		this.collectStdout(cmd, encoding, () => { }, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, encoding, () => { }, (err: Error | null, stdout?: string, last?: boolean) => {
 			if (err) {
 				cb(err);
 				return;
@@ -547,12 +547,9 @@ export class FileWalker {
 					return clb(null, undefined);
 				});
 			});
-		}, (error: Error[]): void => {
-			if (error) {
-				error = arrays.coalesce(error); // find any error by removing null values first
-			}
-
-			return done(error && error.length > 0 ? error[0] : undefined);
+		}, (error: Array<Error | null> | null): void => {
+			const filteredErrors = error ? arrays.coalesce(error) : error; // find any error by removing null values first
+			return done(filteredErrors && filteredErrors.length > 0 ? filteredErrors[0] : undefined);
 		});
 	}
 
@@ -622,8 +619,8 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
-		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
+	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void): void {
+		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error | null, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
 				stats: this.walker.getStats()

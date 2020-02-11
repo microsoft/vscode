@@ -14,7 +14,7 @@ import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, T
 import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -127,7 +127,7 @@ export interface IViewModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
+	getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations;
 	invalidateOverviewRulerColorCache(): void;
 	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;

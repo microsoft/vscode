@@ -12,12 +12,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -25,13 +23,15 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { assertIsDefined } from 'vs/base/common/types';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
-export class TerminalPanel extends Panel {
-
+export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _copyContextMenuAction: IAction | undefined;
 	private _contextMenuActions: IAction[] | undefined;
@@ -42,21 +42,24 @@ export class TerminalPanel extends Panel {
 	private _findWidget: TerminalFindWidget | undefined;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		options: IViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService protected readonly _themeService: IThemeService,
+		@IThemeService protected readonly themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
+		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService);
 	}
 
-	public create(parent: HTMLElement): void {
-		super.create(parent);
-		this._parentDomElement = parent;
+	protected renderBody(container: HTMLElement): void {
+		this._parentDomElement = container;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
 
@@ -72,11 +75,10 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
-		const container = assertIsDefined(this.getContainer());
 		this._terminalService.setContainers(container, this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fontFamily')) {
 				this._updateFont();
 			}
@@ -86,7 +88,7 @@ export class TerminalPanel extends Panel {
 				if (!configHelper.configFontIsMonospace()) {
 					const choices: IPromptChoice[] = [{
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
-						run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+						run: () => this.configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
 					}];
 					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart VS Code if this is a newly installed font."), choices);
 				}
@@ -95,7 +97,7 @@ export class TerminalPanel extends Panel {
 		this._updateFont();
 		this._updateTheme();
 
-		this._register(this.onDidChangeVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				const hadTerminals = this._terminalService.terminalInstances.length > 0;
 				if (!hadTerminals) {
@@ -110,14 +112,11 @@ export class TerminalPanel extends Panel {
 		}));
 
 		// Force another layout (first is setContainers) since config has changed
-		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
+		this.layoutBody(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight);
 	}
 
-	public layout(dimension?: dom.Dimension): void {
-		if (!dimension) {
-			return;
-		}
-		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
+	protected layoutBody(height: number, width: number): void {
+		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
 	}
 
 	public getActions(): IAction[] {
@@ -321,30 +320,30 @@ export class TerminalPanel extends Panel {
 		}
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		this.layout(new dom.Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
+		this.layoutBody(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight);
 	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
-	collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${backgroundColor ? backgroundColor.toString() : ''}; }`);
+	collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-outer-container { background-color: ${backgroundColor ? backgroundColor.toString() : ''}; }`);
 
 	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR);
 	if (borderColor) {
-		collector.addRule(`.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
 	}
 
 	// Borrow the editor's hover background for now
 	const hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
-		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`);
 	}
 	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
-		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
 	}
 	const hoverForeground = theme.getColor(editorHoverForeground);
 	if (hoverForeground) {
-		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
 	}
 });

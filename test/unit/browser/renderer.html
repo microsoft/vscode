@@ -37,17 +37,24 @@
 		});
 	</script>
 
+	<!-- Depending on --build or not, load loader from known locations -->
 	<script src="../../../out/vs/loader.js"></script>
+	<script src="../../../out-build/vs/loader.js"></script>
+
 	<script>
+		const urlParams = new URLSearchParams(window.location.search);
+		const isBuild = urlParams.get('build');
+
 		// configure loader
 		const baseUrl = window.location.href;
 		require.config({
 			catchError: true,
 			baseUrl: new URL('../../../src', baseUrl).href,
 			paths: {
-				'vs': new URL('../../../out/vs', baseUrl).href,
+				'vs': new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
 				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href
+				sinon: new URL('../../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href,
+				xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href
 			}
 		});
 	</script>
@@ -104,19 +111,19 @@
 
 		window.loadAndRun = async function loadAndRun(modules, manual = false) {
 			// load
-			// await Promise.all(modules.map(module => new Promise((resolve, reject) =>{
-			// 	require([module], resolve, err => {
-			// 		console.log("BAD " + module + JSON.stringify(err, undefined, '\t'));
-			// 		// console.log(module);
-			// 		resolve({});
-			// 	});
-			// })));
-			await new Promise((resolve, reject) => {
-				require(modules, resolve, err => {
-					console.log(err);
-					reject(err);
+			await Promise.all(modules.map(module => new Promise((resolve, reject) => {
+				require([module], resolve, err => {
+					console.log("BAD " + module + JSON.stringify(err, undefined, '\t'));
+					// console.log(module);
+					resolve({});
 				});
-			});
+			})));
+			// await new Promise((resolve, reject) => {
+			// 	require(modules, resolve, err => {
+			// 		console.log(err);
+			// 		reject(err);
+			// 	});
+			// });
 
 			// run
 			return new Promise((resolve, reject) => {
@@ -126,7 +133,6 @@
 				mocha.run(failCount => resolve(failCount === 0));
 			});
 		}
-
 
 		const modules = new URL(window.location.href).searchParams.getAll('m');
 		if (Array.isArray(modules) && modules.length > 0) {

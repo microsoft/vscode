@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -12,7 +12,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parse } from 'vs/base/common/json';
 import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,17 +28,16 @@ interface ISyncPreviewResult {
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	readonly resourceKey: ResourceKey = 'globalState';
-	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableUIState') === true; }
 
 	constructor(
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
+		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
 	}
@@ -128,7 +126,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace('UI State: Finished synchronizing ui state.');
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.RemotePreconditionFailed) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('UI State: Failed to synchronize ui state as there is a new remote version available. Synchronizing again...');
 				return this.sync();
@@ -161,7 +159,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const hasChanges = local || remote;
 
 		if (!hasChanges) {
-			this.logService.trace('UI State: No changes found during synchronizing ui state.');
+			this.logService.info('UI State: No changes found during synchronizing ui state.');
 		}
 
 		if (local) {
@@ -191,26 +189,32 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private async getLocalGlobalState(): Promise<IGlobalState> {
 		const argv: IStringDictionary<any> = {};
 		const storage: IStringDictionary<any> = {};
-		try {
-			const content = await this.fileService.readFile(this.environmentService.argvResource);
-			const argvValue: IStringDictionary<any> = parse(content.value.toString());
-			for (const argvProperty of argvProperties) {
-				if (argvValue[argvProperty] !== undefined) {
-					argv[argvProperty] = argvValue[argvProperty];
-				}
+		const argvContent: string = await this.getLocalArgvContent();
+		const argvValue: IStringDictionary<any> = parse(argvContent);
+		for (const argvProperty of argvProperties) {
+			if (argvValue[argvProperty] !== undefined) {
+				argv[argvProperty] = argvValue[argvProperty];
 			}
-		} catch (error) { }
+		}
 		return { argv, storage };
 	}
 
+	private async getLocalArgvContent(): Promise<string> {
+		try {
+			const content = await this.fileService.readFile(this.environmentService.argvResource);
+			return content.value.toString();
+		} catch (error) { }
+		return '{}';
+	}
+
 	private async writeLocalGlobalState(globalState: IGlobalState): Promise<void> {
-		const content = await this.fileService.readFile(this.environmentService.argvResource);
-		let argvContent = content.value.toString();
+		const argvContent = await this.getLocalArgvContent();
+		let content = argvContent;
 		for (const argvProperty of Object.keys(globalState.argv)) {
-			argvContent = edit(argvContent, [argvProperty], globalState.argv[argvProperty], {});
+			content = edit(content, [argvProperty], globalState.argv[argvProperty], {});
 		}
-		if (argvContent !== content.value.toString()) {
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(argvContent));
+		if (argvContent !== content) {
+			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
 		}
 	}
 

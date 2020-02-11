@@ -123,7 +123,7 @@ export class BulkEditPane extends ViewPane {
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.GLOBAL, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 
-		this._tree = this._instaService.createInstance(
+		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
 			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer, resourceLabels), new CategoryElementRenderer()],
@@ -200,6 +200,10 @@ export class BulkEditPane extends ViewPane {
 		});
 	}
 
+	hasInput(): boolean {
+		return Boolean(this._currentInput);
+	}
+
 	private async _setTreeInput(input: BulkFileOperations) {
 
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
@@ -247,6 +251,15 @@ export class BulkEditPane extends ViewPane {
 		this._done(false);
 	}
 
+	private _done(accept: boolean): void {
+		if (this._currentResolve) {
+			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
+		}
+		this._currentInput = undefined;
+		this._setState(State.Message);
+		this._sessionDisposables.clear();
+	}
+
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
@@ -282,15 +295,6 @@ export class BulkEditPane extends ViewPane {
 			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
-	}
-
-	private _done(accept: boolean): void {
-		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
-			this._currentInput = undefined;
-		}
-		this._setState(State.Message);
-		this._sessionDisposables.clear();
 	}
 
 	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | null>): Promise<void> {

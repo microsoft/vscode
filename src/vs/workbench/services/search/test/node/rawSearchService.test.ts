@@ -9,7 +9,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, QueryType } from 'vs/workbench/services/search/common/search';
+import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISearchProgressItem, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFileMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
@@ -36,7 +36,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
 	private isCanceled = false;
 
-	constructor(private result: () => IRawFileMatch, public config?: IFileQuery) {
+	constructor(private result: () => IRawFileMatch | null, public config?: IFileQuery) {
 		TestSearchEngine.last = this;
 	}
 
@@ -94,7 +94,7 @@ suite('RawSearchService', () => {
 	test('Individual results', async function () {
 		this.timeout(testTimeout);
 		let i = 5;
-		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
+		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
 
 		let results = 0;
@@ -114,7 +114,7 @@ suite('RawSearchService', () => {
 	test('Batch results', async function () {
 		this.timeout(testTimeout);
 		let i = 25;
-		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
+		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
 
 		const results: number[] = [];
@@ -137,7 +137,7 @@ suite('RawSearchService', () => {
 		this.timeout(testTimeout);
 		const uriPath = '/some/where';
 		let i = 25;
-		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
+		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
 
 		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
@@ -157,7 +157,11 @@ suite('RawSearchService', () => {
 		}
 
 		const progressResults: any[] = [];
-		const onProgress = (match: IFileMatch) => {
+		const onProgress = (match: ISearchProgressItem) => {
+			if (!isFileMatch(match)) {
+				return;
+			}
+
 			assert.strictEqual(match.resource.path, uriPath);
 			progressResults.push(match);
 		};
@@ -232,7 +236,7 @@ suite('RawSearchService', () => {
 			basename: relativePath,
 			size: 3
 		}));
-		const Engine = TestSearchEngine.bind(null, () => matches.shift());
+		const Engine = TestSearchEngine.bind(null, () => matches.shift()!);
 		const service = new RawSearchService();
 
 		const results: any[] = [];
@@ -258,7 +262,7 @@ suite('RawSearchService', () => {
 	test('Sorted result batches', async function () {
 		this.timeout(testTimeout);
 		let i = 25;
-		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
+		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
 
 		const results: number[] = [];
@@ -291,7 +295,7 @@ suite('RawSearchService', () => {
 			basename: relativePath,
 			size: 3
 		}));
-		const Engine = TestSearchEngine.bind(null, () => matches.shift());
+		const Engine = TestSearchEngine.bind(null, () => matches.shift()!);
 		const service = new RawSearchService();
 
 		const results: any[] = [];

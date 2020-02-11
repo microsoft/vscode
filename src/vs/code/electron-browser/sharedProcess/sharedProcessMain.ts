@@ -12,7 +12,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel, GlobalExtensionEnablementServiceClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -49,7 +49,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel, UserDataAuthTokenServiceChannel, UserDataAutoSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
@@ -64,6 +64,8 @@ import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDa
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -155,7 +157,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(loggerClient, new SpdLogService('telemetry', environmentService.logsPath, initData.logLevel));
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');
@@ -189,8 +191,9 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IUserDataAuthTokenService, new SyncDescriptor(UserDataAuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
-		services.set(IGlobalExtensionEnablementService, new GlobalExtensionEnablementServiceClient(server.getChannel('globalExtensionEnablement', client => client.ctx !== 'main')));
+		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
+		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService));
 		services.set(ISettingsSyncService, new SyncDescriptor(SettingsSynchroniser));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 		registerConfiguration();

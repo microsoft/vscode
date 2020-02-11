@@ -121,7 +121,6 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 		switch (command) {
 			case 'resolveUserKeybindings': return this.service.resolveUserBindings(args[0]);
 			case 'resolveFormattingOptions': return this.service.resolveFormattingOptions(URI.revive(args[0]));
-			case 'updateConfigurationValue': return this.service.updateConfigurationValue(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -140,10 +139,6 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 	async resolveFormattingOptions(file: URI): Promise<FormattingOptions> {
 		return this.channel.call('resolveFormattingOptions', [file]);
-	}
-
-	async updateConfigurationValue(key: string, value: any): Promise<void> {
-		return this.channel.call('updateConfigurationValue', [key, value]);
 	}
 
 }

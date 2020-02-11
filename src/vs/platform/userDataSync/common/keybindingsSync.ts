@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser, IUserData, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser, IUserData, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
@@ -31,18 +31,18 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 	readonly resourceKey: ResourceKey = 'keybindings';
 	protected get conflictsPreviewResource(): URI { return this.environmentService.keybindingsSyncPreviewResource; }
-	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableKeybindings') === true; }
 
 	constructor(
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService, telemetryService, logService, userDataSyncUtilService);
+		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService);
 	}
 
 	async pull(): Promise<void> {
@@ -179,11 +179,11 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.Rejected:
+					case UserDataSyncErrorCode.RemotePreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again,
 						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new remote version available. Synchronizing again...');
 						return this.sync();
-					case UserDataSyncErrorCode.NewLocal:
+					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new local version available. Synchronizing again...');
 						return this.sync(remoteUserData.ref);
@@ -202,9 +202,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 		if (content !== null) {
 			if (this.hasErrors(content)) {
-				const error = new Error(localize('errorInvalidKeybindings', "Unable to sync keybindings. Please resolve conflicts without any errors/warnings and try again."));
-				this.logService.error(error);
-				throw error;
+				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync keybindings as there are errors/warning in keybindings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
 			}
 
 			if (hasLocalChanged) {
@@ -222,9 +220,11 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			}
 
 			// Delete the preview
-			await this.fileService.del(this.environmentService.keybindingsSyncPreviewResource);
+			try {
+				await this.fileService.del(this.conflictsPreviewResource);
+			} catch (e) { /* ignore */ }
 		} else {
-			this.logService.trace('Keybindings: No changes found during synchronizing keybindings.');
+			this.logService.info('Keybindings: No changes found during synchronizing keybindings.');
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref && (content !== null || fileContent !== null)) {
@@ -259,8 +259,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		if (remoteContent) {
 			const localContent: string = fileContent ? fileContent.value.toString() : '[]';
 			if (this.hasErrors(localContent)) {
-				this.logService.error('Keybindings: Unable to sync keybindings as there are errors/warning in keybindings file.');
-				return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts };
+				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync keybindings as there are errors/warning in keybindings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
 			}
 
 			if (!lastSyncContent // First time sync

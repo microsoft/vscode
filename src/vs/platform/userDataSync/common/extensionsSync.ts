@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -34,7 +34,6 @@ interface ILastSyncUserData extends IUserData {
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	readonly resourceKey: ResourceKey = 'extensions';
-	protected get enabled(): boolean { return this.configurationService.getValue<boolean>('sync.enableExtensions') === true && this.extensionGalleryService.isEnabled(); }
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -45,9 +44,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
+		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -151,7 +151,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await this.apply(previewResult);
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.RemotePreconditionFailed) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
 				return this.sync();
@@ -190,7 +190,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const hasChanges = added.length || removed.length || updated.length || remote;
 
 		if (!hasChanges) {
-			this.logService.trace('Extensions: No changes found during synchronizing extensions.');
+			this.logService.info('Extensions: No changes found during synchronizing extensions.');
 		}
 
 		if (added.length || removed.length || updated.length) {
@@ -243,7 +243,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					} else {
 						this.logService.trace('Extensions: Disabling extension...', e.identifier.id);
 						await this.extensionEnablementService.disableExtension(e.identifier);
-						this.logService.info('Extensions: Disabled extension.', e.identifier.id);
+						this.logService.info('Extensions: Disabled extension', e.identifier.id);
 					}
 					removeFromSkipped.push(e.identifier);
 					return;
@@ -295,7 +295,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const disabledExtensions = await this.extensionEnablementService.getDisabledExtensionsAsync();
+		const disabledExtensions = await this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
 			.map(({ identifier }) => ({ identifier, enabled: !disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier)) }));
 	}
