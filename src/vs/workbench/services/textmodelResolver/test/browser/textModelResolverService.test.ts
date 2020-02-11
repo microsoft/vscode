@@ -111,11 +111,13 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve untitled', async () => {
 		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const untitledModel = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
 
 		await input.resolve();
 		const ref = await accessor.textModelResolverService.createModelReference(input.getResource());
 		const model = ref.object;
+		assert.equal(untitledModel, model);
 		const editorModel = model.textEditorModel;
 		assert.ok(editorModel);
 		ref.dispose();

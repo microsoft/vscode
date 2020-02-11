@@ -593,8 +593,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
 
 				// We dispose the untitled model once the editor
-				// is being disposed. Since we created the model,
-				// we are in charge of cleaning it up.
+				// is being disposed. Even though we may have not
+				// created the model initially, the lifecycle for
+				// untitled is tightly coupled with the editor
+				// lifecycle for now.
 				Event.once(input.onDispose)(() => untitledModel.dispose());
 
 				return input;

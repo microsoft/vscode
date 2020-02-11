@@ -256,8 +256,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Create text editor model if not yet done
+		let createdUntitledModel = false;
 		if (!this.textEditorModel) {
 			this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
+			createdUntitledModel = true;
 		}
 
 		// Otherwise: the untitled model already exists and we must assume
@@ -275,18 +277,23 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
-		// Name
-		if (backup || this.initialValue) {
-			this.updateNameFromFirstLine();
-		}
+		// Only adjust name and dirty state etc. if we
+		// actually created the untitled model
+		if (createdUntitledModel) {
 
-		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+			// Name
+			if (backup || this.initialValue) {
+				this.updateNameFromFirstLine();
+			}
 
-		// If we have initial contents, make sure to emit this
-		// as the appropiate events to the outside.
-		if (backup || this.initialValue) {
-			this._onDidChangeContent.fire();
+			// Untitled associated to file path are dirty right away as well as untitled with content
+			this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+
+			// If we have initial contents, make sure to emit this
+			// as the appropiate events to the outside.
+			if (backup || this.initialValue) {
+				this._onDidChangeContent.fire();
+			}
 		}
 
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
