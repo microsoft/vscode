@@ -15,8 +15,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { DocumentationExtensionPoint } from './documentationExtensionPoint';
 
-
-export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, modes.CodeActionProvider {
+export class DocumentationContribution extends Disposable implements IWorkbenchContribution, modes.CodeActionProvider {
 
 	private contributions: {
 		title: string;
