@@ -743,7 +743,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Editors to save sequentially
 		for (const { groupId, editor } of editorsToSaveSequentially) {
 			if (editor.isDisposed()) {
-				continue; // might have been disposed from from the save already
+				continue; // might have been disposed from the save already
 			}
 
 			// Preserve view state by opening the editor first if the editor
@@ -786,6 +786,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		const result = await Promise.all(editors.map(async ({ groupId, editor }) => {
+			if (editor.isDisposed()) {
+				return true; // might have been disposed from from the revert already
+			}
 
 			// Use revert as a hint to pin the editor
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
