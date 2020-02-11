@@ -93,7 +93,7 @@ export class CompletionItem {
 			let cached: Promise<void> | undefined;
 			this.resolve = (token) => {
 				if (!cached) {
-					cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, completion, token)).then(value => {
+					cached = Promise.resolve(resolveCompletionItem.call(provider, model, Position.lift(position), completion, token)).then(value => {
 						assign(completion, value);
 						this.isResolved = true;
 					}, err => {
