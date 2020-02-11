@@ -338,19 +338,19 @@ suite('EditorService', () => {
 		// Untyped Input (untitled with file path)
 		input = service.createInput({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
 		input = service.createInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok(!(input as UntitledTextEditorInput).hasAssociatedFilePath);
+		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		// Untyped Input (untitled with custom resource)
 		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
 
 		input = service.createInput({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		provider.dispose();
 
