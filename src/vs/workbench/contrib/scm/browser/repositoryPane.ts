@@ -41,7 +41,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IViewDescriptor, IViewDescriptorService, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -67,7 +67,6 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
@@ -645,18 +644,6 @@ export class RepositoryPane extends ViewPane {
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
 		this.contextKeyService.createKey('scmRepository', this.repository);
-
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerEmptyViewContent(this.id, {
-			content: `hello there dasoi dasoijoi asjoijioasdjiojdasoij oijd oijasodij oi asjoidjasoij doasijoidasj oijaoi
-			this is [another](https://google.com)
-			line
-			[git clone](command:git.clone "dude...")
-			goodbye`
-		});
-
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerEmptyViewContent(this.id, {
-			content: `another view yeah`
-		});
 	}
 
 	render(): void {
