@@ -90,7 +90,8 @@ suite('ConfigurationService - Node', () => {
 		service.dispose();
 	});
 
-	test('trigger configuration change event', async () => {
+	// https://github.com/microsoft/vscode/issues/90440
+	test.skip('trigger configuration change event', async () => {
 		const res = await testFile('config', 'config.json');
 
 		const service = new ConfigurationService(URI.file(res.testFile));
