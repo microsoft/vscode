@@ -134,14 +134,6 @@ steps:
 
 - script: |
     set -e
-    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
-    yarn smoketest --web --headless --browser firefox
-  continueOnError: true
-  displayName: Run smoke tests (Firefox)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
     yarn gulp "vscode-linux-x64-build-deb"
     yarn gulp "vscode-linux-x64-build-rpm"
     yarn gulp "vscode-linux-x64-prepare-snap"
