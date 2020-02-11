@@ -120,10 +120,20 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
 
-	const configurationService = new ConfigurationService(environmentService.settingsResource);
+	// Files
+	const fileService = new FileService(logService);
+	services.set(IFileService, fileService);
+	disposables.add(fileService);
+	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+	disposables.add(diskFileSystemProvider);
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+	// Configuration
+	const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
 	disposables.add(configurationService);
 	await configurationService.initialize();
 
+	// Storage
 	const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
 	await storageService.initialize();
 	services.set(IStorageService, storageService);
@@ -136,18 +146,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
-
 	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
 	services.set(IElectronService, electronService);
-
-	// Files
-	const fileService = new FileService(logService);
-	services.set(IFileService, fileService);
-	disposables.add(fileService);
-
-	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-	disposables.add(diskFileSystemProvider);
-	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 

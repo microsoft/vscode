@@ -30,6 +30,7 @@ import { basename } from 'vs/base/common/path';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
 import { debounce } from 'vs/base/common/decorators';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 type TreeElement = TimelineItem;
 
@@ -62,9 +63,11 @@ export class TimelinePane extends ViewPane {
 		@IEditorService protected editorService: IEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ITimelineService protected timelineService: ITimelineService
+		@ITimelineService protected timelineService: ITimelineService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
 		scopedContextKeyService.createKey('view', TimelinePane.ID);

@@ -127,14 +127,6 @@ steps:
 
 - script: |
     set -e
-    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-    yarn smoketest --web --headless --browser webkit
-  continueOnError: true
-  displayName: Run smoke tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
     security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
     security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
     security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
