@@ -1643,5 +1643,15 @@ declare module 'vscode' {
 		asExtensionUri(relativePath: string): Uri;
 	}
 
+	export interface Extension<T> {
+		/**
+		 * Get the uri of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The uri of the resource.
+		 */
+		asExtensionUri(relativePath: string): Uri;
+	}
+
 	//#endregion
 }
