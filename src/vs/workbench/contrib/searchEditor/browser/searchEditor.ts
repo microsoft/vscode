@@ -32,7 +32,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -44,12 +44,21 @@ import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contri
 import { extractSearchQuery, serializeSearchConfiguration, serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
+type SearchEditorViewState =
+	| { focused: 'input' }
+	| { focused: 'editor', state: ICodeEditorViewState };
+
+
 export class SearchEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.searchEditor';
+
+	static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
 	private queryEditorWidget!: SearchWidget;
 	private searchResultEditor!: CodeEditorWidget;
@@ -71,6 +80,8 @@ export class SearchEditor extends BaseEditor {
 	private messageDisposables: IDisposable[] = [];
 	private container: HTMLElement;
 
+	private editorMemento: IEditorMemento<SearchEditorViewState>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -84,9 +95,12 @@ export class SearchEditor extends BaseEditor {
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super(SearchEditor.ID, telemetryService, themeService, storageService);
 		this.container = DOM.$('.search-editor');
+
+		this.editorMemento = this.getEditorMemento<SearchEditorViewState>(editorGroupService, SearchEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		const scopedContextKeyService = contextKeyService.createScoped(this.container);
 		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -227,14 +241,13 @@ export class SearchEditor extends BaseEditor {
 			});
 	}
 
-
 	getControl() {
 		return this.searchResultEditor;
 	}
 
 	focus() {
-		const input = this.getInput();
-		if (input && input.viewState && input.viewState.focused === 'editor') {
+		const viewState = this.loadViewState();
+		if (viewState && viewState.focused === 'editor') {
 			this.searchResultEditor.focus();
 		} else {
 			this.queryEditorWidget.focus();
@@ -454,28 +467,38 @@ export class SearchEditor extends BaseEditor {
 		this.reLayout();
 	}
 
-	getModel() {
-		return this.searchResultEditor.getModel();
+	saveState() {
+		this.saveViewState();
+		super.saveState();
 	}
 
 	private saveViewState() {
 		const input = this.getInput();
-		if (!input) { return; }
+		const group = this.group;
+		if (!input || !group) { return; }
 
 		if (this.searchResultEditor.hasWidgetFocus()) {
 			const viewState = this.searchResultEditor.saveViewState();
 			if (viewState) {
-				input.viewState = { focused: 'editor', state: viewState };
+				this.editorMemento.saveEditorState(group, input.resource, { focused: 'editor', state: viewState });
 			}
 		} else {
-			input.viewState = { focused: 'input' };
+			this.editorMemento.saveEditorState(group, input.resource, { focused: 'input' });
 		}
 	}
 
-	private restoreViewState() {
+	private loadViewState() {
+		const group = this.group;
 		const input = this.getInput();
-		if (input && input.viewState && input.viewState.focused === 'editor') {
-			this.searchResultEditor.restoreViewState(input.viewState.state);
+		if (!input || !group) { return; }
+
+		return this.editorMemento.loadEditorState(group, input.resource);
+	}
+
+	private restoreViewState() {
+		const viewState = this.loadViewState();
+		if (viewState && viewState.focused === 'editor') {
+			this.searchResultEditor.restoreViewState(viewState.state);
 			this.searchResultEditor.focus();
 		} else {
 			this.queryEditorWidget.focus();
