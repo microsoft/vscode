@@ -67,6 +67,11 @@ function getSyncAreaLabel(source: SyncSource): string {
 	}
 }
 
+type SyncConflictsClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	action?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
 type FirstTimeSyncClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
@@ -260,16 +265,22 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						[
 							{
 								label: localize('accept remote', "Accept Remote"),
-								run: () => this.acceptConflicts('remote', conflictsSource)
+								run: () => {
+									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource, action: 'acceptRemote' });
+									this.acceptRemote(conflictsSource);
+								}
 							},
 							{
 								label: localize('accept local', "Accept Local"),
-								run: () => this.acceptConflicts('local', conflictsSource)
+								run: () => {
+									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource, action: 'acceptLocal' });
+									this.acceptLocal(conflictsSource);
+								}
 							},
 							{
 								label: localize('show conflicts', "Show Conflicts"),
 								run: () => {
-									this.telemetryService.publicLog2('sync/showConflicts');
+									this.telemetryService.publicLog2<{ source: string, action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: conflictsSource });
 									this.handleConflicts(conflictsSource);
 								}
 							}
@@ -298,6 +309,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.getAllConflictsEditorInputs().forEach(input => input.dispose());
 			this.conflictsDisposables.forEach(disposable => disposable.dispose());
 			this.conflictsDisposables.clear();
+		}
+	}
+
+	private async acceptRemote(syncSource: SyncSource) {
+		try {
+			const contents = await this.userDataSyncService.getRemoteContent(syncSource, false);
+			if (contents) {
+				await this.userDataSyncService.accept(syncSource, contents);
+			}
+		} catch (e) {
+			this.notificationService.error(e);
+		}
+	}
+
+	private async acceptLocal(syncSource: SyncSource): Promise<void> {
+		try {
+			const previewResource = syncSource === SyncSource.Settings
+				? this.workbenchEnvironmentService.settingsSyncPreviewResource
+				: syncSource === SyncSource.Keybindings
+					? this.workbenchEnvironmentService.keybindingsSyncPreviewResource
+					: null;
+			if (previewResource) {
+				const fileContent = await this.fileService.readFile(previewResource);
+				if (fileContent) {
+					this.userDataSyncService.accept(syncSource, fileContent.value.toString());
+				}
+			}
+		} catch (e) {
+			this.notificationService.error(e);
 		}
 	}
 
@@ -553,39 +593,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async acceptConflicts(resolutionSource: 'local' | 'remote', syncSource: SyncSource) {
-		return syncSource === SyncSource.Settings ? this.acceptSettingConflicts(resolutionSource) :
-			syncSource === SyncSource.Keybindings ? this.acceptKeybindingConflicts(resolutionSource) : undefined;
-	}
-
-	private async acceptSettingConflicts(resolutionSource: 'local' | 'remote'): Promise<void> {
-		let contents: string | undefined;
-		if (resolutionSource === 'local') {
-			const fileContent = await this.fileService.readFile(this.workbenchEnvironmentService.settingsResource);
-			contents = fileContent.value.toString();
-		} else {
-			contents = await this.userDataSyncService.getRemoteContent(SyncSource.Settings, false) || undefined;
-		}
-
-		if (contents) {
-			this.userDataSyncService.accept(SyncSource.Settings, contents);
-		}
-	}
-
-	private async acceptKeybindingConflicts(resolutionSource: 'local' | 'remote'): Promise<void> {
-		let contents: string | undefined;
-		if (resolutionSource === 'local') {
-			const fileContent = await this.fileService.readFile(this.workbenchEnvironmentService.keybindingsResource);
-			contents = fileContent.value.toString();
-		} else {
-			contents = await this.userDataSyncService.getRemoteContent(SyncSource.Keybindings, false) || undefined;
-		}
-
-		if (contents) {
-			this.userDataSyncService.accept(SyncSource.Keybindings, contents);
-		}
-	}
-
 	private async handleConflicts(source: SyncSource): Promise<void> {
 		let previewResource: URI | undefined = undefined;
 		let label: string = '';
@@ -785,11 +792,6 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 		return null;
 	}
 }
-
-type SyncConflictsClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
 
 class AcceptChangesContribution extends Disposable implements IEditorContribution {
 
