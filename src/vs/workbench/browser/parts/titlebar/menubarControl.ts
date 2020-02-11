@@ -155,14 +155,14 @@ export abstract class MenubarControl extends Disposable {
 		return label;
 	}
 
-	protected getOpenRecentActions(): IAction[] {
+	protected getOpenRecentActions(): (Separator | IAction & { uri: URI })[] {
 		if (!this.recentlyOpened) {
 			return [];
 		}
 
 		const { workspaces, files } = this.recentlyOpened;
 
-		const result: IAction[] = [];
+		const result = [];
 
 		if (workspaces.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
