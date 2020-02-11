@@ -360,7 +360,7 @@ export interface IStartExtensionTerminalRequest {
 }
 
 export interface IAvailableShellsRequest {
-	(shells: IShellDefinition[]): void;
+	callback: (shells: IShellDefinition[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {
