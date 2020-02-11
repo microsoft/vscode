@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { UserDataSyncWorkbenchContribution } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 
 class UserDataSyncSettingsMigrationContribution implements IWorkbenchContribution {
 
@@ -16,22 +16,24 @@ class UserDataSyncSettingsMigrationContribution implements IWorkbenchContributio
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
-		if (!configurationService.getValue('sync.enableSettings')) {
-			userDataSyncEnablementService.setResourceEnablement('settings', false);
+		if (getUserDataSyncStore(configurationService)) {
+			if (!configurationService.getValue('sync.enableSettings')) {
+				userDataSyncEnablementService.setResourceEnablement('settings', false);
+			}
+			if (!configurationService.getValue('sync.enableKeybindings')) {
+				userDataSyncEnablementService.setResourceEnablement('keybindings', false);
+			}
+			if (!configurationService.getValue('sync.enableUIState')) {
+				userDataSyncEnablementService.setResourceEnablement('globalState', false);
+			}
+			if (!configurationService.getValue('sync.enableExtensions')) {
+				userDataSyncEnablementService.setResourceEnablement('extensions', false);
+			}
+			if (configurationService.getValue('sync.enable')) {
+				userDataSyncEnablementService.setEnablement(true);
+			}
+			this.removeFromConfiguration();
 		}
-		if (!configurationService.getValue('sync.enableKeybindings')) {
-			userDataSyncEnablementService.setResourceEnablement('keybindings', false);
-		}
-		if (!configurationService.getValue('sync.enableUIState')) {
-			userDataSyncEnablementService.setResourceEnablement('globalState', false);
-		}
-		if (!configurationService.getValue('sync.enableExtensions')) {
-			userDataSyncEnablementService.setResourceEnablement('extensions', false);
-		}
-		if (configurationService.getValue('sync.enable')) {
-			userDataSyncEnablementService.setEnablement(true);
-		}
-		this.removeFromConfiguration();
 	}
 
 	private async removeFromConfiguration(): Promise<void> {
