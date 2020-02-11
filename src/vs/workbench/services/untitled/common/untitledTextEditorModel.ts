@@ -56,8 +56,9 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 
 	/**
 	 * Updates the value of the untitled model optionally allowing to ignore dirty.
+	 * The model must be resolved for this method to work.
 	 */
-	setValue(value: string, ignoreDirty?: boolean): void;
+	setValue(this: IResolvedTextEditorModel, value: string, ignoreDirty?: boolean): void;
 }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
@@ -259,9 +260,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
 		}
 
-		// Otherwise update
+		// Otherwise: the untitled model already exists and we must assume
+		// that the value of the model was changed by the user. As such we
+		// do not update the contents, only the mode if configured.
 		else {
-			this.updateTextEditorModel(untitledContents, this.preferredMode);
+			this.updateTextEditorModel(undefined, this.preferredMode);
 		}
 
 		// Figure out encoding now that model is present
