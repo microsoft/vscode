@@ -113,7 +113,7 @@ export interface IViewModel {
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
-	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
+	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
@@ -140,19 +140,6 @@ export interface IViewModel {
 	getEOL(): string;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
-}
-
-export class MinimapLinesRenderingData {
-	public readonly tabSize: number;
-	public readonly data: Array<ViewLineData | null>;
-
-	constructor(
-		tabSize: number,
-		data: Array<ViewLineData | null>
-	) {
-		this.tabSize = tabSize;
-		this.data = data;
-	}
 }
 
 export class ViewLineData {
