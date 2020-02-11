@@ -30,7 +30,6 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -102,7 +101,7 @@ export class VariablesView extends ViewPane {
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -146,6 +145,11 @@ export class VariablesView extends ViewPane {
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
 				this.tree.rerender(e);
+			}
+		}));
+		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+			if (views.some(v => v.id === this.id)) {
+				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 	}
