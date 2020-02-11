@@ -54,12 +54,16 @@ declare namespace monaco {
 	}
 
 	export interface CancellationToken {
+		/**
+		 * A flag signalling is cancellation has been requested.
+		 */
 		readonly isCancellationRequested: boolean;
 		/**
-		 * An event emitted when cancellation is requested
+		 * An event which fires when cancellation is requested.
+		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: IEvent<any>;
+		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
 	}
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
