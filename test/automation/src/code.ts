@@ -103,8 +103,6 @@ export interface SpawnOptions {
 	web?: boolean;
 	/** A specific browser to use (requires web: true) */
 	browser?: 'chromium' | 'webkit' | 'firefox';
-	/** Run in headless mode (only applies when web is true) */
-	headless?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -127,7 +125,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.web) {
 		await launch(options.userDataDir, options.workspacePath, options.codePath);
-		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, !!options.headless, options.browser);
+		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options.browser);
 	} else {
 		const env = process.env;
 

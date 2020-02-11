@@ -63,8 +63,11 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -612,6 +615,8 @@ export class RepositoryPane extends ViewPane {
 	protected contextKeyService: IContextKeyService;
 	private commitTemplate = '';
 
+	isEmpty() { return true; }
+
 	constructor(
 		readonly repository: ISCMRepository,
 		options: IViewPaneOptions,
@@ -629,8 +634,9 @@ export class RepositoryPane extends ViewPane {
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -663,6 +669,8 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const focusTracker = trackFocus(container);
 		this._register(focusTracker.onDidFocus(() => this.repository.focus()));
 		this._register(focusTracker);
@@ -721,16 +729,16 @@ export class RepositoryPane extends ViewPane {
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
-			// suggest: {
-			// 	showWords: false
-			// }
+			suggest: {
+				showWords: false
+			}
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				// SuggestController.ID,
-				// SnippetController2.ID,
+				SuggestController.ID,
+				SnippetController2.ID,
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
@@ -825,7 +833,7 @@ export class RepositoryPane extends ViewPane {
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleObjectTree, WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>(
+		this.tree = <WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
 			'SCM Tree Repo',
 			this.listContainer,

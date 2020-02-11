@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -187,7 +186,7 @@ export const createEditorFromSearchResult =
 		const { text, matchRanges } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter, true);
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
-		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
-		const model = assertIsDefined(editor.getModel());
-		model.deltaDecorations([], matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		await editorService.openEditor(input, { pinned: true });
+		input.setHighlights(matchRanges.map(range =>
+			({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	};

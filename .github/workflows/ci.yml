@@ -21,7 +21,7 @@ jobs:
     # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
     - run: |
         sudo apt-get update
-        sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
+        sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
         sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
         sudo chmod +x /etc/init.d/xvfb
         sudo update-rc.d xvfb defaults
@@ -47,9 +47,8 @@ jobs:
       name: Download Built-in Extensions
     - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
       name: Run Unit Tests (Electron)
-    # Fails with cryptic error (e.g. https://github.com/microsoft/vscode/pull/90292/checks?check_run_id=433681926#step:13:9)
-    # - run: DISPLAY=:10 yarn test-browser --browser chromium
-    #   name: Run Unit Tests (Browser)
+    - run: DISPLAY=:10 yarn test-browser --browser chromium
+      name: Run Unit Tests (Browser)
     - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
       name: Run Integration Tests (Electron)
 

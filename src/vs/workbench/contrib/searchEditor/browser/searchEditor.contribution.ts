@@ -108,14 +108,13 @@ class SearchEditorInputFactory implements IEditorInputFactory {
 		const dirty = input.isDirty();
 		const highlights = input.highlights;
 
-		return JSON.stringify({ resource, dirty, config, viewState: input.viewState, name: input.getName(), highlights });
+		return JSON.stringify({ resource, dirty, config, name: input.getName(), highlights });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, viewState, highlights } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, highlights } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
-			input.viewState = viewState;
 			input.setDirty(dirty);
 			input.setHighlights(highlights);
 			return input;

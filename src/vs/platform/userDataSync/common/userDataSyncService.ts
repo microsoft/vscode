@@ -65,12 +65,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async pull(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.pull();
@@ -81,12 +76,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async push(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.push();
@@ -97,17 +87,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async sync(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 
 		const startTime = new Date().getTime();
-
 		try {
-			this.logService.trace('Started Syncing...');
+			this.logService.trace('Sync started.');
 			if (this.status !== SyncStatus.HasConflicts) {
 				this.setStatus(SyncStatus.Syncing);
 			}
@@ -128,7 +112,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				}
 			}
 
-			this.logService.trace(`Finished Syncing. Took ${new Date().getTime() - startTime}ms`);
+			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 
 		} finally {
 			this.updateStatus();
@@ -136,9 +120,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async stop(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
 		if (this.status === SyncStatus.Idle) {
 			return;
 		}
@@ -154,41 +135,31 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async accept(source: SyncSource, content: string): Promise<void> {
+		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(source);
 		return synchroniser.accept(content);
 	}
 
 	async hasPreviouslySynced(): Promise<boolean> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasPreviouslySynced()) {
-				return true;
 			}
 		}
 		return false;
 	}
 
 	private async hasLocalData(): Promise<boolean> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasLocalData()) {
-				return true;
 			}
 		}
 		return false;
 	}
 
 	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
+		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (synchroniser.source === source) {
 				return synchroniser.getRemoteContent(preview);
@@ -198,12 +169,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async isFirstTimeSyncWithMerge(): Promise<boolean> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 		if (!await this.userDataSyncStoreService.manifest()) {
 			return false;
 		}
@@ -214,39 +180,28 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async reset(): Promise<void> {
+		await this.checkEnablement();
 		await this.resetRemote();
 		await this.resetLocal();
 	}
 
-	private async resetRemote(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
-		try {
-			await this.userDataSyncStoreService.clear();
-			this.logService.info('Completed clearing remote data');
-		} catch (e) {
-			this.logService.error(e);
-		}
-	}
-
 	async resetLocal(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
-			throw new Error('Not enabled');
-		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new Error('Not Authenticated. Please sign in to start sync.');
-		}
+		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			try {
-				await synchroniser.resetLocal();
 			} catch (e) {
 				this.logService.error(`${synchroniser.source}: ${toErrorMessage(e)}`);
 				this.logService.error(e);
 			}
+		}
+	}
+
+	private async resetRemote(): Promise<void> {
+		await this.checkEnablement();
+		try {
+			await this.userDataSyncStoreService.clear();
+		} catch (e) {
+			this.logService.error(e);
 		}
 	}
 
@@ -302,6 +257,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			case SyncSource.Keybindings: return this.keybindingsSynchroniser;
 			case SyncSource.Extensions: return this.extensionsSynchroniser;
 			case SyncSource.GlobalState: return this.globalStateSynchroniser;
+		}
+	}
+
+	private async checkEnablement(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new UserDataSyncError('Not Authenticated. Please sign in to start sync.', UserDataSyncErrorCode.Unauthorized);
 		}
 	}
 

@@ -183,8 +183,13 @@ class CodeLensAdapter {
 	}
 }
 
-function convertToLocationLinks(value: vscode.Definition): modes.LocationLink[] {
-	return value ? asArray(value).map(typeConvert.DefinitionLink.from) : [];
+function convertToLocationLinks(value: vscode.Location | vscode.Location[] | vscode.LocationLink[] | undefined | null): modes.LocationLink[] {
+	if (Array.isArray(value)) {
+		return (<any>value).map(typeConvert.DefinitionLink.from);
+	} else if (value) {
+		return [typeConvert.DefinitionLink.from(value)];
+	}
+	return [];
 }
 
 class DefinitionAdapter {

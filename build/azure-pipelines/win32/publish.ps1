@@ -11,13 +11,12 @@ $SystemExe = "$Repo\.build\win32-$Arch\system-setup\VSCodeSetup.exe"
 $UserExe = "$Repo\.build\win32-$Arch\user-setup\VSCodeSetup.exe"
 $Zip = "$Repo\.build\win32-$Arch\archive\VSCode-win32-$Arch.zip"
 $LegacyServer = "$Root\vscode-reh-win32-$Arch"
-$ServerName = "vscode-server-win32-$Arch"
-$Server = "$Root\$ServerName"
+$Server = "$Root\vscode-server-win32-$Arch"
 $ServerZip = "$Repo\.build\vscode-server-win32-$Arch.zip"
 $Build = "$Root\VSCode-win32-$Arch"
 
 # Create server archive
-exec { Rename-Item -Path $LegacyServer -NewName $ServerName }
+exec { xcopy $LegacyServer $Server /H /E /I }
 exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZip $Server -r }
 
 # get version

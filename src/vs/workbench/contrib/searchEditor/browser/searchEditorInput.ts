@@ -9,7 +9,6 @@ import { basename } from 'vs/base/common/path';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -42,10 +41,6 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
-type SearchEditorViewState =
-	| { focused: 'input' }
-	| { focused: 'editor', state: ICodeEditorViewState };
-
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
@@ -56,8 +51,6 @@ export class SearchEditorInput extends EditorInput {
 
 	private readonly _onDidChangeContent = new Emitter<void>();
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-
-	viewState: SearchEditorViewState = { focused: 'input' };
 
 	private _highlights: IModelDeltaDecoration[] | undefined;
 	private oldDecorationsIDs: string[] = [];

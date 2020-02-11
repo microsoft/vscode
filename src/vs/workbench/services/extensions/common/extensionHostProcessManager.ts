@@ -19,7 +19,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import * as nls from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
@@ -405,7 +404,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const measurements = await Promise.all(getLatencyTestProviders().map(provider => provider.measure()));
-		editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } } as IUntitledTextResourceInput);
+		editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } });
 	}
 
 	private static _print(m: ExtHostLatencyResult | null): string {

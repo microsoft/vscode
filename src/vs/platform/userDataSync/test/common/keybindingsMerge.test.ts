@@ -638,7 +638,5 @@ class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
 		return { eol: '\n', insertSpaces: false, tabSize: 4 };
 	}
 
-	async updateConfigurationValue(key: string, value: any): Promise<void> { }
-
 	async ignoreExtensionsToSync(extensions: IExtensionIdentifier[]): Promise<void> { }
 }

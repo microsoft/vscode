@@ -49,6 +49,7 @@
 }
 
 .extension-editor > .header > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
 	font-size: 28px;
 }
 

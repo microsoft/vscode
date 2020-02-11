@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname } from 'vs/base/common/resources';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -41,6 +41,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 	) {
@@ -66,13 +67,19 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	protected get enabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resourceKey); }
+
 	async sync(ref?: string): Promise<void> {
 		if (!this.enabled) {
-			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is disabled.`);
+			this.logService.info(`${this.source}: Skipped synchronizing ${this.source.toLowerCase()} as it is disabled.`);
 			return;
 		}
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.info(`${this.source}: Skipping synchronizing ${this.source.toLowerCase()} as it is running already.`);
+		if (this.status === SyncStatus.HasConflicts) {
+			this.logService.info(`${this.source}: Skipped synchronizing ${this.source.toLowerCase()} as there are conflicts.`);
+			return;
+		}
+		if (this.status === SyncStatus.Syncing) {
+			this.logService.info(`${this.source}: Skipped synchronizing ${this.source.toLowerCase()} as it is running already.`);
 			return;
 		}
 
@@ -138,7 +145,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	abstract readonly resourceKey: ResourceKey;
-	protected abstract readonly enabled: boolean;
 	protected abstract doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null): Promise<void>;
 }
 
@@ -162,10 +168,11 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 	) {
-		super(source, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
+		super(source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 	}
@@ -173,7 +180,9 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	async stop(): Promise<void> {
 		this.cancel();
 		this.logService.trace(`${this.source}: Stopped synchronizing ${this.source.toLowerCase()}.`);
-		await this.fileService.del(this.conflictsPreviewResource);
+		try {
+			await this.fileService.del(this.conflictsPreviewResource);
+		} catch (e) { /* ignore */ }
 		this.setStatus(SyncStatus.Idle);
 	}
 
@@ -208,7 +217,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		} catch (e) {
 			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
 				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.NewLocal);
+				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.LocalPreconditionFailed);
 			} else {
 				throw e;
 			}
@@ -257,11 +266,12 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
-		super(file, source, fileService, environmentService, userDataSyncStoreService, telemetryService, logService);
+		super(file, source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
 	}
 
 	protected hasErrors(content: string): boolean {

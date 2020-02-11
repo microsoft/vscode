@@ -51,7 +51,7 @@ import { VIEWLET_ID, VIEW_ID, SearchSortOrder } from 'vs/workbench/services/sear
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { assertType } from 'vs/base/common/types';
+import { assertType, assertIsDefined } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import product from 'vs/platform/product/common/product';
@@ -68,19 +68,15 @@ const category = nls.localize('search', "Search");
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.or(Constants.SearchViewVisibleKey, SearchEditorConstants.InSearchEditor),
+	when: ContextKeyExpr.or(Constants.SearchViewFocusedKey, SearchEditorConstants.InSearchEditor),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
-		const editorService = accessor.get(IEditorService);
-		const contextService = accessor.get(IContextKeyService);
-		const control = editorService.activeControl;
-		if (control instanceof SearchEditor && !Constants.SearchViewFocusedKey.getValue(contextService)) {
-			control.toggleQueryDetails();
-		} else {
+		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
+			(accessor.get(IEditorService).activeControl as SearchEditor).toggleQueryDetails();
+		} else if (contextService.getValue(Constants.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
-			if (searchView) {
-				searchView.toggleQueryDetails();
-			}
+			assertIsDefined(searchView).toggleQueryDetails();
 		}
 	}
 });
@@ -577,21 +573,21 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleCaseSensitiveCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
+	when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
 	handler: toggleCaseSensitiveCommand
 }, ToggleCaseSensitiveKeybinding));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchViewFocusedKey),
+	when: Constants.SearchViewFocusedKey,
 	handler: toggleWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchViewFocusedKey),
+	when: Constants.SearchViewFocusedKey,
 	handler: toggleRegexCommand
 }, ToggleRegexKeybinding));
 
