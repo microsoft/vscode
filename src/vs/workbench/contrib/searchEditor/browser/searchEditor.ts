@@ -301,7 +301,7 @@ export class SearchEditor extends BaseTextEditor {
 				this.toggleRunAgainMessage(false);
 				if (resetCursor) {
 					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
-					this.searchResultEditor.setScrollPosition({ scrollTop: 1, scrollLeft: 1 });
+					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
 			}, instant ? 0 : undefined);
 		}
