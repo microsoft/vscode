@@ -140,7 +140,7 @@ steps:
 - script: |
     set -e
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
-    DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser firefox
+    DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
   continueOnError: true
   displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
