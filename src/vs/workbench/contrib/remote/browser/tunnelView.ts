@@ -426,10 +426,12 @@ const TunnelViewSelectionKeyName = 'tunnelViewSelection';
 const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false);
 
+class TunnelDataTree extends WorkbenchAsyncDataTree<any, any, any> { }
+
 export class TunnelPanel extends ViewPane {
 	static readonly ID = '~remote.forwardedPorts';
 	static readonly TITLE = nls.localize('remote.tunnel', "Forwarded Ports");
-	private tree!: WorkbenchAsyncDataTree<any, any, any>;
+	private tree!: TunnelDataTree;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
@@ -492,7 +494,7 @@ export class TunnelPanel extends ViewPane {
 		dom.addClass(treeContainer, 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+		this.tree = this.instantiationService.createInstance(TunnelDataTree,
 			'RemoteTunnels',
 			treeContainer,
 			new TunnelTreeVirtualDelegate(),

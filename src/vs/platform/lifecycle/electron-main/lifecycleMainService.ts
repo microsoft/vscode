@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app } from 'electron';
+import { ipcMain as ipc, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -12,7 +12,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
@@ -106,7 +106,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
 	 */
-	kill(code?: number): void;
+	kill(code?: number): Promise<void>;
 
 	/**
 	 * Returns a promise that resolves when a certain lifecycle phase
@@ -550,9 +550,45 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.quit().then(veto => quitVetoed = veto);
 	}
 
-	kill(code?: number): void {
+	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
 
+		// The kill() method is only used in 2 situations:
+		// - when an instance fails to start at all
+		// - when extension tests run from CLI to report proper exit code
+		//
+		// From extension tests we have seen issues where calling app.exit()
+		// with an opened window can lead to native crashes (Linux) when webviews
+		// are involved. As such, we should make sure to destroy any opened
+		// window before calling app.exit().
+		//
+		// Note: Electron implements a similar logic here:
+		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5
+
+		await Promise.race([
+
+			// still do not block more than 1s
+			timeout(1000),
+
+			// destroy any opened window
+			(async () => {
+				for (const window of BrowserWindow.getAllWindows()) {
+					if (window && !window.isDestroyed()) {
+						let whenWindowClosed: Promise<void>;
+						if (window.webContents && !window.webContents.isDestroyed()) {
+							whenWindowClosed = new Promise(c => window.once('closed', c));
+						} else {
+							whenWindowClosed = Promise.resolve();
+						}
+
+						window.destroy();
+						await whenWindowClosed;
+					}
+				}
+			})()
+		]);
+
+		// Now exit either after 1s or all windows destroyed
 		app.exit(code);
 	}
 }

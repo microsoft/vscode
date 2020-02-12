@@ -37,7 +37,8 @@ suite('Debug', function () {
 		disposeAll(toDispose);
 	});
 
-	test('start debugging', async function () {
+	// @isidor flakey test
+	test.skip('start debugging', async function () {
 		assert.equal(debug.activeDebugSession, undefined);
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;

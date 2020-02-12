@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, env, UIKind } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -145,16 +145,13 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('active editor not always correct... #49125', async function () {
-		if (env.uiKind === UIKind.Web) {
-			// TODO this randomly fails when running against web and visually
-			// what seems to happen is that the second editor opens and both
-			// left and right editor show a blinking cursor. Since active editor
-			// tracking relies on editor focus to function properly, this
-			// seems to be the root cause of the failure.
-			this.skip();
-			return;
-		}
+	// TODO this randomly fails when running against web and visually
+	// what seems to happen is that the second editor opens and both
+	// left and right editor show a blinking cursor. Since active editor
+	// tracking relies on editor focus to function properly, this
+	// seems to be the root cause of the failure.
+	// https://github.com/microsoft/vscode/issues/90470
+	test.skip('active editor not always correct... #49125', async function () {
 
 		const randomFile1 = await createRandomFile();
 		const randomFile2 = await createRandomFile();

@@ -118,6 +118,8 @@ class Root implements ITreeItem {
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 
+class CustomTree extends WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> { }
+
 export class CustomTreeView extends Disposable implements ITreeView {
 
 	private isVisible: boolean = false;
@@ -132,7 +134,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _messageValue: string | undefined;
 	private _canSelectMany: boolean = false;
 	private messageElement!: HTMLDivElement;
-	private tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
+	private tree: CustomTree | undefined;
 	private treeLabels: ResourceLabels | undefined;
 
 	private root: ITreeItem;
@@ -356,7 +358,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
 
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CustomView', this.treeContainer, new CustomTreeDelegate(), [renderer],
+		this.tree = this._register(this.instantiationService.createInstance(CustomTree, 'CustomView', this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
 			identityProvider: new CustomViewIdentityProvider(),
 			accessibilityProvider: {
