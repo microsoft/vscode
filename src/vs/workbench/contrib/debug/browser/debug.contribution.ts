@@ -72,7 +72,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	id: VIEWLET_ID,
 	name: nls.localize('run', "Run"),
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
-	icon: 'codicon-debug-alt',
+	icon: 'codicon-debug-alt-2',
 	order: 3
 }, ViewContainerLocation.Sidebar);
 
