@@ -1451,6 +1451,7 @@ export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: URI): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: URI): Promise<void>;
 	$executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void>;
+	$latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
 	$createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<modes.ICell | undefined>;
 	$deleteCell(viewType: string, uri: URI, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: URI): Promise<boolean>;

@@ -34,6 +34,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { INotebook } from 'vs/editor/common/modes';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -75,7 +76,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
@@ -279,7 +281,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				this.viewType = input.viewType;
 				this.viewCells = this.notebook.cells.map(cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return new CellViewModel(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService);
+					return new CellViewModel(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService, this.openerService, this.notebookService, this.themeService);
 				});
 
 				const updateScrollPosition = () => {
@@ -374,7 +376,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		let newCell = new CellViewModel(this.viewType!, this.notebook!.handle, newModeCell!, false, this.modelService, this.modeService);
+		let newCell = new CellViewModel(this.viewType!, this.notebook!.handle, newModeCell!, false, this.modelService, this.modeService, this.openerService, this.notebookService, this.themeService);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);

@@ -74,6 +74,8 @@ declare namespace marked {
 	class Renderer {
 		constructor(options?: MarkedOptions);
 		code(code: string, language: string, isEscaped: boolean): string;
+		latex(code: string): string;
+		latexBlock(code: string): string;
 		blockquote(quote: string): string;
 		html(html: string): string;
 		heading(text: string, level: number, raw: string): string;

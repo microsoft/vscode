@@ -225,7 +225,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.editingContainer!.style.display = 'none';
-		templateData.cellContainer.innerHTML = element.getHTML() || '';
+		templateData.cellContainer.innerHTML = '';
+		let renderedHTML = element.getHTML();
+		if (renderedHTML) {
+			templateData.cellContainer.appendChild(renderedHTML);
+		}
 
 		if (height) {
 			this.disposables.get(element)?.clear();

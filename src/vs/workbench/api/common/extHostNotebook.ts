@@ -354,6 +354,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
+	async $latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider && provider.provider.latexRenderer) {
+			let res = await provider.provider.latexRenderer(value);
+			return extHostTypeConverter.MarkdownString.from(res);
+		}
+
+		return;
+	}
+
 	async $createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 

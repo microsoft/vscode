@@ -10,6 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { INotebook, ICell, IOutput } from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class MainThreadCell implements ICell {
 	private _onDidChangeOutputs = new Emitter<void>();
@@ -366,6 +367,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		if (mainthreadNotebook && mainthreadNotebook.activeCell) {
 			this._proxy.$executeNotebookCell(this._viewType, uri, mainthreadNotebook.activeCell.handle);
 		}
+	}
+
+	async latexRenderer(value: string): Promise<IMarkdownString | undefined> {
+		return this._proxy.$latexRenderer(this._viewType, value);
 	}
 
 	async destoryNotebookDocument(notebook: INotebook): Promise<void> {

@@ -77,7 +77,12 @@ export class StatefullMarkdownCell extends Disposable {
 					this.localDisposables.add(model.onDidChangeContent(() => {
 						viewCell.setText(model.getLinesContent());
 						const clientHeight = this.cellContainer.clientHeight;
-						this.cellContainer.innerHTML = viewCell.getHTML() || '';
+						this.cellContainer.innerHTML = '';
+						let renderedHTML = viewCell.getHTML();
+						if (renderedHTML) {
+							this.cellContainer.appendChild(renderedHTML);
+						}
+
 						handler.layoutElement(viewCell, realContentHeight + 32 + clientHeight);
 					}));
 
@@ -113,7 +118,16 @@ export class StatefullMarkdownCell extends Disposable {
 					cellWidthResizeObserver.startObserving();
 					this.localDisposables.add(cellWidthResizeObserver);
 
-					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
+					let markdownRenderer = viewCell.getMarkdownRenderer();
+					this.cellContainer.innerHTML = '';
+					let renderedHTML = viewCell.getHTML();
+					if (renderedHTML) {
+						this.cellContainer.appendChild(renderedHTML);
+						this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
+							const clientHeight = this.cellContainer.clientHeight;
+							handler.layoutElement(viewCell, clientHeight);
+						}));
+					}
 				}
 
 				const clientHeight = this.cellContainer.clientHeight;
@@ -128,7 +142,18 @@ export class StatefullMarkdownCell extends Disposable {
 				} else {
 					// first time, readonly mode
 					this.editingContainer!.style.display = 'none';
-					this.cellContainer.innerHTML = viewCell.getHTML() || '';
+
+					this.cellContainer.innerHTML = '';
+					let markdownRenderer = viewCell.getMarkdownRenderer();
+					let renderedHTML = viewCell.getHTML();
+					if (renderedHTML) {
+						this.cellContainer.appendChild(renderedHTML);
+					}
+
+					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
+						const clientHeight = this.cellContainer.clientHeight;
+						handler.layoutElement(viewCell, clientHeight);
+					}));
 				}
 			}
 		};

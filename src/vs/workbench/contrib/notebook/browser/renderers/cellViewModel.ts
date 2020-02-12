@@ -11,12 +11,15 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
 import { ICell } from 'vs/editor/common/modes';
 import * as UUID from 'vs/base/common/uuid';
-import * as marked from 'vs/base/common/marked/marked';
+import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class CellViewModel extends Disposable {
 	private _textModel: ITextModel | null = null;
-	private _mdRenderer: marked.Renderer | null = null;
-	private _html: string | null = null;
+	private _mdRenderer: MarkdownRenderer | null = null;
+	private _html: HTMLElement | null = null;
 	private _dynamicHeight: number | null = null;
 	protected readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
@@ -49,7 +52,16 @@ export class CellViewModel extends Disposable {
 		return this._dynamicHeight;
 	}
 	public id: string;
-	constructor(public viewType: string, public notebookHandle: number, public cell: ICell, private _isEditing: boolean, private readonly modelService: IModelService, private readonly modeService: IModeService) {
+	constructor(
+		public viewType: string,
+		public notebookHandle: number,
+		public cell: ICell,
+		private _isEditing: boolean,
+		private readonly modelService: IModelService,
+		private readonly modeService: IModeService,
+		private readonly openerService: IOpenerService,
+		private readonly notebookService: INotebookService,
+		private readonly themeService: IThemeService) {
 		super();
 		this.id = UUID.generateUuid();
 		if (this.cell.onDidChangeOutputs) {
@@ -102,13 +114,13 @@ export class CellViewModel extends Disposable {
 	getText(): string {
 		return this.cell.source.join('\n');
 	}
-	getHTML(): string | null {
+	getHTML(): HTMLElement | null {
 		if (this.cellType === 'markdown') {
 			if (this._html) {
 				return this._html;
 			}
-			let renderer = this.getMDRenderer();
-			this._html = marked(this.getText(), { renderer: renderer });
+			let renderer = this.getMarkdownRenderer();
+			this._html = renderer.render({ value: this.getText(), isTrusted: true }).element;
 			return this._html;
 		}
 		return null;
@@ -128,9 +140,10 @@ export class CellViewModel extends Disposable {
 		}
 		return this._textModel;
 	}
-	private getMDRenderer() {
+
+	getMarkdownRenderer() {
 		if (!this._mdRenderer) {
-			this._mdRenderer = new marked.Renderer({ gfm: true });
+			this._mdRenderer = new MarkdownRenderer(this.viewType, this.modeService, this.openerService, this.notebookService, this.themeService);
 		}
 		return this._mdRenderer;
 	}

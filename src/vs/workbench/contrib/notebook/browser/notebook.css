@@ -207,6 +207,25 @@
 	tab-size: 4;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex-block {
+	display: block;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex {
+	vertical-align: middle;
+	display: inline-block;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex img,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex-block img {
+	filter: brightness(0) invert(0)
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex img,
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex-block img {
+	filter: brightness(0) invert(1)
+}
+
 /** Theming */
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {

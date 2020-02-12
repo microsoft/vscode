@@ -20,13 +20,15 @@ import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/co
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
+	latexRenderer?: (value: string) => Promise<{ html: string, styles?: { readonly [key: string]: string | number; } }>;
+	latexRendererCallback?: () => void;
 }
 
 /**
  * Create html nodes for the given content element.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}): HTMLElement {
-	const element = createElement(options);
+export function renderMarkdown(markdown: IMarkdownString, renderOptions: MarkdownRenderOptions = {}, markedOptions: marked.MarkedOptions = {}): HTMLElement {
+	const element = createElement(renderOptions);
 
 	const _uriMassage = function (part: string): string {
 		let data: any;
@@ -71,7 +73,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let signalInnerHTML: () => void;
 	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
-	const renderer = new marked.Renderer();
+	markedOptions.sanitize = true;
+	const renderer = new marked.Renderer(markedOptions);
 	renderer.image = (href: string, title: string, text: string) => {
 		let dimensions: string[] = [];
 		let attributes: string[] = [];
@@ -122,9 +125,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		return `<p>${markdown.supportThemeIcons ? renderCodicons(text) : text}</p>`;
 	};
 
-	if (options.codeBlockRenderer) {
+	if (renderOptions.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			const value = options.codeBlockRenderer!(lang, code);
+			const value = renderOptions.codeBlockRenderer!(lang, code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
@@ -138,15 +141,55 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				// ignore
 			});
 
-			if (options.codeBlockRenderCallback) {
-				promise.then(options.codeBlockRenderCallback);
+			if (renderOptions.codeBlockRenderCallback) {
+				promise.then(renderOptions.codeBlockRenderCallback);
 			}
 
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 		};
 	}
 
-	const actionHandler = options.actionHandler;
+	if (renderOptions.latexRenderer) {
+		let latex = (code: string, block: boolean) => {
+			const value = renderOptions.latexRenderer!(code);
+			// when code-block rendering is async we return sync
+			// but update the node with the real result later.
+			const id = defaultGenerator.nextId();
+			const promise = Promise.all([value, withInnerHTML]).then(values => {
+				const strValue = values[0].html;
+				const styles = values[0].styles;
+				const span = element.querySelector(`span[data-latex="${id}"]`);
+				if (span && styles) {
+					span.innerHTML = strValue;
+					// let fontColor = styles['vscode-editor-foreground'];
+					// span.innerHTML = '';
+					// var iframe = document.createElement('iframe');
+					// span.appendChild(iframe);
+					// iframe.setAttribute('frameborder', '0');
+					// iframe.contentWindow?.document.open();
+					// iframe.contentWindow?.document.write(`<html><style>body {margin: 0px; color: ${fontColor};}</style><body style="position: absolute">${strValue}</body></html>`);
+					// iframe.contentWindow?.document.close();
+					// iframe.height = iframe.contentWindow?.document.body.offsetHeight + "px";
+					// iframe.width = iframe.contentWindow?.document.body.offsetWidth + "px";
+				}
+			}).catch(err => {
+				// ignore
+			});
+
+			if (renderOptions.latexRendererCallback) {
+				promise.then(renderOptions.latexRendererCallback);
+			}
+
+			let className = block ? 'latex-block' : 'latex';
+
+			return `<span class="${className}" data-latex="${id}">${code}</span>`;
+		};
+
+		renderer.latex = (code: string) => latex(code, false);
+		renderer.latexBlock = (code: string) => latex(code, true);
+	}
+
+	const actionHandler = renderOptions.actionHandler;
 	if (actionHandler) {
 		actionHandler.disposeables.add(DOM.addStandardDisposableListener(element, 'click', event => {
 			let target: HTMLElement | null = event.target;
@@ -169,10 +212,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}));
 	}
 
-	const markedOptions: marked.MarkedOptions = {
-		sanitize: true,
-		renderer
-	};
+	if (!markedOptions.renderer) {
+		markedOptions.renderer = renderer;
+	}
 
 	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeRemoteResource];
 	if (markdown.isTrusted) {
@@ -188,12 +230,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	element.innerHTML = insane(renderedMarkdown, {
 		allowedSchemes,
+		allowedTags: [
+			'a', 'abbr', 'article', 'b', 'blockquote', 'br', 'caption', 'code', 'del', 'details', 'div', 'em',
+			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'main', 'mark',
+			'ol', 'p', 'pre', 'section', 'span', 'strike', 'strong', 'sub', 'summary', 'sup', 'table',
+			'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul', 'input'
+		],
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
 			'div': ['class', 'data-code'],
-			'span': ['class']
+			'span': ['class', 'data-latex'],
+			'input': ['type', 'disabled', 'checked']
 		}
 	});
 

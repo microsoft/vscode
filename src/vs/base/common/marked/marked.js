@@ -550,7 +550,9 @@ var inline = {
   code: /^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,
   br: /^( {2,}|\\)\n(?!\s*$)/,
   del: noop,
-  text: /^(`+|[^`])(?:[\s\S]*?(?:(?=[\\<!\[`*]|\b_|$)|[^ ](?= {2,}\n))|(?= {2,}\n))/
+  latex: /^(\$[^\$]+\$)+/,
+  latexBlock: /^(\$\$[^\$]+\$\$)+/,
+  text: /^(`+|[^`])(?:[\s\S]*?(?:(?=[\\<!\[`*$]|\b_|$)|[^ ](?= {2,}\n))|(?= {2,}\n))/,
 };
 
 // list of punctuation marks from common mark spec
@@ -619,7 +621,7 @@ inline.gfm = merge({}, inline.normal, {
   url: /^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/,
   _backpedal: /(?:[^?!.,:;*_~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_~)]+(?!$))+/,
   del: /^~+(?=\S)([\s\S]*?\S)~+/,
-  text: /^(`+|[^`])(?:[\s\S]*?(?:(?=[\\<!\[`*~]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@))|(?= {2,}\n|[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@))/
+  text: /^(`+|[^`])(?:[\s\S]*?(?:(?=[\\<!\[`*$~]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@))|(?= {2,}\n|[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@))/
 });
 
 inline.gfm.url = edit(inline.gfm.url, 'i')
@@ -765,6 +767,22 @@ InlineLexer.prototype.output = function(src) {
       this.inLink = true;
       out += this.outputLink(cap, link);
       this.inLink = false;
+      continue;
+    }
+
+    // latex block
+    if (cap = this.rules.latexBlock.exec(src)) {
+      src = src.substr(cap[0].length);
+      cap = cap[0].replace(/\$/gm, '');
+      out += this.renderer.latexBlock(cap);
+      continue;
+    }
+
+    // latex
+    if (cap = this.rules.latex.exec(src)) {
+      src = src.substr(cap[0].length);
+      cap = cap[0].replace(/\$/gm, '');
+      out += this.renderer.latex(cap);
       continue;
     }
 
@@ -1031,6 +1049,14 @@ Renderer.prototype.tablecell = function(content, flags) {
 Renderer.prototype.strong = function(text) {
   return '<strong>' + text + '</strong>';
 };
+
+Renderer.prototype.latex = function(text) {
+  return '<span>' + text + '</span>';
+}
+
+Renderer.prototype.latexBlock = function(text) {
+  return '<span>' + text + '</span>';
+}
 
 Renderer.prototype.em = function(text) {
   return '<em>' + text + '</em>';
