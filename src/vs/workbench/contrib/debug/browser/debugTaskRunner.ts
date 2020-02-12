@@ -94,7 +94,7 @@ export class DebugTaskRunner {
 
 
 			const debugAnyway = result.choice === 0;
-			const cancel = result.choice = 2;
+			const cancel = result.choice === 2;
 			if (result.checkboxChecked) {
 				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : cancel ? 'cancel' : 'showErrors');
 			}
