@@ -15,18 +15,16 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { DocumentationExtensionPoint } from './documentationExtensionPoint';
 
+interface ICodeActionContribution {
+	title: string;
+	when: ContextKeyExpr;
+	command: string;
+}
+
 export class DocumentationContribution extends Disposable implements IWorkbenchContribution, modes.CodeActionProvider {
 
-	private contributions: {
-		title: string;
-		when: ContextKeyExpr;
-		command: string;
-	}[] = [];
-
-	private readonly emptyCodeActionsList = {
-		actions: [],
-		dispose: () => { }
-	};
+	private codeActionContributions: ICodeActionContribution[] = [];
+	private readonly emptyCodeActionsList = { actions: [], dispose: () => { } };
 
 	constructor(
 		extensionPoint: IExtensionPoint<DocumentationExtensionPoint>,
@@ -37,24 +35,29 @@ export class DocumentationContribution extends Disposable implements IWorkbenchC
 		this._register(modes.CodeActionProviderRegistry.register('*', this));
 
 		extensionPoint.setHandler(points => {
-			this.contributions = [];
+			this.codeActionContributions = [];
 			for (const documentation of points) {
-				if (!documentation.value.refactoring) {
-					continue;
+				if (documentation.value.refactoring) {
+					for (const contribution of documentation.value.refactoring) {
+						const precondition = ContextKeyExpr.deserialize(contribution.when);
+						if (!precondition) {
+							continue;
+						}
+
+						this.codeActionContributions.push({
+							title: contribution.title,
+							when: precondition,
+							command: contribution.command
+						});
+					}
 				}
 
-				for (const contribution of documentation.value.refactoring) {
-					const precondition = ContextKeyExpr.deserialize(contribution.when);
-					if (!precondition) {
-						continue;
+				if (documentation.value.view) {
+					for (const contribution of documentation.value.view) {
+						const precondition = ContextKeyExpr.deserialize(contribution.when);
+
+						// TODO
 					}
-
-					this.contributions.push({
-						title: contribution.title,
-						when: precondition,
-						command: contribution.command
-					});
-
 				}
 			}
 		});
@@ -71,7 +74,7 @@ export class DocumentationContribution extends Disposable implements IWorkbenchC
 			}
 		}
 
-		return this.contributions
+		return this.codeActionContributions
 			.filter(contribution => this.contextKeyService.contextMatchesRules(contribution.when))
 			.map(contribution => {
 				return {
