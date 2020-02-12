@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app } from 'electron';
+import { ipcMain as ipc, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -12,8 +12,8 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Barrier } from 'vs/base/common/async';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { Barrier, timeout } from 'vs/base/common/async';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -106,7 +106,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
 	 */
-	kill(code?: number): void;
+	kill(code?: number): Promise<void>;
 
 	/**
 	 * Returns a promise that resolves when a certain lifecycle phase
@@ -175,7 +175,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -550,8 +551,28 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.quit().then(veto => quitVetoed = veto);
 	}
 
-	kill(code?: number): void {
+	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
+
+		// API tests: we have seen issues (native crashes) when calling app.exit()
+		// without closing the test window properly. app.exit() is not recommended
+		// when having a window open, so for tests running we make sure to close the
+		// window. Since we do not want to block the tests from completing longer
+		// than needed, we set a race of 1s to exit anyway.
+		if (this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI && this.windowCounter === 1) {
+			await Promise.race([
+				timeout(1000),
+				new Promise(c => {
+					const testWindow = BrowserWindow.getAllWindows()[0];
+					if (testWindow) {
+						testWindow.on('closed', () => c());
+						testWindow.close();
+					} else {
+						c();
+					}
+				})
+			]);
+		}
 
 		app.exit(code);
 	}
