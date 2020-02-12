@@ -852,7 +852,7 @@ export class RepositoryPane extends ViewPane {
 
 		this._register(Event.chain(this.tree.onDidOpen)
 			.map(e => e.elements[0])
-			.filter(e => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
+			.filter<ISCMResource>((e): e is ISCMResource => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
 			.on(this.open, this));
 
 		this._register(Event.chain(this.tree.onDidPin)
@@ -1005,7 +1005,7 @@ export class RepositoryPane extends ViewPane {
 		}
 	}
 
-	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
+	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
 			return;
 		}
