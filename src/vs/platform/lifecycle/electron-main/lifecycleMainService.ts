@@ -574,12 +574,15 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			(async () => {
 				for (const window of BrowserWindow.getAllWindows()) {
 					if (window && !window.isDestroyed()) {
+						let whenWindowClosed: Promise<void>;
 						if (window.webContents && !window.webContents.isDestroyed()) {
-							await new Promise(c => window.once('closed', c));
-							window.destroy();
+							whenWindowClosed = new Promise(c => window.once('closed', c));
 						} else {
-							window.destroy();
+							whenWindowClosed = Promise.resolve();
 						}
+
+						window.destroy();
+						await whenWindowClosed;
 					}
 				}
 			})()
