@@ -553,35 +553,39 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
 
-		// API tests: we have seen issues (native crashes) when calling app.exit()
-		// without closing the test window properly. app.exit() is not recommended
-		// when having a window open, so for tests running we make sure to close the
-		// window. Since we do not want to block the tests from completing longer
-		// than needed, we set a race of 1s to exit anyway.
+		// The kill() method is only used in 2 situations:
+		// - when an instance fails to start at all
+		// - when extension tests run from CLI to report proper exit code
+		//
+		// From extension tests we have seen issues where calling app.exit()
+		// with an opened window can lead to native crashes (Linux) when webviews
+		// are involved. As such, we should make sure to destroy any opened
+		// window before calling app.exit().
 		//
 		// Note: Electron implements a similar logic here:
 		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5
-		//
-		if (this.windowCounter === 1) {
-			await Promise.race([
-				timeout(1000),
-				new Promise(c => {
-					const window = BrowserWindow.getAllWindows()[0];
+
+		await Promise.race([
+
+			// still do not block more than 1s
+			timeout(1000),
+
+			// destroy any opened window
+			(async () => {
+				for (const window of BrowserWindow.getAllWindows()) {
 					if (window && !window.isDestroyed()) {
 						if (window.webContents && !window.webContents.isDestroyed()) {
-							window.once('closed', () => c());
+							await new Promise(c => window.once('closed', c));
 							window.destroy();
 						} else {
 							window.destroy();
-							c();
 						}
-					} else {
-						c();
 					}
-				})
-			]);
-		}
+				}
+			})()
+		]);
 
+		// Now exit either after 1s or all windows destroyed
 		app.exit(code);
 	}
 }
