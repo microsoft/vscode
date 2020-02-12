@@ -559,14 +559,18 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// when having a window open, so for tests running we make sure to close the
 		// window. Since we do not want to block the tests from completing longer
 		// than needed, we set a race of 1s to exit anyway.
+		//
+		// Note: Electron implements a similar logic here:
+		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5
+		//
 		if (this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI && this.windowCounter === 1) {
 			await Promise.race([
 				timeout(1000),
 				new Promise(c => {
 					const testWindow = BrowserWindow.getAllWindows()[0];
-					if (testWindow) {
+					if (testWindow && !testWindow.isDestroyed()) {
 						testWindow.on('closed', () => c());
-						testWindow.close();
+						testWindow.destroy();
 					} else {
 						c();
 					}
