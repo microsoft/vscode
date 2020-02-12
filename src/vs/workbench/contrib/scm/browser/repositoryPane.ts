@@ -729,9 +729,8 @@ export class RepositoryPane extends ViewPane {
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
-			suggest: {
-				showWords: false
-			}
+			padding: { top: 3, bottom: 3 },
+			suggest: { showWords: false }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -768,10 +767,6 @@ export class RepositoryPane extends ViewPane {
 
 		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
 		this.inputEditor.setModel(this.inputModel);
-
-		this.inputEditor.changeViewZones(accessor => {
-			accessor.addZone({ afterLineNumber: 0, domNode: $('div'), heightInPx: 3 });
-		});
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
@@ -924,7 +919,7 @@ export class RepositoryPane extends ViewPane {
 			removeClass(this.inputContainer, 'hidden');
 
 			const editorContentHeight = this.inputEditor.getContentHeight();
-			const editorHeight = Math.min(editorContentHeight + 3, 134);
+			const editorHeight = Math.min(editorContentHeight, 134);
 			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
 
 			this.validationContainer.style.top = `${editorHeight + 1}px`;
