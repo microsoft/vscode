@@ -15,7 +15,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsPanel';
+import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
 import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
