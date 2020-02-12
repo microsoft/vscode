@@ -262,8 +262,8 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'debug.onTaskErrors': {
-			enum: ['debugAnyway', 'showErrors', 'prompt'],
-			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user.")],
+			enum: ['debugAnyway', 'showErrors', 'prompt', 'cancel'],
+			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user."), nls.localize('cancel', "Cancel debugging.")],
 			description: nls.localize('debug.onTaskErrors', "Controls what to do when errors are encountered after running a preLaunchTask."),
 			default: 'prompt'
 		},
