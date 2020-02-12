@@ -29,6 +29,9 @@ namespace TagCloseRequest {
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
 }
+namespace SyncedRegionsRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/syncedRegions');
+}
 
 // experimental: semantic tokens
 interface SemanticTokenParams {
@@ -292,11 +295,11 @@ export function activate(context: ExtensionContext) {
 
 	// TODO
 	languages.registerOnTypeRenameProvider(documentSelector, {
-		async provideOnTypeRenameRanges(_doc, _pos) {
-			return [
-				new Range(12, 5, 12, 8),
-				new Range(14, 6, 14, 9),
-			];
+		async provideOnTypeRenameRanges(document, position) {
+			const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+			const response = await client.sendRequest(SyncedRegionsRequest.type, param);
+
+			return response || [];
 		}
 	});
 }

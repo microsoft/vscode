@@ -31,6 +31,9 @@ namespace TagCloseRequest {
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
 }
+namespace SyncedRegionsRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/syncedRegions');
+}
 
 // experimental: semantic tokens
 interface SemanticTokenParams {
@@ -513,6 +516,22 @@ connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
 		}
 		return null;
 	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(SyncedRegionsRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const pos = params.position;
+			if (pos.character > 0) {
+				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+				if (mode && mode.findSyncedRegions) {
+					return mode.findSyncedRegions(document, pos);
+				}
+			}
+		}
+		return null;
+	}, null, `Error while computing synced regions for ${params.textDocument.uri}`, token);
 });
 
 let semanticTokensProvider: SemanticTokenProvider | undefined;

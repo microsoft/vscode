@@ -57,6 +57,7 @@ export interface LanguageMode {
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
 	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
+	findSyncedRegions?: (document: TextDocument, position: Position) => Range[] | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
 	getSemanticTokens?(document: TextDocument): SemanticTokenData[];
