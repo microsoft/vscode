@@ -91,6 +91,7 @@ export class SearchEditorInput extends EditorInput {
 
 				this._register(contentsModel);
 				this._register(headerModel);
+				this._onDidChangeLabel.fire();
 
 				return { contentsModel, headerModel };
 			});
