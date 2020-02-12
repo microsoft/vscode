@@ -273,6 +273,7 @@ export namespace Event {
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
 		forEach(fn: (i: T) => void): IChainableEvent<T>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
@@ -293,6 +294,8 @@ export namespace Event {
 			return new ChainableEvent(forEach(this.event, fn));
 		}
 
+		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
 			return new ChainableEvent(filter(this.event, fn));
 		}

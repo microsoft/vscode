@@ -557,7 +557,7 @@ export class TreeView extends HeightMap {
 			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSGestureTap', (e) => this.onMsGestureTap(e)));
 
 			// these events come too fast, we throttle them
-			this.viewListeners.push(DOM.addDisposableThrottledListener<IThrottledGestureEvent>(this.wrapper, 'MSGestureChange', (e) => this.onThrottledMsGestureChange(e), (lastEvent: IThrottledGestureEvent, event: MSGestureEvent): IThrottledGestureEvent => {
+			this.viewListeners.push(DOM.addDisposableThrottledListener<IThrottledGestureEvent, MSGestureEvent>(this.wrapper, 'MSGestureChange', e => this.onThrottledMsGestureChange(e), (lastEvent, event) => {
 				event.stopPropagation();
 				event.preventDefault();
 

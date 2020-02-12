@@ -59,7 +59,10 @@ declare namespace monaco {
 		 */
 		readonly isCancellationRequested: boolean;
 		/**
-		 * An event which fires when cancellation is requested.
+		 * An event which fires when cancellation is requested. This event
+		 * only ever fires `once` as cancellation can only happen once. Listeners
+		 * that are registered after cancellation will be called (next event loop run),
+		 * but also only once.
 		 *
 		 * @event
 		 */

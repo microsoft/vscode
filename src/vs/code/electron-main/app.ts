@@ -55,7 +55,7 @@ import { MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMai
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
-import { join, sep } from 'vs/base/common/path';
+import { join, sep, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
@@ -591,14 +591,42 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
-				// Catch file URLs
-				if (uri.authority === Schemas.file && !!uri.path) {
+				// Catch file/remote URLs
+				if ((uri.authority === Schemas.file || uri.authority === Schemas.vscodeRemote) && !!uri.path) {
 					const cli = assign(Object.create(null), environmentService.args);
-					const urisToOpen = [{ fileUri: URI.file(uri.fsPath) }];
+					const urisToOpen: IWindowOpenable[] = [];
 
-					windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
+					// File path
+					if (uri.authority === Schemas.file) {
+						// we configure as fileUri, but later validation will
+						// make sure to open as folder or workspace if possible
+						urisToOpen.push({ fileUri: URI.file(uri.fsPath) });
+					}
 
-					return true;
+					// Remote path
+					else {
+						// Example conversion:
+						// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
+						//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
+						const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+						if (secondSlash !== -1) {
+							const authority = uri.path.substring(1, secondSlash);
+							const path = uri.path.substring(secondSlash);
+							const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+							if (hasWorkspaceFileExtension(path)) {
+								urisToOpen.push({ workspaceUri: remoteUri });
+							} else {
+								urisToOpen.push({ folderUri: remoteUri });
+							}
+						}
+					}
+
+					if (urisToOpen.length > 0) {
+						windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
+
+						return true;
+					}
 				}
 
 				return false;

@@ -49,12 +49,6 @@ fi
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/emmet/out/test/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started  --user-data-dir=$VSCODEUSERDATADIR
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
 
-
-# Remote Integration Tests
-if [ -f ./resources/server/test/test-remote-integration.sh ]; then
-	./resources/server/test/test-remote-integration.sh
-fi
-
 # Tests in commonJS
 cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
 cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
