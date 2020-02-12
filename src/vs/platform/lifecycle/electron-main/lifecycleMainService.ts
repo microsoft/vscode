@@ -13,7 +13,7 @@ import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -175,8 +175,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateService private readonly stateService: IStateService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 
@@ -563,14 +562,19 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// Note: Electron implements a similar logic here:
 		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5
 		//
-		if (this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI && this.windowCounter === 1) {
+		if (this.windowCounter === 1) {
 			await Promise.race([
 				timeout(1000),
 				new Promise(c => {
-					const testWindow = BrowserWindow.getAllWindows()[0];
-					if (testWindow && !testWindow.isDestroyed()) {
-						testWindow.on('closed', () => c());
-						testWindow.destroy();
+					const window = BrowserWindow.getAllWindows()[0];
+					if (window && !window.isDestroyed()) {
+						if (window.webContents && !window.webContents.isDestroyed()) {
+							window.once('closed', () => c());
+							window.destroy();
+						} else {
+							window.destroy();
+							c();
+						}
 					} else {
 						c();
 					}
