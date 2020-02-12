@@ -7,7 +7,6 @@ import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -187,6 +186,5 @@ export const createEditorFromSearchResult =
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
 		await editorService.openEditor(input, { pinned: true });
-		input.setHighlights(matchRanges.map(range =>
-			({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		input.setMatchRanges(matchRanges);
 	};

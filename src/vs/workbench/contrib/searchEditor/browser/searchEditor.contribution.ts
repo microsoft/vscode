@@ -106,17 +106,17 @@ class SearchEditorInputFactory implements IEditorInputFactory {
 
 		const config = input.getConfigSync();
 		const dirty = input.isDirty();
-		const highlights = input.highlights;
+		const matchRanges = input.getMatchRanges();
 
-		return JSON.stringify({ resource, dirty, config, name: input.getName(), highlights });
+		return JSON.stringify({ resource, dirty, config, name: input.getName(), matchRanges });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, highlights } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, matchRanges } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
 			input.setDirty(dirty);
-			input.setHighlights(highlights);
+			input.setMatchRanges(matchRanges);
 			return input;
 		}
 		return undefined;
@@ -166,8 +166,7 @@ const category = localize('search', "Search Editor");
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(ReRunSearchEditorSearchAction, ReRunSearchEditorSearchAction.ID, ReRunSearchEditorSearchAction.LABEL),
-	'Search Editor: Rerun search', category, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)
-);
+	'Search Editor: Rerun search', category, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
