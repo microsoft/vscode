@@ -166,8 +166,7 @@ const category = localize('search', "Search Editor");
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(ReRunSearchEditorSearchAction, ReRunSearchEditorSearchAction.ID, ReRunSearchEditorSearchAction.LABEL),
-	'Search Editor: Rerun search', category, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)
-);
+	'Search Editor: Rerun search', category, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
