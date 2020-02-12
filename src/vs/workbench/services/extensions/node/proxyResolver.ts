@@ -340,7 +340,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 			options = options || {};
 
 			if (options.socketPath) {
-				return original.apply(null, arguments as unknown as any[]);
+				return original.apply(null, arguments as any);
 			}
 
 			const originalAgent = options.agent;
@@ -376,7 +376,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				return original(options, callback);
 			}
 
-			return original.apply(null, arguments as unknown as any[]);
+			return original.apply(null, arguments as any);
 		}
 		return patched;
 	}
@@ -389,7 +389,7 @@ function tlsPatches(originals: typeof tls) {
 
 	function patch(original: typeof tls.createSecureContext): typeof tls.createSecureContext {
 		return function (details: tls.SecureContextOptions): ReturnType<typeof tls.createSecureContext> {
-			const context = original.apply(null, arguments as unknown as any[]);
+			const context = original.apply(null, arguments as any);
 			const certs = (details as any)._vscodeAdditionalCaCerts;
 			if (certs) {
 				for (const cert of certs) {

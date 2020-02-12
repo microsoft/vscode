@@ -210,7 +210,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.view.experimental.allowMovingToNewContainer': {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': nls.localize('movingViewContainer', "Controls whether specific views will have a context menu entry allowing them to be moved to a new container. Currently, this setting only affects the outline view and views contributed by extensions.")
 			},
 			'workbench.fontAliasing': {

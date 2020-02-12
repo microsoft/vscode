@@ -10,7 +10,7 @@ import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting, DEFAULT_IGNORED_SETTINGS } from 'vs/platform/userDataSync/common/userDataSync';
+import { IConflictSetting, CONFIGURATION_SYNC_STORE_KEY } from 'vs/platform/userDataSync/common/userDataSync';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
@@ -42,7 +42,7 @@ export function getIgnoredSettings(configurationService: IConfigurationService, 
 			}
 		}
 	}
-	return [...DEFAULT_IGNORED_SETTINGS, ...added].filter(setting => removed.indexOf(setting) === -1);
+	return [CONFIGURATION_SYNC_STORE_KEY, ...added].filter(setting => removed.indexOf(setting) === -1);
 }
 
 

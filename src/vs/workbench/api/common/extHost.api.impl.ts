@@ -53,7 +53,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyId
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { originalFSPath } from 'vs/base/common/resources';
+import { originalFSPath, joinPath } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/collections';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
@@ -484,10 +484,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showErrorMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
-			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
+			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
 				return extHostQuickOpen.showQuickPick(items, !!extension.enableProposedApi, options, token);
 			},
-			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
+			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
@@ -536,7 +536,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebviewPanel(extension, viewType, title, showOptions, options);
 			},
-			createWebviewTextEditorInset(editor: vscode.TextEditor, line: number, height: number, options: vscode.WebviewOptions): vscode.WebviewEditorInset {
+			createWebviewTextEditorInset(editor: vscode.TextEditor, line: number, height: number, options?: vscode.WebviewOptions): vscode.WebviewEditorInset {
 				checkProposedApiEnabled(extension);
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
@@ -767,9 +767,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
 
 			},
-			registerTimelineProvider: (scheme: string, provider: vscode.TimelineProvider) => {
+			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension);
-				return extHostTimeline.registerTimelineProvider(provider, extension.identifier, extHostCommands.converter);
+				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
 			}
 		};
 
@@ -1018,6 +1018,11 @@ class Extension<T> implements vscode.Extension<T> {
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
 		this.packageJSON = description;
 		this.extensionKind = kind;
+	}
+
+	asExtensionUri(relativePath: string): URI {
+		checkProposedApiEnabled(this.packageJSON);
+		return joinPath(this.packageJSON.extensionLocation, relativePath);
 	}
 
 	get isActive(): boolean {

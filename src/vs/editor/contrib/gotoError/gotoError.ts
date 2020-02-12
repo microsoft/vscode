@@ -304,7 +304,7 @@ export class MarkerController implements IEditorContribution {
 		model.currentMarker = marker;
 	}
 
-	private _onMarkerChanged(changedResources: URI[]): void {
+	private _onMarkerChanged(changedResources: readonly URI[]): void {
 		const editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return;

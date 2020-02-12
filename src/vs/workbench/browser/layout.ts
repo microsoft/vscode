@@ -1265,6 +1265,35 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onMaximizeChange.fire(maximized);
 	}
 
+	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined {
+		if (!this.workbenchGrid) {
+			return undefined;
+		}
+
+		if (!this.isVisible(part)) {
+			return undefined;
+		}
+
+		const neighborViews = this.workbenchGrid.getNeighborViews(this.getPart(part), direction, false);
+
+		if (!neighborViews) {
+			return undefined;
+		}
+
+		for (const neighborView of neighborViews) {
+			const neighborPart =
+				[Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART]
+					.find(partId => this.getPart(partId) === neighborView && this.isVisible(partId));
+
+			if (neighborPart !== undefined) {
+				return neighborPart;
+			}
+		}
+
+		return undefined;
+	}
+
+
 	private arrangeEditorNodes(editorNode: ISerializedNode, panelNode: ISerializedNode, editorSectionWidth: number): ISerializedNode[] {
 		switch (this.state.panel.position) {
 			case Position.BOTTOM:

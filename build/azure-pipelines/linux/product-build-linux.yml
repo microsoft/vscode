@@ -101,8 +101,19 @@ steps:
 - script: |
     set -e
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
-  displayName: Run unit tests
+  displayName: Run unit tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+# Playwright currently does not run on the Linux docker container we use
+# given our dependencies. Someone with some energy should follow up and
+# find out what is still missing to get Chrome started in the container.
+# Refs: https://github.com/microsoft/vscode-linux-build-agent/blob/master/x64/Dockerfile
+#
+# - script: |
+#     set -e
+#     DISPLAY=:10 yarn test-browser --build --browser chromium
+#   displayName: Run unit tests (Browser)
+#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     # Figure out the full absolute path of the product we just built
@@ -114,9 +125,20 @@ steps:
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
-    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
-  displayName: Run integration tests
+  displayName: Run integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+# Playwright currently does not run on the Linux docker container we use
+# given our dependencies. Someone with some energy should follow up and
+# find out what is still missing to get Chrome started in the container.
+# Refs: https://github.com/microsoft/vscode-linux-build-agent/blob/master/x64/Dockerfile
+# - script: |
+#     set -e
+#     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
+#     DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+#   continueOnError: true
+#   displayName: Run integration tests (Browser)
+#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

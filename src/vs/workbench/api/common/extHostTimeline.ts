@@ -39,7 +39,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		return provider?.provideTimeline(URI.revive(uri), token) ?? [];
 	}
 
-	registerTimelineProvider(provider: vscode.TimelineProvider, extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
+	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
 		const timelineDisposables = new DisposableStore();
 
 		const convertTimelineItem = this.convertTimelineItem(provider.id, commandConverter, timelineDisposables);
@@ -51,6 +51,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 		return this.registerTimelineProviderCore({
 			...provider,
+			scheme: scheme,
 			onDidChange: undefined,
 			async provideTimeline(uri: URI, token: CancellationToken) {
 				timelineDisposables.clear();
@@ -116,7 +117,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 		this._proxy.$registerTimelineProvider({
 			id: provider.id,
-			label: provider.label
+			label: provider.label,
+			scheme: provider.scheme
 		});
 		this._providers.set(provider.id, provider);
 
