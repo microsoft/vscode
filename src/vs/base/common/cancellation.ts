@@ -18,7 +18,7 @@ export interface CancellationToken {
 	 *
 	 * @event
 	 */
-	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+	readonly onCancellationRequested: Event<any>;
 }
 
 const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable {
