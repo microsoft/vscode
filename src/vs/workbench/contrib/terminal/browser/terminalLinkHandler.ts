@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,12 +13,14 @@ import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/con
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, ILinkMatcherOptions, IViewportRange } from 'xterm';
+import { Terminal, ILinkMatcherOptions, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferRange, ITerminalAddon } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
+import { IRange } from 'vs/editor/common/core/range';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -66,14 +68,39 @@ interface IPath {
 	normalize(path: string): string;
 }
 
+class TerminalLinkAdapter implements ILinkComputerTarget {
+	constructor(
+		private _xterm: Terminal,
+		private _lineStart: number,
+		private _lineEnd: number
+	) { }
+
+	getLineCount(): number {
+		return 1;
+	}
+
+	getLineContent(lineNumber: number): string {
+		let line = '';
+
+		for (let i = this._lineStart; i <= this._lineEnd; i++) {
+			line += this._xterm.buffer.getLine(i)?.translateToString();
+		}
+		return line;
+	}
+}
+
 export class TerminalLinkHandler {
 	private readonly _hoverDisposables = new DisposableStore();
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
+	private readonly _activateCallback: (event: MouseEvent, uri: string) => void;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 	private readonly _leaveCallback: () => void;
+	private _linkMatchers: number[] = [];
+	private _webLinksAddon: ITerminalAddon | undefined;
+	private _linkProvider: IDisposable | undefined;
 
 	constructor(
 		private _xterm: Terminal,
@@ -89,6 +116,12 @@ export class TerminalLinkHandler {
 		this._gitDiffPreImagePattern = /^--- a\/(\S*)/;
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
+
+		this._activateCallback = (e: MouseEvent, uri: string) => {
+			if (this._isLinkActivationModifierDown(e)) {
+				this._handleHypertextLink(uri);
+			}
+		};
 
 		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange) => {
 			if (!this._widgetManager) {
@@ -134,6 +167,26 @@ export class TerminalLinkHandler {
 			}
 		};
 
+		if (this._configHelper.config.experimentalLinkProvider) {
+			this.registerLinkProvider();
+		} else {
+			this._registerLinkMatchers();
+		}
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated.experimentalLinkProvider')) {
+				if (this._configHelper.config.experimentalLinkProvider) {
+					this._deregisterLinkMatchers();
+					this.registerLinkProvider();
+				} else {
+					this._linkProvider?.dispose();
+					this._registerLinkMatchers();
+				}
+			}
+		});
+	}
+
+	private _registerLinkMatchers() {
 		this.registerWebLinkHandler();
 		if (this._processManager) {
 			if (this._configHelper.config.enableFileLinks) {
@@ -141,6 +194,14 @@ export class TerminalLinkHandler {
 			}
 			this.registerGitDiffLinkHandlers();
 		}
+	}
+
+	private _deregisterLinkMatchers() {
+		this._webLinksAddon?.dispose();
+
+		this._linkMatchers.forEach(matcherId => {
+			this._xterm.deregisterLinkMatcher(matcherId);
+		});
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -173,12 +234,13 @@ export class TerminalLinkHandler {
 			const wrappedHandler = this._wrapLinkHandler(uri => {
 				this._handleHypertextLink(uri);
 			});
-			this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
+			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
 				tooltipCallback: this._tooltipCallback,
 				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
-			}));
+			});
+			this._xterm.loadAddon(this._webLinksAddon);
 		});
 	}
 
@@ -186,13 +248,13 @@ export class TerminalLinkHandler {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 		});
-		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
-		});
+		}));
 	}
 
 	public registerGitDiffLinkHandlers(): void {
@@ -207,8 +269,12 @@ export class TerminalLinkHandler {
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
-		this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options);
-		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options));
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options));
+	}
+
+	public registerLinkProvider(): void {
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalLinkProvider(this._xterm, this._activateCallback, this._tooltipCallback, this._leaveCallback));
 	}
 
 	public dispose(): void {
@@ -440,4 +506,114 @@ export class TerminalLinkHandler {
 export interface LineColumnInfo {
 	lineNumber: number;
 	columnNumber: number;
+}
+
+class TerminalLinkProvider implements ILinkProvider {
+	private _linkComputerTarget: ILinkComputerTarget | undefined;
+
+	constructor(
+		private readonly _xterm: Terminal,
+		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
+		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
+		private readonly _leaveCallback: () => void
+	) {
+	}
+
+	public provideLink(position: IBufferCellPosition, callback: (link: ILink | undefined) => void): void {
+		let startLine = position.y - 1;
+		let endLine = startLine;
+
+		while (this._xterm.buffer.getLine(startLine)?.isWrapped) {
+			startLine--;
+		}
+
+		while (this._xterm.buffer.getLine(endLine + 1)?.isWrapped) {
+			endLine++;
+		}
+
+		this._linkComputerTarget = new TerminalLinkAdapter(this._xterm, startLine, endLine);
+		const links = LinkComputer.computeLinks(this._linkComputerTarget);
+
+		let found = false;
+		links.forEach(link => {
+			const range = this._convertLinkRangeToBuffer(link.range, startLine);
+
+			// Check if the link if within the mouse position
+			if (this._positionIsInRange(position, range)) {
+				found = true;
+
+				callback({
+					text: link.url?.toString() || '',
+					range,
+					activate: (event: MouseEvent, text: string) => {
+						this._activateCallback(event, text);
+					},
+					hover: (event: MouseEvent, text: string) => {
+						this._tooltipCallback(event, text, this._convertBufferRangeToViewport(range));
+					},
+					leave: () => {
+						this._leaveCallback();
+					}
+				});
+			}
+		});
+
+		if (!found) {
+			callback(undefined);
+		}
+	}
+
+	private _convertLinkRangeToBuffer(range: IRange, startLine: number) {
+		const bufferRange: IBufferRange = {
+			start: {
+				x: range.startColumn,
+				y: range.startLineNumber + startLine
+			},
+			end: {
+				x: range.endColumn,
+				y: range.endLineNumber + startLine
+			}
+		};
+
+		const bufferWidth = this._xterm.cols;
+
+		// Convert back to wrapped lines
+		while (bufferRange.start.x > bufferWidth) {
+			bufferRange.start.x -= bufferWidth;
+			bufferRange.start.y++;
+		}
+
+		while (bufferRange.end.x > bufferWidth) {
+			bufferRange.end.x -= bufferWidth;
+			bufferRange.end.y++;
+		}
+
+		return bufferRange;
+	}
+
+	private _positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
+		if (position.y < range.start.y || position.y > range.end.y) {
+			return false;
+		}
+		if (position.y === range.start.y && position.x < range.start.x) {
+			return false;
+		}
+		if (position.y === range.end.y && position.x > range.end.x) {
+			return false;
+		}
+		return true;
+	}
+
+	private _convertBufferRangeToViewport(bufferRange: IBufferRange): IViewportRange {
+		return {
+			start: {
+				x: bufferRange.start.x - 1,
+				y: bufferRange.start.y - this._xterm.buffer.viewportY - 1
+			},
+			end: {
+				x: bufferRange.end.x - 1,
+				y: bufferRange.end.y - this._xterm.buffer.viewportY - 1
+			}
+		};
+	}
 }
