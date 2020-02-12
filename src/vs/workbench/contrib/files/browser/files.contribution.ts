@@ -113,8 +113,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 });
 
 interface ISerializedFileInput {
-	resource: string;
-	resourceJSON: object;
+	resourceJSON: UriComponents;
 	encoding?: string;
 	modeId?: string;
 }
@@ -130,7 +129,6 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const fileEditorInput = <FileEditorInput>editorInput;
 		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
-			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
@@ -142,7 +140,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
-			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const resource = URI.revive(fileInput.resourceJSON);
 			const encoding = fileInput.encoding;
 			const mode = fileInput.modeId;
 
@@ -314,7 +312,7 @@ configurationRegistry.registerConfiguration({
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
-			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
+			'markdownDescription': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
 		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',

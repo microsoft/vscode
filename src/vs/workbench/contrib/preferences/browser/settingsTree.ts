@@ -42,13 +42,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsSync';
+import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 const $ = DOM.$;
 
@@ -1191,7 +1192,7 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
@@ -1235,7 +1236,7 @@ export class SettingTreeRenderers {
 	}
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._configService.getValue<boolean>('sync.enable');
+		const enableSync = this._userDataSyncEnablementService.isEnabled();
 		return enableSync ?
 			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
 			[];

@@ -96,7 +96,6 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
 			colorize: true,
 			linkDetector: this.linkDetector
@@ -230,7 +229,6 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// value
 		renderExpressionValue(element.value, templateData.value, {
-			preserveWhitespace: true,
 			showHover: false,
 			linkDetector: this.linkDetector
 		});

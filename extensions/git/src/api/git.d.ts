@@ -122,6 +122,14 @@ export interface LogOptions {
 	readonly maxEntries?: number;
 }
 
+export interface CommitOptions {
+	all?: boolean | 'tracked';
+	amend?: boolean;
+	signoff?: boolean;
+	signCommit?: boolean;
+	empty?: boolean;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;
@@ -177,6 +185,8 @@ export interface Repository {
 
 	blame(path: string): Promise<string>;
 	log(options?: LogOptions): Promise<Commit[]>;
+
+	commit(message: string, opts?: CommitOptions): Promise<void>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';

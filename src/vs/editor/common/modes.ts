@@ -615,7 +615,9 @@ export interface CodeActionProvider {
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
-	providedCodeActionKinds?: ReadonlyArray<string>;
+	readonly providedCodeActionKinds?: ReadonlyArray<string>;
+
+	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
 
 	/**
 	 * @internal
@@ -1338,10 +1340,10 @@ export interface RenameProvider {
 /**
  * @internal
  */
-export interface Session {
+export interface AuthenticationSession {
 	id: string;
-	accessToken: string;
-	displayName: string;
+	accessToken(): Promise<string>;
+	accountName: string;
 }
 
 export interface Command {

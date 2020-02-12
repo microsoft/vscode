@@ -82,6 +82,24 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
+			"name": "VS Code Git Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"/tmp/my4g9l",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/git",
+				"--extensionTestsPath=${workspaceFolder}/extensions/git/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/git/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
@@ -167,7 +185,9 @@
 			"webRoot": "${workspaceFolder}",
 			// Settings for js-debug:
 			"pauseForSourceMap": false,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 		},
 		{
 			"type": "node",
@@ -282,7 +302,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests",
-			"program": "${workspaceFolder}/test/electron/index.js",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
 			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"

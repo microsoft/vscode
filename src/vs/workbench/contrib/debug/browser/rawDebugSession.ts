@@ -19,6 +19,7 @@ import { env as processEnv } from 'vs/base/common/process';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -79,7 +80,8 @@ export class RawDebugSession implements IDisposable {
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly extensionHostDebugService: IExtensionHostDebugService,
-		private readonly openerService: IOpenerService
+		private readonly openerService: IOpenerService,
+		private readonly notificationService: INotificationService
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
@@ -632,8 +634,8 @@ export class RawDebugSession implements IDisposable {
 			return errors.canceled();
 		}
 
-		const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
-		const errorMessage = errorResponse ? errorResponse.message || '' : '';
+		const error: DebugProtocol.Message | undefined = errorResponse?.body?.error;
+		const errorMessage = errorResponse?.message || '';
 
 		if (error && error.sendTelemetry) {
 			const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
@@ -641,14 +643,18 @@ export class RawDebugSession implements IDisposable {
 		}
 
 		const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
-		if (error && error.url) {
+		const url = error?.url;
+		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
-					this.openerService.open(URI.parse(error.url));
+					this.openerService.open(URI.parse(url));
 					return Promise.resolve(null);
 				})]
 			});
+		}
+		if (error && error.format && error.showUser) {
+			this.notificationService.error(error.format);
 		}
 
 		return new Error(userMessage);

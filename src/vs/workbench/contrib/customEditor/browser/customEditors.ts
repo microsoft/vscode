@@ -281,7 +281,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		];
 		this._hasCustomEditor.set(possibleEditors.length > 0);
 		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomFileEditorInput);
-		this._webviewHasOwnEditFunctions.set(true);
+		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
 	}
 
 	private handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): void {

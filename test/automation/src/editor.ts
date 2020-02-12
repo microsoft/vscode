@@ -89,7 +89,7 @@ export class Editor {
 		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
 		const textarea = `${editor} textarea`;
 
-		await this.code.waitAndClick(line, 0, 0);
+		await this.code.waitAndClick(line, 1, 1);
 		await this.code.waitForActiveElement(textarea);
 	}
 

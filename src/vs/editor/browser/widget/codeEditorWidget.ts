@@ -557,6 +557,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._revealLine(lineNumber, VerticalRevealType.CenterIfOutsideViewport, scrollType);
 	}
 
+	public revealLineNearTop(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealLine(lineNumber, VerticalRevealType.NearTop, scrollType);
+	}
+
 	private _revealLine(lineNumber: number, revealType: VerticalRevealType, scrollType: editorCommon.ScrollType): void {
 		if (typeof lineNumber !== 'number') {
 			throw new Error('Invalid arguments');
@@ -592,6 +596,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._revealPosition(
 			position,
 			VerticalRevealType.CenterIfOutsideViewport,
+			true,
+			scrollType
+		);
+	}
+
+	public revealPositionNearTop(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealPosition(
+			position,
+			VerticalRevealType.NearTop,
 			true,
 			scrollType
 		);
@@ -685,6 +698,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
+	public revealLinesNearTop(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			VerticalRevealType.NearTop,
+			scrollType
+		);
+	}
+
 	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: VerticalRevealType, scrollType: editorCommon.ScrollType): void {
 		if (typeof startLineNumber !== 'number' || typeof endLineNumber !== 'number') {
 			throw new Error('Invalid arguments');
@@ -720,6 +742,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._revealRange(
 			range,
 			VerticalRevealType.CenterIfOutsideViewport,
+			true,
+			scrollType
+		);
+	}
+
+	public revealRangeNearTop(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealRange(
+			range,
+			VerticalRevealType.NearTop,
 			true,
 			scrollType
 		);

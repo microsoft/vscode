@@ -15,7 +15,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/browser/experimentalPrompt';
 import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;

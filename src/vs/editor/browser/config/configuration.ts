@@ -88,6 +88,7 @@ export interface ISerializedFontInfo {
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
 	middotWidth: number;
+	wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
 }
 
@@ -161,6 +162,7 @@ class CSSBasedConfiguration extends Disposable {
 			// compatibility with older versions of VS Code which did not store this...
 			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
 			savedFontInfo.middotWidth = savedFontInfo.middotWidth || savedFontInfo.spaceWidth;
+			savedFontInfo.wsmiddotWidth = savedFontInfo.wsmiddotWidth || savedFontInfo.spaceWidth;
 			const fontInfo = new FontInfo(savedFontInfo, false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
@@ -186,6 +188,7 @@ class CSSBasedConfiguration extends Disposable {
 					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
 					middotWidth: Math.max(readConfig.middotWidth, 5),
+					wsmiddotWidth: Math.max(readConfig.wsmiddotWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
 				}, false);
 			}
@@ -226,8 +229,11 @@ class CSSBasedConfiguration extends Disposable {
 		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
 		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
 
-		// middle dot character
+		// U+00B7 - MIDDLE DOT
 		const middot = this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
+
+		// U+2E31 - WORD SEPARATOR MIDDLE DOT
+		const wsmiddotWidth = this.createRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular, all, null);
 
 		// monospace test: some characters
 		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
@@ -294,6 +300,7 @@ class CSSBasedConfiguration extends Disposable {
 			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
 			spaceWidth: space.width,
 			middotWidth: middot.width,
+			wsmiddotWidth: wsmiddotWidth.width,
 			maxDigitWidth: maxDigitWidth
 		}, canTrustBrowserZoomLevel);
 	}
@@ -379,7 +386,11 @@ export class Configuration extends CommonEditorConfiguration {
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: this.accessibilityService.isScreenReaderOptimized() ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled
+			accessibilitySupport: (
+				this.accessibilityService.isScreenReaderOptimized()
+					? AccessibilitySupport.Enabled
+					: this.accessibilityService.getAccessibilitySupport()
+			)
 		};
 	}
 

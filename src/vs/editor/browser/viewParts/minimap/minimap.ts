@@ -22,10 +22,10 @@ import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimap
 import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, minimapSelection } from 'vs/platform/theme/common/colorRegistry';
+import { minimapSelection, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, minimapBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -107,7 +107,9 @@ class MinimapOptions {
 	 */
 	public readonly canvasOuterHeight: number;
 
-	constructor(configuration: IConfiguration) {
+	public readonly backgroundColor: RGBA8;
+
+	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
 		const options = configuration.options;
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -131,6 +133,16 @@ class MinimapOptions {
 
 		this.canvasOuterWidth = this.canvasInnerWidth / pixelRatio;
 		this.canvasOuterHeight = this.canvasInnerHeight / pixelRatio;
+
+		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, tokensColorTracker);
+	}
+
+	private static _getMinimapBackground(theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
+		const themeColor = theme.getColor(minimapBackground);
+		if (themeColor) {
+			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, themeColor.rgba.a);
+		}
+		return tokensColorTracker.getColor(ColorId.DefaultBackground);
 	}
 
 	public equals(other: MinimapOptions): boolean {
@@ -148,6 +160,7 @@ class MinimapOptions {
 			&& this.canvasInnerHeight === other.canvasInnerHeight
 			&& this.canvasOuterWidth === other.canvasOuterWidth
 			&& this.canvasOuterHeight === other.canvasOuterHeight
+			&& this.backgroundColor.equals(other.backgroundColor)
 		);
 	}
 }
@@ -447,13 +460,13 @@ class MinimapBuffers {
 
 export class Minimap extends ViewPart {
 
+	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
-	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _mouseDownListener: IDisposable;
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 	private readonly _sliderMouseDownListener: IDisposable;
@@ -473,7 +486,8 @@ export class Minimap extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._options = new MinimapOptions(this._context.configuration);
+		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
+		this._options = new MinimapOptions(this._context.configuration, this._context.theme, this._tokensColorTracker);
 		this._lastRenderData = null;
 		this._buffers = null;
 		this._selectionColor = this._context.theme.getColor(minimapSelection);
@@ -511,8 +525,6 @@ export class Minimap extends ViewPart {
 		this._sliderHorizontal.setPosition('absolute');
 		this._sliderHorizontal.setClassName('minimap-slider-horizontal');
 		this._slider.appendChild(this._sliderHorizontal);
-
-		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 
 		this._applyLayout();
 
@@ -664,7 +676,7 @@ export class Minimap extends ViewPart {
 					this._canvas.domNode.getContext('2d')!,
 					this._options.canvasInnerWidth,
 					this._options.canvasInnerHeight,
-					this._tokensColorTracker.getColor(ColorId.DefaultBackground)
+					this._options.backgroundColor
 				);
 			}
 		}
@@ -672,7 +684,7 @@ export class Minimap extends ViewPart {
 	}
 
 	private _onOptionsMaybeChanged(): boolean {
-		const opts = new MinimapOptions(this._context.configuration);
+		const opts = new MinimapOptions(this._context.configuration, this._context.theme, this._tokensColorTracker);
 		if (this._options.equals(opts)) {
 			return false;
 		}
@@ -745,6 +757,7 @@ export class Minimap extends ViewPart {
 		this._context.model.invalidateMinimapColorCache();
 		this._selectionColor = this._context.theme.getColor(minimapSelection);
 		this._renderDecorations = true;
+		this._onOptionsMaybeChanged();
 		return true;
 	}
 
@@ -942,7 +955,7 @@ export class Minimap extends ViewPart {
 		// Fetch rendering info from view model for rest of lines that need rendering.
 		const lineInfo = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 		const tabSize = lineInfo.tabSize;
-		const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+		const background = this._options.backgroundColor;
 		const useLighterFont = this._tokensColorTracker.backgroundIsLight();
 
 		// Render the rest of lines
@@ -1141,6 +1154,10 @@ export class Minimap extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
+	const minimapBackgroundValue = theme.getColor(minimapBackground);
+	if (minimapBackgroundValue) {
+		collector.addRule(`.monaco-editor .minimap > canvas { opacity: ${minimapBackgroundValue.rgba.a}; will-change: opacity; }`);
+	}
 	const sliderBackground = theme.getColor(scrollbarSliderBackground);
 	if (sliderBackground) {
 		const halfSliderBackground = sliderBackground.transparent(0.5);

@@ -43,7 +43,7 @@ import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/act
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IEditor } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs, OpenSearchEditorAction, appendKeyBindingLabel, ExpandAllAction, ToggleCollapseAndExpandAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs, appendKeyBindingLabel, ExpandAllAction, ToggleCollapseAndExpandAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -63,9 +63,10 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import { Selection } from 'vs/editor/common/core/selection';
-import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditorActions';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { OpenSearchEditorAction, createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 const $ = dom.$;
 
@@ -97,7 +98,6 @@ export class SearchView extends ViewPane {
 	private memento: Memento;
 
 	private viewletVisible: IContextKey<boolean>;
-	private viewletFocused: IContextKey<boolean>;
 	private inputBoxFocused: IContextKey<boolean>;
 	private inputPatternIncludesFocused: IContextKey<boolean>;
 	private inputPatternExclusionsFocused: IContextKey<boolean>;
@@ -109,7 +109,6 @@ export class SearchView extends ViewPane {
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
-	private enableSearchEditorPreview: IContextKey<boolean>;
 
 	private state: SearchUIState = SearchUIState.Idle;
 
@@ -159,23 +158,32 @@ export class SearchView extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
-		@IOpenerService private readonly openerService: IOpenerService) {
+		@IOpenerService openerService: IOpenerService,
+	) {
 
-		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+
+		this.container = dom.$('.search-view');
+
+		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
+		const viewletFocused = Constants.SearchViewFocusedKey.bindTo(this.contextKeyService);
+		viewletFocused.set(true);
+
+		this.instantiationService = this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService]));
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
-		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
@@ -187,14 +195,7 @@ export class SearchView extends ViewPane {
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
-		this.enableSearchEditorPreview = Constants.EnableSearchEditorPreview.bindTo(this.contextKeyService);
 
-		this.enableSearchEditorPreview.set(this.searchConfig.enableSearchEditorPreview);
-		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('search.previewSearchEditor')) {
-				this.enableSearchEditorPreview.set(this.searchConfig.enableSearchEditorPreview);
-			}
-		});
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
 				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
@@ -254,6 +255,7 @@ export class SearchView extends ViewPane {
 	}
 
 	renderBody(parent: HTMLElement): void {
+		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));
@@ -349,9 +351,6 @@ export class SearchView extends ViewPane {
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
 		this._register(this.searchWidget.replaceInput.onInput(() => this.updateActions()));
-
-		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
-		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 	}
@@ -704,7 +703,7 @@ export class SearchView extends ViewPane {
 		};
 
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch>>this.instantiationService.createInstance(WorkbenchObjectTree,
 			'SearchView',
 			this.resultsElement,
 			delegate,
@@ -1297,7 +1296,7 @@ export class SearchView extends ViewPane {
 			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType);
 
 			if (!preserveFocus) {
-				this.searchWidget.focus(false); // focus back to input field
+				this.searchWidget.focus(false, undefined, true); // focus back to input field
 			}
 		}, onQueryValidationError);
 	}
@@ -1543,7 +1542,7 @@ export class SearchView extends ViewPane {
 
 			if (this.searchConfig.enableSearchEditorPreview) {
 				dom.append(messageEl, $('span', undefined, resultMsg + ' - '));
-				const span = dom.append(messageEl, $('span', undefined));
+				const span = dom.append(messageEl, $('span'));
 				const openInEditorLink = dom.append(span, $('a.pointer.prominent', undefined, nls.localize('openInEditor.message', "Open in editor")));
 
 				openInEditorLink.title = appendKeyBindingLabel(
@@ -1556,7 +1555,7 @@ export class SearchView extends ViewPane {
 				}));
 
 			} else {
-				dom.append(messageEl, $('p', undefined, resultMsg));
+				dom.append(messageEl, $('span', undefined, resultMsg));
 			}
 			this.reLayout();
 		} else if (!msgWasHidden) {

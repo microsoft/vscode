@@ -369,7 +369,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
 		const resources: URI[] = elements
-			.filter(e => e instanceof FileMatch)
+			.filter<FileMatch>((e): e is FileMatch => e instanceof FileMatch)
 			.map((fm: FileMatch) => fm.resource);
 
 		if (resources.length) {

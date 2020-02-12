@@ -127,11 +127,11 @@ export namespace DiagnosticTag {
 
 export namespace Diagnostic {
 	export function from(value: vscode.Diagnostic): IMarkerData {
-		let code: string | { value: string; link: URI } | undefined = isString(value.code) || isNumber(value.code) ? String(value.code) : undefined;
+		let code: string | { value: string; target: URI } | undefined = isString(value.code) || isNumber(value.code) ? String(value.code) : undefined;
 		if (value.code2) {
 			code = {
 				value: String(value.code2.value),
-				link: value.code2.link
+				target: value.code2.target
 			};
 		}
 
@@ -157,7 +157,7 @@ export namespace Diagnostic {
 }
 
 export namespace DiagnosticRelatedInformation {
-	export function from(value: types.DiagnosticRelatedInformation): IRelatedInformation {
+	export function from(value: vscode.DiagnosticRelatedInformation): IRelatedInformation {
 		return {
 			...Range.from(value.location.range),
 			message: value.message,

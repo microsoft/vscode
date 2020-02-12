@@ -72,7 +72,7 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 }
 
 function isSourceFileItem(item: Proto.CallHierarchyItem) {
-	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 0 && item.selectionSpan.start.offset === 0;
+	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 1 && item.selectionSpan.start.offset === 1;
 }
 
 function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {

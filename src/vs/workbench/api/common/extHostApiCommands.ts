@@ -9,7 +9,6 @@ import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -128,21 +127,21 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeFormatDocumentProvider', '_executeFormatDocumentProvider', 'Execute document format provider.',
 		[ApiCommandArgument.Uri, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	new ApiCommand(
 		'vscode.executeFormatRangeProvider', '_executeFormatRangeProvider', 'Execute range format provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Range, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	new ApiCommand(
 		'vscode.executeFormatOnTypeProvider', '_executeFormatOnTypeProvider', 'Execute format on type provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('ch', 'Trigger character', v => typeof v === 'string', v => v), new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	// -- go to symbol (definition, type definition, declaration, impl, references)
 	new ApiCommand(
-		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition provider.',
+		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
 	),
@@ -168,7 +167,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- hover
 	new ApiCommand(
-		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover provider.',
+		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<modes.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
 	),
@@ -188,7 +187,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- symbol search
 	new ApiCommand(
-		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol provider.',
+		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
 		[new ApiCommandArgument('query', 'Search string', v => typeof v === 'string', v => v)],
 		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
 			const result: types.SymbolInformation[] = [];

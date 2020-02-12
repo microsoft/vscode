@@ -40,6 +40,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			0,
 			0,
+			0,
 			-1,
 			'none',
 			false,
@@ -89,6 +90,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createViewLineTokens(parts),
 			[],
 			tabSize,
+			0,
 			0,
 			0,
 			0,
@@ -147,6 +149,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			6,
 			'boundary',
 			false,
@@ -195,8 +198,8 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(48, 12),
 		]);
 		let expectedOutput = [
-			'<span class="vs-whitespace" style="display:inline-block;width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-			'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+			'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 			'<span class="mtk2">export</span>',
 			'<span class="mtk3">\u00a0</span>',
 			'<span class="mtk4">class</span>',
@@ -207,8 +210,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="mtk9">\u00a0</span>',
 			'<span class="mtk10">//\u00a0</span>',
 			'<span class="mtk11">http://test.com</span>',
-			'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\u00b7</span>',
-			'<span class="vs-whitespace" style="display:inline-block;width:30px">\u00b7\u00b7\u00b7</span>'
+			'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
+			'<span class="mtkz" style="width:30px">\u00b7\u00b7\u00b7</span>'
 		].join('');
 		let expectedOffsetsArr = [
 			[0],
@@ -239,6 +242,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -306,6 +310,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -371,6 +376,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -413,6 +419,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -444,6 +451,7 @@ suite('viewLineRenderer.renderLine', () => {
 				[],
 				4,
 				0,
+				10,
 				10,
 				10,
 				-1,
@@ -549,6 +557,7 @@ suite('viewLineRenderer.renderLine', () => {
 				0,
 				10,
 				10,
+				10,
 				-1,
 				'none',
 				false,
@@ -590,6 +599,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -620,6 +630,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -669,6 +680,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -755,6 +767,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			renderWhitespace,
 			false,
@@ -781,6 +794,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineDecoration(1, 22, 'link', InlineDecorationType.Regular)],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -823,6 +837,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -897,10 +912,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -919,12 +934,12 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -943,11 +958,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -966,15 +981,15 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\uffeb</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u00b7\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -995,13 +1010,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[
 				'<span>',
 				'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\uffeb</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u00b7\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -1022,10 +1037,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[
 				'<span>',
 				'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-				'<span class="vs-whitespace">\u00b7\u00b7</span>',
+				'<span class="mtkw">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace">\u00b7\uffeb\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\uffeb\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkw">\u00b7\uffeb\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\uffeb\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -1046,11 +1061,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[
 				'<span>',
 				'<span class="mtk1">it</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk1">it</span>',
 				'<span class="mtk2">\u00a0</span>',
 				'<span class="mtk3">it</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk3">it</span>',
 				'</span>',
 			].join('')
@@ -1071,12 +1086,12 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk2">world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:30px">\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1118,12 +1133,12 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 14)],
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk2">world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:30px">\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1143,7 +1158,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 5)],
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
@@ -1167,11 +1182,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 5), new LineRange(9, 14)],
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:30px">\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1192,11 +1207,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(9, 14), new LineRange(0, 5)],
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:30px">\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1214,9 +1229,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 1), new LineRange(1, 2), new LineRange(2, 3)],
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">*</span>',
-				'<span class="vs-whitespace" style="display:inline-block;width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">S</span>',
 				'</span>',
 			].join('')
@@ -1240,6 +1255,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -1285,6 +1301,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'all',
 			false,
@@ -1294,7 +1311,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="vs-whitespace before">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtkw before">\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3">bla</span>',
 			'</span>'
 		].join('');
@@ -1320,6 +1337,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'all',
 			false,
@@ -1329,7 +1347,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="vs-whitespace" style="display:inline-block;width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3 before">b</span>',
 			'<span class="mtk3">la</span>',
 			'</span>'
@@ -1354,6 +1372,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -1386,6 +1405,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
 			2,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1424,6 +1444,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1460,6 +1481,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1491,6 +1513,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1525,6 +1548,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'all',
 			false,
@@ -1535,11 +1559,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let expected = [
 			'<span>',
 			'<span class="mtk3">asd</span>',
-			'<span class="vs-whitespace">\u00b7</span>',
+			'<span class="mtkw">\u00b7</span>',
 			'<span class="mtk3">=</span>',
-			'<span class="vs-whitespace">\u00b7</span>',
+			'<span class="mtkw">\u00b7</span>',
 			'<span class="mtk3">"擦"</span>',
-			'<span class="vs-whitespace">\u2192\u00a0\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtkw">\u2192\u00a0\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3">#asd</span>',
 			'</span>'
 		].join('');
@@ -1561,6 +1585,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1593,6 +1618,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1629,6 +1655,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1662,6 +1689,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'boundary',
 			false,
@@ -1691,6 +1719,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1728,6 +1757,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1757,6 +1787,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			tabSize,
 			0,
+			10,
 			10,
 			10,
 			-1,

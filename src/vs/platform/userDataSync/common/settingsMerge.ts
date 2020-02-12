@@ -10,8 +10,10 @@ import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { IConflictSetting, CONFIGURATION_SYNC_STORE_KEY } from 'vs/platform/userDataSync/common/userDataSync';
 import { firstIndex } from 'vs/base/common/arrays';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { startsWith } from 'vs/base/common/strings';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -19,6 +21,30 @@ export interface IMergeResult {
 	hasConflicts: boolean;
 	conflictsSettings: IConflictSetting[];
 }
+
+export function getIgnoredSettings(configurationService: IConfigurationService, settingsContent?: string): string[] {
+	let value: string[] = [];
+	if (settingsContent) {
+		const setting = parse(settingsContent);
+		if (setting) {
+			value = setting['sync.ignoredSettings'];
+		}
+	} else {
+		value = configurationService.getValue<string[]>('sync.ignoredSettings');
+	}
+	const added: string[] = [], removed: string[] = [];
+	if (Array.isArray(value)) {
+		for (const key of value) {
+			if (startsWith(key, '-')) {
+				removed.push(key.substring(1));
+			} else {
+				added.push(key);
+			}
+		}
+	}
+	return [CONFIGURATION_SYNC_STORE_KEY, ...added].filter(setting => removed.indexOf(setting) === -1);
+}
+
 
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {

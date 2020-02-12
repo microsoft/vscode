@@ -91,6 +91,9 @@ export function toDisposable(fn: () => void): IDisposable {
 }
 
 export class DisposableStore implements IDisposable {
+
+	static DISABLE_DISPOSED_WARNING = false;
+
 	private _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
@@ -127,7 +130,9 @@ export class DisposableStore implements IDisposable {
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
+				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			}
 		} else {
 			this._toDispose.add(t);
 		}

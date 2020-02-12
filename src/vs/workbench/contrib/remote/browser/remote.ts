@@ -368,16 +368,19 @@ class HelpPanel extends ViewPane {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService protected openerService: IOpenerService,
+		@IOpenerService openerService: IOpenerService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'remote-help');
 		const treeContainer = document.createElement('div');
 		dom.addClass(treeContainer, 'remote-help-content');
@@ -512,9 +515,9 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		return title;
 	}
 
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
-		const panels: ViewPane[] = super.onDidAddViews(added);
+		const panels: ViewPane[] = super.onDidAddViewDescriptors(added);
 		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
@@ -636,7 +639,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
-							if (buttons[choice]) {
+							if (typeof choice !== 'undefined' && buttons[choice]) {
 								buttons[choice].callback();
 							} else {
 								showProgress(ProgressLocation.Notification, buttons);
@@ -651,7 +654,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
-							if (buttons[choice]) {
+							if (typeof choice !== 'undefined' && buttons[choice]) {
 								buttons[choice].callback();
 							} else {
 								hideProgress();

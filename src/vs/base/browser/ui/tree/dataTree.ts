@@ -37,7 +37,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		private dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData> = {}
 	) {
-		super(user, container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options as IDataTreeOptions<T | null, TFilterData>);
 		this.identityProvider = options.identityProvider;
 	}
 
@@ -182,7 +182,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 			throw new TreeError(this.user, 'Can\'t get tree view state without an identity provider');
 		}
 
-		const getId = (element: T) => this.identityProvider!.getId(element).toString();
+		const getId = (element: T | null) => this.identityProvider!.getId(element!).toString();
 		const focus = this.getFocus().map(getId);
 		const selection = this.getSelection().map(getId);
 

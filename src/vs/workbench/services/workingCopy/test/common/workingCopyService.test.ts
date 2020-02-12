@@ -8,7 +8,7 @@ import { IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingC
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
+import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { basename } from 'vs/base/common/resources';
 

@@ -19,7 +19,6 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
-import { Surveyor } from './utils/surveyor';
 import TscTaskProvider from './features/task';
 
 export function activate(
@@ -69,8 +68,6 @@ function createLazyClientHost(
 			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
-
-		context.subscriptions.push(new Surveyor(context.globalState, clientHost.serviceClient));
 
 		clientHost.serviceClient.onReady(() => {
 			context.subscriptions.push(

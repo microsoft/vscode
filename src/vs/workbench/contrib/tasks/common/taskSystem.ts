@@ -133,6 +133,7 @@ export interface ITaskSystem {
 	isActive(): Promise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];
+	getLastInstance(task: Task): Task | undefined;
 	getBusyTasks(): Task[];
 	canAutoTerminate(): boolean;
 	terminate(task: Task): Promise<TaskTerminateResponse>;

@@ -15,7 +15,7 @@ import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes,
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -333,7 +333,7 @@ function sanitizePath(path: string): string {
 	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
 }
 
-const COMMIT_FORMAT = '%H\n%aN\n%aE\n%at\n%ct\n%P\n%B';
+const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
 
 export class Git {
 
@@ -728,14 +728,6 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-export interface CommitOptions {
-	all?: boolean | 'tracked';
-	amend?: boolean;
-	signoff?: boolean;
-	signCommit?: boolean;
-	empty?: boolean;
-}
-
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
@@ -812,8 +804,8 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
-		const args = ['log', '-' + maxEntries, `--format:${COMMIT_FORMAT}`, '-z'];
+		const maxEntries = options?.maxEntries ?? 32;
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -826,7 +818,7 @@ export class Repository {
 
 	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
 
 		const result = await this.run(args);
 		if (result.exitCode) {
