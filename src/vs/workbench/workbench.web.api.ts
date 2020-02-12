@@ -64,7 +64,7 @@ interface IApplicationLink {
 	 * A link that is opened in the OS. If you want to open VSCode it must
 	 * follow our expected structure of links:
 	 *
-	 * <vscode|vscode-insiders>://<file|vscode-remote>/<authority>/<path>
+	 * <vscode|vscode-insiders>://<file|vscode-remote>/<remote-authority>/<path>
 	 *
 	 * For example:
 	 *
