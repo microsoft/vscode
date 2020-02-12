@@ -40,6 +40,7 @@ const mappings = [
 	['perl', 'source.perl'],
 	['php', 'source.php'],
 	['pl', 'source.perl'],
+	['pm', 'source.perl'],
 	['ps1', 'source.powershell'],
 	['pug', 'text.pug'],
 	['py', 'source.python'],
