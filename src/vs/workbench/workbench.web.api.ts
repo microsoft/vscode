@@ -59,7 +59,23 @@ interface IShowCandidate {
 }
 
 interface IApplicationLink {
+
+	/**
+	 * A link that is opened in the OS. If you want to open VSCode it must
+	 * follow our expected structure of links:
+	 *
+	 * <vscode|vscode-insiders>://<file|vscode-remote>/<authority>/<path>
+	 *
+	 * For example:
+	 *
+	 * vscode://vscode-remote/vsonline+2005711d/home/vsonline/workspace for
+	 * a remote folder in VSO or vscode://file/home/workspace for a local folder.
+	 */
 	uri: URI;
+
+	/**
+	 * A label for the link to display.
+	 */
 	label: string;
 }
 

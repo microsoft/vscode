@@ -86,6 +86,7 @@ export class OpenInDesktopAction extends Action {
 		// Show a picker with choices
 		const quickPick = this.quickInputService.createQuickPick<IApplicationLink>();
 		quickPick.items = links;
+		quickPick.placeholder = OpenInDesktopAction.LABEL;
 		quickPick.canSelectMany = false;
 		quickPick.onDidAccept(() => {
 			const selectedItems = quickPick.selectedItems;
