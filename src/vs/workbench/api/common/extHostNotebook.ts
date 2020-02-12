@@ -14,6 +14,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ICell } from 'vs/editor/common/modes';
 // import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -115,7 +117,8 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
 		public viewType: string,
-		public uri: URI
+		public uri: URI,
+		public renderingHandler: ExtHostNotebookOutputRenderingHandler
 	) {
 
 	}
@@ -125,14 +128,30 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	get isDirty() { return false; }
 
 	async $updateCells(): Promise<void> {
-		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, this.cells.map(cell => ({
-			handle: cell.handle,
-			source: cell.source,
-			language: cell.language,
-			cell_type: cell.cell_type,
-			outputs: cell.outputs,
-			isDirty: false
-		})));
+		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, this.cells.map(cell => {
+			let outputs = cell.outputs;
+			if (outputs && outputs.length) {
+				outputs = outputs.map(output => {
+					let handler = this.renderingHandler.findBestMatchedRenderer(output);
+
+					if (handler) {
+						return handler.render(this, cell, output);
+					} else {
+						return output;
+					}
+				})
+			}
+
+			return {
+				handle: cell.handle,
+				source: cell.source,
+				language: cell.language,
+				cell_type: cell.cell_type,
+				outputs: outputs,
+				isDirty: false
+			}
+		}
+	));
 	}
 
 	insertRawCell(index: number, cell: ExtHostCell) {
@@ -145,12 +164,25 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		let store = this._cellDisposableMapping.get(cell.handle)!;
 
 		store.add(cell.onDidChangeOutputs(() => {
+			let outputs = cell.outputs;
+			if (outputs && outputs.length) {
+				outputs = outputs.map(output => {
+					let handler = this.renderingHandler.findBestMatchedRenderer(output);
+
+					if (handler) {
+						return handler.render(this, cell, output);
+					} else {
+						return output;
+					}
+				})
+			}
+
 			this._proxy.$updateNotebookCell(this.viewType, this.uri, {
 				handle: cell.handle,
 				source: cell.source,
 				language: cell.language,
 				cell_type: cell.cell_type,
-				outputs: cell.outputs,
+				outputs: outputs,
 				isDirty: false
 			});
 		}));
@@ -256,15 +288,63 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 	}
 }
 
-export class ExtHostNotebookController implements ExtHostNotebookShape {
+export class ExtHostNotebookOutputRenderer {
+	constructor(
+		private filter: vscode.NotebookOutputFilter,
+		private renderer: vscode.NotebookOutputRenderer
+	) {
+
+	}
+
+	matches(output: vscode.CellOutput): boolean {
+		if (output.output_type === this.filter.type) {
+			if (output.output_type === 'stream' || output.output_type === 'error') {
+				return true;
+			}
+
+			if (this.filter.subTypes) {
+				for (let i = 0; i < this.filter.subTypes.length; i++) {
+					if (output.data[this.filter.subTypes[i]] !== undefined) {
+						return true;
+					}
+				}
+
+				return false;
+			} else {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput): vscode.CellDisplayOutput {
+		let html = this.renderer.render(document ,cell, output);
+
+		return {
+			output_type: 'display_data',
+			data: {
+				'text/html': [
+					html
+				]
+			}
+		};
+	}
+}
+
+export interface ExtHostNotebookOutputRenderingHandler {
+	findBestMatchedRenderer(output: vscode.CellOutput): ExtHostNotebookOutputRenderer | undefined;
+}
+
+export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
 	private readonly _documentsProxy: MainThreadDocumentsShape;
 	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription }>();
-	private readonly _localStore = new DisposableStore();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
+	private readonly _notebookOutputRenderers: ExtHostNotebookOutputRenderer[] = [];
 
 
 	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
@@ -277,6 +357,24 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	get activeNotebookDocument() {
 		return this._activeNotebookDocument;
+	}
+
+	public registerNotebookOutputRenderer(
+		extension: IExtensionDescription,
+		filter: vscode.NotebookOutputFilter,
+		renderer: vscode.NotebookOutputRenderer
+	) {
+		this._notebookOutputRenderers.push(new ExtHostNotebookOutputRenderer(filter, renderer));
+	}
+
+	findBestMatchedRenderer(output: vscode.CellOutput): ExtHostNotebookOutputRenderer | undefined {
+		for (let i = 0; i < this._notebookOutputRenderers.length; i++) {
+			if (this._notebookOutputRenderers[i].matches(output)) {
+				return this._notebookOutputRenderers[i];
+			}
+		}
+
+		return;
 	}
 
 	public registerNotebookProvider(
@@ -302,7 +400,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		if (provider) {
 			if (!this._documents.has(URI.revive(uri).toString())) {
-				let document = new ExtHostNotebookDocument(this._proxy, viewType, uri);
+				let document = new ExtHostNotebookDocument(this._proxy, viewType, uri, this);
 				await this._proxy.$createNotebookDocument(
 					document.handle,
 					viewType,

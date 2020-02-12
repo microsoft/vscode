@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkedString } from 'vscode';
+import { Disposable } from 'vs/base/common/lifecycle';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -1466,6 +1469,16 @@ declare module 'vscode' {
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;
+		latexRenderer?(value: string): Promise<MarkdownString>;
+	}
+
+	export interface NotebookOutputFilter {
+		type: string;
+		subTypes?: string[];
+	}
+
+	export interface NotebookOutputRenderer {
+		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput): string;
 	}
 
 	namespace window {
@@ -1473,6 +1486,8 @@ declare module 'vscode' {
 			notebookType: string,
 			provider: NotebookProvider
 		): Disposable;
+
+		export function registerNotebookOutputRenderer(outputFilter: NotebookOutputFilter, renderer: NotebookOutputRenderer): Disposable;
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
 	}

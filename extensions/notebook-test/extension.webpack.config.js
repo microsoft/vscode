@@ -17,6 +17,9 @@ module.exports = [
 		},
 		entry: {
 			extension: './src/extension.ts',
+		},
+		externals: {
+			"mathjax-node-svg2png": "mathjax-node-svg2png"
 		}
 	}),
 	{

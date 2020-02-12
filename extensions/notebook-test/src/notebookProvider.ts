@@ -6,6 +6,16 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+declare var TextEncoder: any;
+
+const mjAPI = require("mathjax-node-svg2png");
+mjAPI.config({
+	MathJax: {
+		// traditional MathJax configuration
+	}
+});
+mjAPI.start();
+
 export class Cell {
 	public outputs: vscode.CellOutput[] = [];
 
@@ -183,6 +193,22 @@ export class NotebookProvider implements vscode.NotebookProvider {
 	private _notebooks: Map<string, JupyterNotebook> = new Map();
 
 	constructor(private _extensionPath: string, private fillOutputs: boolean) {
+	}
+	async latexRenderer(value: string): Promise<vscode.MarkdownString> {
+		return new Promise((resolve, reject) => {
+			mjAPI.typeset({
+				math: value,
+				format: "inline-TeX", // or "inline-TeX", "MathML"
+				svg: true
+			}, function (data: any) {
+				if (!data.errors) {
+					var encodedData = Buffer.from(data.svg).toString('base64')
+					resolve(new vscode.MarkdownString(`![value](data:image/svg+xml;base64,${encodedData})`));
+				} else {
+					reject();
+				}
+			});
+		});
 	}
 
 	async resolveNotebook(editor: vscode.NotebookEditor): Promise<void> {
