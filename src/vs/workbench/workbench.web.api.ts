@@ -58,6 +58,15 @@ interface IShowCandidate {
 	(host: string, port: number, detail: string): Thenable<boolean>;
 }
 
+interface IApplicationLink {
+	uri: URI;
+	label: string;
+}
+
+interface IApplicationLinkProvider {
+	(): IApplicationLink[] | undefined
+}
+
 interface IWorkbenchConstructionOptions {
 
 	/**
@@ -139,6 +148,18 @@ interface IWorkbenchConstructionOptions {
 	readonly showCandidate?: IShowCandidate;
 
 	/**
+	 * Provide entries for the "Open in Desktop" feature.
+	 *
+	 * Depending on the returned elements the behaviour is:
+	 * - no elements: there will not be a "Open in Desktop" affordance
+	 * - 1 element: there will be a "Open in Desktop" affordance that opens on click
+	 *   and it will use the label provided by the link
+	 * - N elements: there will be a "Open in Desktop" affordance that opens
+	 *   a picker on click to select which application to open.
+	 */
+	readonly applicationLinkProvider?: IApplicationLinkProvider;
+
+	/**
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	readonly logLevel?: LogLevel;
@@ -211,5 +232,9 @@ export {
 	ICommontTelemetryPropertiesResolver,
 
 	// External Uris
-	IExternalUriResolver
+	IExternalUriResolver,
+
+	// Protocol Links
+	IApplicationLink,
+	IApplicationLinkProvider
 };
