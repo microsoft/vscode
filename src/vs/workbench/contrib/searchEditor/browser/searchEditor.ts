@@ -298,8 +298,10 @@ export class SearchEditor extends BaseTextEditor {
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
 				await this.doRunSearch();
+				this.toggleRunAgainMessage(false);
 				if (resetCursor) {
 					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
+					this.searchResultEditor.setScrollPosition({ scrollTop: 1, scrollLeft: 1 });
 				}
 			}, instant ? 0 : undefined);
 		}
