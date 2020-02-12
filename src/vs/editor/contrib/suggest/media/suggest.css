@@ -137,8 +137,6 @@
 	border-bottom-style: solid;
 
 	padding: 0 8px 0 4px;
-
-	box-shadow: 0 -.5px 3px #ddd;
 }
 
 .monaco-editor .suggest-widget.list-right.docs-side > .suggest-status-bar {
