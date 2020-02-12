@@ -88,7 +88,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly menuActions: ViewMenuActions;
 
 	protected actionRunner?: IActionRunner;
-	protected toolbar?: ToolBar;
+	private toolbar?: ToolBar;
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;

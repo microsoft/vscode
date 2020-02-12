@@ -250,10 +250,6 @@ export class ExplorerView extends ViewPane {
 
 		this.createTree(treeContainer);
 
-		if (this.toolbar) {
-			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
-		}
-
 		this._register(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
 		}));
