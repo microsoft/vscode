@@ -214,11 +214,12 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('eol, change via onWillSave', function () {
+	test('eol, change via onWillSave', async function () {
 		if (vscode.env.uiKind === vscode.UIKind.Web) {
 			// TODO@Jo Test seems to fail when running in web due to
 			// onWillSaveTextDocument not getting called
-			return this.skip();
+			this.skip();
+			return;
 		}
 
 		let called = false;
@@ -227,25 +228,21 @@ suite('workspace-namespace', () => {
 			e.waitUntil(Promise.resolve([vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]));
 		});
 
-		return createRandomFile('foo\r\nbar\r\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.equal(doc.eol, vscode.EndOfLine.CRLF);
-				const edit = new vscode.WorkspaceEdit();
-				edit.set(file, [vscode.TextEdit.insert(new vscode.Position(0, 0), '-changes-')]);
+		const file = await createRandomFile('foo\r\nbar\r\nbar');
+		const doc = await vscode.workspace.openTextDocument(file);
+		assert.equal(doc.eol, vscode.EndOfLine.CRLF);
 
-				return vscode.workspace.applyEdit(edit).then(success => {
-					assert.ok(success);
-					return doc.save();
+		const edit = new vscode.WorkspaceEdit();
+		edit.set(file, [vscode.TextEdit.insert(new vscode.Position(0, 0), '-changes-')]);
+		const successEdit = await vscode.workspace.applyEdit(edit);
+		assert.ok(successEdit);
 
-				}).then(success => {
-					assert.ok(success);
-					assert.ok(called);
-					assert.ok(!doc.isDirty);
-					assert.equal(doc.eol, vscode.EndOfLine.LF);
-					sub.dispose();
-				});
-			});
-		});
+		const successSave = await doc.save();
+		assert.ok(successSave);
+		assert.ok(called);
+		assert.ok(!doc.isDirty);
+		assert.equal(doc.eol, vscode.EndOfLine.LF);
+		sub.dispose();
 	});
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
