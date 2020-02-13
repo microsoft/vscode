@@ -399,14 +399,14 @@ class RenderData {
 		};
 	}
 
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._renderedLines.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
+		return this._renderedLines.onLinesChanged(changeFromLineNumber, changeToLineNumber);
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): void {
+		this._renderedLines.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): void {
+		this._renderedLines.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 	}
 	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
 		return this._renderedLines.onTokensChanged(ranges);
@@ -561,13 +561,61 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return this._actual.onFlushed();
 	}
 	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._actual.onLinesChanged(e); // TODO
+		if (this._isSampling) {
+			let fromLineIndex = this._modelLineToMinimapLine(e.fromLineNumber) - 1;
+			while (fromLineIndex > 0 && this._minimapLines[fromLineIndex - 1] >= e.fromLineNumber) {
+				fromLineIndex--;
+			}
+			let toLineIndex = this._modelLineToMinimapLine(e.toLineNumber) - 1;
+			while (toLineIndex + 1 < this._minimapLines.length && this._minimapLines[toLineIndex + 1] <= e.toLineNumber) {
+				toLineIndex++;
+			}
+			return this._actual.onLinesChanged(fromLineIndex + 1, toLineIndex + 1);
+		} else {
+			return this._actual.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+		}
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return this._actual.onLinesDeleted(e); // TODO
+		if (this._isSampling) {
+			// have the mapping be sticky
+			const deletedLineCount = e.toLineNumber - e.fromLineNumber + 1;
+			let changeStartIndex = this._minimapLines.length;
+			let changeEndIndex = 0;
+			for (let i = this._minimapLines.length - 1; i >= 0; i--) {
+				if (this._minimapLines[i] < e.fromLineNumber) {
+					break;
+				}
+				if (this._minimapLines[i] <= e.toLineNumber) {
+					// this line got deleted => move to previous available
+					this._minimapLines[i] = Math.max(1, e.fromLineNumber - 1);
+					changeStartIndex = Math.min(changeStartIndex, i);
+					changeEndIndex = Math.max(changeEndIndex, i);
+				} else {
+					this._minimapLines[i] -= deletedLineCount;
+				}
+			}
+			if (changeStartIndex <= changeEndIndex) {
+				this._actual.onLinesChanged(changeStartIndex + 1, changeEndIndex + 1);
+			}
+			return this._checkMapping();
+		} else {
+			return this._actual.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+		}
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return this._actual.onLinesInserted(e); // TODO
+		if (this._isSampling) {
+			// have the mapping be sticky
+			const insertedLineCount = e.toLineNumber - e.fromLineNumber + 1;
+			for (let i = this._minimapLines.length - 1; i >= 0; i--) {
+				if (this._minimapLines[i] < e.fromLineNumber) {
+					break;
+				}
+				this._minimapLines[i] += insertedLineCount;
+			}
+			return this._checkMapping();
+		} else {
+			return this._actual.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+		}
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return this._actual.onScrollChanged();
@@ -634,6 +682,11 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	//#region IMinimapModel
+
+	private _checkMapping(): boolean {
+		// console.log(`TODO: I SHOULD ADJUST THE MAPPING!!!`, this._minimapLines);
+		return false;
+	}
 
 	private _recreateLineMapping(): void {
 		const options = this._context.configuration.options;
@@ -1010,21 +1063,21 @@ class InnerMinimap extends Disposable {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onLinesChanged(e);
+			return this._lastRenderData.onLinesChanged(changeFromLineNumber, changeToLineNumber);
 		}
 		return false;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onLinesDeleted(e);
+			this._lastRenderData.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
 		}
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onLinesInserted(e);
+			this._lastRenderData.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		}
 		return true;
 	}
