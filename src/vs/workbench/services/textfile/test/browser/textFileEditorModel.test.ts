@@ -556,4 +556,34 @@ suite('Files - TextFileEditorModel', () => {
 		await model.save();
 		model.dispose();
 	});
+
+	test('Save Participant, participant cancelled when saved again', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		let participations: boolean[] = [];
+
+		accessor.textFileService.saveParticipant = {
+			participate: (model) => {
+				return timeout(10).then(() => {
+					participations.push(true);
+				});
+			}
+		};
+
+		await model.load();
+
+		model.textEditorModel!.setValue('foo');
+		const p1 = model.save();
+
+		model.textEditorModel!.setValue('foo 1');
+		const p2 = model.save();
+
+		model.textEditorModel!.setValue('foo 2');
+		await model.save();
+
+		await p1;
+		await p2;
+		assert.equal(participations.length, 1);
+		model.dispose();
+	});
 });

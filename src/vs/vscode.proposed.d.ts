@@ -1430,7 +1430,7 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent in the same line.
+		 * A human-readable string which is rendered less prominent on the same line.
 		 */
 		description?: string;
 
@@ -1619,6 +1619,25 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/86788
+
+	export interface CodeActionProviderMetadata {
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * The documentation is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. Note that in this case, we always pick the most specific
+		 *  documentation. For example, if documentation for both `Refactor` and `RefactorExtract` is provided, and we
+		 *  request code actions for `RefactorExtract`, we prefer the more specific documentation for `RefactorExtract`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 */
+		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command }>;
 	}
 
 	//#endregion

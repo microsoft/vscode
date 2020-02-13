@@ -13,12 +13,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderViewTree, BaseDebugViewPane } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -74,7 +74,7 @@ export function getContextForContributedActions(element: CallStackItem | null): 
 	return '';
 }
 
-export class CallStackView extends ViewPane {
+export class CallStackView extends BaseDebugViewPane {
 	private pauseMessage!: HTMLSpanElement;
 	private pauseMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
@@ -119,16 +119,11 @@ export class CallStackView extends ViewPane {
 				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
 				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
-				if (this.toolbar) {
-					this.toolbar.setActions([])();
-				}
+				this.updateActions();
 
 			} else {
 				this.pauseMessage.hidden = true;
-				if (this.toolbar) {
-					const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
-					this.toolbar.setActions([collapseAction])();
-				}
+				this.updateActions();
 			}
 
 			this.needsRefresh = false;
@@ -151,6 +146,14 @@ export class CallStackView extends ViewPane {
 		this.pauseMessage = dom.append(titleContainer, $('span.pause-message'));
 		this.pauseMessage.hidden = true;
 		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
+	}
+
+	getActions(): IAction[] {
+		if (this.pauseMessage.hidden) {
+			return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+		}
+
+		return [];
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -293,12 +296,6 @@ export class CallStackView extends ViewPane {
 			if (s.parentSession) {
 				// Auto expand sessions that have sub sessions
 				this.parentSessionToExpand.add(s.parentSession);
-			}
-		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 	}

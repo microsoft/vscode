@@ -19,6 +19,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 import { once } from 'vs/base/common/functional';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -230,5 +231,13 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {
 		templateData.toDispose.dispose();
+	}
+}
+
+export abstract class BaseDebugViewPane extends ViewPane {
+
+	render(): void {
+		super.render();
+		dom.addClass(this.element, 'debug-pane');
 	}
 }

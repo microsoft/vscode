@@ -165,7 +165,7 @@ export class DebugService implements IDebugService {
 			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 		}));
 		this.toDispose.push(this.model.onDidChangeCallStack(() => {
-			const numberOfSessions = this.model.getSessions().length;
+			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
 			if (this.activity) {
 				this.activity.dispose();
 			}

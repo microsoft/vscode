@@ -365,9 +365,9 @@ export class SaveParticipant implements ISaveParticipant {
 		this._saveParticipants.dispose();
 	}
 
-	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
 
-		const cts = new CancellationTokenSource();
+		const cts = new CancellationTokenSource(token);
 
 		return this._progressService.withProgress({
 			title: localize('saveParticipants', "Running Save Participants for '{0}'", this._labelService.getUriLabel(model.resource, { relative: true })),
@@ -383,7 +383,7 @@ export class SaveParticipant implements ISaveParticipant {
 					break;
 				}
 				try {
-					const promise = p.participate(model, env, progress, cts.token);
+					const promise = p.participate(model, context, progress, cts.token);
 					await raceCancellation(promise, cts.token);
 				} catch (err) {
 					this._logService.warn(err);

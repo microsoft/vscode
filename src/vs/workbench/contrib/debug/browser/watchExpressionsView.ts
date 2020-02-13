@@ -16,9 +16,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData, BaseDebugViewPane } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -38,7 +38,7 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreVariableSetEmitter = false;
 let useCachedEvaluation = false;
 
-export class WatchExpressionsView extends ViewPane {
+export class WatchExpressionsView extends BaseDebugViewPane {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh = false;
@@ -95,13 +95,6 @@ export class WatchExpressionsView extends ViewPane {
 		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		if (this.toolbar) {
-			const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
-			const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
-			this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
-		}
-
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.debugService.getModel().onDidChangeWatchExpressions(async we => {
@@ -145,11 +138,6 @@ export class WatchExpressionsView extends ViewPane {
 				this.tree.rerender(e);
 			}
 		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
-			}
-		}));
 	}
 
 	layoutBody(height: number, width: number): void {
@@ -158,6 +146,14 @@ export class WatchExpressionsView extends ViewPane {
 
 	focus(): void {
 		this.tree.domFocus();
+	}
+
+	getActions(): IAction[] {
+		return [
+			new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService),
+			new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all'),
+			new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService)
+		];
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
