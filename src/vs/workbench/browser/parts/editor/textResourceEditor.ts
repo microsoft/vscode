@@ -214,7 +214,11 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (e.range.startLineNumber !== 1 && e.range.startColumn !== 1) {
+		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasModeSetExplicitly) {
+			return; // do not override mode if it was set explicitly
+		}
+
+		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {
 			return; // only when pasting into first line, first column (= empty document)
 		}
 

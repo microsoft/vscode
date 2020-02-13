@@ -70,7 +70,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		context.subscriptions.push(workspaceWatcher);
 
 		let provider: vscode.TaskProvider = new NpmTaskProvider();
-		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
+		let disposable = vscode.tasks.registerTaskProvider('npm', provider);
 		context.subscriptions.push(disposable);
 		return disposable;
 	}

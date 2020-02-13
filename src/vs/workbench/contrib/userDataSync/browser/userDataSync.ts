@@ -3,47 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, USER_DATA_SYNC_SCHEME, toRemoteContentResource, getSyncSourceFromRemoteContentResource, UserDataSyncErrorCode, UserDataSyncError, getSyncSourceFromPreviewResource, IUserDataSyncEnablementService, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
-import { localize } from 'vs/nls';
-import { Disposable, MutableDisposable, toDisposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey, ContextKeyRegexExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Event } from 'vs/base/common/event';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isEqual } from 'vs/base/common/resources';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
+import { Action } from 'vs/base/common/actions';
 import { timeout } from 'vs/base/common/async';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSession } from 'vs/editor/common/modes';
-import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import type { IEditorContribution } from 'vs/editor/common/editorCommon';
+import type { ITextModel } from 'vs/editor/common/model';
+import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import type { ITextModel } from 'vs/editor/common/model';
-import type { IEditorContribution } from 'vs/editor/common/editorCommon';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import type { IEditorInput } from 'vs/workbench/common/editor';
-import { Action } from 'vs/base/common/actions';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
+import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey, ContextKeyRegexExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, toRemoteContentResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import type { IEditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
+import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -65,6 +66,11 @@ function getSyncAreaLabel(source: SyncSource): string {
 		case SyncSource.GlobalState: return localize('ui state label', "UI State");
 	}
 }
+
+type SyncConflictsClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	action?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 type FirstTimeSyncClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -101,6 +107,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -257,9 +264,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts in {0}. Please resolve them to continue.", conflictsArea),
 						[
 							{
+								label: localize('accept remote', "Accept Remote"),
+								run: () => {
+									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource, action: 'acceptRemote' });
+									this.acceptRemote(conflictsSource);
+								}
+							},
+							{
+								label: localize('accept local', "Accept Local"),
+								run: () => {
+									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource, action: 'acceptLocal' });
+									this.acceptLocal(conflictsSource);
+								}
+							},
+							{
 								label: localize('show conflicts', "Show Conflicts"),
 								run: () => {
-									this.telemetryService.publicLog2('sync/showConflicts');
+									this.telemetryService.publicLog2<{ source: string, action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: conflictsSource });
 									this.handleConflicts(conflictsSource);
 								}
 							}
@@ -288,6 +309,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.getAllConflictsEditorInputs().forEach(input => input.dispose());
 			this.conflictsDisposables.forEach(disposable => disposable.dispose());
 			this.conflictsDisposables.clear();
+		}
+	}
+
+	private async acceptRemote(syncSource: SyncSource) {
+		try {
+			const contents = await this.userDataSyncService.getRemoteContent(syncSource, false);
+			if (contents) {
+				await this.userDataSyncService.accept(syncSource, contents);
+			}
+		} catch (e) {
+			this.notificationService.error(e);
+		}
+	}
+
+	private async acceptLocal(syncSource: SyncSource): Promise<void> {
+		try {
+			const previewResource = syncSource === SyncSource.Settings
+				? this.workbenchEnvironmentService.settingsSyncPreviewResource
+				: syncSource === SyncSource.Keybindings
+					? this.workbenchEnvironmentService.keybindingsSyncPreviewResource
+					: null;
+			if (previewResource) {
+				const fileContent = await this.fileService.readFile(previewResource);
+				if (fileContent) {
+					this.userDataSyncService.accept(syncSource, fileContent.value.toString());
+				}
+			}
+		} catch (e) {
+			this.notificationService.error(e);
 		}
 	}
 
@@ -742,11 +792,6 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 		return null;
 	}
 }
-
-type SyncConflictsClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
 
 class AcceptChangesContribution extends Disposable implements IEditorContribution {
 

@@ -11,22 +11,25 @@ import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator } from 'vs/platform/list/browser/listService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
-import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
+import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { CommentsList, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { CommentsList, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 
-export class CommentsPanel extends Panel {
+export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
 	private tree!: CommentsList;
 	private treeContainer!: HTMLElement;
@@ -35,43 +38,50 @@ export class CommentsPanel extends Panel {
 	private commentsModel!: CommentsModel;
 	private collapseAllAction?: IAction;
 
+	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
+
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommentService private readonly commentService: ICommentService,
+		options: IViewPaneOptions,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@ICommentService private readonly commentService: ICommentService
 	) {
-		super(COMMENTS_PANEL_ID, telemetryService, themeService, storageService);
+		super({ ...(options as IViewPaneOptions), id: COMMENTS_VIEW_ID, ariaHeaderLabel: COMMENTS_VIEW_TITLE }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 	}
 
-	public create(parent: HTMLElement): void {
-		super.create(parent);
+	public renderBody(container: HTMLElement): void {
+		super.renderBody(container);
 
-		dom.addClass(parent, 'comments-panel');
+		dom.addClass(container, 'comments-panel');
 
-		let container = dom.append(parent, dom.$('.comments-panel-container'));
-		this.treeContainer = dom.append(container, dom.$('.tree-container'));
+		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
+		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
 		this.commentsModel = new CommentsModel();
 
 		this.createTree();
-		this.createMessageBox(container);
+		this.createMessageBox(domContainer);
 
 		this._register(this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
 		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
 
-		const styleElement = dom.createStyleSheet(parent);
+		const styleElement = dom.createStyleSheet(container);
 		this.applyStyles(styleElement);
 		this._register(this.themeService.onThemeChange(_ => this.applyStyles(styleElement)));
 
-		this._register(this.onDidChangeVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this.refresh();
 			}
 		}));
 
-		this.render();
+		this.renderComments();
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {
@@ -101,7 +111,7 @@ export class CommentsPanel extends Panel {
 		styleElement.innerHTML = content.join('\n');
 	}
 
-	private async render(): Promise<void> {
+	private async renderComments(): Promise<void> {
 		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
 		await this.tree.setInput(this.commentsModel);
 		this.renderMessage();
@@ -116,12 +126,12 @@ export class CommentsPanel extends Panel {
 		return [this.collapseAllAction];
 	}
 
-	public layout(dimensions: dom.Dimension): void {
-		this.tree.layout(dimensions.height, dimensions.width);
+	public layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	public getTitle(): string {
-		return COMMENTS_PANEL_TITLE;
+		return COMMENTS_VIEW_TITLE;
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -224,10 +234,7 @@ export class CommentsPanel extends Panel {
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.focusCommentsPanel',
 	handler: async (accessor) => {
-		const panelService = accessor.get(IPanelService);
-		const panels = panelService.getPanels();
-		if (panels.some(panelIdentifier => panelIdentifier.id === COMMENTS_PANEL_ID)) {
-			await panelService.openPanel(COMMENTS_PANEL_ID, true);
-		}
+		const viewsService = accessor.get(IViewsService);
+		viewsService.openView(COMMENTS_VIEW_ID, true);
 	}
 });

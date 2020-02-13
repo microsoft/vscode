@@ -16,6 +16,7 @@ import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/u
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -36,18 +37,23 @@ interface IExternalUriResolver {
 
 interface TunnelOptions {
 	remoteAddress: { port: number, host: string };
-	// The desired local port. If this port can't be used, then another will be chosen.
+	/**
+	 * The desired local port. If this port can't be used, then another will be chosen.
+	 */
 	localAddressPort?: number;
 	label?: string;
 }
 
-interface Tunnel {
+interface Tunnel extends IDisposable {
 	remoteAddress: { port: number, host: string };
-	//The complete local address(ex. localhost:1234)
+	/**
+	 * The complete local address(ex. localhost:1234)
+	 */
 	localAddress: string;
-	// Implementers of Tunnel should fire onDidDispose when dispose is called.
+	/**
+	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
+	 */
 	onDidDispose: Event<void>;
-	dispose(): void;
 }
 
 interface ITunnelFactory {
@@ -56,6 +62,31 @@ interface ITunnelFactory {
 
 interface IShowCandidate {
 	(host: string, port: number, detail: string): Thenable<boolean>;
+}
+
+interface IApplicationLink {
+
+	/**
+	 * A link that is opened in the OS. If you want to open VSCode it must
+	 * follow our expected structure of links:
+	 *
+	 * <vscode|vscode-insiders>://<file|vscode-remote>/<remote-authority>/<path>
+	 *
+	 * For example:
+	 *
+	 * vscode://vscode-remote/vsonline+2005711d/home/vsonline/workspace for
+	 * a remote folder in VSO or vscode://file/home/workspace for a local folder.
+	 */
+	uri: URI;
+
+	/**
+	 * A label for the link to display.
+	 */
+	label: string;
+}
+
+interface IApplicationLinkProvider {
+	(): IApplicationLink[] | undefined
 }
 
 interface IWorkbenchConstructionOptions {
@@ -139,6 +170,18 @@ interface IWorkbenchConstructionOptions {
 	readonly showCandidate?: IShowCandidate;
 
 	/**
+	 * Provide entries for the "Open in Desktop" feature.
+	 *
+	 * Depending on the returned elements the behaviour is:
+	 * - no elements: there will not be a "Open in Desktop" affordance
+	 * - 1 element: there will be a "Open in Desktop" affordance that opens on click
+	 *   and it will use the label provided by the link
+	 * - N elements: there will be a "Open in Desktop" affordance that opens
+	 *   a picker on click to select which application to open.
+	 */
+	readonly applicationLinkProvider?: IApplicationLinkProvider;
+
+	/**
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	readonly logLevel?: LogLevel;
@@ -149,14 +192,43 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 }
 
+interface ICommandHandler {
+	(...args: any[]): void;
+}
+
+interface IWorkbench {
+
+	/**
+	 * Register a command with the provided identifier and handler with
+	 * the workbench. The command can be called from extensions using the
+	 * `vscode.commands.executeCommand` API.
+	 */
+	registerCommand(id: string, command: ICommandHandler): IDisposable;
+}
+
 /**
  * Creates the workbench with the provided options in the provided container.
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
+ *
+ * @returns the workbench facade with additional methods to call on.
  */
-function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	return main(domElement, options);
+async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+
+	// Startup workbench
+	await main(domElement, options);
+
+	// Return facade
+	return {
+		registerCommand: (id: string, command: ICommandHandler): IDisposable => {
+			return CommandsRegistry.registerCommand(id, (accessor, ...args: any[]) => {
+				// we currently only pass on the arguments but not the accessor
+				// to the command to reduce our exposure of internal API.
+				command(...args);
+			});
+		}
+	};
 }
 
 export {
@@ -164,6 +236,10 @@ export {
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
+
+	// Workbench Facade
+	IWorkbench,
+	ICommandHandler,
 
 	// Basic Types
 	URI,
@@ -211,5 +287,9 @@ export {
 	ICommontTelemetryPropertiesResolver,
 
 	// External Uris
-	IExternalUriResolver
+	IExternalUriResolver,
+
+	// Protocol Links
+	IApplicationLink,
+	IApplicationLinkProvider
 };
