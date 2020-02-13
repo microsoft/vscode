@@ -248,70 +248,64 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
-		return createRandomFile().then(file => {
-			let disposables: vscode.Disposable[] = [];
+	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
+		const file = await createRandomFile();
+		let disposables: vscode.Disposable[] = [];
 
-			let onDidOpenTextDocument = false;
-			disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
-				onDidOpenTextDocument = true;
-			}));
+		let pendingAsserts: Function[] = [];
+		let onDidOpenTextDocument = false;
+		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
+			pendingAsserts.push(() => assert.ok(pathEquals(e.uri.fsPath, file.fsPath)));
+			onDidOpenTextDocument = true;
+		}));
 
-			let onDidChangeTextDocument = false;
-			disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-				assert.ok(pathEquals(e.document.uri.fsPath, file.fsPath));
-				onDidChangeTextDocument = true;
-			}));
+		let onDidChangeTextDocument = false;
+		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
+			pendingAsserts.push(() => assert.ok(pathEquals(e.document.uri.fsPath, file.fsPath)));
+			onDidChangeTextDocument = true;
+		}));
 
-			let onDidSaveTextDocument = false;
-			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
-				onDidSaveTextDocument = true;
-			}));
+		let onDidSaveTextDocument = false;
+		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+			pendingAsserts.push(() => assert.ok(pathEquals(e.uri.fsPath, file.fsPath)));
+			onDidSaveTextDocument = true;
+		}));
 
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				return vscode.window.showTextDocument(doc).then((editor) => {
-					return editor.edit((builder) => {
-						builder.insert(new vscode.Position(0, 0), 'Hello World');
-					}).then(_applied => {
-						return doc.save().then(_saved => {
-							assert.ok(onDidOpenTextDocument);
-							assert.ok(onDidChangeTextDocument);
-							assert.ok(onDidSaveTextDocument);
+		const doc = await vscode.workspace.openTextDocument(file);
+		const editor = await vscode.window.showTextDocument(doc);
 
-							disposeAll(disposables);
-
-							return deleteFile(file);
-						});
-					});
-				});
-			});
+		await editor.edit((builder) => {
+			builder.insert(new vscode.Position(0, 0), 'Hello World');
 		});
+		await doc.save();
+
+		assert.ok(onDidOpenTextDocument);
+		assert.ok(onDidChangeTextDocument);
+		assert.ok(onDidSaveTextDocument);
+		pendingAsserts.forEach(assert => assert());
+		disposeAll(disposables);
+		return deleteFile(file);
 	});
 
-	test('events: onDidSaveTextDocument fires even for non dirty file when saved', () => {
-		return createRandomFile().then(file => {
-			let disposables: vscode.Disposable[] = [];
+	test('events: onDidSaveTextDocument fires even for non dirty file when saved', async () => {
+		const file = await createRandomFile();
+		let disposables: vscode.Disposable[] = [];
+		let pendingAsserts: Function[] = [];
 
-			let onDidSaveTextDocument = false;
-			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
-				onDidSaveTextDocument = true;
-			}));
+		let onDidSaveTextDocument = false;
+		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+			pendingAsserts.push(() => assert.ok(pathEquals(e.uri.fsPath, file.fsPath)));
+			onDidSaveTextDocument = true;
+		}));
 
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				return vscode.window.showTextDocument(doc).then(() => {
-					return vscode.commands.executeCommand('workbench.action.files.save').then(() => {
-						assert.ok(onDidSaveTextDocument);
+		const doc = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(doc);
+		await vscode.commands.executeCommand('workbench.action.files.save');
 
-						disposeAll(disposables);
-
-						return deleteFile(file);
-					});
-				});
-			});
-		});
+		assert.ok(onDidSaveTextDocument);
+		pendingAsserts.forEach(fn => fn());
+		disposeAll(disposables);
+		return deleteFile(file);
 	});
 
 	test('openTextDocument, with selection', function () {
