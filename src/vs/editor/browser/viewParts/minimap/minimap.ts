@@ -562,15 +562,12 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._isSampling) {
-			let fromLineIndex = this._modelLineToMinimapLine(e.fromLineNumber) - 1;
-			while (fromLineIndex > 0 && this._minimapLines[fromLineIndex - 1] >= e.fromLineNumber) {
-				fromLineIndex--;
+			const minimapLineRange = this._modelLineRangeToMinimapLineRange(e.fromLineNumber, e.toLineNumber);
+			if (minimapLineRange) {
+				return this._actual.onLinesChanged(minimapLineRange[0], minimapLineRange[1]);
+			} else {
+				return false;
 			}
-			let toLineIndex = this._modelLineToMinimapLine(e.toLineNumber) - 1;
-			while (toLineIndex + 1 < this._minimapLines.length && this._minimapLines[toLineIndex + 1] <= e.toLineNumber) {
-				toLineIndex++;
-			}
-			return this._actual.onLinesChanged(fromLineIndex + 1, toLineIndex + 1);
 		} else {
 			return this._actual.onLinesChanged(e.fromLineNumber, e.toLineNumber);
 		}
@@ -630,12 +627,16 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		if (this._isSampling) {
 			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 			for (const range of e.ranges) {
-				ranges.push({
-					fromLineNumber: this._modelLineToMinimapLine(range.fromLineNumber),
-					toLineNumber: this._modelLineToMinimapLine(range.toLineNumber)
-				});
+				const minimapLineRange = this._modelLineRangeToMinimapLineRange(range.fromLineNumber, range.toLineNumber);
+				if (minimapLineRange) {
+					ranges.push({ fromLineNumber: minimapLineRange[0], toLineNumber: minimapLineRange[1] });
+				}
 			}
-			return this._actual.onTokensChanged(ranges);
+			if (ranges.length) {
+				return this._actual.onTokensChanged(ranges);
+			} else {
+				return false;
+			}
 		} else {
 			return this._actual.onTokensChanged(e.ranges);
 		}
@@ -713,6 +714,28 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	private _modelLineToMinimapLine(lineNumber: number): number {
 		return Math.min(this._minimapLines.length, Math.max(1, Math.round(lineNumber / this._samplingRatio)));
+	}
+
+	/**
+	 * Will return null if the model line ranges are not intersecting with a sampled model line.
+	 */
+	private _modelLineRangeToMinimapLineRange(fromLineNumber: number, toLineNumber: number): [number, number] | null {
+		let fromLineIndex = this._modelLineToMinimapLine(fromLineNumber) - 1;
+		while (fromLineIndex > 0 && this._minimapLines[fromLineIndex - 1] >= fromLineNumber) {
+			fromLineIndex--;
+		}
+		let toLineIndex = this._modelLineToMinimapLine(toLineNumber) - 1;
+		while (toLineIndex + 1 < this._minimapLines.length && this._minimapLines[toLineIndex + 1] <= toLineNumber) {
+			toLineIndex++;
+		}
+		if (fromLineIndex === toLineIndex) {
+			const sampledLineNumber = this._minimapLines[fromLineIndex];
+			if (sampledLineNumber < fromLineNumber || sampledLineNumber > toLineNumber) {
+				// This line is not part of the sampled lines ==> nothing to do
+				return null;
+			}
+		}
+		return [fromLineIndex + 1, toLineIndex + 1];
 	}
 
 	private _recomputeMinimapSelections(): void {
