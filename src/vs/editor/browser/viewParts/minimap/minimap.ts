@@ -639,9 +639,13 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const pixelRatio = options.get(EditorOption.pixelRatio);
-
-		const minimapLineCount = Math.round(pixelRatio * layoutInfo.height);
+		const lineHeight = options.get(EditorOption.lineHeight);
+		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		const modelLineCount = this._context.model.getLineCount();
+
+		const extraLinesBeyondLastLine = scrollBeyondLastLine ? (layoutInfo.height / lineHeight - 1) : 0;
+		const desiredRatio = (modelLineCount + extraLinesBeyondLastLine) / (pixelRatio * layoutInfo.height);
+		const minimapLineCount = Math.floor(modelLineCount / desiredRatio);
 		const ratio = modelLineCount / minimapLineCount;
 
 		let result: number[] = [];
