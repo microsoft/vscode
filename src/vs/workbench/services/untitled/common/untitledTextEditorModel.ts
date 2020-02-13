@@ -45,6 +45,11 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 	readonly hasAssociatedFilePath: boolean;
 
 	/**
+	 * Wether this model has an explicit language mode or not.
+	 */
+	readonly hasModeSetExplicitly: boolean;
+
+	/**
 	 * Sets the encoding to use for this untitled model.
 	 */
 	setEncoding(encoding: string): void;
@@ -150,7 +155,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.versionId;
 	}
 
+	private _hasModeSetExplicitly: boolean = false;
+	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
+
 	setMode(mode: string): void {
+
+		// Remember that an explicit mode was set
+		this._hasModeSetExplicitly = true;
+
 		let actualMode: string | undefined = undefined;
 		if (mode === '${activeEditorLanguage}') {
 			// support the special '${activeEditorLanguage}' mode by

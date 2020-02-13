@@ -1430,7 +1430,7 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent in the same line.
+		 * A human-readable string which is rendered less prominent on the same line.
 		 */
 		description?: string;
 

@@ -287,12 +287,34 @@ suite('Untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ mode }));
 
+		assert.ok(input.model.hasModeSetExplicitly);
 		assert.equal(input.getMode(), mode);
 
 		const model = await input.resolve();
 		assert.equal(model.getMode(), mode);
 
-		input.setMode('text');
+		input.setMode('plaintext');
+
+		assert.equal(input.getMode(), PLAINTEXT_MODE_ID);
+
+		input.dispose();
+		model.dispose();
+	});
+
+	test('remembers that mode was set explicitly', async () => {
+		const mode = 'untitled-input-test';
+
+		ModesRegistry.registerLanguage({
+			id: mode,
+		});
+
+		const service = accessor.untitledTextEditorService;
+		const model = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
+
+		assert.ok(!input.model.hasModeSetExplicitly);
+		input.setMode('plaintext');
+		assert.ok(input.model.hasModeSetExplicitly);
 
 		assert.equal(input.getMode(), PLAINTEXT_MODE_ID);
 
