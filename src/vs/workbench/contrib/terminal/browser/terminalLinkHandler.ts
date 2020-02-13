@@ -570,7 +570,7 @@ class TerminalLinkProvider implements ILinkProvider {
 				y: range.startLineNumber + startLine
 			},
 			end: {
-				x: range.endColumn,
+				x: range.endColumn - 1,
 				y: range.endLineNumber + startLine
 			}
 		};
