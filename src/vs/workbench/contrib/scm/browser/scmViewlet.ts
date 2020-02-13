@@ -43,7 +43,7 @@ export interface ISpliceEvent<T> {
 
 export class EmptyPane extends ViewPane {
 
-	static readonly ID = 'scm';
+	static readonly ID = 'workbench.scm';
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
 
 	constructor(
@@ -133,7 +133,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 
 		viewsRegistry.registerEmptyViewContent(EmptyPane.ID, {
 			content: localize('no open repo', "No source control providers registered."),
-			when: ContextKeyExpr.equals('view.emptyViewContentCount', 1)
+			when: 'placeholder'
 		});
 
 		viewsRegistry.registerViews([new EmptyPaneDescriptor()], this.viewContainer);

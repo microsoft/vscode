@@ -1761,6 +1761,15 @@
           72
         ]
       }
+    },
+    "documentation": {
+      "view": [
+        {
+          "view": "workbench.scm",
+          "contents": "Git is installed, but you currently don't have a folder open.\n[Open Folder](command:vscode.openFolder)",
+          "when": "workbenchState == empty"
+        }
+      ]
     }
   },
   "dependencies": {

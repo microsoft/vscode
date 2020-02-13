@@ -213,7 +213,7 @@ export interface IViewDescriptorCollection extends IDisposable {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
-	readonly when?: ContextKeyExpr;
+	readonly when?: ContextKeyExpr | 'placeholder';
 }
 
 export interface IViewsRegistry {

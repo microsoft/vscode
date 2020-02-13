@@ -60,8 +60,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
-interface IEmptyViewItem {
-	readonly view: IViewContentDescriptor;
+interface IItem {
+	readonly descriptor: IViewContentDescriptor;
 	visible: boolean;
 }
 
@@ -70,15 +70,19 @@ class EmptyViewsController {
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	private items: IEmptyViewItem[] = [];
+	private placeholderItem: IItem | undefined;
+	private items: IItem[] = [];
 	get viewContentDescriptors(): IViewContentDescriptor[] {
-		return this.items
-			.filter(v => v.visible)
-			.map(v => v.view);
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.placeholderItem) {
+			return [this.placeholderItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
 	}
 
 	private contextKeyService: IContextKeyService;
-	private countKey: IContextKey<number>;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -88,8 +92,6 @@ class EmptyViewsController {
 		this.contextKeyService = contextKeyService.createScoped();
 		this.disposables.add(this.contextKeyService);
 
-		this.countKey = this.contextKeyService.createKey('view.emptyViewContentCount', 0);
-
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id)(this.onDidChangeEmptyViewContent, this, this.disposables);
 		this.onDidChangeEmptyViewContent();
@@ -97,12 +99,17 @@ class EmptyViewsController {
 
 	private onDidChangeEmptyViewContent(): void {
 		const contentDescriptors = viewsRegistry.getEmptyViewContent(this.id);
-		this.countKey.set(contentDescriptors.length);
 
-		this.items = contentDescriptors.map(view => ({
-			view,
-			visible: view.when ? this.contextKeyService.contextMatchesRules(view.when) : true
-		}));
+		this.items = [];
+
+		for (const descriptor of contentDescriptors) {
+			if (descriptor.when === 'placeholder') {
+				this.placeholderItem = { descriptor, visible: true };
+			} else {
+				const visible = descriptor.when ? this.contextKeyService.contextMatchesRules(descriptor.when) : true;
+				this.items.push({ descriptor, visible });
+			}
+		}
 
 		this._onDidChange.fire();
 	}
@@ -111,11 +118,11 @@ class EmptyViewsController {
 		let didChange = false;
 
 		for (const item of this.items) {
-			if (!item.view.when) {
+			if (!item.descriptor.when || item.descriptor.when === 'placeholder') {
 				continue;
 			}
 
-			const visible = this.contextKeyService.contextMatchesRules(item.view.when);
+			const visible = this.contextKeyService.contextMatchesRules(item.descriptor.when);
 
 			if (item.visible === visible) {
 				continue;
