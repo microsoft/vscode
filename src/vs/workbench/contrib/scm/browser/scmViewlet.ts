@@ -30,7 +30,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
 import { MainPaneDescriptor, MainPane, IViewModel } from 'vs/workbench/contrib/scm/browser/mainPane';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import type { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
+import type { IAddedViewDescriptorRef, IViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { debounce } from 'vs/base/common/decorators';
 
 export interface ISpliceEvent<T> {
@@ -169,7 +169,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		}
 	}
 
-	private onDidHideView(e: IAddedViewDescriptorRef[]): void {
+	private onDidHideView(e: IViewDescriptorRef[]): void {
 		for (const ref of e) {
 			if (ref.viewDescriptor instanceof RepositoryViewDescriptor) {
 				ref.viewDescriptor.repository.setSelected(false);

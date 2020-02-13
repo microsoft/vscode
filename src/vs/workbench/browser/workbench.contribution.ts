@@ -191,7 +191,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
+				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
 			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
@@ -210,7 +210,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.view.experimental.allowMovingToNewContainer': {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': nls.localize('movingViewContainer', "Controls whether specific views will have a context menu entry allowing them to be moved to a new container. Currently, this setting only affects the outline view and views contributed by extensions.")
 			},
 			'workbench.fontAliasing': {

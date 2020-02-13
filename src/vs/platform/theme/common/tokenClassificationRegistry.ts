@@ -401,22 +401,22 @@ function registerDefaultClassifications(): void {
 
 	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
 
-	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type'], ['support.class']]);
-	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']], 'type');
-	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class']], 'type');
-	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']], 'type');
-	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']], 'type');
-	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), [['entity.name.type', 'meta.type.parameters']], 'type');
+	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type']]);
+	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']]);
+	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class'], ['support.class']]);
+	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']]);
+	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']]);
+	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), [['entity.name.type.parameter']]);
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
 	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function.member'], ['support.function']]);
-	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.other.preprocessor.macro']], 'function');
+	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.other.preprocessor.macro']]);
 
 	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable.other.readwrite'], ['entity.name.variable']]);
-	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), [['variable.parameter']], 'variable');
-	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']], 'variable');
-	registerTokenType('enumMember', nls.localize('enumMember', "Style for enum members."), [['variable.other.enummember']], 'variable');
-	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']], 'variable');
+	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), [['variable.parameter']]);
+	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']]);
+	registerTokenType('enumMember', nls.localize('enumMember', "Style for enum members."), [['variable.other.enummember']]);
+	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']]);
 
 	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
 

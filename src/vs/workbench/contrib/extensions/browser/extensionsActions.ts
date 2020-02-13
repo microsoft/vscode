@@ -1929,7 +1929,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
-				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace)' },
+				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`, original: 'Configure Recommended Extensions (Workspace)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceContextKey
@@ -1941,7 +1941,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
-				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace Folder)' },
+				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`, original: 'Configure Recommended Extensions (Workspace Folder)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceFolderContextKey
@@ -1955,7 +1955,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' },
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Add to Recommended Extensions (Workspace)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey

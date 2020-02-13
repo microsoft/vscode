@@ -38,7 +38,7 @@ export function activate(
 	});
 
 	registerCommands(commandManager, lazyClientHost, pluginManager);
-	context.subscriptions.push(vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(lazyClientHost.map(x => x.serviceClient))));
+	context.subscriptions.push(vscode.tasks.registerTaskProvider('typescript', new TscTaskProvider(lazyClientHost.map(x => x.serviceClient))));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
 	import('./features/tsconfig').then(module => {

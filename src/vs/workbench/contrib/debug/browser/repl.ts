@@ -56,6 +56,7 @@ import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -96,7 +97,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IModelService private readonly modelService: IModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -106,9 +107,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
@@ -431,6 +433,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	// --- Creation
 
 	protected renderBody(parent: HTMLElement): void {
+		super.renderBody(parent);
+
 		this.container = dom.append(parent, $('.repl'));
 		const treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
@@ -439,7 +443,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>(
+		this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
 			treeContainer,

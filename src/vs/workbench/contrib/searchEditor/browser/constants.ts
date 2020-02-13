@@ -17,3 +17,5 @@ export const EnableSearchEditorPreview = new RawContextKey<boolean>('previewSear
 export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
 
 export const SearchEditorScheme = 'search-editor';
+
+export const SearchEditorFindMatchClass = 'seaarchEditorFindMatch';

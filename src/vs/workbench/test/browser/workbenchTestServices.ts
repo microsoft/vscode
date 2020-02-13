@@ -87,12 +87,13 @@ import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/b
 import * as CommonWorkbenchTestServices from 'vs/workbench/test/common/workbenchTestServices';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { Direction } from 'vs/base/browser/ui/grid/grid';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
 export import TestStorageService = CommonWorkbenchTestServices.TestStorageService;
 export import TestWorkingCopyService = CommonWorkbenchTestServices.TestWorkingCopyService;
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -225,6 +226,7 @@ export class TestAccessibilityService implements IAccessibilityService {
 	isScreenReaderOptimized(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
+	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -361,6 +363,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	registerPart(part: Part): void { }
 	isWindowMaximized() { return false; }
 	updateWindowMaximizedState(maximized: boolean): void { }
+	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
 }
 
 let activeViewlet: Viewlet = {} as any;
@@ -574,7 +577,7 @@ export class TestEditorService implements EditorServiceImpl {
 	getOpened(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): IEditorInput { throw new Error('not implemented'); }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { throw new Error('not implemented'); }
-	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput { throw new Error('not implemented'); }
+	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): EditorInput { throw new Error('not implemented'); }
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }

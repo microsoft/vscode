@@ -42,6 +42,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
 	}
 
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
+	}
+
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
 		return Promise.resolve(false);
 	}

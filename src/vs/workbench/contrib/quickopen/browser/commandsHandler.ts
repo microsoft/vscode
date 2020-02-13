@@ -10,7 +10,7 @@ import { Language } from 'vs/base/common/platform';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
@@ -471,7 +471,9 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 
 		// Other Actions
 		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
-		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
+		const menuActions = menu.getActions()
+			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
+			.filter(action => action instanceof MenuItemAction) as MenuItemAction[];
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 		menu.dispose();
 		this.disposeOnClose.add(toDisposable(() => dispose(menuActions)));

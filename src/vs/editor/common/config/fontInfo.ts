@@ -135,6 +135,7 @@ export class FontInfo extends BareFontInfo {
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
 	readonly middotWidth: number;
+	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
 
 	/**
@@ -154,6 +155,7 @@ export class FontInfo extends BareFontInfo {
 		canUseHalfwidthRightwardsArrow: boolean;
 		spaceWidth: number;
 		middotWidth: number;
+		wsmiddotWidth: number;
 		maxDigitWidth: number;
 	}, isTrusted: boolean) {
 		super(opts);
@@ -164,6 +166,7 @@ export class FontInfo extends BareFontInfo {
 		this.canUseHalfwidthRightwardsArrow = opts.canUseHalfwidthRightwardsArrow;
 		this.spaceWidth = opts.spaceWidth;
 		this.middotWidth = opts.middotWidth;
+		this.wsmiddotWidth = opts.wsmiddotWidth;
 		this.maxDigitWidth = opts.maxDigitWidth;
 	}
 
@@ -183,6 +186,7 @@ export class FontInfo extends BareFontInfo {
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
+			&& this.wsmiddotWidth === other.wsmiddotWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
 		);
 	}

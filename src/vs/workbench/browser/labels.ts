@@ -361,14 +361,20 @@ class ResourceLabelWidget extends IconLabel {
 			// provided. If they are not provided from the label we got
 			// we assume that the client does not want to display them
 			// and as such do not override.
-			const untitledEditor = this.textFileService.untitled.get(label.resource);
-			if (untitledEditor && !untitledEditor.hasAssociatedFilePath) {
+			const untitledModel = this.textFileService.untitled.get(label.resource);
+			if (untitledModel && !untitledModel.hasAssociatedFilePath) {
 				if (typeof label.name === 'string') {
-					label.name = untitledEditor.getName();
+					label.name = untitledModel.name;
 				}
 
 				if (typeof label.description === 'string') {
-					const untitledDescription = untitledEditor.getDescription();
+					let untitledDescription: string;
+					if (untitledModel.hasAssociatedFilePath) {
+						untitledDescription = this.labelService.getUriLabel(resources.dirname(untitledModel.resource), { relative: true });
+					} else {
+						untitledDescription = untitledModel.resource.path;
+					}
+
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
 					}

@@ -43,7 +43,7 @@ function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
 	return <any>class {
 		constructor() {
 			return new Proxy({}, {
-				get(target: any, prop: string | number) {
+				get(target: any, prop: PropertyKey) {
 					if (target[prop]) {
 						return target[prop];
 					}

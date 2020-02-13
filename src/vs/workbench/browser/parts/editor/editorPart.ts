@@ -31,6 +31,7 @@ import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/bro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -947,11 +948,15 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doSetGridWidget(gridWidget: SerializableGrid<IEditorGroupView>): void {
+		let boundarySashes: IBoundarySashes = {};
+
 		if (this.gridWidget) {
+			boundarySashes = this.gridWidget.boundarySashes;
 			this.gridWidget.dispose();
 		}
 
 		this.gridWidget = gridWidget;
+		this.gridWidget.boundarySashes = boundarySashes;
 		this.gridWidgetView.gridWidget = gridWidget;
 
 		this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
@@ -970,6 +975,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private get isEmpty(): boolean {
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.gridWidget.boundarySashes = sashes;
+		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
 	layout(width: number, height: number): void {
