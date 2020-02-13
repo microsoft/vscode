@@ -3,24 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import * as dom from 'vs/base/browser/dom';
 
 export class ElementSizeObserver extends Disposable {
 
 	private readonly referenceDomElement: HTMLElement | null;
-	private measureReferenceDomElementToken: any;
 	private readonly changeCallback: () => void;
 	private width: number;
 	private height: number;
+	private mutationObserver: MutationObserver | null;
+	private windowSizeListener: IDisposable | null;
 
 	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
 		super();
 		this.referenceDomElement = referenceDomElement;
 		this.changeCallback = changeCallback;
-		this.measureReferenceDomElementToken = -1;
 		this.width = -1;
 		this.height = -1;
+		this.mutationObserver = null;
+		this.windowSizeListener = null;
 		this.measureReferenceDomElement(false, dimension);
 	}
 
@@ -38,20 +41,38 @@ export class ElementSizeObserver extends Disposable {
 	}
 
 	public startObserving(): void {
-		if (this.measureReferenceDomElementToken === -1) {
-			this.measureReferenceDomElementToken = setInterval(() => this.measureReferenceDomElement(true), 100);
+		if (!this.mutationObserver && this.referenceDomElement) {
+			this.mutationObserver = new MutationObserver(() => this._onDidMutate());
+			this.mutationObserver.observe(this.referenceDomElement, {
+				attributes: true,
+			});
+		}
+		if (!this.windowSizeListener) {
+			this.windowSizeListener = dom.addDisposableListener(window, 'resize', () => this._onDidResizeWindow());
 		}
 	}
 
 	public stopObserving(): void {
-		if (this.measureReferenceDomElementToken !== -1) {
-			clearInterval(this.measureReferenceDomElementToken);
-			this.measureReferenceDomElementToken = -1;
+		if (this.mutationObserver) {
+			this.mutationObserver.disconnect();
+			this.mutationObserver = null;
+		}
+		if (this.windowSizeListener) {
+			this.windowSizeListener.dispose();
+			this.windowSizeListener = null;
 		}
 	}
 
 	public observe(dimension?: IDimension): void {
 		this.measureReferenceDomElement(true, dimension);
+	}
+
+	private _onDidMutate(): void {
+		this.measureReferenceDomElement(true);
+	}
+
+	private _onDidResizeWindow(): void {
+		this.measureReferenceDomElement(true);
 	}
 
 	private measureReferenceDomElement(callChangeCallback: boolean, dimension?: IDimension): void {

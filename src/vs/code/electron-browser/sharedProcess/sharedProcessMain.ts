@@ -12,7 +12,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel, GlobalExtensionEnablementServiceClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -26,7 +26,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
@@ -50,7 +49,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel, UserDataAuthTokenServiceChannel, UserDataAutoSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
@@ -62,6 +61,11 @@ import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentia
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-browser/userDataAutoSyncService';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
+import { NativeStorageService } from 'vs/platform/storage/node/storageService';
+import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -101,7 +105,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
-	ipcRenderer.once('handshake:goodbye', onExit);
+	ipcRenderer.once('electron-main->shared-process: exit', onExit);
 
 	disposables.add(server);
 
@@ -116,9 +120,24 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
 
-	const configurationService = new ConfigurationService(environmentService.settingsResource);
+	// Files
+	const fileService = new FileService(logService);
+	services.set(IFileService, fileService);
+	disposables.add(fileService);
+	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+	disposables.add(diskFileSystemProvider);
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+	// Configuration
+	const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
 	disposables.add(configurationService);
 	await configurationService.initialize();
+
+	// Storage
+	const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
+	await storageService.initialize();
+	services.set(IStorageService, storageService);
+	disposables.add(toDisposable(() => storageService.flush()));
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(IProductService, { _serviceBrand: undefined, ...product });
@@ -127,21 +146,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
-
 	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
 	services.set(IElectronService, electronService);
-
-	const activeWindowManager = new ActiveWindowManager(electronService);
-	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-
-	// Files
-	const fileService = new FileService(logService);
-	services.set(IFileService, fileService);
-	disposables.add(fileService);
-
-	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-	disposables.add(diskFileSystemProvider);
-	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
@@ -151,7 +157,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(loggerClient, new SpdLogService('telemetry', environmentService.logsPath, initData.logLevel));
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');
@@ -184,9 +190,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
 		services.set(IUserDataAuthTokenService, new SyncDescriptor(UserDataAuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
-		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', activeWindowRouter)));
-		services.set(IGlobalExtensionEnablementService, new GlobalExtensionEnablementServiceClient(server.getChannel('globalExtensionEnablement', activeWindowRouter)));
+		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
+		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
+		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService));
 		services.set(ISettingsSyncService, new SyncDescriptor(SettingsSynchroniser));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 		registerConfiguration();
@@ -275,13 +282,20 @@ function setupIPC(hook: string): Promise<Server> {
 }
 
 async function handshake(configuration: ISharedProcessConfiguration): Promise<void> {
+
+	// receive payload from electron-main to start things
 	const data = await new Promise<ISharedProcessInitData>(c => {
-		ipcRenderer.once('handshake:hey there', (_: any, r: ISharedProcessInitData) => c(r));
-		ipcRenderer.send('handshake:hello');
+		ipcRenderer.once('electron-main->shared-process: payload', (_: any, r: ISharedProcessInitData) => c(r));
+
+		// tell electron-main we are ready to receive payload
+		ipcRenderer.send('shared-process->electron-main: ready-for-payload');
 	});
 
+	// await IPC connection and signal this back to electron-main
 	const server = await setupIPC(data.sharedIPCHandle);
+	ipcRenderer.send('shared-process->electron-main: ipc-ready');
 
+	// await initialization and signal this back to electron-main
 	await main(server, data, configuration);
-	ipcRenderer.send('handshake:im ready');
+	ipcRenderer.send('shared-process->electron-main: init-done');
 }

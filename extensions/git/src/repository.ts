@@ -7,10 +7,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
+import { Commit, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
@@ -309,11 +309,17 @@ export const enum Operation {
 
 function isReadOnly(operation: Operation): boolean {
 	switch (operation) {
-		case Operation.Show:
-		case Operation.GetCommitTemplate:
+		case Operation.Blame:
 		case Operation.CheckIgnore:
+		case Operation.Diff:
+		case Operation.FindTrackingBranches:
+		case Operation.GetBranch:
+		case Operation.GetCommitTemplate:
 		case Operation.GetObjectDetails:
+		case Operation.Log:
+		case Operation.LogFile:
 		case Operation.MergeBase:
+		case Operation.Show:
 			return true;
 		default:
 			return false;

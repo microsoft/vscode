@@ -125,63 +125,6 @@ export class MenuId {
 	}
 }
 
-export const enum MenuId3 {
-	CommandPalette,
-	DebugBreakpointsContext,
-	DebugCallStackContext,
-	DebugConsoleContext,
-	DebugVariablesContext,
-	DebugWatchContext,
-	DebugToolBar,
-	EditorContext,
-	EditorContextPeek,
-	EditorTitle,
-	EditorTitleContext,
-	EmptyEditorGroupContext,
-	ExplorerContext,
-	ExtensionContext,
-	GlobalActivity,
-	MenubarAppearanceMenu,
-	MenubarDebugMenu,
-	MenubarEditMenu,
-	MenubarFileMenu,
-	MenubarGoMenu,
-	MenubarHelpMenu,
-	MenubarLayoutMenu,
-	MenubarNewBreakpointMenu,
-	MenubarPreferencesMenu,
-	MenubarRecentMenu,
-	MenubarSelectionMenu,
-	MenubarSwitchEditorMenu,
-	MenubarSwitchGroupMenu,
-	MenubarTerminalMenu,
-	MenubarViewMenu,
-	OpenEditorsContext,
-	ProblemsPanelContext,
-	SCMChangeContext,
-	SCMResourceContext,
-	SCMResourceFolderContext,
-	SCMResourceGroupContext,
-	SCMSourceControl,
-	SCMTitle,
-	SearchContext,
-	StatusBarWindowIndicatorMenu,
-	TouchBarContext,
-	TitleBarContext,
-	TunnelContext,
-	TunnelInline,
-	TunnelTitle,
-	ViewItemContext,
-	ViewTitle,
-	ViewTitleContext,
-	CommentThreadTitle,
-	CommentThreadActions,
-	CommentTitle,
-	CommentActions,
-	BulkEditTitle,
-	BulkEditContext,
-}
-
 export interface IMenuActionOptions {
 	arg?: any;
 	shouldForwardArgs?: boolean;
@@ -376,10 +319,10 @@ export class SyncActionDescriptor {
 	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
 	}
 
-	private constructor(ctor: IConstructorSignature2<string, string, Action>,
+	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;

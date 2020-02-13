@@ -58,6 +58,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		canUseHalfwidthRightwardsArrow: true,
 		spaceWidth: 7,
 		middotWidth: 7,
+		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
 	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent);

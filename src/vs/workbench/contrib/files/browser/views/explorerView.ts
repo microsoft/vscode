@@ -56,6 +56,7 @@ import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRe
 import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -146,6 +147,7 @@ export class ExplorerView extends ViewPane {
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
 	private actions: IAction[] | undefined;
+	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -159,17 +161,18 @@ export class ExplorerView extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IDecorationsService decorationService: IDecorationsService,
+		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IWorkbenchThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section: {0}", labelService.getWorkspaceLabel(contextService.getWorkspace())) }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -183,10 +186,6 @@ export class ExplorerView extends ViewPane {
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 
 		this.explorerService.registerContextProvider(this);
-
-		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
-		this._register(decorationService.registerDecorationsProvider(decorationProvider));
-		this._register(decorationProvider);
 	}
 
 	get name(): string {
@@ -230,6 +229,7 @@ export class ExplorerView extends ViewPane {
 			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
 			titleElement.title = title;
+			titleElement.setAttribute('aria-label', nls.localize('explorerSection', "Explorer Section: {0}", this.name));
 		};
 
 		this._register(this.contextService.onDidChangeWorkspaceName(setHeader));
@@ -242,16 +242,14 @@ export class ExplorerView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 
 		this.styleElement = DOM.createStyleSheet(treeContainer);
 		attachStyler<IExplorerViewColors>(this.themeService, { listDropBackground }, this.styleListDropBackground.bind(this));
 
 		this.createTree(treeContainer);
-
-		if (this.toolbar) {
-			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
-		}
 
 		this._register(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
@@ -327,16 +325,8 @@ export class ExplorerView extends ViewPane {
 		this.tree.domFocus();
 
 		const focused = this.tree.getFocus();
-		if (focused.length === 1) {
-			if (this.autoReveal) {
-				this.tree.reveal(focused[0], 0.5);
-			}
-
-			const activeFile = this.getActiveFile();
-			if (!activeFile && !focused[0].isDirectory) {
-				// Open the focused element in the editor if there is currently no file opened #67708
-				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } });
-			}
+		if (focused.length === 1 && this.autoReveal) {
+			this.tree.reveal(focused[0], 0.5);
 		}
 	}
 
@@ -375,7 +365,7 @@ export class ExplorerView extends ViewPane {
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleAsyncDataTree, WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
+		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
@@ -590,7 +580,7 @@ export class ExplorerView extends ViewPane {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	private setTreeInput(): Promise<void> {
+	private async setTreeInput(): Promise<void> {
 		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
@@ -639,7 +629,11 @@ export class ExplorerView extends ViewPane {
 			delay: this.layoutService.isRestored() ? 800 : 1200 // less ugly initial startup
 		}, _progress => promise);
 
-		return promise;
+		await promise;
+		if (!this.decorationsProvider) {
+			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
+			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
+		}
 	}
 
 	private getActiveFile(): URI | undefined {

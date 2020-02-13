@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
@@ -59,6 +60,7 @@ suite('Decoration Render Options', () => {
 		assert(
 			sheet.indexOf('background: url(\'https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png") center center / contain no-repeat;') > 0
+			|| sheet.indexOf('background-image: url("https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png"); background-size: contain; background-position: center center; background-repeat: no-repeat no-repeat;') > 0
 		);
 		assert(sheet.indexOf('border-color: yellow;') > 0);
 		assert(sheet.indexOf('background-color: red;') > 0);
@@ -139,17 +141,23 @@ suite('Decoration Render Options', () => {
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/bar.png\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("file:///Users/foo/bar.png") center center no-repeat;') > 0
+			|| sheet.indexOf('background-image: url("file:///Users/foo/bar.png"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
 		);
+		s.removeDecorationType('example');
 
 		// windows file path (used as string)
-		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
-		sheet = readStyleSheet(styleSheet);
-		// TODO@Alex test fails
-		// assert(
-		// 	sheet.indexOf('background: url(\'file:///c%3A/files/miles/more.png\') center center no-repeat;') > 0
-		// 	|| sheet.indexOf('background: url("file:///c%3A/files/miles/more.png") center center no-repeat;') > 0
-		// );
+		if (platform.isWindows) {
+			s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
+			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
+			sheet = readStyleSheet(styleSheet);
+			assert(
+				sheet.indexOf('background: url(\'file:///c%3A/files/miles/more.png\') center center no-repeat;') > 0
+				|| sheet.indexOf('background: url("file:///c%3A/files/miles/more.png") center center no-repeat;') > 0
+				|| sheet.indexOf('background: url("file:///c:/files/miles/more.png") center center no-repeat;') > 0
+				|| sheet.indexOf('background-image: url("file:///c:/files/miles/more.png"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
+			);
+			s.removeDecorationType('example');
+		}
 
 		// URI, only minimal encoding
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
@@ -158,7 +166,9 @@ suite('Decoration Render Options', () => {
 		assert(
 			sheet.indexOf('background: url(\'data:image/svg+xml;base64,PHN2ZyB4b+\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("data:image/svg+xml;base64,PHN2ZyB4b+") center center no-repeat;') > 0
+			|| sheet.indexOf('background-image: url("data:image/svg+xml;base64,PHN2ZyB4b+"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
 		);
+		s.removeDecorationType('example');
 
 		// single quote must always be escaped/encoded
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
@@ -167,7 +177,9 @@ suite('Decoration Render Options', () => {
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/b%27ar.png\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("file:///Users/foo/b%27ar.png") center center no-repeat;') > 0
+			|| sheet.indexOf('background-image: url("file:///Users/foo/b%27ar.png"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
 		);
+		s.removeDecorationType('example');
 
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: URI.parse('http://test/pa\'th') });
@@ -175,6 +187,8 @@ suite('Decoration Render Options', () => {
 		assert(
 			sheet.indexOf('background: url(\'http://test/pa%27th\') center center no-repeat;') > 0
 			|| sheet.indexOf('background: url("http://test/pa%27th") center center no-repeat;') > 0
+			|| sheet.indexOf('background-image: url("http://test/pa%27th"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
 		);
+		s.removeDecorationType('example');
 	});
 });

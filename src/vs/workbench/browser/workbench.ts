@@ -443,9 +443,9 @@ export class Workbench extends Layout {
 			restorePromises.push((async () => {
 				mark('willRestorePanel');
 
-				const panel = await panelService.openPanelAsync(this.state.panel.panelToRestore);
+				const panel = await panelService.openPanel(this.state.panel.panelToRestore!);
 				if (!panel) {
-					panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
+					await panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 				}
 
 				mark('didRestorePanel');

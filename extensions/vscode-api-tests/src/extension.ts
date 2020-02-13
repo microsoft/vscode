@@ -14,6 +14,8 @@
 
 import * as vscode from 'vscode';
 
+declare const window: unknown;
+
 const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
 

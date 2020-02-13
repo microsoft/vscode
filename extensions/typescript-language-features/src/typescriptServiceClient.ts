@@ -121,7 +121,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly pluginManager: PluginManager,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
-		allModeIds: string[]
+		allModeIds: readonly string[]
 	) {
 		super();
 		this.pathSeparator = path.sep;
@@ -477,12 +477,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private serviceStarted(resendModels: boolean): void {
 		this.bufferSyncSupport.reset();
 
+		const watchOptions = this.apiVersion.gte(API.v380)
+			? vscode.workspace.getConfiguration('typescript').get<Proto.WatchOptions | undefined>('tsserver.watchOptions')
+			: undefined;
+
 		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode',
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
-			}
+			},
+			watchOptions
 		};
 		this.executeWithoutWaitingForResponse('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);
@@ -629,7 +634,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public getWorkspaceRootForResource(resource: vscode.Uri): string | undefined {
-		const roots = vscode.workspace.workspaceFolders;
+		const roots = vscode.workspace.workspaceFolders ? Array.from(vscode.workspace.workspaceFolders) : undefined;
 		if (!roots || !roots.length) {
 			return undefined;
 		}

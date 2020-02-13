@@ -28,15 +28,15 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 
-type CachedEditorInput = ResourceEditorInput | IFileEditorInput;
+type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
 	_serviceBrand: undefined;
-
-	private static CACHE = new ResourceMap<CachedEditorInput>();
 
 	//#region events
 
@@ -63,6 +63,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private lastActiveEditor: IEditorInput | undefined = undefined;
 
 	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
+
+	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -575,14 +577,30 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			};
 
 			// Untitled resource: use as hint for an existing untitled editor
+			let untitledModel: IUntitledTextEditorModel;
 			if (untitledInput.resource?.scheme === Schemas.untitled) {
-				return this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
+				untitledModel = this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
 			}
 
 			// Other resource: use as hint for associated filepath
 			else {
-				return this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
+				untitledModel = this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
 			}
+
+			return this.createOrGetCached(untitledModel.resource, () => {
+
+				// Factory function for new untitled editor
+				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
+
+				// We dispose the untitled model once the editor
+				// is being disposed. Even though we may have not
+				// created the model initially, the lifecycle for
+				// untitled is tightly coupled with the editor
+				// lifecycle for now.
+				Event.once(input.onDispose)(() => untitledModel.dispose());
+
+				return input;
+			}) as EditorInput;
 		}
 
 		// Resource Editor Support
@@ -593,54 +611,69 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				label = basename(resourceInput.resource); // derive the label from the path
 			}
 
-			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.mode, resourceInput.forceFile) as EditorInput;
+			return this.createOrGetCached(resourceInput.resource, () => {
+
+				// File
+				if (resourceInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resourceInput.resource)) {
+					return this.fileInputFactory.createFileInput(resourceInput.resource, resourceInput.encoding, resourceInput.mode, this.instantiationService);
+				}
+
+				// Resource
+				return this.instantiationService.createInstance(ResourceEditorInput, resourceInput.label, resourceInput.description, resourceInput.resource, resourceInput.mode);
+			}, cachedInput => {
+
+				// Untitled
+				if (cachedInput instanceof UntitledTextEditorInput) {
+					return;
+				}
+
+				// Files
+				else if (!(cachedInput instanceof ResourceEditorInput)) {
+					if (resourceInput.encoding) {
+						cachedInput.setPreferredEncoding(resourceInput.encoding);
+					}
+
+					if (resourceInput.mode) {
+						cachedInput.setPreferredMode(resourceInput.mode);
+					}
+				}
+
+				// Resources
+				else {
+					if (label) {
+						cachedInput.setName(label);
+					}
+
+					if (resourceInput.description) {
+						cachedInput.setDescription(resourceInput.description);
+					}
+
+					if (resourceInput.mode) {
+						cachedInput.setPreferredMode(resourceInput.mode);
+					}
+				}
+			}) as EditorInput;
 		}
 
 		throw new Error('Unknown input type');
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string | undefined, description: string | undefined, encoding: string | undefined, mode: string | undefined, forceFile: boolean | undefined): CachedEditorInput {
-		if (EditorService.CACHE.has(resource)) {
-			const input = EditorService.CACHE.get(resource)!;
-			if (input instanceof ResourceEditorInput) {
-				if (label) {
-					input.setName(label);
-				}
+	private createOrGetCached(resource: URI, factoryFn: () => CachedEditorInput, cachedFn?: (input: CachedEditorInput) => void): CachedEditorInput {
 
-				if (description) {
-					input.setDescription(description);
-				}
-
-				if (mode) {
-					input.setPreferredMode(mode);
-				}
-			} else {
-				if (encoding) {
-					input.setPreferredEncoding(encoding);
-				}
-
-				if (mode) {
-					input.setPreferredMode(mode);
-				}
+		// Return early if already cached
+		let input = this.editorInputCache.get(resource);
+		if (input) {
+			if (cachedFn) {
+				cachedFn(input);
 			}
 
 			return input;
 		}
 
-		// File
-		let input: CachedEditorInput;
-		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
-			input = this.fileInputFactory.createFileInput(resource, encoding, mode, instantiationService);
-		}
-
-		// Resource
-		else {
-			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource, mode);
-		}
-
-		// Add to cache and remove when input gets disposed
-		EditorService.CACHE.set(resource, input);
-		Event.once(input.onDispose)(() => EditorService.CACHE.delete(resource));
+		// Otherwise create and add to cache
+		input = factoryFn();
+		this.editorInputCache.set(resource, input);
+		Event.once(input.onDispose)(() => this.editorInputCache.delete(resource));
 
 		return input;
 	}
@@ -710,7 +743,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Editors to save sequentially
 		for (const { groupId, editor } of editorsToSaveSequentially) {
 			if (editor.isDisposed()) {
-				continue; // might have been disposed from from the save already
+				continue; // might have been disposed from the save already
 			}
 
 			// Preserve view state by opening the editor first if the editor
@@ -753,6 +786,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		const result = await Promise.all(editors.map(async ({ groupId, editor }) => {
+			if (editor.isDisposed()) {
+				return true; // might have been disposed from from the revert already
+			}
 
 			// Use revert as a hint to pin the editor
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);

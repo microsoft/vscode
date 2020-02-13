@@ -27,21 +27,20 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -64,7 +63,7 @@ import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/com
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickInput, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -76,10 +75,12 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextEditor } from 'vs/workbench/common/editor';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IViewsService } from 'vs/workbench/common/views';
+import { ProviderProgressMananger } from 'vs/workbench/contrib/tasks/browser/providerProgressManager';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
@@ -220,6 +221,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
+	private _providerProgressManager: ProviderProgressMananger | undefined;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 	protected _areJsonTasksSupportedPromise: Promise<boolean> = Promise.resolve(false);
@@ -238,6 +240,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IMarkerService protected readonly markerService: IMarkerService,
 		@IOutputService protected readonly outputService: IOutputService,
 		@IPanelService private readonly panelService: IPanelService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService protected readonly fileService: IFileService,
 		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
@@ -257,7 +261,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
 		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -413,14 +416,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return this.runShowTasks();
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => {
-			const panel = this.panelService.getActivePanel();
-			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
-				this.layoutService.setPanelHidden(true);
-			} else {
-				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-			}
-		});
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Constants.TOGGLE_MARKERS_VIEW_ACTION_ID));
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.openUserTasks', async () => {
 			const resource = this.getResourceForKind(TaskSourceKind.User);
@@ -968,7 +964,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					pinned: false,
 					forceReload: true, // because content might have changed
 					selection,
-					revealInCenterIfOutsideViewport: !!selection
+					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 				}
 			});
 		});
@@ -1283,14 +1279,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
+					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
 					this.notificationService.prompt(Severity.Info, message,
 						[{
 							label: nls.localize('terminateTask', "Terminate Task"),
-							run: () => this.terminate(executeResult.task)
+							run: () => this.terminate(lastInstance)
 						},
 						{
 							label: nls.localize('restartTask', "Restart Task"),
-							run: () => this.restart(executeResult.task)
+							run: () => this.restart(lastInstance)
 						}],
 						{ sticky: true }
 					);
@@ -1336,7 +1333,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected createTerminalTaskSystem(): ITaskSystem {
 		return new TerminalTaskSystem(
-			this.terminalService, this.outputService, this.panelService, this.markerService,
+			this.terminalService, this.outputService, this.panelService, this.viewsService, this.markerService,
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
@@ -1352,36 +1349,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
-	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet> {
+	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet | undefined> {
 		return new Promise<TaskSet>(async (resolve, reject) => {
 			let isDone = false;
-			provider.provideTasks(validTypes).then((value) => {
+			let disposable: IDisposable | undefined;
+			const providePromise = provider.provideTasks(validTypes);
+			this._providerProgressManager?.addProvider(type, providePromise);
+			disposable = this._providerProgressManager?.canceled.token.onCancellationRequested(() => {
+				if (!isDone) {
+					resolve();
+				}
+			});
+			providePromise.then((value) => {
 				isDone = true;
+				disposable?.dispose();
 				resolve(value);
 			}, (e) => {
 				isDone = true;
+				disposable?.dispose();
 				reject(e);
 			});
-			let settingValue: boolean | string[] = this.configurationService.getValue('task.slowProviderWarning');
-			if ((settingValue === true) || (Types.isStringArray(settingValue) && (settingValue.indexOf(type) < 0))) {
-				setTimeout(() => {
-					if (!isDone) {
-						const settings: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.settings', "Settings"), run: () => this.preferencesService.openSettings(false, undefined) };
-						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', 'off') };
-						const dontShow: IPromptChoice = {
-							label: nls.localize('TaskSystem.slowProvider.dontShow', "Don't warn again for {0} tasks", type), run: () => {
-								if (!Types.isStringArray(settingValue)) {
-									settingValue = [];
-								}
-								settingValue.push(type);
-								return this.configurationService.updateValue('task.slowProviderWarning', settingValue);
-							}
-						};
-						this.notificationService.prompt(Severity.Warning, nls.localize('TaskSystem.slowProvider', "The {0} task provider is slow. The extension that provides {0} tasks may provide a setting to disable it, or you can disable all tasks providers", type),
-							[settings, disableAll, dontShow]);
-					}
-				}, 4000);
-			}
 		});
 	}
 
@@ -1391,10 +1378,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			validTypes['shell'] = true;
 			validTypes['process'] = true;
+			this._providerProgressManager = new ProviderProgressMananger();
 			return new Promise<TaskSet[]>(resolve => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
-				let done = (value: TaskSet) => {
+				let done = (value: TaskSet | undefined) => {
 					if (value) {
 						result.push(value);
 					}
@@ -1973,11 +1961,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): TaskQuickPickEntry[] {
+		let count: { [key: string]: number; } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			return { label: task._label, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			let entryLabel = task._label;
+			let commonKey = task._id.split('|')[0];
+			if (count[commonKey]) {
+				entryLabel = entryLabel + ' (' + count[commonKey].toString() + ')';
+				count[commonKey]++;
+			} else {
+				count[commonKey] = 1;
+			}
+			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
@@ -2040,6 +2038,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
+		count = {};
 		return entries;
 	}
 
@@ -2079,30 +2078,69 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		});
-		return this.quickInputService.pick(pickEntries, {
-			placeHolder,
-			matchOnDescription: true,
-			onDidTriggerItemButton: context => {
-				let task = context.item.task;
-				this.quickInputService.cancel();
-				if (ContributedTask.is(task)) {
-					this.customize(task, undefined, true);
-				} else if (CustomTask.is(task)) {
-					this.openConfig(task);
+
+		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
+		picker.placeholder = placeHolder;
+		picker.matchOnDescription = true;
+		picker.ignoreFocusOut = true;
+
+		picker.onDidTriggerItemButton(context => {
+			let task = context.item.task;
+			this.quickInputService.cancel();
+			if (ContributedTask.is(task)) {
+				this.customize(task, undefined, true);
+			} else if (CustomTask.is(task)) {
+				this.openConfig(task);
+			}
+		});
+		picker.busy = true;
+		const progressManager = this._providerProgressManager;
+		const progressTimeout = setTimeout(() => {
+			if (progressManager) {
+				progressManager.showProgress = (stillProviding, total) => {
+					let message = undefined;
+					if (stillProviding.length > 0) {
+						message = nls.localize('pickProgressManager.description', 'Detecting tasks ({0} of {1}): {2} in progress', total - stillProviding.length, total, stillProviding.join(', '));
+					}
+					picker.description = message;
+				};
+				progressManager.addOnDoneListener(() => {
+					picker.focusOnInput();
+					picker.customButton = false;
+				});
+				if (!progressManager.isDone) {
+					picker.customLabel = nls.localize('taskQuickPick.cancel', "Stop detecting");
+					picker.onDidCustom(() => {
+						this._providerProgressManager?.cancel();
+					});
+					picker.customButton = true;
 				}
 			}
-		}, cancellationToken).then(async (selection) => {
-			if (cancellationToken.isCancellationRequested) {
-				// canceled when there's only one task
-				const task = (await pickEntries)[0];
-				if ((<any>task).task) {
-					selection = <TaskQuickPickEntry>task;
+		}, 1000);
+		pickEntries.then(entries => {
+			clearTimeout(progressTimeout);
+			progressManager?.dispose();
+			picker.busy = false;
+			picker.items = entries;
+		});
+		picker.show();
+
+		return new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
+			this._register(picker.onDidAccept(async () => {
+				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
+				if (cancellationToken.isCancellationRequested) {
+					// canceled when there's only one task
+					const task = (await pickEntries)[0];
+					if ((<any>task).task) {
+						selection = <TaskQuickPickEntry>task;
+					}
 				}
-			}
-			if (!selection) {
-				return;
-			}
-			return selection;
+				picker.dispose();
+				if (!selection) {
+					resolve();
+				}
+				resolve(selection);
+			}));
 		});
 	}
 

@@ -1753,12 +1753,17 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		kbExpr: null,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 	},
-	menuOpts: {
+	menuOpts: [{
 		menuId: MenuId.MenubarSelectionMenu,
 		group: '1_basic',
 		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
 		order: 1
-	}
+	}, {
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: nls.localize('selectAll', "Select All"),
+		order: 1
+	}]
 }));
 
 registerCommand(new EditorOrNativeTextInputCommand({
@@ -1771,12 +1776,17 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
 	},
-	menuOpts: {
+	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
 		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
 		order: 1
-	}
+	}, {
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: nls.localize('undo', "Undo"),
+		order: 1
+	}]
 }));
 registerCommand(new EditorHandlerCommand('default:' + Handler.Undo, Handler.Undo));
 
@@ -1792,12 +1802,17 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
 	},
-	menuOpts: {
+	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
 		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
 		order: 2
-	}
+	}, {
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: nls.localize('redo', "Redo"),
+		order: 1
+	}]
 }));
 registerCommand(new EditorHandlerCommand('default:' + Handler.Redo, Handler.Redo));
 

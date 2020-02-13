@@ -7,46 +7,13 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
-import { Readable } from 'stream';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
-
-const chunkSize = 64 * 1024;
-const readError = 'Error while reading';
-function toReadable(value: string, throwError?: boolean): Readable {
-	const totalChunks = Math.ceil(value.length / chunkSize);
-	const stringChunks: string[] = [];
-
-	for (let i = 0, j = 0; i < totalChunks; ++i, j += chunkSize) {
-		stringChunks[i] = value.substr(j, chunkSize);
-	}
-
-	let counter = 0;
-	return new Readable({
-		read: function () {
-			if (throwError) {
-				this.emit('error', new Error(readError));
-			}
-
-			let res!: string;
-			let canPush = true;
-			while (canPush && (res = stringChunks[counter++])) {
-				canPush = this.push(res);
-			}
-
-			// EOS
-			if (!res) {
-				this.push(null);
-			}
-		},
-		encoding: 'utf8'
-	});
-}
 
 suite('PFS', function () {
 
@@ -334,7 +301,7 @@ suite('PFS', function () {
 
 	test('stat link', async () => {
 		if (isWindows) {
-			return Promise.resolve(); // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
 		}
 
 		const id1 = uuid.generateUuid();
@@ -349,12 +316,36 @@ suite('PFS', function () {
 		fs.symlinkSync(directory, symbolicLink);
 
 		let statAndIsLink = await pfs.statLink(directory);
-		assert.ok(!statAndIsLink!.isSymbolicLink);
+		assert.ok(!statAndIsLink?.symbolicLink);
 
 		statAndIsLink = await pfs.statLink(symbolicLink);
-		assert.ok(statAndIsLink!.isSymbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink);
+		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
 
 		pfs.rimrafSync(directory);
+	});
+
+	test('stat link (non existing target)', async () => {
+		if (isWindows) {
+			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+		}
+
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'pfs', id1);
+
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'pfs', id2);
+
+		await pfs.mkdirp(directory, 493);
+
+		fs.symlinkSync(directory, symbolicLink);
+
+		pfs.rimrafSync(directory);
+
+		const statAndIsLink = await pfs.statLink(symbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink);
+		assert.ok(statAndIsLink?.symbolicLink?.dangling);
 	});
 
 	test('readdir', async () => {
@@ -420,17 +411,10 @@ suite('PFS', function () {
 		return testWriteFileAndFlush(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
 	});
 
-	test('writeFile (stream)', async () => {
-		const smallData = 'Hello World';
-		const bigData = (new Array(100 * 1024)).join('Large String\n');
-
-		return testWriteFileAndFlush(toReadable(smallData), smallData, toReadable(bigData), bigData);
-	});
-
 	async function testWriteFileAndFlush(
-		smallData: string | Buffer | NodeJS.ReadableStream | Uint8Array,
+		smallData: string | Buffer | Uint8Array,
 		smallDataValue: string,
-		bigData: string | Buffer | NodeJS.ReadableStream | Uint8Array,
+		bigData: string | Buffer | Uint8Array,
 		bigDataValue: string
 	): Promise<void> {
 		const id = uuid.generateUuid();
@@ -449,22 +433,6 @@ suite('PFS', function () {
 
 		await pfs.rimraf(parentDir);
 	}
-
-	test('writeFile (file stream)', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
-		const newDir = path.join(parentDir, 'pfs', id);
-		const testFile = path.join(newDir, 'flushed.txt');
-
-		await pfs.mkdirp(newDir, 493);
-		assert.ok(fs.existsSync(newDir));
-
-		await pfs.writeFile(testFile, fs.createReadStream(sourceFile));
-		assert.equal(fs.readFileSync(testFile).toString(), fs.readFileSync(sourceFile).toString());
-
-		await pfs.rimraf(parentDir);
-	});
 
 	test('writeFile (string, error handling)', async () => {
 		const id = uuid.generateUuid();
@@ -486,118 +454,6 @@ suite('PFS', function () {
 		}
 
 		assert.ok(expectedError);
-
-		await pfs.rimraf(parentDir);
-	});
-
-	test('writeFile (stream, error handling EISDIR)', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'pfs', id);
-		const testFile = path.join(newDir, 'flushed.txt');
-
-		await pfs.mkdirp(newDir, 493);
-
-		assert.ok(fs.existsSync(newDir));
-
-		fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
-
-		const readable = toReadable('Hello World');
-
-		let expectedError: Error | undefined;
-		try {
-			await pfs.writeFile(testFile, readable);
-		} catch (error) {
-			expectedError = error;
-		}
-
-		if (!expectedError || (<any>expectedError).code !== 'EISDIR') {
-			throw new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
-		}
-
-		// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
-		assert.equal(readable.read(), 'Hello World');
-
-		await pfs.rimraf(parentDir);
-	});
-
-	test('writeFile (stream, error handling READERROR)', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'pfs', id);
-		const testFile = path.join(newDir, 'flushed.txt');
-
-		await pfs.mkdirp(newDir, 493);
-		assert.ok(fs.existsSync(newDir));
-
-		let expectedError: Error | undefined;
-		try {
-			await pfs.writeFile(testFile, toReadable('Hello World', true /* throw error */));
-		} catch (error) {
-			expectedError = error;
-		}
-
-		if (!expectedError || expectedError.message !== readError) {
-			throw new Error('Expected error for writing to folder');
-		}
-
-		await pfs.rimraf(parentDir);
-	});
-
-	test('writeFile (stream, error handling EACCES)', async () => {
-		if (isLinux) {
-			return Promise.resolve(); // somehow this test fails on Linux in our TFS builds
-		}
-
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'pfs', id);
-		const testFile = path.join(newDir, 'flushed.txt');
-
-		await pfs.mkdirp(newDir, 493);
-
-		assert.ok(fs.existsSync(newDir));
-
-		fs.writeFileSync(testFile, '');
-		fs.chmodSync(testFile, 33060); // make readonly
-
-		let expectedError: Error | undefined;
-		try {
-			await pfs.writeFile(testFile, toReadable('Hello World'));
-		} catch (error) {
-			expectedError = error;
-		}
-
-		if (!expectedError || !((<any>expectedError).code !== 'EACCES' || (<any>expectedError).code !== 'EPERM')) {
-			throw new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
-		}
-
-		await pfs.rimraf(parentDir);
-	});
-
-	test('writeFile (file stream, error handling)', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
-		const newDir = path.join(parentDir, 'pfs', id);
-		const testFile = path.join(newDir, 'flushed.txt');
-
-		await pfs.mkdirp(newDir, 493);
-
-		assert.ok(fs.existsSync(newDir));
-
-		fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
-
-		let expectedError: Error | undefined;
-		try {
-			await pfs.writeFile(testFile, fs.createReadStream(sourceFile));
-		} catch (error) {
-			expectedError = error;
-		}
-
-		if (!expectedError) {
-			throw new Error('Expected error for writing to folder');
-		}
 
 		await pfs.rimraf(parentDir);
 	});

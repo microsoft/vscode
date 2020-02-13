@@ -55,7 +55,7 @@ import { MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMai
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
-import { join, sep } from 'vs/base/common/path';
+import { join, sep, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
@@ -70,9 +70,6 @@ import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/works
 import { statSync } from 'fs';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
@@ -171,7 +168,7 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (_event: Event, contents) => {
 			contents.on('will-attach-webview', (event: Event, webPreferences, params) => {
 
-				const isValidWebviewSource = (source: string): boolean => {
+				const isValidWebviewSource = (source: string | undefined): boolean => {
 					if (!source) {
 						return false;
 					}
@@ -191,11 +188,12 @@ export class CodeApplication extends Disposable {
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+				// https://github.com/electron/electron/issues/21553
+				if (isValidWebviewSource(params.src) && isValidWebviewSource((webPreferences as { preloadURL: string }).preloadURL)) {
 					return;
 				}
 
-				delete webPreferences.preloadUrl;
+				delete (webPreferences as { preloadURL: string }).preloadURL; // https://github.com/electron/electron/issues/21553
 
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
@@ -363,7 +361,14 @@ export class CodeApplication extends Disposable {
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
-		const sharedProcessClient = sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
+			this.logService.trace('Shared process: IPC ready');
+			return connect(this.environmentService.sharedIPCHandle, 'main');
+		});
+		const sharedProcessReady = sharedProcess.whenReady().then(() => {
+			this.logService.trace('Shared process: init ready');
+			return sharedProcessClient;
+		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
 				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
@@ -373,7 +378,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Services
-		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessClient);
+		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessReady);
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
@@ -390,7 +395,7 @@ export class CodeApplication extends Disposable {
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
 
 		// Post Open Windows Tasks
-		this.afterWindowOpen();
+		appInstantiationService.invokeFunction(this.afterWindowOpen.bind(this));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentService.args.trace) {
@@ -423,14 +428,8 @@ export class CodeApplication extends Disposable {
 		return { machineId, trueMachineId };
 	}
 
-	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
+	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
-
-		const fileService = this._register(new FileService(this.logService));
-		services.set(IFileService, fileService);
-
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(this.logService));
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		switch (process.platform) {
 			case 'win32':
@@ -455,7 +454,7 @@ export class CodeApplication extends Disposable {
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
-		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
+		const diagnosticsChannel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
@@ -476,7 +475,7 @@ export class CodeApplication extends Disposable {
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('telemetryAppender')));
+			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
@@ -497,27 +496,27 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout: boolean) => {
+		const stopRecording = async (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}
 
 			recordingStopped = true; // only once
 
-			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
-				if (!timeout) {
-					if (this.dialogMainService) {
-						this.dialogMainService.showMessageBox({
-							type: 'info',
-							message: localize('trace.message', "Successfully created trace."),
-							detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-							buttons: [localize('trace.ok', "Ok")]
-						}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-					}
-				} else {
-					this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+			const path = await contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`));
+
+			if (!timeout) {
+				if (this.dialogMainService) {
+					this.dialogMainService.showMessageBox({
+						type: 'info',
+						message: localize('trace.message', "Successfully created trace."),
+						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+						buttons: [localize('trace.ok', "Ok")]
+					}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 				}
-			});
+			} else {
+				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+			}
 		};
 
 		// Wait up to 30s before creating the trace anyways
@@ -570,6 +569,7 @@ export class CodeApplication extends Disposable {
 		const storageMainService = accessor.get(IStorageMainService);
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
+		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
 		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('logger', loggerChannel);
@@ -591,16 +591,42 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
-				// Catch file URLs
-				if (uri.authority === Schemas.file && !!uri.path) {
+				// Catch file/remote URLs
+				if ((uri.authority === Schemas.file || uri.authority === Schemas.vscodeRemote) && !!uri.path) {
 					const cli = assign(Object.create(null), environmentService.args);
+					const urisToOpen: IWindowOpenable[] = [];
 
-					// hey Ben, we need to convert this `code://file` URI into a `file://` URI
-					const urisToOpen = [{ fileUri: URI.file(uri.fsPath) }];
+					// File path
+					if (uri.authority === Schemas.file) {
+						// we configure as fileUri, but later validation will
+						// make sure to open as folder or workspace if possible
+						urisToOpen.push({ fileUri: URI.file(uri.fsPath) });
+					}
 
-					windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
+					// Remote path
+					else {
+						// Example conversion:
+						// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
+						//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
+						const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+						if (secondSlash !== -1) {
+							const authority = uri.path.substring(1, secondSlash);
+							const path = uri.path.substring(secondSlash);
+							const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
 
-					return true;
+							if (hasWorkspaceFileExtension(path)) {
+								urisToOpen.push({ workspaceUri: remoteUri });
+							} else {
+								urisToOpen.push({ folderUri: remoteUri });
+							}
+						}
+					}
+
+					if (urisToOpen.length > 0) {
+						windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
+
+						return true;
+					}
 				}
 
 				return false;
@@ -707,13 +733,18 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private afterWindowOpen(): void {
-
+	private afterWindowOpen(accessor: ServicesAccessor): void {
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();
+
+		// Initialize update service
+		const updateService = accessor.get(IUpdateService);
+		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
+			updateService.initialize();
+		}
 	}
 
 	private handleRemoteAuthorities(): void {

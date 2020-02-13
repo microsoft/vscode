@@ -29,12 +29,13 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
 import { Constants } from 'vs/base/common/uint';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -2640,14 +2641,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		let goDown = true;
 		let indent = 0;
 
+		let initialIndent = 0;
+
 		for (let distance = 0; goUp || goDown; distance++) {
 			const upLineNumber = lineNumber - distance;
 			const downLineNumber = lineNumber + distance;
 
-			if (distance !== 0 && (upLineNumber < 1 || upLineNumber < minLineNumber)) {
+			if (distance > 1 && (upLineNumber < 1 || upLineNumber < minLineNumber)) {
 				goUp = false;
 			}
-			if (distance !== 0 && (downLineNumber > lineCount || downLineNumber > maxLineNumber)) {
+			if (distance > 1 && (downLineNumber > lineCount || downLineNumber > maxLineNumber)) {
 				goDown = false;
 			}
 			if (distance > 50000) {
@@ -2656,10 +2659,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 				goDown = false;
 			}
 
+			let upLineIndentLevel: number = -1;
 			if (goUp) {
 				// compute indent level going up
-				let upLineIndentLevel: number;
-
 				const currentIndent = this._computeIndentLevel(upLineNumber - 1);
 				if (currentIndent >= 0) {
 					// This line has content (besides whitespace)
@@ -2671,30 +2673,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 					up_resolveIndents(upLineNumber);
 					upLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, up_aboveContentLineIndent, up_belowContentLineIndent);
 				}
-
-				if (distance === 0) {
-					// This is the initial line number
-					startLineNumber = upLineNumber;
-					endLineNumber = downLineNumber;
-					indent = upLineIndentLevel;
-					if (indent === 0) {
-						// No need to continue
-						return { startLineNumber, endLineNumber, indent };
-					}
-					continue;
-				}
-
-				if (upLineIndentLevel >= indent) {
-					startLineNumber = upLineNumber;
-				} else {
-					goUp = false;
-				}
 			}
 
+			let downLineIndentLevel = -1;
 			if (goDown) {
 				// compute indent level going down
-				let downLineIndentLevel: number;
-
 				const currentIndent = this._computeIndentLevel(downLineNumber - 1);
 				if (currentIndent >= 0) {
 					// This line has content (besides whitespace)
@@ -2706,7 +2689,50 @@ export class TextModel extends Disposable implements model.ITextModel {
 					down_resolveIndents(downLineNumber);
 					downLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, down_aboveContentLineIndent, down_belowContentLineIndent);
 				}
+			}
 
+			if (distance === 0) {
+				initialIndent = upLineIndentLevel;
+				continue;
+			}
+
+			if (distance === 1) {
+				if (downLineNumber <= lineCount && downLineIndentLevel >= 0 && initialIndent + 1 === downLineIndentLevel) {
+					// This is the beginning of a scope, we have special handling here, since we want the
+					// child scope indent to be active, not the parent scope
+					goUp = false;
+					startLineNumber = downLineNumber;
+					endLineNumber = downLineNumber;
+					indent = downLineIndentLevel;
+					continue;
+				}
+
+				if (upLineNumber >= 1 && upLineIndentLevel >= 0 && upLineIndentLevel - 1 === initialIndent) {
+					// This is the end of a scope, just like above
+					goDown = false;
+					startLineNumber = upLineNumber;
+					endLineNumber = upLineNumber;
+					indent = upLineIndentLevel;
+					continue;
+				}
+
+				startLineNumber = lineNumber;
+				endLineNumber = lineNumber;
+				indent = initialIndent;
+				if (indent === 0) {
+					// No need to continue
+					return { startLineNumber, endLineNumber, indent };
+				}
+			}
+
+			if (goUp) {
+				if (upLineIndentLevel >= indent) {
+					startLineNumber = upLineNumber;
+				} else {
+					goUp = false;
+				}
+			}
+			if (goDown) {
 				if (downLineIndentLevel >= indent) {
 					endLineNumber = downLineNumber;
 				} else {
@@ -2920,7 +2946,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 	}
 
-	public getColor(theme: ITheme): string {
+	public getColor(theme: EditorTheme): string {
 		if (!this._resolvedColor) {
 			if (theme.type !== 'light' && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
@@ -2935,7 +2961,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 		this._resolvedColor = null;
 	}
 
-	private _resolveColor(color: string | ThemeColor, theme: ITheme): string {
+	private _resolveColor(color: string | ThemeColor, theme: EditorTheme): string {
 		if (typeof color === 'string') {
 			return color;
 		}
@@ -2957,7 +2983,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 		this.position = options.position;
 	}
 
-	public getColor(theme: ITheme): Color | undefined {
+	public getColor(theme: EditorTheme): Color | undefined {
 		if (!this._resolvedColor) {
 			if (theme.type !== 'light' && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
@@ -2973,7 +2999,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 		this._resolvedColor = undefined;
 	}
 
-	private _resolveColor(color: string | ThemeColor, theme: ITheme): Color | undefined {
+	private _resolveColor(color: string | ThemeColor, theme: EditorTheme): Color | undefined {
 		if (typeof color === 'string') {
 			return Color.fromHex(color);
 		}

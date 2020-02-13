@@ -55,6 +55,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
 	public readonly useSeparateSyntaxServer: boolean;
+	public readonly enableProjectDiagnostics: boolean;
 	public readonly maxTsServerMemory: number;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
@@ -74,6 +75,7 @@ export class TypeScriptServiceConfiguration {
 		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
 		this.useSeparateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
+		this.enableProjectDiagnostics = TypeScriptServiceConfiguration.readEnableProjectDiagnostics(configuration);
 		this.maxTsServerMemory = TypeScriptServiceConfiguration.readMaxTsServerMemory(configuration);
 	}
 
@@ -88,6 +90,7 @@ export class TypeScriptServiceConfiguration {
 			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
 			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
 			&& this.useSeparateSyntaxServer === other.useSeparateSyntaxServer
+			&& this.enableProjectDiagnostics === other.enableProjectDiagnostics
 			&& this.maxTsServerMemory === other.maxTsServerMemory;
 	}
 
@@ -148,6 +151,10 @@ export class TypeScriptServiceConfiguration {
 
 	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.useSeparateSyntaxServer', true);
+	}
+
+	private static readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
 	}
 
 	private static readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {

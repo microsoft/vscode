@@ -7,10 +7,10 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
+import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
+import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionViewItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -38,6 +38,10 @@ import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { parseLinkedText } from 'vs/base/browser/linkedText';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { Link } from 'vs/platform/opener/browser/link';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -53,6 +57,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
+
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 export abstract class ViewPane extends Pane implements IView {
 
@@ -70,6 +76,9 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
+	protected _onDidChangeEmptyState = this._register(new Emitter<void>());
+	readonly onDidChangeEmptyState: Event<void> = this._onDidChangeEmptyState.event;
+
 	private focusedViewContextKey: IContextKey<string>;
 
 	private _isVisible: boolean = false;
@@ -79,11 +88,15 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly menuActions: ViewMenuActions;
 
 	protected actionRunner?: IActionRunner;
-	protected toolbar?: ToolBar;
+	private toolbar?: ToolBar;
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
+
+	private bodyContainer!: HTMLElement;
+	private emptyViewContainer!: HTMLElement;
+	private emptyViewDisposable: IDisposable = Disposable.None;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -93,6 +106,8 @@ export abstract class ViewPane extends Pane implements IView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@IThemeService protected themeService: IThemeService,
 	) {
 		super(options);
 
@@ -189,6 +204,22 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
+	protected renderBody(container: HTMLElement): void {
+		this.bodyContainer = container;
+		this.emptyViewContainer = append(container, $('.empty-view', { tabIndex: 0 }));
+
+		// we should update our empty state whenever
+		const onEmptyViewContentChange = Event.any(
+			// the registry changes
+			Event.map(Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id), () => this.isEmpty()),
+			// or the view's empty state changes
+			Event.latch(Event.map(this.onDidChangeEmptyState, () => this.isEmpty()))
+		);
+
+		this._register(onEmptyViewContentChange(this.updateEmptyState, this));
+		this.updateEmptyState(this.isEmpty());
+	}
+
 	protected getProgressLocation(): string {
 		return this.viewDescriptorService.getViewContainer(this.id)!.id;
 	}
@@ -254,6 +285,66 @@ export abstract class ViewPane extends Pane implements IView {
 	saveState(): void {
 		// Subclasses to implement for saving state
 	}
+
+	private updateEmptyState(isEmpty: boolean): void {
+		this.emptyViewDisposable.dispose();
+
+		if (!isEmpty) {
+			removeClass(this.bodyContainer, 'empty');
+			this.emptyViewContainer.innerHTML = '';
+			return;
+		}
+
+		const contents = viewsRegistry.getEmptyViewContent(this.id);
+
+		if (contents.length === 0) {
+			removeClass(this.bodyContainer, 'empty');
+			this.emptyViewContainer.innerHTML = '';
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		addClass(this.bodyContainer, 'empty');
+		this.emptyViewContainer.innerHTML = '';
+
+		for (const { content } of contents) {
+			const lines = content.split('\n');
+
+			for (let line of lines) {
+				line = line.trim();
+
+				if (!line) {
+					continue;
+				}
+
+				const p = append(this.emptyViewContainer, $('p'));
+				const linkedText = parseLinkedText(line);
+
+				for (const node of linkedText) {
+					if (typeof node === 'string') {
+						append(p, document.createTextNode(node));
+					} else if (linkedText.length === 1) {
+						const button = new Button(p, { title: node.title });
+						button.label = node.label;
+						button.onDidClick(_ => this.openerService.open(node.href), null, disposables);
+						disposables.add(button);
+						disposables.add(attachButtonStyler(button, this.themeService));
+					} else {
+						const link = this.instantiationService.createInstance(Link, node);
+						append(p, link.el);
+						disposables.add(link);
+						disposables.add(attachLinkStyler(link, this.themeService));
+					}
+				}
+			}
+		}
+
+		this.emptyViewDisposable = disposables;
+	}
+
+	isEmpty(): boolean {
+		return false;
+	}
 }
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
@@ -310,7 +401,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.map(i => i.pane);
 	}
 
-	protected get length(): number {
+	get views(): IView[] {
+		return this.panes;
+	}
+
+	get length(): number {
 		return this.paneItems.length;
 	}
 
@@ -532,7 +627,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	protected updateTitleArea(): void {
 		this._onTitleAreaUpdate.fire();
-
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
