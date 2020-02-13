@@ -173,7 +173,7 @@ export class TerminalLinkHandler {
 			this._registerLinkMatchers();
 		}
 
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._configurationService?.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.experimentalLinkProvider')) {
 				if (this._configHelper.config.experimentalLinkProvider) {
 					this._deregisterLinkMatchers();
