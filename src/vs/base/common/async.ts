@@ -779,3 +779,107 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 
 	throw lastError;
 }
+
+//#region Task Sequentializer
+
+interface IPendingTask {
+	versionId: number;
+	cancel: () => void;
+	promise: Promise<void>;
+}
+
+interface ISequentialTask {
+	promise: Promise<void>;
+	promiseResolve: () => void;
+	promiseReject: (error: Error) => void;
+	run: () => Promise<void>;
+}
+
+export interface ITaskSequentializerWithPendingTask {
+	readonly pending: Promise<void>;
+}
+
+export class TaskSequentializer {
+	private _pending?: IPendingTask;
+	private _next?: ISequentialTask;
+
+	hasPending(versionId?: number): this is ITaskSequentializerWithPendingTask {
+		if (!this._pending) {
+			return false;
+		}
+
+		if (typeof versionId === 'number') {
+			return this._pending.versionId === versionId;
+		}
+
+		return !!this._pending;
+	}
+
+	get pending(): Promise<void> | undefined {
+		return this._pending ? this._pending.promise : undefined;
+	}
+
+	cancelPending(): void {
+		this._pending?.cancel();
+	}
+
+	setPending(versionId: number, promise: Promise<void>, onCancel?: () => void, ): Promise<void> {
+		this._pending = { versionId, cancel: () => onCancel?.(), promise };
+
+		promise.then(() => this.donePending(versionId), () => this.donePending(versionId));
+
+		return promise;
+	}
+
+	private donePending(versionId: number): void {
+		if (this._pending && versionId === this._pending.versionId) {
+
+			// only set pending to done if the promise finished that is associated with that versionId
+			this._pending = undefined;
+
+			// schedule the next task now that we are free if we have any
+			this.triggerNext();
+		}
+	}
+
+	private triggerNext(): void {
+		if (this._next) {
+			const next = this._next;
+			this._next = undefined;
+
+			// Run next task and complete on the associated promise
+			next.run().then(next.promiseResolve, next.promiseReject);
+		}
+	}
+
+	setNext(run: () => Promise<void>): Promise<void> {
+
+		// this is our first next task, so we create associated promise with it
+		// so that we can return a promise that completes when the task has
+		// completed.
+		if (!this._next) {
+			let promiseResolve: () => void;
+			let promiseReject: (error: Error) => void;
+			const promise = new Promise<void>((resolve, reject) => {
+				promiseResolve = resolve;
+				promiseReject = reject;
+			});
+
+			this._next = {
+				run,
+				promise,
+				promiseResolve: promiseResolve!,
+				promiseReject: promiseReject!
+			};
+		}
+
+		// we have a previous next task, just overwrite it
+		else {
+			this._next.run = run;
+		}
+
+		return this._next.promise;
+	}
+}
+
+//#endregion
