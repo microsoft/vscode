@@ -1745,4 +1745,18 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/90517
+
+	export interface FileSystemError {
+		/**
+		 * A code that identifies this error.
+		 *
+		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
+		 * or `undefined` for an unspecified error.
+		 */
+		readonly code?: string;
+	}
+
+	////#endregion
 }
