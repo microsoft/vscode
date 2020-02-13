@@ -140,10 +140,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return synchroniser.accept(content);
 	}
 
-	async hasPreviouslySynced(): Promise<boolean> {
+	private async hasPreviouslySynced(): Promise<boolean> {
 		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
 			}
 		}
 		return false;
@@ -153,6 +154,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasLocalData()) {
+				return true;
 			}
 		}
 		return false;
