@@ -73,7 +73,7 @@ export class Source {
 
 	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
 		return !this.available ? Promise.resolve(undefined) : editorService.openEditor({
-			resource: this.uri.with({ query: null }),
+			resource: this.uri,
 			description: this.origin,
 			options: {
 				preserveFocus,
