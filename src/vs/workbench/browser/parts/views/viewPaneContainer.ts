@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -59,6 +59,67 @@ export interface IViewPaneOptions extends IPaneOptions {
 }
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+
+interface IEmptyViewItem {
+	readonly view: IViewContentDescriptor;
+	visible: boolean;
+}
+
+class EmptyViewsController {
+
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	private viewItems: IEmptyViewItem[] = [];
+	get views(): IViewContentDescriptor[] { return this.viewItems.map(v => v.view); }
+
+	private disposables = new DisposableStore();
+
+	constructor(
+		private id: string,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+	) {
+		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
+		Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id)(this.onDidChangeEmptyViewContent, this, this.disposables);
+		this.onDidChangeEmptyViewContent();
+	}
+
+	private onDidChangeEmptyViewContent(): void {
+		this.viewItems = viewsRegistry.getEmptyViewContent(this.id).map(view => ({
+			view,
+			visible: view.when ? this.contextKeyService.contextMatchesRules(view.when) : true
+		}));
+
+		this._onDidChange.fire();
+	}
+
+	private onDidChangeContext(): void {
+		let didChange = false;
+
+		for (const item of this.viewItems) {
+			if (!item.view.when) {
+				continue;
+			}
+
+			const visible = this.contextKeyService.contextMatchesRules(item.view.when);
+
+			if (item.visible === visible) {
+				continue;
+			}
+
+			item.visible = visible;
+			didChange = true;
+		}
+
+		if (didChange) {
+			this._onDidChange.fire();
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
+}
 
 export abstract class ViewPane extends Pane implements IView {
 
@@ -97,6 +158,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private bodyContainer!: HTMLElement;
 	private emptyViewContainer!: HTMLElement;
 	private emptyViewDisposable: IDisposable = Disposable.None;
+	private emptyViewsController: EmptyViewsController;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -119,6 +181,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+
+		this.emptyViewsController = new EmptyViewsController(this.id, contextKeyService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -208,16 +272,9 @@ export abstract class ViewPane extends Pane implements IView {
 		this.bodyContainer = container;
 		this.emptyViewContainer = append(container, $('.empty-view', { tabIndex: 0 }));
 
-		// we should update our empty state whenever
-		const onEmptyViewContentChange = Event.any(
-			// the registry changes
-			Event.map(Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id), () => this.isEmpty()),
-			// or the view's empty state changes
-			Event.latch(Event.map(this.onDidChangeEmptyState, () => this.isEmpty()))
-		);
-
-		this._register(onEmptyViewContentChange(this.updateEmptyState, this));
-		this.updateEmptyState(this.isEmpty());
+		const onEmptyViewContentChange = Event.any(this.emptyViewsController.onDidChange, this.onDidChangeEmptyState);
+		this._register(onEmptyViewContentChange(this.updateEmptyContents, this));
+		this.updateEmptyContents();
 	}
 
 	protected getProgressLocation(): string {
@@ -286,10 +343,10 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private updateEmptyState(isEmpty: boolean): void {
+	private updateEmptyContents(): void {
 		this.emptyViewDisposable.dispose();
 
-		if (!isEmpty) {
+		if (!this.isEmpty()) {
 			removeClass(this.bodyContainer, 'empty');
 			this.emptyViewContainer.innerHTML = '';
 			return;

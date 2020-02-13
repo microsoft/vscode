@@ -213,6 +213,7 @@ export interface IViewDescriptorCollection extends IDisposable {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
+	readonly when?: ContextKeyExpr;
 }
 
 export interface IViewsRegistry {
@@ -238,6 +239,10 @@ export interface IViewsRegistry {
 	readonly onDidChangeEmptyViewContent: Event<string>;
 	registerEmptyViewContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
 	getEmptyViewContent(id: string): IViewContentDescriptor[];
+}
+
+function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
+	return a.content < b.content ? -1 : 1;
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -318,6 +323,7 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 
 	getEmptyViewContent(id: string): IViewContentDescriptor[] {
 		const result: IViewContentDescriptor[] = [];
+		result.sort(compareViewContentDescriptors);
 		this._emptyViewContents.forEach(id, descriptor => result.push(descriptor));
 		return result;
 	}
