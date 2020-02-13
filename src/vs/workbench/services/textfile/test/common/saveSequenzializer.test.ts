@@ -87,4 +87,14 @@ suite('Files - SaveSequentializer', () => {
 		assert.ok(!secondDone);
 		assert.ok(thirdDone);
 	});
+
+	test('SaveSequentializer - cancel pending', async function () {
+		const sequentializer = new SaveSequentializer();
+
+		let pendingCancelled = false;
+		sequentializer.setPending(1, timeout(1), () => pendingCancelled = true);
+		sequentializer.cancelPending();
+
+		assert.ok(pendingCancelled);
+	});
 });
