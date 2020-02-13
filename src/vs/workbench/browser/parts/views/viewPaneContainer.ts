@@ -70,22 +70,36 @@ class EmptyViewsController {
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	private viewItems: IEmptyViewItem[] = [];
-	get views(): IViewContentDescriptor[] { return this.viewItems.map(v => v.view); }
+	private items: IEmptyViewItem[] = [];
+	get viewContentDescriptors(): IViewContentDescriptor[] {
+		return this.items
+			.filter(v => v.visible)
+			.map(v => v.view);
+	}
 
+	private contextKeyService: IContextKeyService;
+	private countKey: IContextKey<number>;
 	private disposables = new DisposableStore();
 
 	constructor(
 		private id: string,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		this.contextKeyService = contextKeyService.createScoped();
+		this.disposables.add(this.contextKeyService);
+
+		this.countKey = this.contextKeyService.createKey('view.emptyViewContentCount', 0);
+
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id)(this.onDidChangeEmptyViewContent, this, this.disposables);
 		this.onDidChangeEmptyViewContent();
 	}
 
 	private onDidChangeEmptyViewContent(): void {
-		this.viewItems = viewsRegistry.getEmptyViewContent(this.id).map(view => ({
+		const contentDescriptors = viewsRegistry.getEmptyViewContent(this.id);
+		this.countKey.set(contentDescriptors.length);
+
+		this.items = contentDescriptors.map(view => ({
 			view,
 			visible: view.when ? this.contextKeyService.contextMatchesRules(view.when) : true
 		}));
@@ -96,7 +110,7 @@ class EmptyViewsController {
 	private onDidChangeContext(): void {
 		let didChange = false;
 
-		for (const item of this.viewItems) {
+		for (const item of this.items) {
 			if (!item.view.when) {
 				continue;
 			}
@@ -277,6 +291,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this.updateEmptyContents();
 	}
 
+	protected layoutBody(height: number, width: number): void {
+		// noop
+	}
+
 	protected getProgressLocation(): string {
 		return this.viewDescriptorService.getViewContainer(this.id)!.id;
 	}
@@ -352,7 +370,7 @@ export abstract class ViewPane extends Pane implements IView {
 			return;
 		}
 
-		const contents = viewsRegistry.getEmptyViewContent(this.id);
+		const contents = this.emptyViewsController.viewContentDescriptors;
 
 		if (contents.length === 0) {
 			removeClass(this.bodyContainer, 'empty');
