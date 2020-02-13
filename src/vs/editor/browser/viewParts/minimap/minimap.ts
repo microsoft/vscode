@@ -498,12 +498,14 @@ interface IMinimapRenderingContext {
 
 interface SamplingStateLinesDeletedEvent {
 	type: 'deleted';
+	_oldIndex: number;
 	deleteFromLineNumber: number;
 	deleteToLineNumber: number;
 }
 
 interface SamplingStateLinesInsertedEvent {
 	type: 'inserted';
+	_i: number;
 	insertFromLineNumber: number;
 	insertToLineNumber: number;
 }
@@ -555,32 +557,22 @@ class MinimapSamplingState {
 		let minModelLineNumber = 1;
 		const MAX_EVENT_COUNT = 10; // generate at most 10 events, if there are more than 10 changes, just flush all previous data
 		let events: SamplingStateEvent[] = [];
-		let currentDeleteStart = 0, currentDeleteEnd = 0;
-		let currentInsertStart = 0, currentInsertEnd = 0;
+		let lastEvent: SamplingStateEvent | null = null;
 		for (let i = 0; i < minimapLineCount; i++) {
 			const fromModelLineNumber = Math.max(minModelLineNumber, Math.round(i * ratio));
 			const toModelLineNumber = Math.max(fromModelLineNumber, Math.round((i + 1) * ratio));
 
-			console.log(`LINE AT ${i} SHOULD FIT BTW ${fromModelLineNumber} to ${toModelLineNumber}`);
-
 			while (oldIndex < oldLength && oldMinimapLines[oldIndex] < fromModelLineNumber) {
 				if (events.length < MAX_EVENT_COUNT) {
-					if (currentInsertEnd !== 0) {
-						// generate previous insert event
-						events.push({ type: 'inserted', insertFromLineNumber: currentInsertStart, insertToLineNumber: currentInsertEnd });
-						oldDeltaLineCount += (currentInsertEnd - currentInsertStart + 1);
-						currentInsertStart = 0;
-						currentInsertEnd = 0;
-					}
-
-					if (currentDeleteStart === 0) {
-						currentDeleteStart = oldIndex + 1 + oldDeltaLineCount;
-						currentDeleteEnd = currentDeleteStart;
+					const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
+					if (lastEvent && lastEvent.type === 'deleted' && lastEvent._oldIndex === oldIndex - 1) {
+						lastEvent.deleteToLineNumber++;
 					} else {
-						currentDeleteEnd++;
+						lastEvent = { type: 'deleted', _oldIndex: oldIndex, deleteFromLineNumber: oldMinimapLineNumber, deleteToLineNumber: oldMinimapLineNumber };
+						events.push(lastEvent);
 					}
+					oldDeltaLineCount--;
 				}
-				console.log(` => deleting ${oldMinimapLines[oldIndex]}`);
 				oldIndex++;
 			}
 
@@ -588,7 +580,6 @@ class MinimapSamplingState {
 			if (oldIndex < oldLength && oldMinimapLines[oldIndex] <= toModelLineNumber) {
 				// reuse the old sampled line
 				selectedModelLineNumber = oldMinimapLines[oldIndex];
-				console.log(` => keeping ${oldMinimapLines[oldIndex]}`);
 				oldIndex++;
 			} else {
 				if (i === 0) {
@@ -598,22 +589,15 @@ class MinimapSamplingState {
 				} else {
 					selectedModelLineNumber = Math.round(i * ratio + halfRatio);
 				}
-				console.log(` => inserting ${selectedModelLineNumber}`);
 				if (events.length < MAX_EVENT_COUNT) {
-					if (currentDeleteEnd !== 0) {
-						// generate previous delete event
-						events.push({ type: 'deleted', deleteFromLineNumber: currentDeleteStart, deleteToLineNumber: currentDeleteEnd });
-						oldDeltaLineCount -= (currentDeleteEnd - currentDeleteStart + 1);
-						currentDeleteStart = 0;
-						currentDeleteEnd = 0;
-					}
-
-					if (currentInsertStart === 0) {
-						currentInsertStart = oldIndex + 1 + oldDeltaLineCount;
-						currentInsertEnd = currentInsertStart;
+					const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
+					if (lastEvent && lastEvent.type === 'inserted' && lastEvent._i === i - 1) {
+						lastEvent.insertToLineNumber++;
 					} else {
-						currentInsertEnd++;
+						lastEvent = { type: 'inserted', _i: i, insertFromLineNumber: oldMinimapLineNumber, insertToLineNumber: oldMinimapLineNumber };
+						events.push(lastEvent);
 					}
+					oldDeltaLineCount++;
 				}
 			}
 
@@ -626,28 +610,16 @@ class MinimapSamplingState {
 		}
 
 		if (events.length < MAX_EVENT_COUNT) {
-			if (currentInsertEnd !== 0) {
-				// generate previous insert event
-				events.push({ type: 'inserted', insertFromLineNumber: currentInsertStart, insertToLineNumber: currentInsertEnd });
-				oldDeltaLineCount += (currentInsertEnd - currentInsertStart + 1);
-				currentInsertStart = 0;
-				currentInsertEnd = 0;
-			}
 			while (oldIndex < oldLength) {
-				if (currentDeleteStart === 0) {
-					currentDeleteStart = oldIndex + 1 + oldDeltaLineCount;
-					currentDeleteEnd = currentDeleteStart;
+				const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
+				if (lastEvent && lastEvent.type === 'deleted' && lastEvent._oldIndex === oldIndex - 1) {
+					lastEvent.deleteToLineNumber++;
 				} else {
-					currentDeleteEnd++;
+					lastEvent = { type: 'deleted', _oldIndex: oldIndex, deleteFromLineNumber: oldMinimapLineNumber, deleteToLineNumber: oldMinimapLineNumber };
+					events.push(lastEvent);
 				}
+				oldDeltaLineCount--;
 				oldIndex++;
-			}
-			if (currentDeleteEnd !== 0) {
-				// generate previous delete event
-				events.push({ type: 'deleted', deleteFromLineNumber: currentDeleteStart, deleteToLineNumber: currentDeleteEnd });
-				oldDeltaLineCount -= (currentDeleteEnd - currentDeleteStart + 1);
-				currentDeleteStart = 0;
-				currentDeleteEnd = 0;
 			}
 		} else {
 			// too many events, just give up
@@ -875,10 +847,9 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		let optionsMightHaveChanged: boolean;
 		if (wasSampling) {
 			if (this._isSampling) {
-				console.log(events);
 				// was sampling, is sampling
 				for (const event of events) {
-					switch(event.type) {
+					switch (event.type) {
 						case 'deleted':
 							this._actual.onLinesDeleted(event.deleteFromLineNumber, event.deleteToLineNumber);
 							break;
