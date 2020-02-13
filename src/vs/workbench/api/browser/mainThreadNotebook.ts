@@ -8,9 +8,9 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebook, ICell, IOutput } from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebook';
 
 export class MainThreadCell implements ICell {
 	private _onDidChangeOutputs = new Emitter<void>();
@@ -183,6 +183,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
+	private readonly _renderers = new Map<number, MainThreadNotebookController>();
 	private readonly _proxy: ExtHostNotebookShape;
 
 	constructor(
@@ -194,6 +195,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._register(this._notebookService.onDidChangeActiveEditor(e => {
 			this._proxy.$updateActiveEditor(e.viewType, e.uri);
 		}));
+	}
+
+	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	$unregisterNotebookRenderer(handle: number): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void> {

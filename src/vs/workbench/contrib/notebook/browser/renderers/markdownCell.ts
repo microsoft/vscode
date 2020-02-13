@@ -6,10 +6,11 @@
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { CellRenderTemplate, NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
+import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebook';
+import { NotebookHandler, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;

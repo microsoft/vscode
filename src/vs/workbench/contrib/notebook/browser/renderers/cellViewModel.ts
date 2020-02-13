@@ -9,12 +9,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
-import { ICell } from 'vs/editor/common/modes';
 import * as UUID from 'vs/base/common/uuid';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ICell } from 'vs/workbench/contrib/notebook/common/notebook';
 
 export class CellViewModel extends Disposable {
 	private _textModel: ITextModel | null = null;

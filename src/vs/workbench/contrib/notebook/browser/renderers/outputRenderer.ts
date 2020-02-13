@@ -8,15 +8,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { isArray } from 'vs/base/common/types';
-import { IOutput } from 'vs/editor/common/modes';
 import * as marked from 'vs/base/common/marked/marked';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOutput } from 'vs/workbench/contrib/notebook/common/notebook';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
 
 export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
 	types.forEach(type => {

@@ -12,10 +12,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ICell } from 'vs/editor/common/modes';
-// import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ICell } from 'vs/workbench/contrib/notebook/common/notebook';
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -101,7 +100,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 						} else {
 							return output;
 						}
-					})
+					});
 				}
 
 				this._proxy.$updateNotebookCell(this.viewType, this.uri, {
@@ -152,7 +151,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 					} else {
 						return output;
 					}
-				})
+				});
 			}
 
 			return {
@@ -162,9 +161,9 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 				cell_type: cell.cell_type,
 				outputs: outputs,
 				isDirty: false
-			}
+			};
 		}
-	));
+		));
 	}
 
 	insertRawCell(index: number, cell: ExtHostCell) {
@@ -187,7 +186,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 					} else {
 						return output;
 					}
-				})
+				});
 			}
 
 			this._proxy.$updateNotebookCell(this.viewType, this.uri, {
@@ -302,6 +301,9 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 }
 
 export class ExtHostNotebookOutputRenderer {
+	private static _handlePool: number = 0;
+	readonly handle = ExtHostNotebookOutputRenderer._handlePool++;
+
 	constructor(
 		private filter: vscode.NotebookOutputSelector,
 		private renderer: vscode.NotebookOutputRenderer
@@ -332,7 +334,7 @@ export class ExtHostNotebookOutputRenderer {
 	}
 
 	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput): vscode.CellDisplayOutput {
-		let html = this.renderer.render(document ,cell, output);
+		let html = this.renderer.render(document, cell, output);
 
 		return {
 			output_type: 'display_data',
@@ -357,7 +359,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
-	private readonly _notebookOutputRenderers: ExtHostNotebookOutputRenderer[] = [];
+	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
 
 
 	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
@@ -377,16 +379,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		filter: vscode.NotebookOutputSelector,
 		renderer: vscode.NotebookOutputRenderer
 	): vscode.Disposable {
-		this._notebookOutputRenderers.push(new ExtHostNotebookOutputRenderer(filter, renderer));
+		let extHostRenderer = new ExtHostNotebookOutputRenderer(filter, renderer);
+		this._notebookOutputRenderers.set(extHostRenderer.handle, extHostRenderer);
+		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, filter, extHostRenderer.handle);
 		return new VSCodeDisposable(() => {
-			
-		})
+			this._notebookOutputRenderers.delete(extHostRenderer.handle);
+			this._proxy.$unregisterNotebookRenderer(extHostRenderer.handle);
+		});
 	}
 
 	findBestMatchedRenderer(output: vscode.CellOutput): ExtHostNotebookOutputRenderer | undefined {
-		for (let i = 0; i < this._notebookOutputRenderers.length; i++) {
-			if (this._notebookOutputRenderers[i].matches(output)) {
-				return this._notebookOutputRenderers[i];
+		for (let renderer of this._notebookOutputRenderers) {
+			if (renderer[1].matches(output)) {
+				return renderer[1];
 			}
 		}
 

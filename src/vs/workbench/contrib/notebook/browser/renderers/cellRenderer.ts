@@ -17,12 +17,12 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NotebookHandler, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;

@@ -8,7 +8,7 @@ import * as path from 'path';
 
 declare var TextEncoder: any;
 
-const mjAPI = require("mathjax-node-svg2png");
+const mjAPI = require("mathjax-node");
 mjAPI.config({
 	MathJax: {
 		// traditional MathJax configuration

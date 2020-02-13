@@ -7,8 +7,8 @@ import { EditorInput, EditorModel, IEditorInput, GroupIdentifier, ISaveOptions }
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebook, ICell } from 'vs/editor/common/modes';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebook, ICell } from 'vs/workbench/contrib/notebook/common/notebook';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;

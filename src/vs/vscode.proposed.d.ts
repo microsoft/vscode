@@ -1431,7 +1431,7 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 */
 		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput): string;
-		dependencies?: Uri[];
+		preloads?: Uri[];
 	}
 
 	namespace window {

@@ -31,10 +31,10 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotebook } from 'vs/editor/common/modes';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NotebookHandler, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/renderers/interfaces';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { INotebook, CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebook';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -280,7 +280,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				let viewState = this.loadTextEditorViewState(input);
 				this.notebook = model.getNotebook();
 				this.viewType = input.viewType;
-				this.viewCells = this.notebook.cells.map(cell => {
+				this.viewCells = this.notebook!.cells.map(cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
 					return new CellViewModel(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService, this.openerService, this.notebookService, this.themeService);
 				});

@@ -50,6 +50,7 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { TimelineItem, TimelineProviderDescriptor, TimelineChangeEvent, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
+import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebook';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -627,10 +628,12 @@ export interface ExtHostWebviewsShape {
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
+	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number): Promise<void>;
+	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
-	$updateNotebook(viewType: string, resource: UriComponents, notebook: modes.INotebook): Promise<void>;
-	$updateNotebookCells(viewType: string, resource: UriComponents, cells: modes.ICell[]): Promise<void>;
-	$updateNotebookCell(viewType: string, resource: UriComponents, cell: modes.ICell): Promise<void>;
+	$updateNotebook(viewType: string, resource: UriComponents, notebook: INotebook): Promise<void>;
+	$updateNotebookCells(viewType: string, resource: UriComponents, cells: ICell[]): Promise<void>;
+	$updateNotebookCell(viewType: string, resource: UriComponents, cell: ICell): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 }
 
@@ -1457,7 +1460,7 @@ export interface ExtHostNotebookShape {
 	$executeNotebook(viewType: string, uri: URI): Promise<void>;
 	$executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void>;
 	$latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
-	$createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<modes.ICell | undefined>;
+	$createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
 	$deleteCell(viewType: string, uri: URI, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: URI): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: URI): Promise<void>;
