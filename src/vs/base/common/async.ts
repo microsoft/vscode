@@ -783,7 +783,7 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 //#region Task Sequentializer
 
 interface IPendingTask {
-	versionId: number;
+	taskId: number;
 	cancel: () => void;
 	promise: Promise<void>;
 }
@@ -803,13 +803,13 @@ export class TaskSequentializer {
 	private _pending?: IPendingTask;
 	private _next?: ISequentialTask;
 
-	hasPending(versionId?: number): this is ITaskSequentializerWithPendingTask {
+	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
 		if (!this._pending) {
 			return false;
 		}
 
-		if (typeof versionId === 'number') {
-			return this._pending.versionId === versionId;
+		if (typeof taskId === 'number') {
+			return this._pending.taskId === taskId;
 		}
 
 		return !!this._pending;
@@ -823,18 +823,18 @@ export class TaskSequentializer {
 		this._pending?.cancel();
 	}
 
-	setPending(versionId: number, promise: Promise<void>, onCancel?: () => void, ): Promise<void> {
-		this._pending = { versionId, cancel: () => onCancel?.(), promise };
+	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void, ): Promise<void> {
+		this._pending = { taskId: taskId, cancel: () => onCancel?.(), promise };
 
-		promise.then(() => this.donePending(versionId), () => this.donePending(versionId));
+		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
 
 		return promise;
 	}
 
-	private donePending(versionId: number): void {
-		if (this._pending && versionId === this._pending.versionId) {
+	private donePending(taskId: number): void {
+		if (this._pending && taskId === this._pending.taskId) {
 
-			// only set pending to done if the promise finished that is associated with that versionId
+			// only set pending to done if the promise finished that is associated with that taskId
 			this._pending = undefined;
 
 			// schedule the next task now that we are free if we have any
