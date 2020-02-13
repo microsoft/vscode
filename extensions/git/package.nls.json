@@ -146,5 +146,8 @@
 	"colors.untracked": "Color for untracked resources.",
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",
-	"colors.submodule": "Color for submodule resources."
+	"colors.submodule": "Color for submodule resources.",
+	"view.workbench.scm.empty": "In order to use git features, you can open a folder containing a git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone from URL](command:git.clone)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+	"view.workbench.scm.folder": "The folder currently open doesn't have a git repository.\n[Initialize Repository](command:git.init)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+	"view.workbench.scm.workspace": "The workspace currently open doesn't have any folders containing git repositories.\n[Initialize Repository](command:git.init)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm)."
 }
