@@ -292,7 +292,9 @@ suite('Untitled text editors', () => {
 		const model = await input.resolve();
 		assert.equal(model.getMode(), mode);
 
+		assert.ok(!input.model.hasModeSetExplicitly);
 		input.setMode('text');
+		assert.ok(input.model.hasModeSetExplicitly);
 
 		assert.equal(input.getMode(), PLAINTEXT_MODE_ID);
 
