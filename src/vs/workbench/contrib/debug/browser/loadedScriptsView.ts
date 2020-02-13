@@ -7,12 +7,12 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderViewTree, BaseDebugViewPane } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -402,7 +402,7 @@ function asTreeElement(item: BaseTreeItem, viewState?: IViewState): ITreeElement
 	};
 }
 
-export class LoadedScriptsView extends ViewPane {
+export class LoadedScriptsView extends BaseDebugViewPane {
 
 	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;

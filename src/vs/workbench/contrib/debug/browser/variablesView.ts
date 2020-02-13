@@ -12,12 +12,12 @@ import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewMod
 import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData, BaseDebugViewPane } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction, Action } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -39,7 +39,7 @@ let forgetScopes = true;
 
 export const variableSetEmitter = new Emitter<void>();
 
-export class VariablesView extends ViewPane {
+export class VariablesView extends BaseDebugViewPane {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh = false;
