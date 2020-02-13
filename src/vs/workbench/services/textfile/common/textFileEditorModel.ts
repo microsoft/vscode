@@ -24,6 +24,7 @@ import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/w
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { SaveSequentializer } from 'vs/workbench/services/textfile/common/saveSequenzializer';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 interface IBackupMetaData {
 	mtime: number;
@@ -601,6 +602,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.saveSequentializer.hasPendingSave()) {
 			this.logService.trace(`[text file model] doSave(${versionId}) - exit - because busy saving`, this.resource.toString());
 
+			// Indicate to the save sequentializer that we want to
+			// cancel the pending operation so that ours can run
+			// before the pending one finishes.
+			// Currently this will try to cancel pending save
+			// participants but never a pending save.
+			this.saveSequentializer.cancelPending();
+
 			// Register this as the next upcoming save and return
 			return this.saveSequentializer.setNext(() => this.doSave(options));
 		}
@@ -616,6 +624,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In addition we update our version right after in case it changed because of a model change
 		//
 		// Save participants can also be skipped through API.
+		const saveParticipantCancellation = new CancellationTokenSource();
 		let saveParticipantPromise: Promise<number> = Promise.resolve(versionId);
 		if (this.isResolved() && this.textFileService.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
@@ -625,7 +634,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			};
 
 			this.ignoreDirtyOnModelContentChange = true;
-			saveParticipantPromise = this.textFileService.saveParticipant.participate(this, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
+			saveParticipantPromise = this.textFileService.saveParticipant.participate(this, { reason: options.reason }, saveParticipantCancellation.token).then(onCompleteOrError, onCompleteOrError);
 		}
 
 		// mark the save participant as current pending save operation
@@ -678,7 +687,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, this.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => this.handleSaveSuccess(stat, versionId, options), error => this.handleSaveError(error, versionId, options)));
-		}));
+		}), () => saveParticipantCancellation.cancel());
 	}
 
 	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: ITextFileSaveOptions): void {
