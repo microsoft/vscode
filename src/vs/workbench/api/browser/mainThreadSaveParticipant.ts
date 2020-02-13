@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IdleValue, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -367,6 +367,8 @@ export class SaveParticipant implements ISaveParticipant {
 
 	async participate(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
 
+		const cts = new CancellationTokenSource(token);
+
 		return this._progressService.withProgress({
 			title: localize('saveParticipants', "Running Save Participants for '{0}'", this._labelService.getUriLabel(model.resource, { relative: true })),
 			location: ProgressLocation.Notification,
@@ -377,12 +379,12 @@ export class SaveParticipant implements ISaveParticipant {
 			model.textEditorModel.pushStackElement();
 
 			for (let p of this._saveParticipants.getValue()) {
-				if (token.isCancellationRequested) {
+				if (cts.token.isCancellationRequested) {
 					break;
 				}
 				try {
-					const promise = p.participate(model, context, progress, token);
-					await raceCancellation(promise, token);
+					const promise = p.participate(model, context, progress, cts.token);
+					await raceCancellation(promise, cts.token);
 				} catch (err) {
 					this._logService.warn(err);
 				}
@@ -392,6 +394,7 @@ export class SaveParticipant implements ISaveParticipant {
 			model.textEditorModel.pushStackElement();
 		}, () => {
 			// user cancel
+			cts.dispose(true);
 		});
 	}
 }
