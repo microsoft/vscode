@@ -234,7 +234,6 @@ class MinimapLayout {
 		scrollHeight: number,
 		previousLayout: MinimapLayout | null
 	): MinimapLayout {
-		// console.log(`create - ${viewportStartLineNumber}, ${viewportEndLineNumber}, ${viewportHeight}, ${viewportContainsWhitespaceGaps}, ${lineCount}, ${scrollTop}, ${scrollHeight}`);
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = options.minimapLineHeight;
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
@@ -502,9 +501,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	private _selections: Selection[];
 	private _minimapSelections: Selection[];
 
-	private _samplingRatio!: number;
-	private _minimapLines!: number[];
-	private _isSampling = false;//true;
+	private _samplingRatio: number;
+	private _minimapLines: number[];
+	private _isSampling = false;
+	private _shouldCheckSampling: boolean;
 
 	public readonly tokensColorTracker: MinimapTokensColorTracker;
 	public options: MinimapOptions;
@@ -517,7 +517,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._selections = [];
 		this._minimapSelections = [];
 
-		this._recreateLineMapping();
+		this._samplingRatio = 1;
+		this._minimapLines = [];
+		this._shouldCheckSampling = false;
+		this._recreateLineSampling(null);
 
 		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
 		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker, this._isSampling);
@@ -594,7 +597,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			if (changeStartIndex <= changeEndIndex) {
 				this._actual.onLinesChanged(changeStartIndex + 1, changeEndIndex + 1);
 			}
-			return this._checkMapping();
+			this._shouldCheckSampling = true;
+			return true;
 		} else {
 			return this._actual.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		}
@@ -609,7 +613,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 				}
 				this._minimapLines[i] += insertedLineCount;
 			}
-			return this._checkMapping();
+			this._shouldCheckSampling = true;
+			return true;
 		} else {
 			return this._actual.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		}
@@ -651,7 +656,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		// nothing to read
+		if (this._shouldCheckSampling) {
+			this._shouldCheckSampling = false;
+			this._recreateLineSampling(this._minimapLines);
+		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -684,12 +692,23 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	//#region IMinimapModel
 
-	private _checkMapping(): boolean {
-		// console.log(`TODO: I SHOULD ADJUST THE MAPPING!!!`, this._minimapLines);
-		return false;
+	private _createLineSampling(minimapLineCount: number, modelLineCount: number, ratio: number): number[] {
+		let result: number[] = [];
+		result[0] = 1;
+		if (minimapLineCount > 1) {
+			const halfRatio = ratio / 2;
+			for (let i = 0, lastIndex = minimapLineCount - 1; i < lastIndex; i++) {
+				result[i] = Math.round(i * ratio + halfRatio);
+			}
+			result[minimapLineCount - 1] = modelLineCount;
+		}
+		return result;
 	}
 
-	private _recreateLineMapping(): void {
+	private _recreateLineSampling(oldMinimapLines: number[] | null): void {
+		// generate at most 10 events, if there are more than 10 changes, just flush all previous data
+		const MAX_EVENT_COUNT = 10;
+
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const pixelRatio = options.get(EditorOption.pixelRatio);
@@ -702,10 +721,113 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		const minimapLineCount = Math.floor(modelLineCount / desiredRatio);
 		const ratio = modelLineCount / minimapLineCount;
 
+		if (!oldMinimapLines) {
+			this._minimapLines = this._createLineSampling(minimapLineCount, modelLineCount, ratio);
+			this._samplingRatio = ratio;
+			return;
+		}
+
+		const halfRatio = ratio / 2;
+		const oldLength = oldMinimapLines.length;
 		let result: number[] = [];
+		let oldIndex = 0;
+		let oldDeltaLineCount = 0;
+		let minModelLineNumber = 1;
+		let eventCount = 0;
+		let currentDeleteStart = 0, currentDeleteEnd = 0;
+		let currentInsertStart = 0, currentInsertEnd = 0;
 		for (let i = 0; i < minimapLineCount; i++) {
-			const desiredLine = Math.min(modelLineCount, Math.round((i + 1) * ratio));
-			result[i] = desiredLine;
+			const fromModelLineNumber = Math.max(minModelLineNumber, Math.round(i * ratio));
+			const toModelLineNumber = Math.max(fromModelLineNumber, Math.round((i + 1) * ratio));
+
+			while (oldIndex < oldLength && oldMinimapLines[oldIndex] < fromModelLineNumber) {
+				if (eventCount < MAX_EVENT_COUNT) {
+					if (currentInsertEnd !== 0) {
+						// must deliver previous insert event
+						this._actual.onLinesInserted(currentInsertStart, currentInsertEnd);
+						oldDeltaLineCount += (currentInsertEnd - currentInsertStart + 1);
+						currentInsertStart = 0;
+						currentInsertEnd = 0;
+						eventCount++;
+					}
+
+					if (currentDeleteStart === 0) {
+						currentDeleteStart = oldIndex + 1 + oldDeltaLineCount;
+						currentDeleteEnd = currentDeleteStart;
+					} else {
+						currentDeleteEnd++;
+					}
+				}
+				oldIndex++;
+			}
+
+			let selectedModelLineNumber: number;
+			if (oldIndex < oldLength && oldMinimapLines[oldIndex] <= toModelLineNumber) {
+				// reuse the old sampled line
+				selectedModelLineNumber = oldMinimapLines[oldIndex];
+				oldIndex++;
+			} else {
+				if (i === 0) {
+					selectedModelLineNumber = 1;
+				} else if (i + 1 === minimapLineCount) {
+					selectedModelLineNumber = modelLineCount;
+				} else {
+					selectedModelLineNumber = Math.round(i * ratio + halfRatio);
+				}
+				if (eventCount < MAX_EVENT_COUNT) {
+					if (currentDeleteEnd !== 0) {
+						// must deliver previous delete event
+						this._actual.onLinesDeleted(currentDeleteStart, currentDeleteEnd);
+						oldDeltaLineCount -= (currentDeleteEnd - currentDeleteStart + 1);
+						currentDeleteStart = 0;
+						currentDeleteEnd = 0;
+						eventCount++;
+					}
+
+					if (currentInsertStart === 0) {
+						currentInsertStart = oldIndex + 1 + oldDeltaLineCount;
+						currentInsertEnd = currentInsertStart;
+					} else {
+						currentInsertEnd++;
+					}
+				}
+			}
+
+			result[i] = selectedModelLineNumber;
+			if (selectedModelLineNumber === modelLineCount) {
+				minModelLineNumber = selectedModelLineNumber;
+			} else {
+				minModelLineNumber = selectedModelLineNumber + 1;
+			}
+		}
+
+		if (eventCount < MAX_EVENT_COUNT) {
+			if (currentInsertEnd !== 0) {
+				// must deliver previous insert event
+				this._actual.onLinesInserted(currentInsertStart, currentInsertEnd);
+				oldDeltaLineCount += (currentInsertEnd - currentInsertStart + 1);
+				currentInsertStart = 0;
+				currentInsertEnd = 0;
+			}
+			while (oldIndex < oldLength) {
+				if (currentDeleteStart === 0) {
+					currentDeleteStart = oldIndex + 1 + oldDeltaLineCount;
+					currentDeleteEnd = currentDeleteStart;
+				} else {
+					currentDeleteEnd++;
+				}
+				oldIndex++;
+			}
+			if (currentDeleteEnd !== 0) {
+				// must deliver previous delete event
+				this._actual.onLinesDeleted(currentDeleteStart, currentDeleteEnd);
+				oldDeltaLineCount -= (currentDeleteEnd - currentDeleteStart + 1);
+				currentDeleteStart = 0;
+				currentDeleteEnd = 0;
+			}
+		} else {
+			// too many events, just give up
+			this._actual.onFlushed();
 		}
 
 		this._samplingRatio = ratio;
@@ -1288,8 +1410,6 @@ class InnerMinimap extends Disposable {
 	}
 
 	private renderLines(layout: MinimapLayout): RenderData | null {
-		const renderMinimap = this._model.options.renderMinimap;
-		const charRenderer = this._model.options.charRenderer();
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
 		const minimapLineHeight = this._model.options.minimapLineHeight;
@@ -1322,7 +1442,13 @@ class InnerMinimap extends Disposable {
 		const lineInfo = this._model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 		const tabSize = this._model.getOptions().tabSize;
 		const background = this._model.options.backgroundColor;
-		const useLighterFont = this._model.tokensColorTracker.backgroundIsLight();
+		const tokensColorTracker = this._model.tokensColorTracker;
+		const useLighterFont = tokensColorTracker.backgroundIsLight();
+		const renderMinimap = this._model.options.renderMinimap;
+		const charRenderer = this._model.options.charRenderer();
+		const isSampling = this._model.options.isSampling;
+		const fontScale = this._model.options.fontScale;
+		const minimapCharWidth = this._model.options.minimapCharWidth;
 
 		// Render the rest of lines
 		let dy = 0;
@@ -1334,13 +1460,14 @@ class InnerMinimap extends Disposable {
 					background,
 					useLighterFont,
 					renderMinimap,
-					this._model.options.minimapCharWidth,
-					this._model.tokensColorTracker,
+					minimapCharWidth,
+					tokensColorTracker,
 					charRenderer,
 					dy,
 					tabSize,
 					lineInfo[lineIndex]!,
-					this._model.options.fontScale
+					fontScale,
+					isSampling
 				);
 			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
@@ -1466,7 +1593,8 @@ class InnerMinimap extends Disposable {
 		dy: number,
 		tabSize: number,
 		lineData: ViewLineData,
-		fontScale: number
+		fontScale: number,
+		isSampling: boolean
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
@@ -1504,7 +1632,7 @@ class InnerMinimap extends Disposable {
 						if (renderMinimap === RenderMinimap.Blocks) {
 							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont);
+							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, isSampling);
 						}
 
 						dx += charWidth;
