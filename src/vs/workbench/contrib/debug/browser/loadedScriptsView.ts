@@ -573,12 +573,6 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		}));
 
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
-			}
-		}));
-
 		// feature: expand all nodes when filtering (not when finding)
 		let viewState: IViewState | undefined;
 		this._register(this.tree.onDidChangeTypeFilterPattern(pattern => {

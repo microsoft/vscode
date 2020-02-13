@@ -143,11 +143,6 @@ export class VariablesView extends ViewPane {
 				this.tree.rerender(e);
 			}
 		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
-			}
-		}));
 	}
 
 	getActions(): IAction[] {

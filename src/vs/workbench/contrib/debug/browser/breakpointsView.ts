@@ -153,12 +153,6 @@ export class BreakpointsView extends ViewPane {
 				this.onBreakpointsChange();
 			}
 		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.list.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
-			}
-		}));
 	}
 
 	public focus(): void {

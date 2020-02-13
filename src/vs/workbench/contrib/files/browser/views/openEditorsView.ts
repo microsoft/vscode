@@ -302,12 +302,6 @@ export class OpenEditorsView extends ViewPane {
 				this.listRefreshScheduler.schedule(0);
 			}
 		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.list.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
-			}
-		}));
 	}
 
 	getActions(): IAction[] {
