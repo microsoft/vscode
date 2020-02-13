@@ -17,14 +17,14 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
 	:: and the build bundles extensions into .build webpacked
-	call yarn gulp compile-extension:vscode-api-tests
-	call yarn gulp compile-extension:vscode-colorize-tests
-	call yarn gulp compile-extension:markdown-language-features
-	call yarn gulp compile-extension:emmet
-	call yarn gulp compile-extension:css-language-features-server
-	call yarn gulp compile-extension:html-language-features-server
-	call yarn gulp compile-extension:json-language-features-server
-	call yarn gulp compile-extension:git
+	call yarn gulp 	compile-extension:vscode-api-tests^
+					compile-extension:vscode-colorize-tests^
+					compile-extension:markdown-language-features^
+					compile-extension:emmet^
+					compile-extension:css-language-features-server^
+					compile-extension:html-language-features-server^
+					compile-extension:json-language-features-server^
+					compile-extension:git
 
 	:: Configuration for more verbose output
 	set VSCODE_CLI=1

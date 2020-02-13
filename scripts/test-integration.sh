@@ -23,14 +23,14 @@ else
 	# Run from a built: need to compile all test extensions
 	# because we run extension tests from their source folders
 	# and the build bundles extensions into .build webpacked
-	yarn gulp compile-extension:vscode-api-tests
-	yarn gulp compile-extension:vscode-colorize-tests
-	yarn gulp compile-extension:markdown-language-features
-	yarn gulp compile-extension:emmet
-	yarn gulp compile-extension:css-language-features-server
-	yarn gulp compile-extension:html-language-features-server
-	yarn gulp compile-extension:json-language-features-server
-	yarn gulp compile-extension:git
+	yarn gulp 	compile-extension:vscode-api-tests \
+				compile-extension:vscode-colorize-tests \
+				compile-extension:markdown-language-features \
+				compile-extension:emmet \
+				compile-extension:css-language-features-server \
+				compile-extension:html-language-features-server \
+				compile-extension:json-language-features-server \
+				compile-extension:git
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1
