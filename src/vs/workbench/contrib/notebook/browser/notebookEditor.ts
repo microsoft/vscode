@@ -138,6 +138,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			renders,
 			{
 				setRowLineHeight: false,
+				setRowHeight: false,
 				supportDynamicHeights: true,
 				horizontalScrolling: false,
 				keyboardSupport: false,
