@@ -789,7 +789,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			}
 			return result;
 		}
-		return this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
+		return this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed).data;
 	}
 
 	public getSelections(): Selection[] {
