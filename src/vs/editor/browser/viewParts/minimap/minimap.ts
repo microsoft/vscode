@@ -25,7 +25,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { minimapSelection, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, minimapBackground } from 'vs/platform/theme/common/colorRegistry';
+import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -1158,20 +1158,17 @@ registerThemingParticipant((theme, collector) => {
 	if (minimapBackgroundValue) {
 		collector.addRule(`.monaco-editor .minimap > canvas { opacity: ${minimapBackgroundValue.rgba.a}; will-change: opacity; }`);
 	}
-	const sliderBackground = theme.getColor(scrollbarSliderBackground);
+	const sliderBackground = theme.getColor(minimapSliderBackground);
 	if (sliderBackground) {
-		const halfSliderBackground = sliderBackground.transparent(0.5);
-		collector.addRule(`.monaco-editor .minimap-slider, .monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${halfSliderBackground}; }`);
+		collector.addRule(`.monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${sliderBackground}; }`);
 	}
-	const sliderHoverBackground = theme.getColor(scrollbarSliderHoverBackground);
+	const sliderHoverBackground = theme.getColor(minimapSliderHoverBackground);
 	if (sliderHoverBackground) {
-		const halfSliderHoverBackground = sliderHoverBackground.transparent(0.5);
-		collector.addRule(`.monaco-editor .minimap-slider:hover, .monaco-editor .minimap-slider:hover .minimap-slider-horizontal { background: ${halfSliderHoverBackground}; }`);
+		collector.addRule(`.monaco-editor .minimap-slider:hover .minimap-slider-horizontal { background: ${sliderHoverBackground}; }`);
 	}
-	const sliderActiveBackground = theme.getColor(scrollbarSliderActiveBackground);
+	const sliderActiveBackground = theme.getColor(minimapSliderActiveBackground);
 	if (sliderActiveBackground) {
-		const halfSliderActiveBackground = sliderActiveBackground.transparent(0.5);
-		collector.addRule(`.monaco-editor .minimap-slider.active, .monaco-editor .minimap-slider.active .minimap-slider-horizontal { background: ${halfSliderActiveBackground}; }`);
+		collector.addRule(`.monaco-editor .minimap-slider.active .minimap-slider-horizontal { background: ${sliderActiveBackground}; }`);
 	}
 	const shadow = theme.getColor(scrollbarShadow);
 	if (shadow) {
