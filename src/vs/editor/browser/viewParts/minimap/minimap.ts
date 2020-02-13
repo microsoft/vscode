@@ -48,6 +48,8 @@ class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
 
+	public readonly entireDocument: boolean;
+
 	public readonly scrollBeyondLastLine: boolean;
 
 	public readonly showSlider: 'always' | 'mouseover';
@@ -57,10 +59,6 @@ class MinimapOptions {
 	public readonly typicalHalfwidthCharacterWidth: number;
 
 	public readonly lineHeight: number;
-
-	public readonly fontScale: number;
-
-	public readonly charRenderer: () => MinimapCharRenderer;
 
 	/**
 	 * container dom node left position (in CSS px)
@@ -95,22 +93,23 @@ class MinimapOptions {
 
 	public readonly backgroundColor: RGBA8;
 
+	public readonly fontScale: number;
 	public readonly minimapLineHeight: number;
 	public readonly minimapCharWidth: number;
+	public readonly charRenderer: () => MinimapCharRenderer;
 
-	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker, isSampling: boolean) {
+	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker, modelLineCount: number, isSampling: boolean) {
 		const options = configuration.options;
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const minimapOpts = options.get(EditorOption.minimap);
 
 		this.isSampling = isSampling;
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
+		this.entireDocument = minimapOpts.entireDocument;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
-		const minimapOpts = options.get(EditorOption.minimap);
 		this.showSlider = minimapOpts.showSlider;
-		this.fontScale = (isSampling ? 1 : Math.round(minimapOpts.scale * pixelRatio));
-		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
@@ -126,9 +125,32 @@ class MinimapOptions {
 
 		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, tokensColorTracker);
 
-		const baseCharHeight = (isSampling ? 1 : this.renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
-		this.minimapLineHeight = baseCharHeight * this.fontScale;
+		const baseCharHeight = (this.renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
+
+		let fontScale: number;
+		let minimapLineHeight: number;
+		if (minimapOpts.entireDocument) {
+			if (isSampling) {
+				fontScale = 1;
+				minimapLineHeight = 1;
+			} else {
+				const extraLinesBeyondLastLine = this.scrollBeyondLastLine ? (layoutInfo.height / this.lineHeight - 1) : 0;
+				const desiredRatio = (modelLineCount + extraLinesBeyondLastLine) / (pixelRatio * layoutInfo.height);
+				minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
+				// fontScale = Math.round(minimapOpts.scale * pixelRatio);
+				fontScale = Math.max(1, Math.floor(minimapLineHeight / baseCharHeight / 2));
+				const actualMinimapHeight = (modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight;
+				this.canvasInnerHeight = Math.ceil(actualMinimapHeight);
+			}
+		} else {
+			fontScale = Math.round(minimapOpts.scale * pixelRatio);
+			minimapLineHeight = baseCharHeight * fontScale;
+		}
+
+		this.fontScale = fontScale;
+		this.minimapLineHeight = minimapLineHeight;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
+		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
 	}
 
 	private static _getMinimapBackground(theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
@@ -142,6 +164,7 @@ class MinimapOptions {
 	public equals(other: MinimapOptions): boolean {
 		return (this.isSampling === other.isSampling
 			&& this.renderMinimap === other.renderMinimap
+			&& this.entireDocument === other.entireDocument
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
 			&& this.pixelRatio === other.pixelRatio
@@ -224,12 +247,12 @@ class MinimapLayout {
 
 	public static create(
 		options: MinimapOptions,
-		samplingRatio: number,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
 		viewportHeight: number,
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
+		realLineCount: number,
 		scrollTop: number,
 		scrollHeight: number,
 		previousLayout: MinimapLayout | null
@@ -239,9 +262,12 @@ class MinimapLayout {
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
 		const lineHeight = options.lineHeight;
 
-		if (options.isSampling) {
-			const expectedViewportLineCount = viewportHeight / lineHeight;
-			const sliderHeight = Math.max(1, Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio / samplingRatio));
+		if (options.entireDocument) {
+			const logicalScrollHeight = (
+				realLineCount * options.lineHeight
+				+ (options.scrollBeyondLastLine ? viewportHeight - options.lineHeight : 0)
+			);
+			const sliderHeight = Math.max(1, Math.floor(viewportHeight * viewportHeight / logicalScrollHeight));
 			const maxMinimapSliderTop = Math.max(0, options.minimapHeight - sliderHeight);
 			// The slider can move from 0 to `maxMinimapSliderTop`
 			// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
@@ -470,6 +496,7 @@ export interface IMinimapModel {
 	readonly options: MinimapOptions;
 
 	getLineCount(): number;
+	getRealLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getSelections(): Selection[];
@@ -480,7 +507,6 @@ export interface IMinimapModel {
 }
 
 interface IMinimapRenderingContext {
-	readonly samplingRatio: number;
 	readonly viewportContainsWhitespaceGaps: boolean;
 
 	readonly scrollWidth: number;
@@ -535,6 +561,10 @@ class MinimapSamplingState {
 		const desiredRatio = (modelLineCount + extraLinesBeyondLastLine) / (pixelRatio * layoutInfo.height);
 		const minimapLineCount = Math.floor(modelLineCount / desiredRatio);
 		const ratio = modelLineCount / minimapLineCount;
+
+		if (ratio <= 1) {
+			return [new MinimapSamplingState(false, 1, []), []];
+		}
 
 		if (!oldMinimapLines || oldMinimapLines.length === 0) {
 			let result: number[] = [];
@@ -602,11 +632,7 @@ class MinimapSamplingState {
 			}
 
 			result[i] = selectedModelLineNumber;
-			if (selectedModelLineNumber === modelLineCount) {
-				minModelLineNumber = selectedModelLineNumber;
-			} else {
-				minModelLineNumber = selectedModelLineNumber + 1;
-			}
+			minModelLineNumber = selectedModelLineNumber;
 		}
 
 		if (events.length < MAX_EVENT_COUNT) {
@@ -665,7 +691,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._shouldCheckSampling = false;
 
 		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
-		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker, this._isSampling);
+		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker, this._context.model.getLineCount(), this._isSampling);
 
 		this._actual = new InnerMinimap(context.theme, this);
 	}
@@ -680,7 +706,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	private _onOptionsMaybeChanged(): boolean {
-		const opts = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker, this._isSampling);
+		const opts = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker, this._context.model.getLineCount(), this._isSampling);
 		if (this.options.equals(opts)) {
 			return false;
 		}
@@ -745,6 +771,9 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			this._shouldCheckSampling = true;
 			return true;
 		} else {
+			if (this.options.entireDocument && this._onOptionsMaybeChanged()) {
+				return true;
+			}
 			return this._actual.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		}
 	}
@@ -761,6 +790,9 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			this._shouldCheckSampling = true;
 			return true;
 		} else {
+			if (this.options.entireDocument && this._onOptionsMaybeChanged()) {
+				return true;
+			}
 			return this._actual.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		}
 	}
@@ -817,7 +849,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 
 		const minimapCtx: IMinimapRenderingContext = {
-			samplingRatio: this._samplingRatio,
 			viewportContainsWhitespaceGaps: (ctx.viewportData.whitespaceViewportData.length > 0),
 
 			scrollWidth: ctx.scrollWidth,
@@ -937,6 +968,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		if (this._isSampling) {
 			return this._minimapLines.length;
 		}
+		return this._context.model.getLineCount();
+	}
+
+	public getRealLineCount(): number {
 		return this._context.model.getLineCount();
 	}
 
@@ -1317,12 +1352,12 @@ class InnerMinimap extends Disposable {
 
 		const layout = MinimapLayout.create(
 			this._model.options,
-			renderingCtx.samplingRatio,
 			renderingCtx.viewportStartLineNumber,
 			renderingCtx.viewportEndLineNumber,
 			renderingCtx.viewportHeight,
 			renderingCtx.viewportContainsWhitespaceGaps,
 			this._model.getLineCount(),
+			this._model.getRealLineCount(),
 			renderingCtx.scrollTop,
 			renderingCtx.scrollHeight,
 			this._lastRenderData ? this._lastRenderData.renderedLayout : null
