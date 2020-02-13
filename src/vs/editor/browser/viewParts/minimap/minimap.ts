@@ -501,9 +501,9 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	private _selections: Selection[];
 	private _minimapSelections: Selection[];
 
+	private _isSampling: boolean;
 	private _samplingRatio: number;
 	private _minimapLines: number[];
-	private _isSampling = false;
 	private _shouldCheckSampling: boolean;
 
 	public readonly tokensColorTracker: MinimapTokensColorTracker;
@@ -517,10 +517,11 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._selections = [];
 		this._minimapSelections = [];
 
+		this._isSampling = false;
 		this._samplingRatio = 1;
 		this._minimapLines = [];
 		this._shouldCheckSampling = false;
-		this._recreateLineSampling(null);
+		this._recreateLineSampling(true);
 
 		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
 		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker, this._isSampling);
@@ -550,7 +551,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return this._onOptionsMaybeChanged();
+		let shouldRender = false;
+		shouldRender = this._recreateLineSampling(false) || shouldRender;
+		shouldRender = this._onOptionsMaybeChanged() || shouldRender;
+		return shouldRender;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
@@ -658,7 +662,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	public prepareRender(ctx: RenderingContext): void {
 		if (this._shouldCheckSampling) {
 			this._shouldCheckSampling = false;
-			this._recreateLineSampling(this._minimapLines);
+			this._recreateLineSampling(false);
 		}
 	}
 
@@ -705,11 +709,22 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return result;
 	}
 
-	private _recreateLineSampling(oldMinimapLines: number[] | null): void {
-		// generate at most 10 events, if there are more than 10 changes, just flush all previous data
-		const MAX_EVENT_COUNT = 10;
-
+	private _recreateLineSampling(ctor: boolean): boolean {
+		const wasSampling = this._isSampling;
 		const options = this._context.configuration.options;
+		const minimapOpts = options.get(EditorOption.minimap);
+		if (!minimapOpts.entireDocument) {
+			// no sampling!
+			this._isSampling = false;
+			this._minimapLines = [];
+			this._samplingRatio = 1;
+			if (!ctor && wasSampling) {
+				// was sampling => sampling stopped
+				return this._onOptionsMaybeChanged();
+			}
+			return false;
+		}
+
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const lineHeight = options.get(EditorOption.lineHeight);
@@ -721,18 +736,25 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		const minimapLineCount = Math.floor(modelLineCount / desiredRatio);
 		const ratio = modelLineCount / minimapLineCount;
 
-		if (!oldMinimapLines) {
+		if (!this._minimapLines || this._minimapLines.length === 0) {
+			this._isSampling = true;
 			this._minimapLines = this._createLineSampling(minimapLineCount, modelLineCount, ratio);
 			this._samplingRatio = ratio;
-			return;
+			if (!ctor && !wasSampling) {
+				// was not sampling => now is sampling
+				return this._onOptionsMaybeChanged();
+			}
+			return false;
 		}
 
 		const halfRatio = ratio / 2;
+		const oldMinimapLines = this._minimapLines;
 		const oldLength = oldMinimapLines.length;
 		let result: number[] = [];
 		let oldIndex = 0;
 		let oldDeltaLineCount = 0;
 		let minModelLineNumber = 1;
+		const MAX_EVENT_COUNT = 10; // generate at most 10 events, if there are more than 10 changes, just flush all previous data
 		let eventCount = 0;
 		let currentDeleteStart = 0, currentDeleteEnd = 0;
 		let currentInsertStart = 0, currentInsertEnd = 0;
@@ -830,8 +852,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			this._actual.onFlushed();
 		}
 
+		this._isSampling = true;
 		this._samplingRatio = ratio;
 		this._minimapLines = result;
+		return false;
 	}
 
 	private _modelLineToMinimapLine(lineNumber: number): number {
