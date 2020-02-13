@@ -378,7 +378,8 @@ suite('window namespace tests', () => {
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			test('should respect dimension overrides', (done) => {
+			// https://github.com/microsoft/vscode/issues/90437
+			test.skip('should respect dimension overrides', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
 						equal(terminal, term);

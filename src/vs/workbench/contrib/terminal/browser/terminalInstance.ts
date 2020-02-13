@@ -560,136 +560,136 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
-	public _attachToElement(container: HTMLElement): void {
-		this._xtermReadyPromise.then(xterm => {
-			if (this._wrapperElement) {
-				throw new Error('The terminal instance has already been attached to a container');
-			}
+	public async _attachToElement(container: HTMLElement): Promise<void> {
+		const xterm = await this._xtermReadyPromise;
 
-			this._container = container;
-			this._wrapperElement = document.createElement('div');
-			dom.addClass(this._wrapperElement, 'terminal-wrapper');
-			this._xtermElement = document.createElement('div');
+		if (this._wrapperElement) {
+			throw new Error('The terminal instance has already been attached to a container');
+		}
 
-			// Attach the xterm object to the DOM, exposing it to the smoke tests
-			this._wrapperElement.xterm = this._xterm;
+		this._container = container;
+		this._wrapperElement = document.createElement('div');
+		dom.addClass(this._wrapperElement, 'terminal-wrapper');
+		this._xtermElement = document.createElement('div');
 
-			this._wrapperElement.appendChild(this._xtermElement);
-			this._container.appendChild(this._wrapperElement);
-			xterm.open(this._xtermElement);
-			if (this._configHelper.config.rendererType === 'experimentalWebgl') {
-				this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
-					xterm.loadAddon(new Addon());
-				});
-			}
+		// Attach the xterm object to the DOM, exposing it to the smoke tests
+		this._wrapperElement.xterm = this._xterm;
 
-			if (!xterm.element || !xterm.textarea) {
-				throw new Error('xterm elements not set after open');
-			}
-
-			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
-			xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
-				// Disable all input if the terminal is exiting
-				if (this._isExiting) {
-					return false;
-				}
-
-				// Skip processing by xterm.js of keyboard events that resolve to commands described
-				// within commandsToSkipShell
-				const standardKeyboardEvent = new StandardKeyboardEvent(event);
-				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-				// Respect chords if the allowChords setting is set and it's not Escape. Escape is
-				// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
-				// terminals generally
-				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
-				if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
-					event.preventDefault();
-					return false;
-				}
-
-				// If tab focus mode is on, tab is not passed to the terminal
-				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
-					return false;
-				}
-
-				// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
-				// system
-				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
-					return false;
-				}
-
-				return true;
+		this._wrapperElement.appendChild(this._xtermElement);
+		this._container.appendChild(this._wrapperElement);
+		xterm.open(this._xtermElement);
+		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
+			this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
+				xterm.loadAddon(new Addon());
 			});
-			this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
-				// We need to listen to the mouseup event on the document since the user may release
-				// the mouse button anywhere outside of _xterm.element.
-				const listener = dom.addDisposableListener(document, 'mouseup', () => {
-					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
-					// before evaluating the new selection state.
-					setTimeout(() => this._refreshSelectionContextKey(), 0);
-					listener.dispose();
-				});
-			}));
+		}
 
-			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
-				// Wait until keyup has propagated through the DOM before evaluating
-				// the new selection state.
-				setTimeout(() => this._refreshSelectionContextKey(), 0);
-			}));
+		if (!xterm.element || !xterm.textarea) {
+			throw new Error('xterm elements not set after open');
+		}
 
-			const xtermHelper: HTMLElement = <HTMLElement>xterm.element.querySelector('.xterm-helpers');
-			const focusTrap: HTMLElement = document.createElement('div');
-			focusTrap.setAttribute('tabindex', '0');
-			dom.addClass(focusTrap, 'focus-trap');
-			this._register(dom.addDisposableListener(focusTrap, 'focus', () => {
-				let currentElement = focusTrap;
-				while (!dom.hasClass(currentElement, 'part')) {
-					currentElement = currentElement.parentElement!;
-				}
-				const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
-				hidePanelElement.focus();
-			}));
-			xtermHelper.insertBefore(focusTrap, xterm.textarea);
-
-			this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
-				this._terminalFocusContextKey.set(true);
-				this._onFocused.fire(this);
-			}));
-			this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
-				this._terminalFocusContextKey.reset();
-				this._refreshSelectionContextKey();
-			}));
-			this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
-				this._terminalFocusContextKey.set(true);
-			}));
-			this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
-				this._terminalFocusContextKey.reset();
-				this._refreshSelectionContextKey();
-			}));
-
-			const widgetManager = new TerminalWidgetManager(this._wrapperElement, this._openerService);
-			this._widgetManager = widgetManager;
-			this._processManager.onProcessReady(() => this._linkHandler?.setWidgetManager(widgetManager));
-
-			const computedStyle = window.getComputedStyle(this._container);
-			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-			const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-			this.layout(new dom.Dimension(width, height));
-			this.setVisible(this._isVisible);
-			this.updateConfig();
-
-			// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
-			// panel was initialized.
-			if (xterm.getOption('disableStdin')) {
-				this._attachPressAnyKeyToCloseListener(xterm);
+		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
+		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+			// Disable all input if the terminal is exiting
+			if (this._isExiting) {
+				return false;
 			}
 
-			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
-			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
-				this._measureRenderTime();
+			// Skip processing by xterm.js of keyboard events that resolve to commands described
+			// within commandsToSkipShell
+			const standardKeyboardEvent = new StandardKeyboardEvent(event);
+			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
+			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
+			// terminals generally
+			const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
+			if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+				event.preventDefault();
+				return false;
 			}
+
+			// If tab focus mode is on, tab is not passed to the terminal
+			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+				return false;
+			}
+
+			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
+			// system
+			if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
+				return false;
+			}
+
+			return true;
 		});
+		this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
+			// We need to listen to the mouseup event on the document since the user may release
+			// the mouse button anywhere outside of _xterm.element.
+			const listener = dom.addDisposableListener(document, 'mouseup', () => {
+				// Delay with a setTimeout to allow the mouseup to propagate through the DOM
+				// before evaluating the new selection state.
+				setTimeout(() => this._refreshSelectionContextKey(), 0);
+				listener.dispose();
+			});
+		}));
+
+		// xterm.js currently drops selection on keyup as we need to handle this case.
+		this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
+			// Wait until keyup has propagated through the DOM before evaluating
+			// the new selection state.
+			setTimeout(() => this._refreshSelectionContextKey(), 0);
+		}));
+
+		const xtermHelper: HTMLElement = <HTMLElement>xterm.element.querySelector('.xterm-helpers');
+		const focusTrap: HTMLElement = document.createElement('div');
+		focusTrap.setAttribute('tabindex', '0');
+		dom.addClass(focusTrap, 'focus-trap');
+		this._register(dom.addDisposableListener(focusTrap, 'focus', () => {
+			let currentElement = focusTrap;
+			while (!dom.hasClass(currentElement, 'part')) {
+				currentElement = currentElement.parentElement!;
+			}
+			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+			hidePanelElement.focus();
+		}));
+		xtermHelper.insertBefore(focusTrap, xterm.textarea);
+
+		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
+			this._terminalFocusContextKey.set(true);
+			this._onFocused.fire(this);
+		}));
+		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
+			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
+		}));
+		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
+			this._terminalFocusContextKey.set(true);
+		}));
+		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
+			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
+		}));
+
+		const widgetManager = new TerminalWidgetManager(this._wrapperElement, this._openerService);
+		this._widgetManager = widgetManager;
+		this._processManager.onProcessReady(() => this._linkHandler?.setWidgetManager(widgetManager));
+
+		const computedStyle = window.getComputedStyle(this._container);
+		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		this.layout(new dom.Dimension(width, height));
+		this.setVisible(this._isVisible);
+		this.updateConfig();
+
+		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
+		// panel was initialized.
+		if (xterm.getOption('disableStdin')) {
+			this._attachPressAnyKeyToCloseListener(xterm);
+		}
+
+		const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+		if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
+			this._measureRenderTime();
+		}
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -744,6 +744,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {
+		// TODO: Move this into TerminalLinkHandler to avoid the promise check
 		this._xtermReadyPromise.then(xterm => xterm.deregisterLinkMatcher(linkMatcherId));
 	}
 
@@ -846,15 +847,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		if (this._configHelper.config.experimentalRefreshOnResume) {
-			if (this._xterm.getOption('rendererType') !== 'dom') {
-				this._xterm.setOption('rendererType', 'dom');
-				// Do this asynchronously to clear our the texture atlas as all terminals will not
-				// be using canvas
-				const xterm = this._xterm;
-				setTimeout(() => xterm.setOption('rendererType', 'canvas'), 0);
-			}
-		}
 		this._xterm.refresh(0, this._xterm.rows - 1);
 	}
 
@@ -872,8 +864,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public focusWhenReady(force?: boolean): Promise<void> {
-		return this._xtermReadyPromise.then(() => this.focus(force));
+	public async focusWhenReady(force?: boolean): Promise<void> {
+		await this._xtermReadyPromise;
+		this.focus(force);
 	}
 
 	public async paste(): Promise<void> {
@@ -883,17 +876,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.focus();
 		this._xterm.paste(await this._clipboardService.readText());
 	}
-
-	public write(text: string): void {
-		this._xtermReadyPromise.then(() => {
-			if (!this._xterm) {
-				return;
-			}
-			this._xterm.write(text);
-		});
-	}
-
-	public sendText(text: string, addNewLine: boolean): void {
+	public async sendText(text: string, addNewLine: boolean): Promise<void> {
 		// Normalize line endings to 'enter' press.
 		text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 		if (addNewLine && text.substr(text.length - 1) !== '\r') {
@@ -901,7 +884,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		this._processManager.ptyProcessReady.then(() => this._processManager.write(text));
+		await this._processManager.ptyProcessReady;
+		this._processManager.write(text);
 	}
 
 	public setVisible(visible: boolean): void {
@@ -1341,7 +1325,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	@debounce(50)
-	private _resize(): void {
+	private async _resize(): Promise<void> {
 		let cols = this.cols;
 		let rows = this.rows;
 
@@ -1391,7 +1375,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(cols, rows));
+		await this._processManager.ptyProcessReady;
+		this._processManager.setDimensions(cols, rows);
 	}
 
 	public setShellType(shellType: TerminalShellType) {
