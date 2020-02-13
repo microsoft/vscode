@@ -1472,13 +1472,18 @@ declare module 'vscode' {
 		latexRenderer?(value: string): Promise<MarkdownString>;
 	}
 
-	export interface NotebookOutputFilter {
+	export interface NotebookOutputSelector {
 		type: string;
 		subTypes?: string[];
 	}
 
 	export interface NotebookOutputRenderer {
+		/**
+		 *
+		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
+		 */
 		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput): string;
+		dependencies?: Uri[];
 	}
 
 	namespace window {
@@ -1487,7 +1492,7 @@ declare module 'vscode' {
 			provider: NotebookProvider
 		): Disposable;
 
-		export function registerNotebookOutputRenderer(outputFilter: NotebookOutputFilter, renderer: NotebookOutputRenderer): Disposable;
+		export function registerNotebookOutputRenderer(outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
 	}

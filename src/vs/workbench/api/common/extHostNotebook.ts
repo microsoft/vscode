@@ -91,12 +91,25 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 			let store = this._cellDisposableMapping.get(cell.handle)!;
 			store.add(cell.onDidChangeOutputs(() => {
+				let outputs = cell.outputs;
+				if (outputs && outputs.length) {
+					outputs = outputs.map(output => {
+						let handler = this.renderingHandler.findBestMatchedRenderer(output);
+
+						if (handler) {
+							return handler.render(this, cell, output);
+						} else {
+							return output;
+						}
+					})
+				}
+
 				this._proxy.$updateNotebookCell(this.viewType, this.uri, {
 					handle: cell.handle,
 					source: cell.source,
 					language: cell.language,
 					cell_type: cell.cell_type,
-					outputs: cell.outputs,
+					outputs: outputs,
 					isDirty: false
 				});
 			}));
@@ -290,7 +303,7 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 
 export class ExtHostNotebookOutputRenderer {
 	constructor(
-		private filter: vscode.NotebookOutputFilter,
+		private filter: vscode.NotebookOutputSelector,
 		private renderer: vscode.NotebookOutputRenderer
 	) {
 
@@ -361,10 +374,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	public registerNotebookOutputRenderer(
 		extension: IExtensionDescription,
-		filter: vscode.NotebookOutputFilter,
+		filter: vscode.NotebookOutputSelector,
 		renderer: vscode.NotebookOutputRenderer
-	) {
+	): vscode.Disposable {
 		this._notebookOutputRenderers.push(new ExtHostNotebookOutputRenderer(filter, renderer));
+		return new VSCodeDisposable(() => {
+			
+		})
 	}
 
 	findBestMatchedRenderer(output: vscode.CellOutput): ExtHostNotebookOutputRenderer | undefined {
@@ -400,7 +416,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (provider) {
 			if (!this._documents.has(URI.revive(uri).toString())) {
-				let document = new ExtHostNotebookDocument(this._proxy, viewType, uri, this);
+				let document = new ExtHostNotebookDocument(this._proxy, viewType, URI.revive(uri), this);
 				await this._proxy.$createNotebookDocument(
 					document.handle,
 					viewType,

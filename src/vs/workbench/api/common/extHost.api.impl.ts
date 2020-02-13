@@ -580,7 +580,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
 				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
 			},
-			registerNotebookOutputRenderer: (outputFilter: vscode.NotebookOutputFilter, renderer: vscode.NotebookOutputRenderer) => {
+			registerNotebookOutputRenderer: (outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
 				return extHostNotebook.registerNotebookOutputRenderer(extension, outputFilter, renderer);
 			},
 			get activeNotebookDocument(): vscode.NotebookDocument | undefined {

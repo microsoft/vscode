@@ -1,0 +1,42 @@
+{
+  "name": "notebook-renderers",
+  "displayName": "Notebook Test",
+  "description": "Notebook test for execution and outputs",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "icon": "icon.png",
+  "enableProposedApi": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.40.0"
+  },
+  "main": "./dist/extension",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "contributes": {
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "npm run build-lib && gulp watch-extension:notebook-renderers",
+    "build": "webpack-cli --config extension.webpack.config.js",
+    "build-lib": "webpack --mode production"
+  },
+  "dependencies": {
+    "typescript": "^3.6.4",
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-nls": "^4.0.0"
+  },
+  "devDependencies": {
+    "webpack-cli": "^3.3.10",
+    "css-loader": "^3.4.1",
+    "style-loader": "^1.1.2"
+  }
+}

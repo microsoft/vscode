@@ -8,27 +8,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { NotebookProvider } from './notebookProvider';
-import { NteractRenderer } from './nteractRenderer';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log(context.extensionPath);
 
 	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyter', new NotebookProvider(context.extensionPath, true)));
 	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyterTest', new NotebookProvider(context.extensionPath, false)));
-	context.subscriptions.push(vscode.window.registerNotebookOutputRenderer(
-		{
-			type: 'display_data',
-			subTypes: [
-				'text/latex',
-				'text/markdown',
-				'application/json',
-				'application/vnd.plotly.v1+json',
-				'application/vnd.vega.v5+json'
-			]
-		},
-		new NteractRenderer(context.extensionPath))
-	);
-
 	vscode.commands.registerCommand('notebook.saveToMarkdown', () => {
 		if (vscode.window.activeNotebookDocument) {
 			let document = vscode.window.activeNotebookDocument;

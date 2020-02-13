@@ -45,8 +45,18 @@ export class MimeTypeRenderer {
 		return this._renderers.get(type);
 	}
 
-	static render(output: IOutput, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler: NotebookHandler): IRenderOutput | null {
-		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, container, themeService, instantiationService, modelService, modeService, notebookHandler) ?? null;
+	static renderNoop(output: IOutput, container: HTMLElement): IRenderOutput {
+		const contentNode = document.createElement('p');
+
+		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.output_type}`;
+		container.appendChild(contentNode);
+		return {
+			hasDynamicHeight: false
+		};
+	}
+
+	static render(output: IOutput, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler: NotebookHandler): IRenderOutput {
+		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, container, themeService, instantiationService, modelService, modeService, notebookHandler) ?? MimeTypeRenderer.renderNoop(output, container);
 	}
 }
 
@@ -200,7 +210,22 @@ class RichDisplayRenderer implements IMimeRenderer {
 				const contentNode = document.createElement('p');
 				contentNode.innerText = str;
 				container.appendChild(contentNode);
+			} else {
+				const contentNode = document.createElement('p');
+				let mimeTypes = [];
+				for (const property in output.data) {
+					mimeTypes.push(property);
+				}
+
+				let mimeTypesMessage = mimeTypes.join(', ');
+
+				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+				container.appendChild(contentNode);
 			}
+		} else {
+			const contentNode = document.createElement('p');
+			contentNode.innerText = `No data could be found for output.`;
+			container.appendChild(contentNode);
 		}
 
 		return {
