@@ -360,7 +360,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 			}
 
 			// Flush contents (not metadata) of the file to disk
-			fs.fdatasync(fd, (syncError: Error) => {
+			fs.fdatasync(fd, (syncError: Error | null) => {
 
 				// In some exotic setups it is well possible that node fails to sync
 				// In that case we disable flushing and warn to the console

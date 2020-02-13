@@ -45,6 +45,7 @@ import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/w
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -76,16 +77,17 @@ export class OpenEditorsView extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super({
 			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -202,6 +204,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'explorer-open-editors');
 		dom.addClass(container, 'show-file-icons');
 
@@ -214,7 +218,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listLabels.clear();
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
+		this.list = <WorkbenchList<OpenEditor | IEditorGroup>>this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {

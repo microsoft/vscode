@@ -34,14 +34,14 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 
 interface IEditorInputLabel {
@@ -75,7 +75,6 @@ export class TabsTitleControl extends TitleControl {
 		group: IEditorGroupView,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -86,7 +85,8 @@ export class TabsTitleControl extends TitleControl {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IEditorService private readonly editorService: EditorServiceImpl
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService, labelService);
 
@@ -193,7 +193,13 @@ export class TabsTitleControl extends TitleControl {
 
 				EventHelper.stop(e);
 
-				this.group.openEditor(this.textFileService.untitled.create(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
+				this.group.openEditor(this.editorService.createInput({
+					forceUntitled: true,
+					options: {
+						pinned: true,			// untitled is always pinned
+						index: this.group.count // always at the end
+					}
+				}));
 			}));
 		});
 

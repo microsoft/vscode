@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextResourceEditorInput } from 'vs/workbench/common/editor';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter } from 'vs/base/common/event';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -23,22 +20,10 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
-	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
-
-	private cachedModel: UntitledTextEditorModel | undefined = undefined;
-
-	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | undefined = undefined;
-
-	private preferredMode: string | undefined;
+	private modelResolve: Promise<IUntitledTextEditorModel & IResolvedTextEditorModel> | undefined = undefined;
 
 	constructor(
-		resource: URI,
-		private readonly _hasAssociatedFilePath: boolean,
-		preferredMode: string | undefined,
-		private readonly initialValue: string | undefined,
-		private preferredEncoding: string | undefined,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		public readonly model: IUntitledTextEditorModel,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,
@@ -46,19 +31,19 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
-		if (preferredMode) {
-			this.setMode(preferredMode);
-		}
+		this.registerModelListeners(model);
 	}
 
-	get model(): UntitledTextEditorModel | undefined {
-		return this.cachedModel;
-	}
+	private registerModelListeners(model: IUntitledTextEditorModel): void {
 
-	get hasAssociatedFilePath(): boolean {
-		return this._hasAssociatedFilePath;
+		// re-emit some events from the model
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
+
+		// a reverted untitled text editor model renders this input disposed
+		this._register(model.onDidRevert(() => this.dispose()));
 	}
 
 	getTypeId(): string {
@@ -66,17 +51,13 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 	}
 
 	getName(): string {
-		if (this.cachedModel) {
-			return this.cachedModel.name;
-		}
-
-		return super.getName();
+		return this.model.name;
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 
 		// Without associated path: only use if name and description differ
-		if (!this.hasAssociatedFilePath) {
+		if (!this.model.hasAssociatedFilePath) {
 			const descriptionCandidate = this.resource.path;
 			if (descriptionCandidate !== this.getName()) {
 				return descriptionCandidate;
@@ -93,7 +74,7 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 
 		// Without associated path: check if name and description differ to decide
 		// if description should appear besides the name to distinguish better
-		if (!this.hasAssociatedFilePath) {
+		if (!this.model.hasAssociatedFilePath) {
 			const name = this.getName();
 			const description = this.getDescription();
 			if (description && description !== name) {
@@ -108,100 +89,35 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 	}
 
 	isDirty(): boolean {
-
-		// Always trust the model first if existing
-		if (this.cachedModel) {
-			return this.cachedModel.isDirty();
-		}
-
-		// A disposed input is never dirty, even if it was restored from backup
-		if (this.isDisposed()) {
-			return false;
-		}
-
-		// A input with initial value is always dirty
-		if (this.initialValue && this.initialValue.length > 0) {
-			return true;
-		}
-
-		// A input with associated path is always dirty because it is the intent
-		// of the user to create a new file at that location through saving
-		return this.hasAssociatedFilePath;
+		return this.model.isDirty();
 	}
 
 	getEncoding(): string | undefined {
-		if (this.cachedModel) {
-			return this.cachedModel.getEncoding();
-		}
-
-		return this.preferredEncoding;
+		return this.model.getEncoding();
 	}
 
 	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
-		this.preferredEncoding = encoding;
-
-		if (this.cachedModel) {
-			this.cachedModel.setEncoding(encoding);
-		}
+		this.model.setEncoding(encoding);
 	}
 
 	setMode(mode: string): void {
-		let actualMode: string | undefined = undefined;
-		if (mode === '${activeEditorLanguage}') {
-			// support the special '${activeEditorLanguage}' mode by
-			// looking up the language mode from the currently
-			// active text editor if any
-			actualMode = this.editorService.activeTextEditorMode;
-		} else {
-			actualMode = mode;
-		}
-
-		this.preferredMode = actualMode;
-
-		if (this.preferredMode && this.cachedModel) {
-			this.cachedModel.setMode(this.preferredMode);
-		}
+		this.model.setMode(mode);
 	}
 
 	getMode(): string | undefined {
-		if (this.cachedModel) {
-			return this.cachedModel.getMode();
-		}
-
-		return this.preferredMode;
+		return this.model.getMode();
 	}
 
-	resolve(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+	resolve(): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {
 			return this.modelResolve;
 		}
 
-		// Otherwise Create Model and load
-		this.cachedModel = this.createModel();
-		this.modelResolve = this.cachedModel.load();
+		this.modelResolve = this.model.load();
 
 		return this.modelResolve;
-	}
-
-	private createModel(): UntitledTextEditorModel {
-		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
-
-		this.registerModelListeners(model);
-
-		return model;
-	}
-
-	private registerModelListeners(model: UntitledTextEditorModel): void {
-
-		// re-emit some events from the model
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
-		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
-
-		// a disposed untitled text editor model renders this input disposed
-		this._register(model.onDispose(() => this.dispose()));
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -218,7 +134,6 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 	}
 
 	dispose(): void {
-		this.cachedModel = undefined;
 		this.modelResolve = undefined;
 
 		super.dispose();

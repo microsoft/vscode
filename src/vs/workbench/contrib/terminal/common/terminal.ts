@@ -119,7 +119,6 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
-	experimentalRefreshOnResume: boolean;
 	experimentalUseTitleEvent: boolean;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
@@ -360,7 +359,7 @@ export interface IStartExtensionTerminalRequest {
 }
 
 export interface IAvailableShellsRequest {
-	(shells: IShellDefinition[]): void;
+	callback: (shells: IShellDefinition[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {

@@ -29,6 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class OutputViewPane extends ViewPane {
 
@@ -46,8 +47,10 @@ export class OutputViewPane extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 		this.editor = instantiationService.createInstance(OutputEditor);
 		this._register(this.editor.onTitleAreaUpdate(() => {
 			this.updateTitle(this.editor.getTitle());

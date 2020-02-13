@@ -157,7 +157,7 @@ export namespace Diagnostic {
 }
 
 export namespace DiagnosticRelatedInformation {
-	export function from(value: types.DiagnosticRelatedInformation): IRelatedInformation {
+	export function from(value: vscode.DiagnosticRelatedInformation): IRelatedInformation {
 		return {
 			...Range.from(value.location.range),
 			message: value.message,

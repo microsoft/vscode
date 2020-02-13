@@ -26,6 +26,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 const $ = dom.$;
 
 interface DebugStartMetrics {
@@ -63,7 +64,7 @@ export class StartView extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -75,9 +76,10 @@ export class StartView extends ViewPane {
 		@IFileDialogService private readonly dialogService: IFileDialogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 		this._register(editorService.onDidActiveEditorChange(() => this.updateView()));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(() => this.updateView()));
 	}
@@ -156,6 +158,8 @@ export class StartView extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		this.firstMessageContainer = $('.top-section');
 		container.appendChild(this.firstMessageContainer);
 

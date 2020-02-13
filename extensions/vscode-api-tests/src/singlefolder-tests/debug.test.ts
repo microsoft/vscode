@@ -37,7 +37,7 @@ suite('Debug', function () {
 		disposeAll(toDispose);
 	});
 
-	// TODO@isidor seems to fail
+	// @isidor flakey test
 	test.skip('start debugging', async function () {
 		assert.equal(debug.activeDebugSession, undefined);
 		let stoppedEvents = 0;
@@ -47,7 +47,7 @@ suite('Debug', function () {
 
 		const firstVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
 		const toDispose: Disposable[] = [];
-		toDispose.push(debug.registerDebugAdapterTrackerFactory('node2', {
+		toDispose.push(debug.registerDebugAdapterTrackerFactory('*', {
 			createDebugAdapterTracker: () => ({
 				onDidSendMessage: m => {
 					if (m.event === 'stopped') {
@@ -68,16 +68,13 @@ suite('Debug', function () {
 
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
-		// Do not await debug start to return due to https://github.com/microsoft/vscode/issues/90134
-		debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
+		const success = await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
+		assert.equal(success, true);
 		await initializedPromise;
 		await configurationDonePromise;
 
-		// Do not verify activeDebugSession due to same flakiness that sometimes start debugging does not return
-		// assert.notEqual(debug.activeDebugSession, undefined);
-		// assert.equal(debug.activeDebugSession?.name, 'Launch debug.js');
-
 		await firstVariablesRetrieved;
+		assert.notEqual(debug.activeDebugSession, undefined);
 		assert.equal(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
@@ -110,8 +107,6 @@ suite('Debug', function () {
 		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
 		await commands.executeCommand('workbench.action.debug.stop');
 		await sessionTerminatedPromise;
-		assert.equal(debug.activeDebugSession, undefined);
-
 		disposeAll(toDispose);
 	});
 

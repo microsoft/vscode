@@ -154,14 +154,19 @@ export interface IUserDataSyncStoreService {
 // #region User Data Sync Error
 
 export enum UserDataSyncErrorCode {
+	// Server Errors
 	Unauthorized = 'Unauthorized',
 	Forbidden = 'Forbidden',
 	ConnectionRefused = 'ConnectionRefused',
-	Rejected = 'Rejected',
+	RemotePreconditionFailed = 'RemotePreconditionFailed',
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
-	NewLocal = 'NewLocal',
 	TurnedOff = 'TurnedOff',
+
+	// Local Errors
+	LocalPreconditionFailed = 'LocalPreconditionFailed',
+	LocalInvalidContent = 'LocalInvalidContent',
+
 	Unknown = 'Unknown',
 }
 

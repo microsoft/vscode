@@ -151,7 +151,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await this.apply(previewResult);
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.RemotePreconditionFailed) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
 				return this.sync();

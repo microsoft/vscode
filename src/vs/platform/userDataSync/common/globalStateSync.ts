@@ -126,7 +126,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace('UI State: Finished synchronizing ui state.');
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.Rejected) {
+			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.RemotePreconditionFailed) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('UI State: Failed to synchronize ui state as there is a new remote version available. Synchronizing again...');
 				return this.sync();
@@ -189,26 +189,32 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private async getLocalGlobalState(): Promise<IGlobalState> {
 		const argv: IStringDictionary<any> = {};
 		const storage: IStringDictionary<any> = {};
-		try {
-			const content = await this.fileService.readFile(this.environmentService.argvResource);
-			const argvValue: IStringDictionary<any> = parse(content.value.toString());
-			for (const argvProperty of argvProperties) {
-				if (argvValue[argvProperty] !== undefined) {
-					argv[argvProperty] = argvValue[argvProperty];
-				}
+		const argvContent: string = await this.getLocalArgvContent();
+		const argvValue: IStringDictionary<any> = parse(argvContent);
+		for (const argvProperty of argvProperties) {
+			if (argvValue[argvProperty] !== undefined) {
+				argv[argvProperty] = argvValue[argvProperty];
 			}
-		} catch (error) { }
+		}
 		return { argv, storage };
 	}
 
+	private async getLocalArgvContent(): Promise<string> {
+		try {
+			const content = await this.fileService.readFile(this.environmentService.argvResource);
+			return content.value.toString();
+		} catch (error) { }
+		return '{}';
+	}
+
 	private async writeLocalGlobalState(globalState: IGlobalState): Promise<void> {
-		const content = await this.fileService.readFile(this.environmentService.argvResource);
-		let argvContent = content.value.toString();
+		const argvContent = await this.getLocalArgvContent();
+		let content = argvContent;
 		for (const argvProperty of Object.keys(globalState.argv)) {
-			argvContent = edit(argvContent, [argvProperty], globalState.argv[argvProperty], {});
+			content = edit(content, [argvProperty], globalState.argv[argvProperty], {});
 		}
-		if (argvContent !== content.value.toString()) {
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(argvContent));
+		if (argvContent !== content) {
+			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
 		}
 	}
 
