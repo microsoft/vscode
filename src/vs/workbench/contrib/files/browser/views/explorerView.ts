@@ -172,7 +172,7 @@ export class ExplorerView extends ViewPane {
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section: {0}", labelService.getWorkspaceLabel(contextService.getWorkspace())) }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -229,6 +229,7 @@ export class ExplorerView extends ViewPane {
 			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
 			titleElement.title = title;
+			titleElement.setAttribute('aria-label', nls.localize('explorerSection', "Explorer Section: {0}", this.name));
 		};
 
 		this._register(this.contextService.onDidChangeWorkspaceName(setHeader));
