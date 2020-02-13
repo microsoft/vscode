@@ -21,6 +21,8 @@ then
 	echo "Running integration tests out of sources."
 else
 	# Run from a built: need to compile all test extensions
+	# because we run extension tests from their source folders
+	# and the build bundles extensions into .build webpacked
 	yarn gulp compile-extension:vscode-api-tests
 	yarn gulp compile-extension:vscode-colorize-tests
 	yarn gulp compile-extension:markdown-language-features
