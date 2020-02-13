@@ -105,8 +105,6 @@ suite('suggest, word distance', function () {
 	}
 
 	test('Suggest locality bonus can boost current word #90515', function () {
-		this.skip();
-
 		const pos = { lineNumber: 2, column: 2 };
 		const d1 = distance.distance(pos, createSuggestItem('a', 1, pos).completion);
 		const d2 = distance.distance(pos, createSuggestItem('aa', 1, pos).completion);
