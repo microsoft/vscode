@@ -1546,6 +1546,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.getFocus().map(i => this.view.element(i));
 	}
 
+	isElementVisible(index: number) {
+		const viewTop = this.view.getScrollTop();
+		const viewBottom = this.view.renderHeight + viewTop;
+
+		const elementTop = this.view.elementTop(index);
+		const elementBottom = this.view.elementHeight(index) + elementTop;
+
+		return (elementTop >= viewTop && elementBottom <= viewBottom);
+	}
+
 	reveal(index: number, relativeTop?: number): void {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
