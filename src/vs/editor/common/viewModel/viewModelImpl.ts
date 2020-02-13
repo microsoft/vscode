@@ -21,9 +21,9 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -595,7 +595,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
+	public getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations {
 		return this.lines.getAllOverviewRulerDecorations(this.editorId, filterValidationDecorations(this.configuration.options), theme);
 	}
 

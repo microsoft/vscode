@@ -11,6 +11,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Handler } from 'vs/editor/common/editorCommon';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 suite('SnippetController2', function () {
 
@@ -427,5 +428,14 @@ suite('SnippetController2', function () {
 		ctrl.next();
 		assertSelections(editor, new Selection(2, 5, 2, 5));
 		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('issue #90135: confusing trim whitespace edits', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+
+		ctrl.insert('\nfoo');
+		assertSelections(editor, new Selection(2, 8, 2, 8));
 	});
 });

@@ -54,12 +54,19 @@ declare namespace monaco {
 	}
 
 	export interface CancellationToken {
+		/**
+		 * A flag signalling is cancellation has been requested.
+		 */
 		readonly isCancellationRequested: boolean;
 		/**
-		 * An event emitted when cancellation is requested
+		 * An event which fires when cancellation is requested. This event
+		 * only ever fires `once` as cancellation can only happen once. Listeners
+		 * that are registered after cancellation will be called (next event loop run),
+		 * but also only once.
+		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: IEvent<any>;
+		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
 	}
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
@@ -1067,7 +1074,7 @@ declare namespace monaco.editor {
 		tabSize?: number;
 		/**
 		 * Insert spaces when pressing `Tab`.
-		 * This setting is overridden based on the file contents when detectIndentation` is on.
+		 * This setting is overridden based on the file contents when `detectIndentation` is on.
 		 * Defaults to true.
 		 */
 		insertSpaces?: boolean;
@@ -1184,7 +1191,7 @@ declare namespace monaco.editor {
 		severity: MarkerSeverity;
 		code?: string | {
 			value: string;
-			link: Uri;
+			target: Uri;
 		};
 		message: string;
 		source?: string;
@@ -1202,7 +1209,7 @@ declare namespace monaco.editor {
 	export interface IMarkerData {
 		code?: string | {
 			value: string;
-			link: Uri;
+			target: Uri;
 		};
 		severity: MarkerSeverity;
 		message: string;
@@ -2842,6 +2849,10 @@ declare namespace monaco.editor {
 		 */
 		quickSuggestionsDelay?: number;
 		/**
+		 * Controls the spacing around the editor.
+		 */
+		padding?: IEditorPaddingOptions;
+		/**
 		 * Parameter hint options.
 		 */
 		parameterHints?: IEditorParameterHintOptions;
@@ -3392,6 +3403,25 @@ declare namespace monaco.editor {
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
 	/**
+	 * Configuration options for editor padding
+	 */
+	export interface IEditorPaddingOptions {
+		/**
+		 * Spacing between top edge of editor and first line.
+		 */
+		top?: number;
+		/**
+		 * Spacing between bottom edge of editor and last line.
+		 */
+		bottom?: number;
+	}
+
+	export interface InternalEditorPaddingOptions {
+		readonly top: number;
+		readonly bottom: number;
+	}
+
+	/**
 	 * Configuration options for parameter hints
 	 */
 	export interface IEditorParameterHintOptions {
@@ -3759,53 +3789,54 @@ declare namespace monaco.editor {
 		occurrencesHighlight = 61,
 		overviewRulerBorder = 62,
 		overviewRulerLanes = 63,
-		parameterHints = 64,
-		peekWidgetDefaultFocus = 65,
-		definitionLinkOpensInPeek = 66,
-		quickSuggestions = 67,
-		quickSuggestionsDelay = 68,
-		readOnly = 69,
-		renderControlCharacters = 70,
-		renderIndentGuides = 71,
-		renderFinalNewline = 72,
-		renderLineHighlight = 73,
-		renderValidationDecorations = 74,
-		renderWhitespace = 75,
-		revealHorizontalRightPadding = 76,
-		roundedSelection = 77,
-		rulers = 78,
-		scrollbar = 79,
-		scrollBeyondLastColumn = 80,
-		scrollBeyondLastLine = 81,
-		scrollPredominantAxis = 82,
-		selectionClipboard = 83,
-		selectionHighlight = 84,
-		selectOnLineNumbers = 85,
-		showFoldingControls = 86,
-		showUnused = 87,
-		snippetSuggestions = 88,
-		smoothScrolling = 89,
-		stopRenderingLineAfter = 90,
-		suggest = 91,
-		suggestFontSize = 92,
-		suggestLineHeight = 93,
-		suggestOnTriggerCharacters = 94,
-		suggestSelection = 95,
-		tabCompletion = 96,
-		useTabStops = 97,
-		wordSeparators = 98,
-		wordWrap = 99,
-		wordWrapBreakAfterCharacters = 100,
-		wordWrapBreakBeforeCharacters = 101,
-		wordWrapColumn = 102,
-		wordWrapMinified = 103,
-		wrappingIndent = 104,
-		wrappingStrategy = 105,
-		editorClassName = 106,
-		pixelRatio = 107,
-		tabFocusMode = 108,
-		layoutInfo = 109,
-		wrappingInfo = 110
+		padding = 64,
+		parameterHints = 65,
+		peekWidgetDefaultFocus = 66,
+		definitionLinkOpensInPeek = 67,
+		quickSuggestions = 68,
+		quickSuggestionsDelay = 69,
+		readOnly = 70,
+		renderControlCharacters = 71,
+		renderIndentGuides = 72,
+		renderFinalNewline = 73,
+		renderLineHighlight = 74,
+		renderValidationDecorations = 75,
+		renderWhitespace = 76,
+		revealHorizontalRightPadding = 77,
+		roundedSelection = 78,
+		rulers = 79,
+		scrollbar = 80,
+		scrollBeyondLastColumn = 81,
+		scrollBeyondLastLine = 82,
+		scrollPredominantAxis = 83,
+		selectionClipboard = 84,
+		selectionHighlight = 85,
+		selectOnLineNumbers = 86,
+		showFoldingControls = 87,
+		showUnused = 88,
+		snippetSuggestions = 89,
+		smoothScrolling = 90,
+		stopRenderingLineAfter = 91,
+		suggest = 92,
+		suggestFontSize = 93,
+		suggestLineHeight = 94,
+		suggestOnTriggerCharacters = 95,
+		suggestSelection = 96,
+		tabCompletion = 97,
+		useTabStops = 98,
+		wordSeparators = 99,
+		wordWrap = 100,
+		wordWrapBreakAfterCharacters = 101,
+		wordWrapBreakBeforeCharacters = 102,
+		wordWrapColumn = 103,
+		wordWrapMinified = 104,
+		wrappingIndent = 105,
+		wrappingStrategy = 106,
+		editorClassName = 107,
+		pixelRatio = 108,
+		tabFocusMode = 109,
+		layoutInfo = 110,
+		wrappingInfo = 111
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3872,6 +3903,7 @@ declare namespace monaco.editor {
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
+		padding: IEditorOption<EditorOption.padding, InternalEditorPaddingOptions>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
 		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
@@ -4665,6 +4697,7 @@ declare namespace monaco.editor {
 		readonly canUseHalfwidthRightwardsArrow: boolean;
 		readonly spaceWidth: number;
 		readonly middotWidth: number;
+		readonly wsmiddotWidth: number;
 		readonly maxDigitWidth: number;
 	}
 

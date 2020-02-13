@@ -22,8 +22,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
-export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
-export const COMMENTS_PANEL_TITLE = 'Comments';
+export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
+export const COMMENTS_VIEW_TITLE = 'Comments';
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
@@ -176,7 +176,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			renderers,
 			dataSource,
 			{
-				ariaLabel: COMMENTS_PANEL_TITLE,
+				ariaLabel: COMMENTS_VIEW_TITLE,
 				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {

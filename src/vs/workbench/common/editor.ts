@@ -230,22 +230,22 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 	 * force use the provided resource as associated path. As such, the resource will be used when saving
 	 * the untitled editor.
 	 */
-	resource?: URI;
+	readonly resource?: URI;
 
 	/**
 	 * Optional language of the untitled resource.
 	 */
-	mode?: string;
+	readonly mode?: string;
 
 	/**
 	 * Optional contents of the untitled resource.
 	 */
-	contents?: string;
+	readonly contents?: string;
 
 	/**
 	 * Optional encoding of the untitled resource.
 	 */
-	encoding?: string;
+	readonly encoding?: string;
 }
 
 export interface IResourceDiffInput extends IBaseResourceInput {
@@ -253,12 +253,12 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	/**
 	 * The left hand side URI to open inside a diff editor.
 	 */
-	leftResource: URI;
+	readonly leftResource: URI;
 
 	/**
 	 * The right hand side URI to open inside a diff editor.
 	 */
-	rightResource: URI;
+	readonly rightResource: URI;
 }
 
 export interface IResourceSideBySideInput extends IBaseResourceInput {
@@ -266,12 +266,12 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	/**
 	 * The right hand side URI to open inside a side by side editor.
 	 */
-	masterResource: URI;
+	readonly masterResource: URI;
 
 	/**
 	 * The left hand side URI to open inside a side by side editor.
 	 */
-	detailResource: URI;
+	readonly detailResource: URI;
 }
 
 export const enum Verbosity {
@@ -314,17 +314,17 @@ export interface ISaveOptions {
 	 * Forces to save the contents of the working copy
 	 * again even if the working copy is not dirty.
 	 */
-	force?: boolean;
+	readonly force?: boolean;
 
 	/**
 	 * Instructs the save operation to skip any save participants.
 	 */
-	skipSaveParticipants?: boolean;
+	readonly skipSaveParticipants?: boolean;
 
 	/**
 	 * A hint as to which file systems should be available for saving.
 	 */
-	availableFileSystems?: string[];
+	readonly availableFileSystems?: string[];
 }
 
 export interface IRevertOptions {
@@ -333,7 +333,7 @@ export interface IRevertOptions {
 	 * Forces to load the contents of the working copy
 	 * again even if the working copy is not dirty.
 	 */
-	force?: boolean;
+	readonly force?: boolean;
 
 	/**
 	 * A soft revert will clear dirty state of a working copy
@@ -342,7 +342,7 @@ export interface IRevertOptions {
 	 * This option may be used in scenarios where an editor is
 	 * closed and where we do not require to load the contents.
 	 */
-	soft?: boolean;
+	readonly soft?: boolean;
 }
 
 export interface IEditorInput extends IDisposable {

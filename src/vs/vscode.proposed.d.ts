@@ -1025,38 +1025,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal exit status https://github.com/microsoft/vscode/issues/62103
-
-	export interface TerminalExitStatus {
-		/**
-		 * The exit code that a terminal exited with, it can have the following values:
-		 * - Zero: the terminal process or custom execution succeeded.
-		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
-		 *   without providing an exit code.
-		 */
-		readonly code: number | undefined;
-	}
-
-	export interface Terminal {
-		/**
-		 * The exit status of the terminal, this will be undefined while the terminal is active.
-		 *
-		 * **Example:** Show a notification with the exit code when the terminal exits with a
-		 * non-zero exit code.
-		 * ```typescript
-		 * window.onDidCloseTerminal(t => {
-		 *   if (t.exitStatus && t.exitStatus.code) {
-		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
-		 *   }
-		 * });
-		 * ```
-		 */
-		readonly exitStatus: TerminalExitStatus | undefined;
-	}
-
-	//#endregion
-
 	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
@@ -1358,26 +1326,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
-
-	export interface CodeAction {
-		/**
-		 * Marks that the code action cannot currently be applied.
-		 *
-		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
-		 */
-		disabled?: {
-			/**
-			 * Human readable description of why the code action is currently disabled.
-			 *
-			 * This is displayed in the UI.
-			 */
-			reason: string;
-		};
-	}
-
-	//#endregion
-
 	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
 
 	export interface MarkdownString {
@@ -1464,10 +1412,31 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/77728
 
+	/**
+	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
+	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
+	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
+	 */
 	export interface WorkspaceEditMetadata {
+
+		/**
+		 * A flag which indicates that user confirmation is needed.
+		 */
 		needsConfirmation: boolean;
+
+		/**
+		 * A human-readable string which is rendered prominent.
+		 */
 		label: string;
+
+		/**
+		 * A human-readable string which is rendered less prominent in the same line.
+		 */
 		description?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
+		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
@@ -1498,9 +1467,9 @@ declare module 'vscode' {
 			value: string | number;
 
 			/**
-			 * A link to a URI with more information about the diagnostic error.
+			 * A target URI to open with more information about the diagnostic error.
 			 */
-			link: Uri;
+			target: Uri;
 		}
 	}
 
@@ -1620,11 +1589,11 @@ declare module 'vscode' {
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
 		 * not cause a failure of the whole operation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
 		 * @param provider A timeline provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
-		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
+		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
 	}
 
 	//#endregion
@@ -1640,6 +1609,35 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+	}
+
+	export interface Extension<T> {
+		/**
+		 * Get the uri of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The uri of the resource.
+		 */
+		asExtensionUri(relativePath: string): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/86788
+
+	export interface CodeActionProviderMetadata {
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * The documentation is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. Note that in this case, we always pick the most specific
+		 *  documentation. For example, if documentation for both `Refactor` and `RefactorExtract` is provided, and we
+		 *  request code actions for `RefactorExtract`, we prefer the more specific documentation for `RefactorExtract`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 */
+		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command }>;
 	}
 
 	//#endregion

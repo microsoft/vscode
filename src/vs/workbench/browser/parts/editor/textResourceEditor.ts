@@ -9,7 +9,7 @@ import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/edito
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -214,7 +214,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (e.range.startLineNumber !== 1 && e.range.startColumn !== 1) {
+		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {
 			return; // only when pasting into first line, first column (= empty document)
 		}
 

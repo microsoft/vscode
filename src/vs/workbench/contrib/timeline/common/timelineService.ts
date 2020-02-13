@@ -87,6 +87,13 @@ export class TimelineService implements ITimelineService {
 		const requests: Promise<[string, TimelineItem[]]>[] = [];
 
 		for (const provider of this._providers.values()) {
+			if (typeof provider.scheme === 'string') {
+				if (provider.scheme !== '*' && provider.scheme !== uri.scheme) {
+					continue;
+				}
+			} else if (!provider.scheme.includes(uri.scheme)) {
+				continue;
+			}
 			if (!(predicate?.(provider) ?? true)) {
 				continue;
 			}
@@ -114,6 +121,14 @@ export class TimelineService implements ITimelineService {
 
 		const provider = this._providers.get(id);
 		if (provider === undefined) {
+			return undefined;
+		}
+
+		if (typeof provider.scheme === 'string') {
+			if (provider.scheme !== '*' && provider.scheme !== uri.scheme) {
+				return undefined;
+			}
+		} else if (!provider.scheme.includes(uri.scheme)) {
 			return undefined;
 		}
 

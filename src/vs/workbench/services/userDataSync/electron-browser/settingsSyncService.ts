@@ -16,6 +16,7 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 
 	private readonly channel: IChannel;
 
+	readonly resourceKey = 'settings';
 	readonly source = SyncSource.Settings;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
@@ -63,21 +64,12 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('stop');
 	}
 
-	async restart(): Promise<void> {
-		const status = await this.channel.call<SyncStatus>('restart');
-		await this.updateStatus(status);
-	}
-
 	resetLocal(): Promise<void> {
 		return this.channel.call('resetLocal');
 	}
 
 	hasPreviouslySynced(): Promise<boolean> {
 		return this.channel.call('hasPreviouslySynced');
-	}
-
-	hasRemoteData(): Promise<boolean> {
-		return this.channel.call('hasRemoteData');
 	}
 
 	hasLocalData(): Promise<boolean> {

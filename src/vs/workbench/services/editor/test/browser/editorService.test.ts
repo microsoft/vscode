@@ -19,13 +19,13 @@ import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/brow
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
+import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -338,19 +338,19 @@ suite('EditorService', () => {
 		// Untyped Input (untitled with file path)
 		input = service.createInput({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
 		input = service.createInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok(!(input as UntitledTextEditorInput).hasAssociatedFilePath);
+		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		// Untyped Input (untitled with custom resource)
 		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
 
 		input = service.createInput({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		provider.dispose();
 

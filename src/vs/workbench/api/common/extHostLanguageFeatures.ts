@@ -183,8 +183,13 @@ class CodeLensAdapter {
 	}
 }
 
-function convertToLocationLinks(value: vscode.Definition): modes.LocationLink[] {
-	return value ? asArray(value).map(typeConvert.DefinitionLink.from) : [];
+function convertToLocationLinks(value: vscode.Location | vscode.Location[] | vscode.LocationLink[] | undefined | null): modes.LocationLink[] {
+	if (Array.isArray(value)) {
+		return (<any>value).map(typeConvert.DefinitionLink.from);
+	} else if (value) {
+		return [typeConvert.DefinitionLink.from(value)];
+	}
+	return [];
 }
 
 class DefinitionAdapter {
@@ -1571,9 +1576,17 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- quick fix
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
+		const store = new DisposableStore();
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), (metadata && metadata.providedCodeActionKinds) ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
-		return this._createDisposable(handle);
+		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), {
+			providedKinds: metadata?.providedCodeActionKinds?.map(kind => kind.value),
+			documentation: metadata?.documentation?.map(x => ({
+				kind: x.kind.value,
+				command: this._commands.converter.toInternal(x.command, store),
+			}))
+		});
+		store.add(this._createDisposable(handle));
+		return store;
 	}
 
 

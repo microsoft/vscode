@@ -367,6 +367,10 @@ export interface IEditorOptions {
 	 */
 	quickSuggestionsDelay?: number;
 	/**
+	 * Controls the spacing around the editor.
+	 */
+	padding?: IEditorPaddingOptions;
+	/**
 	 * Parameter hint options.
 	 */
 	parameterHints?: IEditorParameterHintOptions;
@@ -2076,6 +2080,65 @@ function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'):
 
 //#endregion
 
+//#region padding
+
+/**
+ * Configuration options for editor padding
+ */
+export interface IEditorPaddingOptions {
+	/**
+	 * Spacing between top edge of editor and first line.
+	 */
+	top?: number;
+	/**
+	 * Spacing between bottom edge of editor and last line.
+	 */
+	bottom?: number;
+}
+
+export interface InternalEditorPaddingOptions {
+	readonly top: number;
+	readonly bottom: number;
+}
+
+class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEditorPaddingOptions> {
+
+	constructor() {
+		super(
+			EditorOption.padding, 'padding', { top: 0, bottom: 0 },
+			{
+				'editor.padding.top': {
+					type: 'number',
+					default: 0,
+					minimum: 0,
+					maximum: 1000,
+					description: nls.localize('padding.top', "Controls the amount of space between the top edge of the editor and the first line.")
+				},
+				'editor.padding.bottom': {
+					type: 'number',
+					default: 0,
+					minimum: 0,
+					maximum: 1000,
+					description: nls.localize('padding.bottom', "Controls the amount of space between the bottom edge of the editor and the last line.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): InternalEditorPaddingOptions {
+		if (typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorPaddingOptions;
+
+		return {
+			top: EditorIntOption.clampedInt(input.top, 0, 0, 1000),
+			bottom: EditorIntOption.clampedInt(input.bottom, 0, 0, 1000)
+		};
+	}
+}
+//#endregion
+
 //#region parameterHints
 
 /**
@@ -3180,6 +3243,7 @@ export const enum EditorOption {
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
+	padding,
 	parameterHints,
 	peekWidgetDefaultFocus,
 	definitionLinkOpensInPeek,
@@ -3567,6 +3631,7 @@ export const EditorOptions = {
 		EditorOption.overviewRulerLanes, 'overviewRulerLanes',
 		3, 0, 3
 	)),
+	padding: register(new EditorPadding()),
 	parameterHints: register(new EditorParameterHints()),
 	peekWidgetDefaultFocus: register(new EditorStringEnumOption(
 		EditorOption.peekWidgetDefaultFocus, 'peekWidgetDefaultFocus',
@@ -3626,7 +3691,7 @@ export const EditorOptions = {
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
-		'none' as 'none' | 'boundary' | 'selection' | 'all',
+		'selection' as 'selection' | 'none' | 'boundary' | 'all',
 		['none', 'boundary', 'selection', 'all'] as const,
 		{
 			enumDescriptions: [

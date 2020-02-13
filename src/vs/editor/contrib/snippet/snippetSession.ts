@@ -468,6 +468,7 @@ export class SnippetSession {
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
+			edits[idx].identifier = { major: idx, minor: 0 }; // mark the edit so only our undo edits will be used to generate end cursors
 			snippets[idx] = new OneSnippet(editor, snippet, offset);
 		}
 
@@ -507,7 +508,11 @@ export class SnippetSession {
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
-				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
+				return (
+					undoEdits
+						.filter(edit => !!edit.identifier) // only use our undo edits
+						.map(edit => Selection.fromPositions(edit.range.getEndPosition()))
+				);
 			}
 		});
 		this._editor.revealRange(this._editor.getSelections()[0]);
@@ -529,7 +534,11 @@ export class SnippetSession {
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(undefined);
 			} else {
-				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
+				return (
+					undoEdits
+						.filter(edit => !!edit.identifier) // only use our undo edits
+						.map(edit => Selection.fromPositions(edit.range.getEndPosition()))
+				);
 			}
 		});
 	}

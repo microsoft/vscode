@@ -13,7 +13,7 @@ import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFa
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -105,8 +105,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 interface ISerializedUntitledTextEditorInput {
-	resource: string;
-	resourceJSON: object;
+	resourceJSON: UriComponents;
 	modeId: string | undefined;
 	encoding: string | undefined;
 }
@@ -131,12 +130,11 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
 
 		let resource = untitledTextEditorInput.getResource();
-		if (untitledTextEditorInput.hasAssociatedFilePath) {
+		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
 			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
 		}
 
 		const serialized: ISerializedUntitledTextEditorInput = {
-			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
 			modeId: untitledTextEditorInput.getMode(),
 			encoding: untitledTextEditorInput.getEncoding()
@@ -148,7 +146,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledTextEditorInput {
 		return instantiationService.invokeFunction<UntitledTextEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledTextEditorInput = JSON.parse(serializedEditorInput);
-			const resource = !!deserialized.resourceJSON ? URI.revive(<UriComponents>deserialized.resourceJSON) : URI.parse(deserialized.resource);
+			const resource = URI.revive(deserialized.resourceJSON);
 			const mode = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
