@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./onTypeRename';
-import { registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
+import * as nls from 'vs/nls';
+import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import * as arrays from 'vs/base/common/arrays';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -19,6 +20,13 @@ import { first, createCancelablePromise, CancelablePromise } from 'vs/base/commo
 // import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { onUnexpectedError } from 'vs/base/common/errors';
 // import { Selection } from 'vs/editor/common/core/selection';
 
 function isWithin(inner: IRange, outer: IRange) {
@@ -186,6 +194,10 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		className: 'on-type-rename-decoration'
 	});
 
+	static get(editor: ICodeEditor): OnTypeRenameContribution {
+		return editor.getContribution<OnTypeRenameContribution>(OnTypeRenameContribution.ID);
+	}
+
 	private readonly _editor: ICodeEditor;
 	private _enabled: boolean;
 
@@ -248,6 +260,7 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 				// Insert non text - break case
 				if (change.text !== '' && !change.text.match(/^([A-Za-z\-_])/)) {
+					this._stopAll();
 					return;
 				}
 
@@ -284,8 +297,11 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, []);
 	}
 
-	private _run(position: Position | null = this._editor.getPosition()): void {
-		if (!this._enabled || !position) {
+	_run(position: Position | null = this._editor.getPosition(), force = false): void {
+		if (!position) {
+			return;
+		}
+		if (!this._enabled && !force) {
 			return;
 		}
 		if (!this._editor.hasModel()) {
@@ -315,6 +331,56 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 	}
 }
 
+
+export class OnTypeRenameAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.onTypeRename',
+			label: nls.localize('onTypeRename.label', "On Type Rename Symbol"),
+			alias: 'On Type Rename Symbol',
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.F2,
+				weight: KeybindingWeight.EditorContrib
+			},
+			contextMenuOpts: {
+				group: '1_modification',
+				order: 1.1
+			}
+		});
+	}
+
+	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
+		const editorService = accessor.get(ICodeEditorService);
+		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
+
+		if (URI.isUri(uri) && Position.isIPosition(pos)) {
+			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
+				if (!editor) {
+					return;
+				}
+				editor.setPosition(pos);
+				editor.invokeWithinContext(accessor => {
+					this.reportTelemetry(accessor, editor);
+					return this.run(accessor, editor);
+				});
+			}, onUnexpectedError);
+		}
+
+		return super.runCommand(accessor, args);
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = OnTypeRenameContribution.get(editor);
+		if (controller) {
+			return Promise.resolve(controller._run(editor.getPosition(), true));
+		}
+		return Promise.resolve();
+	}
+}
+
 export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<IRange[] | null | undefined> {
 
 	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
@@ -334,3 +400,4 @@ export function getOnTypeRenameRanges(model: ITextModel, position: Position, tok
 registerModelAndPositionCommand('_executeRenameOnTypeProvider', (model, position) => getOnTypeRenameRanges(model, position, CancellationToken.None));
 
 registerEditorContribution(OnTypeRenameContribution.ID, OnTypeRenameContribution);
+registerEditorAction(OnTypeRenameAction);

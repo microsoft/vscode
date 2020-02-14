@@ -1062,6 +1062,6 @@ registerEditorAction(AddSelectionToPreviousFindMatchAction);
 registerEditorAction(MoveSelectionToNextFindMatchAction);
 registerEditorAction(MoveSelectionToPreviousFindMatchAction);
 registerEditorAction(SelectHighlightsAction);
-registerEditorAction(CompatChangeAll);
+// registerEditorAction(CompatChangeAll);
 registerEditorAction(InsertCursorAtEndOfLineSelected);
 registerEditorAction(InsertCursorAtTopOfLineSelected);
