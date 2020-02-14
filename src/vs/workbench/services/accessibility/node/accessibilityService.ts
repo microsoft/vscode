@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
@@ -29,10 +30,18 @@ export class NodeAccessibilityService extends AccessibilityService implements IA
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IJSONEditingService jsonEditingService: IJSONEditingService
 	) {
 		super(contextKeyService, configurationService);
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		if (isLinux) {
+			this._register(this.onDidChangeScreenReaderOptimized(async () => {
+				if (this.isScreenReaderOptimized()) {
+					await jsonEditingService.write(environmentService.argvResource, [{ key: 'force-renderer-accessibility', value: true }], true);
+				}
+			}));
+		}
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
