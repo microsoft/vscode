@@ -11,8 +11,9 @@ import * as  tmp from 'tmp';
 import * as  rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
+import * as optimistLib from 'optimist';
 
-const optimist = require('optimist')
+const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace to open in the test').string('workspacePath')
 	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
 	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
@@ -28,11 +29,12 @@ if (optimist.argv.help) {
 const width = 1200;
 const height = 800;
 
-async function runTestsInBrowser(browserType: string, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+async function runTestsInBrowser(browserType: 'chromium' | 'firefox' | 'webkit', endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), dumpio: true, args });
-	const page = (await browser.defaultContext().pages())[0];
-	await page.setViewport({ width, height });
+	const context = await browser.newContext();
+	const page = await context.newPage();
+	await page.setViewportSize({ width, height });
 
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';

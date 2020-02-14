@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, env, UIKind } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -146,12 +146,6 @@ suite('window namespace tests', () => {
 	});
 
 	test('active editor not always correct... #49125', async function () {
-		if (env.uiKind === UIKind.Web) {
-			// https://github.com/microsoft/vscode/issues/90470
-			// https://github.com/microsoft/playwright/issues/979
-			this.skip();
-			return;
-		}
 		const randomFile1 = await createRandomFile();
 		const randomFile2 = await createRandomFile();
 
