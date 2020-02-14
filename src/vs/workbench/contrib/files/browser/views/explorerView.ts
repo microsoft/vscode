@@ -29,7 +29,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, AutoRevealFilter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -128,6 +128,7 @@ export class ExplorerView extends ViewPane {
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter!: FilesFilter;
+	private autoRevealFilter!: AutoRevealFilter;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
@@ -186,6 +187,9 @@ export class ExplorerView extends ViewPane {
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 
 		this.explorerService.registerContextProvider(this);
+
+		this.autoRevealFilter = this.instantiationService.createInstance(AutoRevealFilter);
+		this._register(this.autoRevealFilter);
 	}
 
 	get name(): string {
@@ -325,7 +329,7 @@ export class ExplorerView extends ViewPane {
 		this.tree.domFocus();
 
 		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this.autoReveal) {
+		if (focused.length === 1 && this.autoReveal && this.autoRevealFilter.shouldReveal(focused[0].resource)) {
 			this.tree.reveal(focused[0], 0.5);
 		}
 	}
@@ -337,7 +341,8 @@ export class ExplorerView extends ViewPane {
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
 		if (this.autoReveal) {
 			const activeFile = this.getActiveFile();
-			if (activeFile) {
+
+			if (activeFile && this.autoRevealFilter.shouldReveal(activeFile)) {
 				const focus = this.tree.getFocus();
 				if (focus.length === 1 && focus[0].resource.toString() === activeFile.toString()) {
 					// No action needed, active file is already focused
@@ -456,6 +461,7 @@ export class ExplorerView extends ViewPane {
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		this.autoReveal = configuration?.explorer?.autoReveal;
+		this.autoRevealFilter.updateConfiguration();
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -672,7 +678,7 @@ export class ExplorerView extends ViewPane {
 		}
 
 		if (item && item.parent) {
-			if (reveal) {
+			if (reveal && this.autoRevealFilter.shouldReveal(item.resource)) {
 				if (item.isDisposed) {
 					return this.onSelectResource(resource, reveal, retry + 1);
 				}

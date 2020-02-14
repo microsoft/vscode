@@ -196,37 +196,39 @@ const hotExitConfiguration: IConfigurationPropertySchema = platform.isNative ?
 		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 	};
 
+const filesExcludeConfiguration: IConfigurationPropertySchema = {
+	'type': 'object',
+	'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+	'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
+	'scope': ConfigurationScope.RESOURCE,
+	'additionalProperties': {
+		'anyOf': [
+			{
+				'type': 'boolean',
+				'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+			},
+			{
+				'type': 'object',
+				'properties': {
+					'when': {
+						'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+						'pattern': '\\w*\\$\\(basename\\)\\w*',
+						'default': '$(basename).ext',
+						'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+					}
+				}
+			}
+		]
+	}
+};
+
 configurationRegistry.registerConfiguration({
 	'id': 'files',
 	'order': 9,
 	'title': nls.localize('filesConfigurationTitle', "Files"),
 	'type': 'object',
 	'properties': {
-		'files.exclude': {
-			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
-			'scope': ConfigurationScope.RESOURCE,
-			'additionalProperties': {
-				'anyOf': [
-					{
-						'type': 'boolean',
-						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-					},
-					{
-						'type': 'object',
-						'properties': {
-							'when': {
-								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
-								'pattern': '\\w*\\$\\(basename\\)\\w*',
-								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
-							}
-						}
-					}
-				]
-			}
-		},
+		'files.exclude': filesExcludeConfiguration,
 		'files.associations': {
 			'type': 'object',
 			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
@@ -369,6 +371,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
 			'default': true
+		},
+		'explorer.autoRevealExclude': {
+			...filesExcludeConfiguration,
+			'markdownDescription': nls.localize('autoRevealExclude', "Configure glob patterns for excluding files from being automatically revealed. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/node_modules/*/**': true } : { '**/node_modules/**': true },
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',

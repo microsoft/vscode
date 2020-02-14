@@ -473,16 +473,16 @@ interface CachedParsedExpression {
 	parsed: glob.ParsedExpression;
 }
 
-export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
-	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
+export abstract class ConfiguredFileFiltersBase {
+	public readonly expressionPerRoot: Map<string, CachedParsedExpression>;
 	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		private readonly contextService: IWorkspaceContextService,
+		private readonly configurationService: IConfigurationService,
+		private readonly getConfigurationExpression: (configuration: IFilesConfiguration) => glob.IExpression,
 	) {
-		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
+		this.expressionPerRoot = new Map<string, CachedParsedExpression>();
 		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
 	}
 
@@ -490,19 +490,33 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
-			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
+			const excludesConfig = this.getConfigurationExpression(configuration) || Object.create(null);
 
 			if (!needsRefresh) {
-				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
+				const cached = this.expressionPerRoot.get(folder.uri.toString());
 				needsRefresh = !cached || !equals(cached.original, excludesConfig);
 			}
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.expressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
 		});
 
 		return needsRefresh;
+	}
+
+	public dispose(): void {
+		dispose(this.workspaceFolderChangeListener);
+	}
+}
+
+export class FilesFilter extends ConfiguredFileFiltersBase implements ITreeFilter<ExplorerItem, FuzzyScore> {
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExplorerService private readonly explorerService: IExplorerService
+	) {
+		super(contextService, configurationService, configuration => configuration?.files?.exclude);
 	}
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
@@ -514,16 +528,35 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 
 		// Hide those that match Hidden Patterns
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
+		const cached = this.expressionPerRoot.get(stat.root.resource.toString());
 		if (cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
 			return false; // hidden through pattern
 		}
 
 		return true;
 	}
+}
 
-	public dispose(): void {
-		dispose(this.workspaceFolderChangeListener);
+export class AutoRevealFilter extends ConfiguredFileFiltersBase {
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExplorerService private readonly explorerService: IExplorerService
+	) {
+		super(contextService, configurationService, configuration => configuration?.explorer?.autoRevealExclude);
+	}
+
+	shouldReveal(resource: URI) {
+		const containingRoots = this.explorerService.roots.filter(r => r.find(resource));
+
+		for (const root of containingRoots) {
+			const cached = this.expressionPerRoot.get(root.resource.toString());
+			if (cached && cached.parsed(path.relative(root.resource.path, resource.path))) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 

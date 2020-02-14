@@ -28,7 +28,7 @@ export class SettingsDocument {
 		}
 
 		// files.exclude, search.exclude
-		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude') {
+		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude' || location.path[0] === 'explorer.autoRevealExclude') {
 			return this.provideExcludeCompletionItems(location, range);
 		}
 
