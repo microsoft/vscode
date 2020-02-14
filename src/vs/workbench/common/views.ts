@@ -57,12 +57,12 @@ export interface IViewContainerDescriptor {
 
 export interface IViewContainersRegistry {
 	/**
-	 * An event that is triggerred when a view container is registered.
+	 * An event that is triggered when a view container is registered.
 	 */
 	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
 
 	/**
-	 * An event that is triggerred when a view container is deregistered.
+	 * An event that is triggered when a view container is deregistered.
 	 */
 	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
 
