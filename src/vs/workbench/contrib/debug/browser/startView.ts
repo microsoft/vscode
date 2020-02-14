@@ -20,13 +20,14 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { BaseDebugViewPane } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 const $ = dom.$;
 
 interface DebugStartMetrics {
@@ -51,7 +52,7 @@ function createClickElement(textContent: string, action: () => any): HTMLSpanEle
 	return clickElement;
 }
 
-export class StartView extends ViewPane {
+export class StartView extends BaseDebugViewPane {
 
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
