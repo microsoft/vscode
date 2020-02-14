@@ -1,0 +1,6 @@
+{
+	"displayName": "GitHub Authentication",
+	"description": "GitHub Authentication Provider",
+	"command.signIn": "Sign In",
+	"command.signOut": "Sign Out"
+}
