@@ -8,7 +8,6 @@ import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/base/common/uint';
-// import { Constants as MinimapConstants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -1759,6 +1758,19 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		});
 	}
 
+	public static computeEntireDocumentMinimapLineCount(input: {
+		modelLineCount: number;
+		scrollBeyondLastLine: boolean;
+		height: number;
+		lineHeight: number;
+		pixelRatio: number;
+	}): { extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (input.height / input.lineHeight - 1) : 0;
+		const desiredRatio = (input.modelLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
+		const minimapLineCount = Math.floor(input.modelLineCount / desiredRatio);
+		return { extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
+	}
+
 	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
 		const outerWidth = env.outerWidth | 0;
 		const outerHeight = env.outerHeight | 0;
@@ -1843,9 +1855,15 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			if (minimapEntireDocument) {
 				const modelLineCount = env.maxLineNumber;
-				const extraLinesBeyondLastLine = scrollBeyondLastLine ? (outerHeight / lineHeight - 1) : 0;
-				const desiredRatio = (modelLineCount + extraLinesBeyondLastLine) / (pixelRatio * outerHeight);
-				const minimapLineCount = Math.floor(modelLineCount / desiredRatio);
+				const { extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeEntireDocumentMinimapLineCount({
+					modelLineCount: modelLineCount,
+					scrollBeyondLastLine: scrollBeyondLastLine,
+					height: outerHeight,
+					lineHeight: lineHeight,
+					pixelRatio: pixelRatio
+				});
+				// ratio is intentionally not part of the layout to avoid the layout changing all the time
+				// when doing sampling
 				const ratio = modelLineCount / minimapLineCount;
 
 				if (ratio > 1) {
