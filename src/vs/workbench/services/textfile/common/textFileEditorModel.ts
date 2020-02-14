@@ -627,13 +627,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save participants can also be skipped through API.
 			if (this.isResolved() && this.textFileService.saveParticipant && !options.skipSaveParticipants) {
 				try {
-					this.ignoreDirtyOnModelContentChange = true;
-
 					await this.textFileService.saveParticipant.participate(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveParticipantCancellation.token);
 				} catch (error) {
 					// Ignore
-				} finally {
-					this.ignoreDirtyOnModelContentChange = false;
 				}
 			}
 
