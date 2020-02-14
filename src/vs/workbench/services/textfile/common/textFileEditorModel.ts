@@ -670,9 +670,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString());
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-
 			const textFileEdiorModel = this;
-
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEdiorModel.createSnapshot(), {
