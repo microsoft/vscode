@@ -104,7 +104,7 @@ Once loaded/evaluated, `nteract.js` will expose a global object `nteract`, with 
 
 After the `window.nteract` is initialized, the following outputs can call `window.nteract.renderTags()` to render newly inserted outputs.
 
-## ?
+## Wed
 
 * how does the output renderer/extension inject js dependencies? If it's through `text/html` output, how does it know if it's loaded or not?
   * after a file is opened, it injects the js dependencies the first time an output will be rendered.
@@ -127,19 +127,191 @@ After the `window.nteract` is initialized, the following outputs can call `windo
     * 100ms render the plot
   * It's not noticeable slower than running the scripts in a normal browser
   * It's fast on ADS as there is no penalty for compiling scripts, evaluating plot scripts
-    * Howev
 
 
-next
+## Thu
 
-- update feature list ...
+- [x] update feature list ...
+- [x] preload scripts registration
+  - when a notebook file is opened
+    - we will create webview first, inject preload scripts 
+      - it's an known issue that loading/evaluting plot renderer is slow https://github.com/jupyter/notebook/issues/181
+    - start list view initialization
+    - `ipywidgets` still works through `text/html` output
+  - slow running script loading
+    - *?* `console.log` slow down the UI (webview will send out `console-message` even if you don't have a listener for it) @deepak
+    - *?* `ERR_UNKNOWN_URL_SCHEME` sometimes. Timing issue with custom protocol handler for Webview  @mjb
+    - *?* Webview seems slow when idle for a while? @deepak
 
 
-- initialization scripts registration
-  - low running script loading
 - priority list from notebook provider
-- renderer switcher ? 
+  - no communication betwen client and kernel about mimetype support in classic Jupyter
+  - *?* who decides? (low to high)
+    - Core (text, png, svg, html)
+    - NBDocument provider 
+    - Custom mime type renderer
+    - User
 
 
-- mimetype switcher 
+
+- mimetype renderer/switcher (for the same output)
+  - jupyter notebook's prototype https://github.com/jupyter/notebook/pull/2769 
+- renderer switcher (for the same mimetype)
+  - *?* If the Renderer is a Picker+Transformer, then there can only be one active Renderer
+  - Otherwise, there are multiple transformers avaible for the same mimetype
+
+
+### What's a renderer #1: mimetype picker + transformer
+
+A typical output usually contains multiple mime types (mimetype bundle)
+
+
+```js
+  CellOutput: {
+    text/plain
+    image/svg
+    application/vnd.plotly.v1+json
+  }
+```
+
+VS Code chooses `image/svg` to render by default, users can switch to `text/plain`
+
+--- install nteract extension
+
+```js
+  Transformed CellOutput {
+    text/html
+  }
+```
+
+User changes the priority list to `[svg, html]`, then nteract returns 
+
+```js
+  Transformed CellOutput {
+    image/svg
+  }
+```
+
+The only active Renderer generates the best output based on the output data and user defined priority list.
+
+### What's an output renderer #2: mimetype transformer
+
+
+```js
+  CellOutput: {
+    text/plain
+    application/vnd.plotly.v1+json
+    image/svg
+  }
+```
+
+Richest supported mimetype --> image/svg
+
+```js
+  Transformed CellOutput {
+    text/plain
+    application/vnd.plotly.v1+json (show warning/renderer suggestion)
+    *image/svg (default rendered output)
+  }
+```
+
+(question? should the core receive `application/vnd*` as it will never understand this mimetype?)
+
+--- install nteract extension
+
+Richest supported mimetype --> application/vnd.ploty.v1+json
+
+```js
+  Transformed CellOutput {
+    text/plain
+    *text/html (default rendered output, name is still 'application/vnd.plotly.v1+json')
+    image/svg
+  }
+```
+
+### Mixed priority list and picker
+
+The display order is concatenated from order lists from core, providers, renderers and users. The mimetype registered later has higher priority. Similar to the keybindings
+
+(the configuration exposed to users don't need to be the same as below, it can still be `order` and `mimeTypeRendererMapping`).
+
+```json
+[
+  // user has the highest priority
+
+  // contribtued by nteract renderer extension
+  { "type": "application/vnd-plot", "renderer": "nteract" },
+  { "type": "application/json", "renderer": "nteract" }, // interactive json viewer
+  { "type": "text/markdown", "renderer": "nteract" }, // for example, nteract supports latex so users may want to use it instead of the markdown engine in core
+
+  // contribtued by the document provider
+  { "type": "text/html", "renderer": "core" }
+  { "type": "application/json", "renderer": "core" }
+  { "type": "application/javascript", "renderer": "core" }
+  { "type": "image/svg+xml", "renderer": "core" }
+  { "type": "text/markdown", "renderer": "core" }
+  { "type": "text/latex" }  // core doesn't have renderer for this, so skip
+  { "type": "image/svg+xml", "renderer": "core" }
+  { "type": "image/gif" }  // core doesn't have renderer for this, so skip
+  { "type": "image/png", "renderer": "core" }
+  { "type": "image/jpeg", "renderer": "core" } 
+  { "type": "application/pdf", "renderer": "" }  // core doesn't have renderer for this, so skip
+  { "type": "text/plain", "renderer": "core" }
+
+
+  // builtin order
+  { "type": "application/json", "renderer": "core" }
+  { "type": "application/javascript", "renderer": "core" }
+  { "type": "text/html", "renderer": "core" }
+  { "type": "image/svg+xml", "renderer": "core" }
+  { "type": "text/markdown", "renderer": "core" }
+  { "type": "image/svg+xml", "renderer": "core" }
+  { "type": "image/png", "renderer": "core" }
+  { "type": "image/jpeg", "renderer": "core" } 
+  { "type": "text/plain", "renderer": "core" }
+]
+```
+
+With above list 
+
+```json
+{
+  "text/markdown": {},  // render by nteract, picked by nteract
+  "text/plain": {}
+}
+```
+
+```json
+{
+  "text/latex": {},  
+  "text/plain": {} // render by core
+}
+```
+
+```json
+{
+  "text/html": {}, // render by core, picked by NBDocument provider
+  "application/json": {} 
+}
+```
+
+---
+
+
+- priority list 
+- renders for custom mimetypes  --> primitives
+- renders for primitives (initially provided by the core)
+
+
+
+# MISC
+
 - preload resources types: (script, css, font?)
+- strongly typed output. Currently output is `any`, but we can define a fixed list of mimetypes which can be rendered in the core
+- kernel adapter -- local/remote runtime
+- perf
+  - forced reflow in `CodeEditorWidget.ContentWidget` https://github.com/microsoft/vscode/blob/20f4cbf4b6e585a15751effe59ab40e180d11b43/src/vs/editor/browser/viewParts/contentWidgets/contentWidgets.ts#L437-L441
+    - *!* Render 20 monaco editors, each one contains two lines of code. `SuggestWidget` stands out.
+  - *?* can iframe be faster than webview? Google Colab seems speedy
+- security model
+  - protect the webview from ruined by a misbehaving output

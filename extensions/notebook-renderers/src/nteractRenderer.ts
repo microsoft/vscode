@@ -7,20 +7,16 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 export class NteractRenderer implements vscode.NotebookOutputRenderer {
-	private nteractScript: vscode.Uri;
+	private _preloads: vscode.Uri[] = [];
 
 	get preloads(): vscode.Uri[] {
-		return [this.nteractScript];
+		return this._preloads;
 	}
 
 	constructor(
 		private _extensionPath: string
 	) {
-		const scriptPathOnDisk = vscode.Uri.file(
-			path.join(this._extensionPath, 'nteract', 'nteract.js')
-		);
-
-		this.nteractScript = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+		this._preloads.push(vscode.Uri.file(path.join(this._extensionPath, 'nteract', 'nteract.js')));
 	}
 
 	// @ts-ignore

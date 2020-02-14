@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString } from 'vscode';
-import { Disposable } from 'vs/base/common/lifecycle';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -1414,6 +1411,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookProvider {
+		displayOrder?: GlobPattern[];
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;
