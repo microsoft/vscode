@@ -253,6 +253,8 @@ suite('workspace-namespace', () => {
 		const file = await createRandomFile();
 		let disposables: vscode.Disposable[] = [];
 
+		await vscode.workspace.saveAll();
+
 		let pendingAsserts: Function[] = [];
 		let onDidOpenTextDocument = false;
 		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
