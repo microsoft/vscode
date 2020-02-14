@@ -92,7 +92,7 @@ interface IRawExperiment {
 		// Evaluates to true iff all the given user settings are deeply equal
 		userSetting?: { [key: string]: unknown; };
 		// Start the experiment if the number of activation events have happened over the last week:
-		activationEvent: {
+		activationEvent?: {
 			event: string;
 			uniqueDays?: number;
 			minEvents: number;
@@ -420,7 +420,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}
 
 		if (!this.checkActivationEventFrequency(experiment)) {
-			return Promise.resolve(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.Evaluating);
 		}
 
 		if (this.productService.quality === 'stable' && condition.insidersOnly === true) {

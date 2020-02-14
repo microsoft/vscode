@@ -276,7 +276,7 @@ suite('Experiment Service', () => {
 		});
 	});
 
-	test('Activation event experiment with not enough events should be disabled', () => {
+	test('Activation event experiment with not enough events should be evaluating', () => {
 		experimentData = {
 			experiments: [
 				{
@@ -301,7 +301,7 @@ suite('Experiment Service', () => {
 		testObject = instantiationService.createInstance(TestExperimentService);
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, true);
-			assert.equal(result.state, ExperimentState.NoRun);
+			assert.equal(result.state, ExperimentState.Evaluating);
 		});
 	});
 
@@ -359,7 +359,7 @@ suite('Experiment Service', () => {
 		testObject = instantiationService.createInstance(TestExperimentService);
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, true);
-			assert.equal(result.state, ExperimentState.NoRun);
+			assert.equal(result.state, ExperimentState.Evaluating);
 		});
 	});
 
