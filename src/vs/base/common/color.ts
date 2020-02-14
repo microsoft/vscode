@@ -121,7 +121,7 @@ export class HSLA {
 		else if (t > 1) {
 			t -= 1;
 		}
-		
+
 		if (t < 1 / 6) {
 			return p + (q - p) * 6 * t;
 		}
