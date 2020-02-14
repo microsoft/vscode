@@ -109,8 +109,10 @@ export class DebugHoverWidget implements IContentWidget {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
 			horizontalScrolling: true,
+			useShadows: false,
 			overrideStyles: {
-				listBackground: editorHoverBackground
+				listBackground: editorHoverBackground,
+
 			}
 		});
 
@@ -307,6 +309,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	hide(): void {
+		return;
 		if (!this._isVisible) {
 			return;
 		}
