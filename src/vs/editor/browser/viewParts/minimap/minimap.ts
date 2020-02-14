@@ -91,12 +91,12 @@ class MinimapOptions {
 	 */
 	public readonly canvasOuterHeight: number;
 
-	public readonly backgroundColor: RGBA8;
-
 	public readonly fontScale: number;
 	public readonly minimapLineHeight: number;
 	public readonly minimapCharWidth: number;
+
 	public readonly charRenderer: () => MinimapCharRenderer;
+	public readonly backgroundColor: RGBA8;
 
 	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker, modelLineCount: number, isSampling: boolean) {
 		const options = configuration.options;
@@ -117,39 +117,17 @@ class MinimapOptions {
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
-		this.canvasInnerWidth = Math.floor(pixelRatio * this.minimapWidth);
-		this.canvasInnerHeight = Math.floor(pixelRatio * this.minimapHeight);
+		this.canvasInnerWidth = layoutInfo.minimapCanvasInnerWidth;
+		this.canvasInnerHeight = layoutInfo.minimapCanvasInnerHeight;
+		this.canvasOuterWidth = layoutInfo.minimapCanvasOuterWidth;
+		this.canvasOuterHeight = layoutInfo.minimapCanvasOuterHeight;
 
-		this.canvasOuterWidth = this.canvasInnerWidth / pixelRatio;
-		this.canvasOuterHeight = this.canvasInnerHeight / pixelRatio;
-
-		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, tokensColorTracker);
-
-		const baseCharHeight = (this.renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
-
-		let fontScale: number;
-		const minimapLineHeight = layoutInfo.minimapLineHeight;
-		if (this.renderMinimap === RenderMinimap.None) {
-			fontScale = Math.round(minimapOpts.scale * pixelRatio);
-		} else if (minimapOpts.entireDocument) {
-			if (isSampling) {
-				fontScale = 1;
-			} else {
-				this.canvasInnerWidth = Math.floor(this.canvasInnerWidth * layoutInfo.minimapWidthMultiplier);
-				const extraLinesBeyondLastLine = this.scrollBeyondLastLine ? (layoutInfo.height / this.lineHeight - 1) : 0;
-				fontScale = Math.min(4, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
-
-				const actualMinimapHeight = (modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight;
-				this.canvasInnerHeight = Math.ceil(actualMinimapHeight);
-			}
-		} else {
-			fontScale = Math.round(minimapOpts.scale * pixelRatio);
-		}
-
-		this.fontScale = fontScale;
-		this.minimapLineHeight = minimapLineHeight;
+		this.fontScale = layoutInfo.minimapScale;
+		this.minimapLineHeight = layoutInfo.minimapLineHeight;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
+
 		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
+		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, tokensColorTracker);
 	}
 
 	private static _getMinimapBackground(theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
@@ -176,10 +154,10 @@ class MinimapOptions {
 			&& this.canvasInnerHeight === other.canvasInnerHeight
 			&& this.canvasOuterWidth === other.canvasOuterWidth
 			&& this.canvasOuterHeight === other.canvasOuterHeight
-			&& this.backgroundColor.equals(other.backgroundColor)
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
+			&& this.backgroundColor.equals(other.backgroundColor)
 		);
 	}
 }

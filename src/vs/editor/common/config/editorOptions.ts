@@ -1687,8 +1687,13 @@ export interface EditorLayoutInfo {
 	 * The width of the minimap
 	 */
 	readonly minimapWidth: number;
+	readonly minimapIsSampling: boolean;
+	readonly minimapScale: number;
 	readonly minimapLineHeight: number;
-	readonly minimapWidthMultiplier: number;
+	readonly minimapCanvasInnerWidth: number;
+	readonly minimapCanvasInnerHeight: number;
+	readonly minimapCanvasOuterWidth: number;
+	readonly minimapCanvasOuterHeight: number;
 
 	/**
 	 * Minimap render type
@@ -1817,17 +1822,24 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let renderMinimap: RenderMinimap;
 		let minimapLeft: number;
 		let minimapWidth: number;
+		let minimapCanvasInnerWidth: number;
+		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
+		let minimapCanvasOuterWidth: number;
+		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
+		let minimapIsSampling = false;
 		let minimapLineHeight = baseCharHeight * minimapScale;
-		let minimapWidthMultiplier: number = 1;
 		let contentWidth: number;
 		if (!minimapEnabled) {
 			minimapLeft = 0;
 			minimapWidth = 0;
+			minimapCanvasInnerWidth = 0;
+			minimapCanvasOuterWidth = 0;
 			minimapLineHeight = 1;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
 		} else {
 			let minimapCharWidth = minimapScale / pixelRatio;
+			let minimapWidthMultiplier: number = 1;
 
 			if (minimapEntireDocument) {
 				const modelLineCount = env.maxLineNumber;
@@ -1837,6 +1849,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				const ratio = modelLineCount / minimapLineCount;
 
 				if (ratio > 1) {
+					minimapIsSampling = true;
 					minimapScale = 1;
 					minimapLineHeight = 1;
 					minimapCharWidth = minimapScale / pixelRatio;
@@ -1846,6 +1859,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 					minimapScale = Math.min(4, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
 					minimapWidthMultiplier = Math.min(1, minimapScale / configuredFontScale);
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
+					minimapCanvasInnerHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 				}
 			}
 
@@ -1880,6 +1894,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			} else {
 				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
 			}
+
+			minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
+			minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
+			minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 		}
 
 		// (leaving 2px for the cursor to have space after the last character)
@@ -1906,8 +1924,13 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			renderMinimap: renderMinimap,
 			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
+			minimapIsSampling: minimapIsSampling,
+			minimapScale: minimapScale,
 			minimapLineHeight: minimapLineHeight,
-			minimapWidthMultiplier: minimapWidthMultiplier,
+			minimapCanvasInnerWidth: minimapCanvasInnerWidth,
+			minimapCanvasInnerHeight: minimapCanvasInnerHeight,
+			minimapCanvasOuterWidth: minimapCanvasOuterWidth,
+			minimapCanvasOuterHeight: minimapCanvasOuterHeight,
 
 			viewportColumn: viewportColumn,
 
