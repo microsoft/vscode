@@ -537,6 +537,22 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				}
 			}
 
+			// If a value is not present in the cache, it must be reset to default
+			this.viewContainersRegistry.all.forEach(viewContainer => {
+				const viewDescriptorCollection = this.getViewDescriptors(viewContainer);
+				viewDescriptorCollection.allViewDescriptors.forEach(viewDescriptor => {
+					if (!newCachedPositions.has(viewDescriptor.id)) {
+						const currentContainer = this.getViewContainer(viewDescriptor.id);
+						const defaultContainer = this.getDefaultContainer(viewDescriptor.id);
+						if (currentContainer && defaultContainer && currentContainer !== defaultContainer) {
+							this.moveViews([viewDescriptor], currentContainer, defaultContainer);
+						}
+
+						this.cachedViewInfo.delete(viewDescriptor.id);
+					}
+				});
+			});
+
 			this.cachedViewInfo = this.getCachedViewPositions();
 		}
 	}
@@ -570,6 +586,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				});
 			});
 		});
+
+		// Do no save default positions to the cache
+		// so that default changes can be recognized
+		// https://github.com/microsoft/vscode/issues/90414
+		for (const [viewId, containerInfo] of this.cachedViewInfo) {
+			const defaultContainer = this.getDefaultContainer(viewId);
+			if (defaultContainer?.id === containerInfo.containerId) {
+				this.cachedViewInfo.delete(viewId);
+			}
+		}
 
 		this.cachedViewPositionsValue = JSON.stringify([...this.cachedViewInfo]);
 	}
