@@ -1542,6 +1542,10 @@ class InnerMinimap extends Disposable {
 		const fontScale = this._model.options.fontScale;
 		const minimapCharWidth = this._model.options.minimapCharWidth;
 
+		const baseCharHeight = (renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
+		const renderMinimapLineHeight = baseCharHeight * fontScale;
+		const innerLinePadding = (minimapLineHeight > renderMinimapLineHeight ? Math.floor((minimapLineHeight - renderMinimapLineHeight) / 2) : 0);
+
 		// Render the rest of lines
 		let dy = 0;
 		const renderedLines: MinimapLine[] = [];
@@ -1556,6 +1560,7 @@ class InnerMinimap extends Disposable {
 					tokensColorTracker,
 					charRenderer,
 					dy,
+					innerLinePadding,
 					tabSize,
 					lineInfo[lineIndex]!,
 					fontScale,
@@ -1683,6 +1688,7 @@ class InnerMinimap extends Disposable {
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
 		dy: number,
+		innerLinePadding: number,
 		tabSize: number,
 		lineData: ViewLineData,
 		fontScale: number,
@@ -1722,9 +1728,9 @@ class InnerMinimap extends Disposable {
 
 					for (let i = 0; i < count; i++) {
 						if (renderMinimap === RenderMinimap.Blocks) {
-							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+							minimapCharRenderer.blockRenderChar(target, dx, dy + innerLinePadding, tokenColor, backgroundColor, useLighterFont);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, minimapLineHeight === 1);
+							minimapCharRenderer.renderChar(target, dx, dy + innerLinePadding, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, minimapLineHeight === 1);
 						}
 
 						dx += charWidth;
