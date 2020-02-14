@@ -111,8 +111,7 @@ export class DebugHoverWidget implements IContentWidget {
 			horizontalScrolling: true,
 			useShadows: false,
 			overrideStyles: {
-				listBackground: editorHoverBackground,
-
+				listBackground: editorHoverBackground
 			}
 		});
 
