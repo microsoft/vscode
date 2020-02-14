@@ -128,31 +128,22 @@ class MinimapOptions {
 		const baseCharHeight = (this.renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
 
 		let fontScale: number;
-		let minimapLineHeight: number;
-		if (minimapOpts.entireDocument) {
+		const minimapLineHeight = layoutInfo.minimapLineHeight;
+		if (this.renderMinimap === RenderMinimap.None) {
+			fontScale = Math.round(minimapOpts.scale * pixelRatio);
+		} else if (minimapOpts.entireDocument) {
 			if (isSampling) {
 				fontScale = 1;
-				minimapLineHeight = 1;
 			} else {
+				this.canvasInnerWidth = Math.floor(this.canvasInnerWidth * layoutInfo.minimapWidthMultiplier);
 				const extraLinesBeyondLastLine = this.scrollBeyondLastLine ? (layoutInfo.height / this.lineHeight - 1) : 0;
-				const desiredRatio = (modelLineCount + extraLinesBeyondLastLine) / (pixelRatio * layoutInfo.height);
-				minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
-				// fontScale = Math.round(minimapOpts.scale * pixelRatio);
-
-				const configuredFontScale = Math.round(minimapOpts.scale * pixelRatio);
 				fontScale = Math.min(4, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
-
-				const fontScaleRatio = fontScale / configuredFontScale;
-				if (fontScaleRatio > 1) {
-					this.canvasInnerWidth = Math.floor(this.canvasInnerWidth * fontScaleRatio);
-				}
 
 				const actualMinimapHeight = (modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight;
 				this.canvasInnerHeight = Math.ceil(actualMinimapHeight);
 			}
 		} else {
 			fontScale = Math.round(minimapOpts.scale * pixelRatio);
-			minimapLineHeight = baseCharHeight * fontScale;
 		}
 
 		this.fontScale = fontScale;

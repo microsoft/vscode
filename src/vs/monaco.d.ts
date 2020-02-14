@@ -3330,6 +3330,8 @@ declare namespace monaco.editor {
 		 * The width of the minimap
 		 */
 		readonly minimapWidth: number;
+		readonly minimapLineHeight: number;
+		readonly minimapWidthMultiplier: number;
 		/**
 		 * Minimap render type
 		 */
