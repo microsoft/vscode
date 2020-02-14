@@ -88,6 +88,12 @@ export class WebviewEditor extends BaseEditor {
 		});
 	}
 
+	public selectAll() {
+		this.withWebview(webview => {
+			webview.selectAll();
+		});
+	}
+
 	public reload() {
 		this.withWebview(webview => webview.reload());
 	}

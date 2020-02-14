@@ -38,28 +38,6 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 	}
 }
 
-export class SelectAllWebviewEditorCommand extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.selectAll';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.selectAll', 'Select all');
-
-	constructor(contextKeyExpr: ContextKeyExpr) {
-		const precondition = ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey));
-		super({
-			id: SelectAllWebviewEditorCommand.ID,
-			title: SelectAllWebviewEditorCommand.LABEL,
-			keybinding: {
-				when: precondition,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.selectAll());
-	}
-}
-
 export class CopyWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.copy';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.copy', "Copy2");

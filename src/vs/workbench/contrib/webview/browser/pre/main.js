@@ -232,23 +232,23 @@
 		 * @param {MouseEvent} event
 		 */
 		const handleAuxClick =
-		(event) => {
-			// Prevent middle clicks opening a broken link in the browser
-			if (!event.view || !event.view.document) {
-				return;
-			}
-
-			if (event.button === 1) {
-				let node = /** @type {any} */ (event.target);
-				while (node) {
-					if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-						event.preventDefault();
-						break;
-					}
-					node = node.parentNode;
+			(event) => {
+				// Prevent middle clicks opening a broken link in the browser
+				if (!event.view || !event.view.document) {
+					return;
 				}
-			}
-		};
+
+				if (event.button === 1) {
+					let node = /** @type {any} */ (event.target);
+					while (node) {
+						if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+							event.preventDefault();
+							break;
+						}
+						node = node.parentNode;
+					}
+				}
+			};
 
 		/**
 		 * @param {KeyboardEvent} e
@@ -545,6 +545,13 @@
 				initData.initialScrollProgress = progress;
 			});
 
+			host.onMessage('execCommand', (_event, data) => {
+				const target = getActiveFrame();
+				if (!target) {
+					return;
+				}
+				target.contentDocument.execCommand(data);
+			});
 
 			trackFocus({
 				onFocus: () => host.postMessage('did-focus'),
