@@ -341,6 +341,10 @@ import product from 'vs/platform/product/common/product';
 			'disable-color-correct-rendering': {
 				type: 'boolean',
 				description: nls.localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
+			},
+			'force-renderer-accessibility': {
+				type: 'boolean',
+				description: nls.localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.')
 			}
 		}
 	});
