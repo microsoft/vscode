@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { join } from 'path';
-import { closeAllEditors, disposeAll, conditionalTest } from '../utils';
+import { closeAllEditors, disposeAll, conditionalTest, delay } from '../utils';
 
 const webviewId = 'myWebview';
 
@@ -332,7 +332,27 @@ suite('Webview tests', () => {
 		webview.webview.postMessage({ value: 1 });
 		await firstResponse;
 		assert.strictEqual(webview.viewColumn, vscode.ViewColumn.One);
+	});
 
+	test('webview can copy text from webview', async () => {
+		const expectedText = `webview text from: ${Date.now()}!`;
+
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
+		const ready = getMesssage(webview);
+
+
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<b>${expectedText}</b>
+			<script>
+				const vscode = acquireVsCodeApi();
+				document.execCommand('selectAll');
+				vscode.postMessage({ type: 'ready' });
+			</script>`);
+		await ready;
+
+		await vscode.commands.executeCommand('editor.action.webvieweditor.copy');
+		await delay(200); // Make sure copy has time to reach webview
+		assert.strictEqual(await vscode.env.clipboard.readText(), expectedText);
 	});
 });
 
