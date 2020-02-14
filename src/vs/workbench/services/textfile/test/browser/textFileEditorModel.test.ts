@@ -120,7 +120,6 @@ suite('Files - TextFileEditorModel', () => {
 
 		await pendingSave;
 
-		assert.ok(model.getLastSaveAttemptTime() <= Date.now());
 		assert.ok(model.hasState(ModelState.SAVED));
 		assert.ok(!model.isDirty());
 		assert.ok(savedEvent);
@@ -488,8 +487,6 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 		assert.ok(assertIsDefined(model1.getStat()).mtime > m1Mtime);
 		assert.ok(assertIsDefined(model2.getStat()).mtime > m2Mtime);
-		assert.ok(model1.getLastSaveAttemptTime() > m1Mtime);
-		assert.ok(model2.getLastSaveAttemptTime() > m2Mtime);
 
 		model1.dispose();
 		model2.dispose();
