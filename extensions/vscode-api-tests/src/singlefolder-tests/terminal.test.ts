@@ -52,6 +52,7 @@ suite('window namespace tests', () => {
 					// that echoing can print "echo ..." twice if the shell has not yet been fully
 					// initialized.
 					const lines = data.split('\r').map(d => d.trim());
+					console.log(lines);
 					if (lines.some(l => l === expected)) {
 						terminal.dispose();
 						disposables.push(window.onDidCloseTerminal(() => done()));
