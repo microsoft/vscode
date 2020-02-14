@@ -1874,8 +1874,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				} else {
 					const configuredFontScale = minimapScale;
 					minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
-					minimapScale = Math.min(4, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
-					minimapWidthMultiplier = Math.min(1, minimapScale / configuredFontScale);
+					minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+					if (minimapScale > configuredFontScale) {
+						minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+					}
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
 					minimapCanvasInnerHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 				}
