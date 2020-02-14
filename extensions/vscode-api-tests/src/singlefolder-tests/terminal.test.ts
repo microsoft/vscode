@@ -33,6 +33,36 @@ suite('window namespace tests', () => {
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
+		test('echo works in the default shell', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(terminal, term);
+				} catch (e) {
+					done(e);
+				}
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					data += e.data;
+					// Pass the test if there is a line that contains only the echo'd output. Note
+					// that echoing can print "echo ..." twice if the shell has not yet been fully
+					// initialized.
+					const lines = data.split('\r').map(d => d.trim());
+					if (lines.some(l => l === expected)) {
+						terminal.dispose();
+						disposables.push(window.onDidCloseTerminal(() => done()));
+					}
+				}));
+			}));
+			const terminal = window.createTerminal();
+			const expected = new Date().getTime().toString();
+			doesNotThrow(terminal.sendText.bind(terminal, `echo "${expected}"`));
+		});
+
 		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
