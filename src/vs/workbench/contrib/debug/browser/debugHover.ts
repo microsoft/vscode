@@ -309,7 +309,6 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	hide(): void {
-		return;
 		if (!this._isVisible) {
 			return;
 		}
