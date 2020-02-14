@@ -118,9 +118,10 @@ export class HSLA {
 		if (t < 0) {
 			t += 1;
 		}
-		if (t > 1) {
+		else if (t > 1) {
 			t -= 1;
 		}
+		
 		if (t < 1 / 6) {
 			return p + (q - p) * 6 * t;
 		}
@@ -264,9 +265,8 @@ export class Color {
 	get hsla(): HSLA {
 		if (this._hsla) {
 			return this._hsla;
-		} else {
-			return HSLA.fromRGBA(this.rgba);
 		}
+		return HSLA.fromRGBA(this.rgba);
 	}
 
 	private _hsva?: HSVA;
