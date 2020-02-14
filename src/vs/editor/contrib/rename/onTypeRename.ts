@@ -11,13 +11,163 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { OnTypeRenameProviderRegistry } from 'vs/editor/common/modes';
 import { first, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
+
+function isWithin(inner: IRange, outer: IRange) {
+	return outer.startLineNumber <= inner.startLineNumber &&
+		outer.endLineNumber >= inner.endLineNumber &&
+		outer.startColumn <= inner.startColumn &&
+		outer.endColumn >= inner.endColumn;
+}
+
+function computeSyncedRegionEdits(editor: ICodeEditor, change: IModelContentChange, regions: IRange[] | null | undefined): IIdentifiedSingleEditOperation[] {
+	if (!regions) {
+		return [];
+	}
+
+	let containingRegion: IRange | undefined;
+	const beforeRegions: IRange[] = [];
+	const afterRegions: IRange[] = [];
+	for (let r of regions) {
+		if (isWithin(change.range, r)) {
+			containingRegion = r;
+		} else {
+			if (!containingRegion) {
+				beforeRegions.push(r);
+			} else {
+				afterRegions.push(r);
+			}
+		}
+	}
+	if (!containingRegion) {
+		return [];
+	}
+
+	const model = editor.getModel()!;
+	const startOffset = change.rangeOffset - model.getOffsetAt({
+		lineNumber: containingRegion.startLineNumber,
+		column: containingRegion.startColumn
+	});
+	const endOffset = change.rangeOffset + change.rangeLength - model.getOffsetAt({
+		lineNumber: containingRegion.endLineNumber,
+		column: containingRegion.endColumn
+	});
+
+	const beforeRegionEdits = beforeRegions
+		.map(r => {
+			const newStartPos = model.getPositionAt(model.getOffsetAt({
+				lineNumber: r.startLineNumber,
+				column: r.startColumn
+			}) + startOffset);
+			const newEndPos = model.getPositionAt(model.getOffsetAt({
+				lineNumber: r.endLineNumber,
+				column: r.endColumn
+			}) + endOffset);
+
+			const range = new Range(newStartPos.lineNumber, newStartPos.column, newEndPos.lineNumber, newEndPos.column);
+
+			return {
+				range,
+				text: change.text
+			};
+		});
+
+	const textDiffDelta = change.text === ''
+		? -change.rangeLength
+		: change.text.length;
+
+	const afterRegionEdits = afterRegions
+		.map(r => {
+			if (r.startLineNumber === containingRegion!.startLineNumber) {
+				const newStartPos = model.getPositionAt(model.getOffsetAt({
+					lineNumber: r.startLineNumber,
+					column: r.startColumn
+				}) + startOffset + (1) * textDiffDelta);
+				const newEndPos = model.getPositionAt(model.getOffsetAt({
+					lineNumber: r.endLineNumber,
+					column: r.endColumn
+				}) + endOffset + (1) * textDiffDelta);
+
+				const range = new Range(newStartPos.lineNumber, newStartPos.column, newEndPos.lineNumber, newEndPos.column);
+
+				return {
+					range,
+					text: change.text
+				};
+			} else {
+				const newStartPos = model.getPositionAt(model.getOffsetAt({
+					lineNumber: r.startLineNumber,
+					column: r.startColumn
+				}) + startOffset);
+				const newEndPos = model.getPositionAt(model.getOffsetAt({
+					lineNumber: r.endLineNumber,
+					column: r.endColumn
+				}) + endOffset);
+
+				const range = new Range(newStartPos.lineNumber, newStartPos.column, newEndPos.lineNumber, newEndPos.column);
+
+				return {
+					range,
+					text: change.text
+				};
+			}
+		});
+
+	return beforeRegionEdits.concat(afterRegionEdits);
+
+	// const deltaStartLine = change.range.startLineNumber - containingRegion.startLineNumber;
+	// const deltaStartColumn = change.range.startColumn - containingRegion.startColumn;
+	// const deltaEndLine = change.range.endLineNumber - containingRegion.endLineNumber;
+	// const deltaEndColumn = change.range.endColumn - containingRegion.endColumn;
+
+	// const beforeRegionEdits = beforeRegions
+	// 	.map(r => {
+	// 		const matchingRange = new Range(
+	// 			r.startLineNumber + deltaStartLine,
+	// 			r.startColumn + deltaStartColumn,
+	// 			r.endLineNumber + deltaEndLine,
+	// 			r.endColumn + deltaEndColumn,
+	// 		);
+
+	// 		console.log(`Applying changes to (${matchingRange.startLineNumber}, ${matchingRange.startColumn} - ${matchingRange.endColumn}): ${editor.getModel()?.getValueInRange(matchingRange)}`);
+
+	// 		return {
+	// 			range: matchingRange,
+	// 			text: change.text
+	// 		};
+	// 	});
+
+	// const columnDelta = change.text === ''
+	// 	? -change.rangeLength
+	// 	: change.text.length;
+
+	// const afterRegionEdits = afterRegions
+	// 	.map(r => {
+	// 		const matchingRange = new Range(
+	// 			r.startLineNumber + deltaStartLine,
+	// 			r.startColumn + deltaStartColumn + columnDelta,
+	// 			r.endLineNumber + deltaEndLine,
+	// 			r.endColumn + deltaEndColumn + columnDelta
+	// 		);
+
+	// 		console.log(`Applying changes to (${matchingRange.startLineNumber}, ${matchingRange.startColumn} - ${matchingRange.endColumn}): ${editor.getModel()?.getValueInRange(matchingRange)}`);
+
+	// 		return {
+	// 			range: matchingRange,
+	// 			text: change.text
+	// 		};
+	// 	});
+
+	// return beforeRegionEdits.concat(afterRegionEdits);
+}
 
 class OnTypeRenameContribution extends Disposable implements IEditorContribution {
 
@@ -33,6 +183,11 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 	private _currentRequest: CancelablePromise<IRange[] | null | undefined> | null;
 	private _currentDecorations: string[];
+
+	private _syncedRanges: IRange[] | null | undefined;
+
+	private _shouldMirrorChanges = false;
+	private _lastVersion: number = -1;
 
 	constructor(
 		editor: ICodeEditor,
@@ -68,10 +223,75 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 			if (!this._editor.hasModel()) {
 				return;
 			}
-			const model = this._editor.getModel();
+			// const model = this._editor.getModel();
 			// TODO
-			console.log(`buffer changed!`);
-			console.log(this._currentDecorations.map(id => model.getDecorationRange(id)));
+			// console.log(`buffer changed!`);
+
+			if (e.changes.length === 1) {
+				const change = e.changes[0];
+
+				// Insert space - break case
+				if (change.text.startsWith(' ') || change.text.startsWith('\n') || change.text.startsWith('\t')) {
+					return;
+				}
+
+				if (e.versionId === this._lastVersion + 1 && !this._shouldMirrorChanges) {
+					console.log('Stop mirroring');
+					this._shouldMirrorChanges = true;
+					return;
+				}
+
+				const newChanges = computeSyncedRegionEdits(this._editor, change, this._syncedRanges);
+				this._lastVersion = e.versionId;
+				if (newChanges.length > 0) {
+					this._shouldMirrorChanges = false;
+					this._editor.executeEdits('foo', newChanges);
+
+					// this._editor.executeEdits('foo', newChanges, [new Selection(1, 2, 1, 2)]);
+
+					// this._editor.executeEdits('foo', newChanges, (edits) => {
+					// 	console.log(edits);
+
+					// 	const currSelection = this._editor.getSelection()!;
+					// 	const newSelections = [currSelection.setStartPosition(
+					// 		currSelection.startLineNumber,
+					// 		currSelection.startColumn - 2
+					// 	).setEndPosition(
+					// 		currSelection.endLineNumber,
+					// 		currSelection.endColumn - 2
+					// 	)];
+
+					// 	return newSelections;
+					// });
+				}
+
+				// if (change.rangeLength === 0) {
+				// 	if (this._syncedRanges && this._syncedRanges.length > 0) {
+				// 		if (isWithin(change.range, this._syncedRanges[0])) {
+				// 			const firstStartOffset = this._editor.getModel().getOffsetAt(new Position(this._syncedRanges[0].startLineNumber, this._syncedRanges[0].startColumn));
+				// 			// const secondEndOffset = this._editor.getModel().getOffsetAt(new Position(this._syncedRanges[1].endLineNumber, this._syncedRanges[1].endColumn));
+				// 			// console.log(secondEndOffset);
+
+				// 			const targetRange = new Range(
+				// 				this._syncedRanges[1].startLineNumber,
+				// 				this._syncedRanges[1].startColumn + (change.rangeOffset - firstStartOffset),
+				// 				this._syncedRanges[1].startLineNumber,
+				// 				this._syncedRanges[1].startColumn + (change.rangeOffset - firstStartOffset)
+				// 			);
+
+				// 			this._editor.executeEdits('foo', [
+				// 				{
+				// 					range: targetRange,
+				// 					text: change.text
+				// 				}
+				// 			]);
+				// 		}
+				// 	}
+				// }
+
+			}
+
+			// console.log(this._currentDecorations.map(id => model.getDecorationRange(id)));
 		}));
 	}
 
@@ -106,6 +326,7 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 				value = [];
 			}
 			const decorations: IModelDeltaDecoration[] = value.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
+			this._syncedRanges = value;
 			this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
 		}, err => onUnexpectedError(err));
 	}
