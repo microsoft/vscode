@@ -138,7 +138,15 @@ class MinimapOptions {
 				const desiredRatio = (modelLineCount + extraLinesBeyondLastLine) / (pixelRatio * layoutInfo.height);
 				minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
 				// fontScale = Math.round(minimapOpts.scale * pixelRatio);
-				fontScale = Math.max(1, Math.floor(minimapLineHeight / baseCharHeight / 2));
+
+				const configuredFontScale = Math.round(minimapOpts.scale * pixelRatio);
+				fontScale = Math.min(4, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+
+				const fontScaleRatio = fontScale / configuredFontScale;
+				if (fontScaleRatio > 1) {
+					this.canvasInnerWidth = Math.floor(this.canvasInnerWidth * fontScaleRatio);
+				}
+
 				const actualMinimapHeight = (modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight;
 				this.canvasInnerHeight = Math.ceil(actualMinimapHeight);
 			}
@@ -170,7 +178,6 @@ class MinimapOptions {
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
-			&& this.fontScale === other.fontScale
 			&& this.minimapLeft === other.minimapLeft
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
@@ -179,6 +186,9 @@ class MinimapOptions {
 			&& this.canvasOuterWidth === other.canvasOuterWidth
 			&& this.canvasOuterHeight === other.canvasOuterHeight
 			&& this.backgroundColor.equals(other.backgroundColor)
+			&& this.fontScale === other.fontScale
+			&& this.minimapLineHeight === other.minimapLineHeight
+			&& this.minimapCharWidth === other.minimapCharWidth
 		);
 	}
 }
@@ -1529,7 +1539,6 @@ class InnerMinimap extends Disposable {
 		const useLighterFont = tokensColorTracker.backgroundIsLight();
 		const renderMinimap = this._model.options.renderMinimap;
 		const charRenderer = this._model.options.charRenderer();
-		const isSampling = this._model.options.isSampling;
 		const fontScale = this._model.options.fontScale;
 		const minimapCharWidth = this._model.options.minimapCharWidth;
 
@@ -1550,7 +1559,7 @@ class InnerMinimap extends Disposable {
 					tabSize,
 					lineInfo[lineIndex]!,
 					fontScale,
-					isSampling
+					minimapLineHeight
 				);
 			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
@@ -1677,7 +1686,7 @@ class InnerMinimap extends Disposable {
 		tabSize: number,
 		lineData: ViewLineData,
 		fontScale: number,
-		isSampling: boolean
+		minimapLineHeight: number
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
@@ -1715,7 +1724,7 @@ class InnerMinimap extends Disposable {
 						if (renderMinimap === RenderMinimap.Blocks) {
 							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, isSampling);
+							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, minimapLineHeight === 1);
 						}
 
 						dx += charWidth;
