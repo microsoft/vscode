@@ -68,6 +68,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 	public cells: MainThreadCell[];
 	public activeCell: MainThreadCell | undefined;
 	public languages: string[] = [];
+	public renderers = new Set<number>();
 
 	private _isDirty: boolean = false;
 
@@ -92,6 +93,12 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 
 	updateLanguages(languages: string[]) {
 		this.languages = languages;
+	}
+
+	updateRenderers(renderers: number[]) {
+		renderers.forEach(render => {
+			this.renderers.add(render);
+		});
 	}
 
 	updateCell(cell: ICell) {
@@ -183,7 +190,6 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
-	private readonly _renderers = new Map<number, MainThreadNotebookController>();
 	private readonly _proxy: ExtHostNotebookShape;
 
 	constructor(
@@ -197,12 +203,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}));
 	}
 
-	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	async $registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void> {
+		this._notebookService.registerNotebookRenderer(handle, extension, selectors, preloads.map(uri => URI.revive(uri)));
 	}
 
-	$unregisterNotebookRenderer(handle: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	async $unregisterNotebookRenderer(handle: number): Promise<void> {
+		this._notebookService.unregisterNotebookRenderer(handle);
 	}
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void> {
@@ -230,19 +236,19 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
-	async $updateNotebookCells(viewType: string, resource: UriComponents, cells: ICell[]): Promise<void> {
+	async $updateNotebookCells(viewType: string, resource: UriComponents, cells: ICell[], renderers: number[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
 		if (controller) {
-			controller.updateNotebookCells(resource, cells);
+			controller.updateNotebookCells(resource, cells, renderers);
 		}
 	}
 
-	async $updateNotebookCell(viewType: string, resource: UriComponents, cell: ICell): Promise<void> {
+	async $updateNotebookCell(viewType: string, resource: UriComponents, cell: ICell, renderers: number[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
 		if (controller) {
-			controller.updateNotebookCell(resource, cell);
+			controller.updateNotebookCell(resource, cell, renderers);
 		}
 
 	}
@@ -326,19 +332,29 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 	}
 
-	updateNotebookCells(resource: UriComponents, cells: ICell[]): void {
+	updateNotebookCells(resource: UriComponents, cells: ICell[], renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
 
 		if (document) {
+			document.updateRenderers(renderers);
 			document.updateCells(cells);
 		}
 	}
 
-	updateNotebookCell(resource: UriComponents, cell: ICell): void {
+	updateNotebookCell(resource: UriComponents, cell: ICell, renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
 
 		if (document) {
+			document.updateRenderers(renderers);
 			document.updateCell(cell);
+		}
+	}
+
+	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
+		let document = this._mapping.get(URI.from(resource).toString());
+
+		if (document) {
+			document.updateRenderers(renderers);
 		}
 	}
 

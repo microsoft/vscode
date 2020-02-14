@@ -1,7 +1,7 @@
 {
   "name": "notebook-renderers",
-  "displayName": "Notebook Test",
-  "description": "Notebook test for execution and outputs",
+  "displayName": "Notebook Renderers",
+  "description": "Notebook renderers outputs",
   "extensionKind": [
     "ui",
     "workspace"

@@ -142,3 +142,4 @@ next
 
 
 - mimetype switcher 
+- preload resources types: (script, css, font?)

@@ -187,16 +187,18 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			return;
 		}
 
+		let preloads = this.notebook!.renderers;
+
 		if (!this.webview!.mapping.has(cell.id)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getAbsoluteTop(index) || 0;
-			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
+			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset, preloads);
 			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
 		} else if (!this.webview!.outputMapping.has(cell.id + `-${outputIndex}`)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getAbsoluteTop(index) || 0;
 			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
-			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
+			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset, preloads);
 		} else {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getAbsoluteTop(index) || 0;
@@ -267,6 +269,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 				if (this.webview) {
 					this.webview?.clearContentWidgets();
+					this.webview?.clearPreloadsCache();
 				} else {
 					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
 					this.list?.view.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
@@ -279,6 +282,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 				let viewState = this.loadTextEditorViewState(input);
 				this.notebook = model.getNotebook();
+				this.webview.updateRendererPreloads(this.notebook.renderers);
 				this.viewType = input.viewType;
 				this.viewCells = this.notebook!.cells.map(cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];

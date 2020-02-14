@@ -7,38 +7,34 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 export class NteractRenderer implements vscode.NotebookOutputRenderer {
-    private nteractScript: vscode.Uri;
-    private mapping = new Map<string, boolean>();
+	private nteractScript: vscode.Uri;
 
-    constructor(
-        private _extensionPath: string
-    ) {
-        const scriptPathOnDisk = vscode.Uri.file(
-            path.join(this._extensionPath, 'nteract', 'nteract.js')
-        );
+	get preloads(): vscode.Uri[] {
+		return [this.nteractScript];
+	}
 
-        this.nteractScript = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
-    }
+	constructor(
+		private _extensionPath: string
+	) {
+		const scriptPathOnDisk = vscode.Uri.file(
+			path.join(this._extensionPath, 'nteract', 'nteract.js')
+		);
 
-    // @ts-ignore
-    render(document: vscode.NotebookDocument, cell: vscode.NotebookCell, output: vscode.CellOutput): string {
-        let uriStr = document.uri.toString();
-        let renderOutputs: string[] = [];
-        let data = (output as vscode.CellDisplayOutput).data;
-        
-        if (!this.mapping.has(uriStr)) {
-            renderOutputs.push(`<script src="${this.nteractScript}"></script>`);
-            renderOutputs.push(`<style>.js-plotly-plot { height: unset !important; }</style>`);
-            this.mapping.set(uriStr, true);
-        }
+		this.nteractScript = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+	}
 
-        renderOutputs.push(`
-            <script type="application/vnd.nteract.view+json">
-                ${JSON.stringify(data)}
-            </script>
-            <script> if (window.nteract) { window.nteract.renderTags(); } </script>
-        `);
+	// @ts-ignore
+	render(document: vscode.NotebookDocument, cell: vscode.NotebookCell, output: vscode.CellOutput): string {
+		let renderOutputs: string[] = [];
+		let data = (output as vscode.CellDisplayOutput).data;
 
-        return renderOutputs.join('\n');
-    }
+		renderOutputs.push(`
+			<script type="application/vnd.nteract.view+json">
+				${JSON.stringify(data)}
+			</script>
+			<script> if (window.nteract) { window.nteract.renderTags(); } </script>
+		`);
+
+		return renderOutputs.join('\n');
+	}
 }

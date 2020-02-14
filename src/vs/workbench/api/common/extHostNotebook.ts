@@ -90,12 +90,14 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 			let store = this._cellDisposableMapping.get(cell.handle)!;
 			store.add(cell.onDidChangeOutputs(() => {
+				let renderers = new Set<number>();
 				let outputs = cell.outputs;
 				if (outputs && outputs.length) {
 					outputs = outputs.map(output => {
 						let handler = this.renderingHandler.findBestMatchedRenderer(output);
 
 						if (handler) {
+							renderers.add(handler.handle);
 							return handler.render(this, cell, output);
 						} else {
 							return output;
@@ -110,7 +112,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 					cell_type: cell.cell_type,
 					outputs: outputs,
 					isDirty: false
-				});
+				}, Array.from(renderers));
 			}));
 		});
 	}
@@ -140,13 +142,15 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	get isDirty() { return false; }
 
 	async $updateCells(): Promise<void> {
-		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, this.cells.map(cell => {
+		let renderers = new Set<number>();
+		let cells = this.cells.map(cell => {
 			let outputs = cell.outputs;
 			if (outputs && outputs.length) {
 				outputs = outputs.map(output => {
 					let handler = this.renderingHandler.findBestMatchedRenderer(output);
 
 					if (handler) {
+						renderers.add(handler.handle);
 						return handler.render(this, cell, output);
 					} else {
 						return output;
@@ -163,7 +167,9 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 				isDirty: false
 			};
 		}
-		));
+		);
+
+		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, cells, Array.from(renderers));
 	}
 
 	insertRawCell(index: number, cell: ExtHostCell) {
@@ -177,11 +183,13 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 		store.add(cell.onDidChangeOutputs(() => {
 			let outputs = cell.outputs;
+			let renderers = new Set<number>();
 			if (outputs && outputs.length) {
 				outputs = outputs.map(output => {
 					let handler = this.renderingHandler.findBestMatchedRenderer(output);
 
 					if (handler) {
+						renderers.add(handler.handle);
 						return handler.render(this, cell, output);
 					} else {
 						return output;
@@ -196,7 +204,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 				cell_type: cell.cell_type,
 				outputs: outputs,
 				isDirty: false
-			});
+			}, Array.from(renderers));
 		}));
 	}
 
@@ -381,7 +389,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	): vscode.Disposable {
 		let extHostRenderer = new ExtHostNotebookOutputRenderer(filter, renderer);
 		this._notebookOutputRenderers.set(extHostRenderer.handle, extHostRenderer);
-		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, filter, extHostRenderer.handle);
+		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, filter, extHostRenderer.handle, renderer.preloads || []);
 		return new VSCodeDisposable(() => {
 			this._notebookOutputRenderers.delete(extHostRenderer.handle);
 			this._proxy.$unregisterNotebookRenderer(extHostRenderer.handle);

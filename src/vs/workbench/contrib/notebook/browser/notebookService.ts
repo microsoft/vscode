@@ -11,7 +11,7 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { INotebook, ICell } from 'vs/workbench/contrib/notebook/common/notebook';
+import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebook';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -36,6 +36,9 @@ export interface INotebookService {
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
+	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
+	unregisterNotebookRenderer(handle: number): void;
+	getRendererPreloads(handle: number): URI[];
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
@@ -93,6 +96,7 @@ class ModelData implements IDisposable {
 export class NotebookService extends Disposable implements INotebookService {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
+	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
 	public notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
@@ -125,6 +129,18 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	unregisterNotebookProvider(viewType: string): void {
 		this._notebookProviders.delete(viewType);
+	}
+
+	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[]) {
+		this._notebookRenderers.set(handle, { extensionData, selectors, preloads });
+	}
+
+	unregisterNotebookRenderer(handle: number) {
+		this._notebookRenderers.delete(handle);
+	}
+
+	getRendererPreloads(handle: number): URI[] {
+		return this._notebookRenderers.get(handle)?.preloads || [];
 	}
 
 	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {

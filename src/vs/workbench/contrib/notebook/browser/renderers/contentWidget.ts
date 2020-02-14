@@ -60,6 +60,11 @@ export interface IScrollRequestMessage {
 	version: number;
 }
 
+export interface IUpdatePreloadResourceMessage {
+	type: 'preload';
+	resources: string[];
+}
+
 type IMessage = IDimentionMessage | IScrollAckMessage;
 
 let version = 0;
@@ -68,6 +73,7 @@ export class BackLayerWebView extends Disposable {
 	public webview: WebviewElement;
 	public mapping: Map<string, { cell: CellViewModel, offset: number, top: number }> = new Map();
 	public outputMapping: Map<string, boolean> = new Map();
+	public preloadsCache: Map<string, boolean> = new Map();
 
 	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler, public environmentSerice: IEnvironmentService) {
 		super();
@@ -98,6 +104,7 @@ export class BackLayerWebView extends Disposable {
 					self.require = {};
 				</script>
 				<script src="${loader}"></script>
+				<div id="__vscode_preloads"></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;"></div>
 <script>
 (function () {
@@ -214,6 +221,15 @@ export class BackLayerWebView extends Disposable {
 
 				observers = [];
 				break;
+			case 'preload':
+				let resources = event.data.resources;
+				let preloadsContainer = document.getElementById('__vscode_preloads');
+				for (let i = 0; i < resources.length; i++) {
+					let scriptTag = document.createElement('script');
+					scriptTag.setAttribute('src', resources[i]);
+					preloadsContainer.appendChild(scriptTag)
+				}
+				break;
 		}
 	});
 }());
@@ -287,7 +303,9 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage(message);
 	}
 
-	public createContentWidget(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number) {
+	public createContentWidget(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number, preloads: Set<number>) {
+		this.updateRendererPreloads(preloads);
+
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
@@ -306,5 +324,31 @@ export class BackLayerWebView extends Disposable {
 
 		this.mapping = new Map();
 		this.outputMapping = new Map();
+	}
+
+	public updateRendererPreloads(preloads: Set<number>) {
+		let resources: string[] = [];
+		preloads.forEach(preload => {
+			let preloadResources = this.notebookService.getRendererPreloads(preload).map(preloadResource => preloadResource.with({ scheme: WebviewResourceScheme }));
+			preloadResources.forEach(e => {
+				if (!this.preloadsCache.has(e.toString())) {
+					resources.push(e.toString());
+					this.preloadsCache.set(e.toString(), true);
+				}
+			});
+		});
+
+		let message: IUpdatePreloadResourceMessage = {
+			type: 'preload',
+			resources: resources
+		};
+
+		this.webview.sendMessage(message);
+
+		// @TODO, update allowed resources folder
+	}
+
+	public clearPreloadsCache() {
+		this.preloadsCache.clear();
 	}
 }

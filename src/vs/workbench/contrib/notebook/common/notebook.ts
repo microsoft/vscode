@@ -106,6 +106,7 @@ export interface INotebook {
 	readonly uri: URI;
 	languages: string[];
 	cells: ICell[];
+	renderers: Set<number>;
 	onDidChangeCells?: Event<void>;
 	onDidChangeDirtyState: Event<boolean>;
 	onWillDispose(listener: () => void): IDisposable;
