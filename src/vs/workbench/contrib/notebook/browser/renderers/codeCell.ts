@@ -132,10 +132,8 @@ export class CodeCell extends Disposable {
 						}
 					});
 					elementSizeObserver.startObserving();
-					if (!hasDynamicHeight && clientHeight !== 0) {
-						viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
-						handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
-					}
+					viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
+					handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
 
 					this._register(elementSizeObserver);
 				}
@@ -176,11 +174,6 @@ export class CodeCell extends Disposable {
 					}
 				});
 				elementSizeObserver.startObserving();
-				if (!hasDynamicHeight && clientHeight !== 0) {
-					viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
-					handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
-				}
-
 				this._register(elementSizeObserver);
 			}
 		}
