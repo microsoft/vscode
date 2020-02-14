@@ -1589,19 +1589,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.open(indexes, browserEvent);
 	}
 
-	isElementVisible(location: TRef) {
-		const index = this.model.getListIndex(location);
-
-		if (index === -1) {
-			return false;
-		}
-
-		const parentNode = this.model.getNode(this.model.getParentNodeLocation(location));
-		const parentCollapsed = !parentNode.visible || parentNode.collapsed;
-
-		return this.view.isElementVisible(index) && !parentCollapsed;
-	}
-
 	reveal(location: TRef, relativeTop?: number): void {
 		this.model.expandTo(location);
 

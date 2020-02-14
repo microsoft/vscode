@@ -675,11 +675,7 @@ export class ExplorerView extends ViewPane {
 				if (item.isDisposed) {
 					return this.onSelectResource(resource, reveal, retry + 1);
 				}
-
-				// Don't scroll to the item if it's already visible
-				if (!this.tree.isElementVisible(item)) {
-					this.tree.reveal(item, 0.5);
-				}
+				this.tree.reveal(item, 0.5);
 			}
 
 			this.tree.setFocus([item]);

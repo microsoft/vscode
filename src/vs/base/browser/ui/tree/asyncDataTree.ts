@@ -662,10 +662,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.open(nodes, browserEvent);
 	}
 
-	isElementVisible(element: T) {
-		return this.tree.isElementVisible(this.getDataNode(element));
-	}
-
 	reveal(element: T, relativeTop?: number): void {
 		this.tree.reveal(this.getDataNode(element), relativeTop);
 	}
