@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import * as vscode from 'vscode';
+import 'mocha';
+import * as os from 'os';
 import { join } from 'path';
-import { closeAllEditors, disposeAll, conditionalTest, delay } from '../utils';
+import * as vscode from 'vscode';
+import { closeAllEditors, conditionalTest, delay, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
@@ -334,26 +335,28 @@ suite('Webview tests', () => {
 		assert.strictEqual(webview.viewColumn, vscode.ViewColumn.One);
 	});
 
-	test('webview can copy text from webview', async () => {
-		const expectedText = `webview text from: ${Date.now()}!`;
+	if (os.platform() === 'darwin') {
+		test('webview can copy text from webview', async () => {
+			const expectedText = `webview text from: ${Date.now()}!`;
 
-		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
-		const ready = getMesssage(webview);
+			const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
+			const ready = getMesssage(webview);
 
 
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<b>${expectedText}</b>
 			<script>
 				const vscode = acquireVsCodeApi();
 				document.execCommand('selectAll');
 				vscode.postMessage({ type: 'ready' });
 			</script>`);
-		await ready;
+			await ready;
 
-		await vscode.commands.executeCommand('editor.action.webvieweditor.copy');
-		await delay(200); // Make sure copy has time to reach webview
-		assert.strictEqual(await vscode.env.clipboard.readText(), expectedText);
-	});
+			await vscode.commands.executeCommand('editor.action.webvieweditor.copy');
+			await delay(200); // Make sure copy has time to reach webview
+			assert.strictEqual(await vscode.env.clipboard.readText(), expectedText);
+		});
+	}
 });
 
 function createHtmlDocumentWithBody(body: string): string {
