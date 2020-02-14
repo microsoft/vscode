@@ -737,6 +737,20 @@ export namespace Hover {
 		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
 	}
 }
+
+export namespace EvaluatableExpression {
+	export function from(expression: vscode.EvaluatableExpression): modes.EvaluatableExpression {
+		return <modes.EvaluatableExpression>{
+			range: Range.from(expression.range),
+			expression: expression.expression
+		};
+	}
+
+	export function to(info: modes.EvaluatableExpression): types.EvaluatableExpression {
+		return new types.EvaluatableExpression(Range.to(info.range), info.expression);
+	}
+}
+
 export namespace DocumentHighlight {
 	export function from(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
 		return {
