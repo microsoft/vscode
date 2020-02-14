@@ -22,6 +22,7 @@ import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Actions
 (function registerActions(): void {
@@ -321,8 +322,7 @@ import product from 'vs/platform/product/common/product';
 (function registerJSONSchemas(): void {
 	const argvDefinitionFileSchemaId = 'vscode://schemas/argv';
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-
-	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, {
+	const schema: IJSONSchema = {
 		id: argvDefinitionFileSchemaId,
 		allowComments: true,
 		allowTrailingCommas: true,
@@ -341,11 +341,15 @@ import product from 'vs/platform/product/common/product';
 			'disable-color-correct-rendering': {
 				type: 'boolean',
 				description: nls.localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
-			},
-			'force-renderer-accessibility': {
-				type: 'boolean',
-				description: nls.localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.')
 			}
 		}
-	});
+	};
+	if (isLinux) {
+		schema.properties!['force-renderer-accessibility'] = {
+			type: 'boolean',
+			description: nls.localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+	}
+
+	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
 })();
