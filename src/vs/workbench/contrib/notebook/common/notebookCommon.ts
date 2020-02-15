@@ -113,6 +113,20 @@ export interface INotebook {
 	save(): Promise<boolean>;
 }
 
+export interface IRenderOutput {
+	shadowContent?: string;
+	hasDynamicHeight: boolean;
+}
+
+export interface IOutputTransformContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
+
+	render(output: IOutput, container: HTMLElement): IRenderOutput;
+}
+
 
 export const CELL_MARGIN = 24;
 

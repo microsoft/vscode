@@ -1,7 +1,7 @@
 {
   "name": "notebook-renderers",
-  "displayName": "Notebook Renderers",
-  "description": "Notebook renderers outputs",
+  "displayName": "Nteract Renderer",
+  "description": "Render notebook outputs with nteract",
   "extensionKind": [
     "ui",
     "workspace"

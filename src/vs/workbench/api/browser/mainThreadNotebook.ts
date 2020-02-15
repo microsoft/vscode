@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebook';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class MainThreadCell implements ICell {
 	private _onDidChangeOutputs = new Emitter<void>();

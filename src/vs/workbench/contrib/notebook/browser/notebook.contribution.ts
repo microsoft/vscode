@@ -25,7 +25,14 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey, InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+
+// Output renderers registration
+
+import 'vs/workbench/contrib/notebook/browser/output/transforms/streamTransform';
+import 'vs/workbench/contrib/notebook/browser/output/transforms/errorTransform';
+import 'vs/workbench/contrib/notebook/browser/output/transforms/richTransform';
+
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(

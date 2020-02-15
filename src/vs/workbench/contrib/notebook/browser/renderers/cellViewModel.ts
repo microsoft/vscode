@@ -14,7 +14,7 @@ import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderer
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebook';
+import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellViewModel extends Disposable {
 	private _textModel: ITextModel | null = null;

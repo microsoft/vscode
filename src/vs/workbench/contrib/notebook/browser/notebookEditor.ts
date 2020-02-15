@@ -33,8 +33,9 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotebook, CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebook';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
+import { INotebook, CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -63,6 +64,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private relayoutDisposable: IDisposable | null = null;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
+	private outputRenderer: OutputRenderer;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -82,6 +84,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
+	}
+
+	getOutputRenderer(): OutputRenderer {
+		return this.outputRenderer;
 	}
 
 	get minimumWidth(): number { return 375; }

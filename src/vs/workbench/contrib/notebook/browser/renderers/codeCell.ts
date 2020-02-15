@@ -6,13 +6,12 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/outputRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebook';
-import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
+import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class CodeCell extends Disposable {
 	constructor(
@@ -102,7 +101,7 @@ export class CodeCell extends Disposable {
 				let hasDynamicHeight = true;
 				for (let i = 0; i < viewCell.outputs.length; i++) {
 					let outputItemDiv = document.createElement('div');
-					let result = MimeTypeRenderer.render(viewCell.outputs[i], outputItemDiv, themeService, instantiationService, modelService, modeService, handler);
+					let result = handler.getOutputRenderer().render(viewCell.outputs[i], outputItemDiv);
 					templateData.outputContainer?.appendChild(outputItemDiv);
 					if (result) {
 						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
@@ -144,7 +143,7 @@ export class CodeCell extends Disposable {
 			let hasDynamicHeight = true;
 			for (let i = 0; i < viewCell.outputs.length; i++) {
 				let outputItemDiv = document.createElement('div');
-				let result = MimeTypeRenderer.render(viewCell.outputs[i], outputItemDiv, themeService, instantiationService, modelService, modeService, handler);
+				let result = handler.getOutputRenderer().render(viewCell.outputs[i], outputItemDiv);
 				templateData.outputContainer?.appendChild(outputItemDiv);
 				if (result) {
 					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;

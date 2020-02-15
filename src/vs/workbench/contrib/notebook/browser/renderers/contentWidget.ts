@@ -13,8 +13,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { URI } from 'vs/base/common/uri';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import * as path from 'vs/base/common/path';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebook';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
+import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface IDimentionMessage {
 	type: 'dimension';

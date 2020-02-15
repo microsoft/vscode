@@ -3,95 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IOutputTransformContribution, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { isArray } from 'vs/base/common/types';
-import * as marked from 'vs/base/common/marked/marked';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOutput } from 'vs/workbench/contrib/notebook/common/notebook';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
-	types.forEach(type => {
-		MimeTypeRenderer.instance.register(type, renderer);
-	});
-}
-
-export interface IRenderOutput {
-	shadowContent?: string;
-	hasDynamicHeight: boolean;
-}
-
-interface IMimeRenderer {
-	render(output: IOutput, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler?: NotebookHandler): IRenderOutput;
-}
-
-export class MimeTypeRenderer {
-	static instance = new MimeTypeRenderer();
-	private readonly _renderers = new Map<string, IMimeRenderer>();
-
-	register(type: string, renderer: IMimeRenderer) {
-		this._renderers.set(type, renderer);
+class ErrorTransform implements IOutputTransformContribution {
+	constructor(
+		public handler: NotebookHandler,
+		@IThemeService private readonly themeService: IThemeService
+	) {
 	}
 
-	getRenderer(type: string) {
-		return this._renderers.get(type);
-	}
-
-	static renderNoop(output: IOutput, container: HTMLElement): IRenderOutput {
-		const contentNode = document.createElement('p');
-
-		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.output_type}`;
-		container.appendChild(contentNode);
-		return {
-			hasDynamicHeight: false
-		};
-	}
-
-	static render(output: IOutput, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler: NotebookHandler): IRenderOutput {
-		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, container, themeService, instantiationService, modelService, modeService, notebookHandler) ?? MimeTypeRenderer.renderNoop(output, container);
-	}
-}
-
-registerMineTypeRenderer(['stream'], {
-	render: (
-		output: IOutput,
-		container: HTMLElement,
-		themeService: IThemeService,
-		instantiationService: IInstantiationService,
-		modelService: IModelService,
-		modeService: IModeService
-	) => {
-		const contentNode = document.createElement('p');
-		contentNode.innerText = output.text;
-		container.appendChild(contentNode);
-		return {
-			hasDynamicHeight: false
-		};
-	}
-});
-
-registerMineTypeRenderer(['error'], {
-	render: (
-		output: IOutput,
-		container: HTMLElement,
-		themeService: IThemeService,
-		instantiationService: IInstantiationService,
-		modelService: IModelService,
-		modeService: IModeService
-	) => {
+	render(output: any, container: HTMLElement): IRenderOutput {
 		const traceback = document.createElement('pre');
 		DOM.addClasses(traceback, 'traceback');
 		if (output.traceback) {
 			for (let j = 0; j < output.traceback.length; j++) {
-				traceback.appendChild(handleANSIOutput(output.traceback[j], themeService));
+				traceback.appendChild(handleANSIOutput(output.traceback[j], this.themeService));
 			}
 		}
 		container.appendChild(traceback);
@@ -99,143 +31,12 @@ registerMineTypeRenderer(['error'], {
 			hasDynamicHeight: false
 		};
 	}
-});
 
-// Display Order
-//
-// application/json
-// application/javascript
-// text/html
-// image/svg+xml
-// text/markdown
-// text/latex
-// image/svg+xml
-// image/gif
-// image/png
-// image/jpeg
-// application/pdf
-// text/plain
-
-class RichDisplayRenderer implements IMimeRenderer {
-	private _mdRenderer: marked.Renderer = new marked.Renderer({ gfm: true });;
-
-	render(output: any, container: HTMLElement, themeService: IThemeService, instantiationService: IInstantiationService, modelService: IModelService, modeService: IModeService, notebookHandler: NotebookHandler): IRenderOutput {
-		let hasDynamicHeight = false;
-
-		if (output.data) {
-			if (output.data['application/json']) {
-				let data = output.data['application/json'];
-				let str = JSON.stringify(data, null, '\t');
-
-				const editor = instantiationService.createInstance(CodeEditorWidget, container, {
-					...getJSONSimpleEditorOptions(),
-					dimension: {
-						width: 0,
-						height: 0
-					}
-				}, {
-					isSimpleWidget: true
-				});
-
-				let mode = modeService.create('json');
-				let resource = URI.parse(`notebook-output-${Date.now()}.json`);
-				const textModel = modelService.createModel(str, mode, resource, false);
-				editor.setModel(textModel);
-
-				let width = notebookHandler.getListDimension()!.width;
-				let fontInfo = notebookHandler.getFontInfo();
-				let height = Math.min(textModel.getLineCount(), 16) * (fontInfo?.lineHeight || 18);
-
-				editor.layout({
-					height,
-					width
-				});
-
-				container.style.height = `${height + 16}px`;
-
-				return {
-					hasDynamicHeight: true
-				};
-			} else if (output.data['application/javascript']) {
-				let data = output.data['application/javascript'];
-				let str = isArray(data) ? data.join('') : data;
-				let scriptVal = `<script type="application/javascript">${str}</script>`;
-				hasDynamicHeight = false;
-				return {
-					shadowContent: scriptVal,
-					hasDynamicHeight
-				};
-			} else if (output.data['text/html']) {
-				let data = output.data['text/html'];
-				let str = isArray(data) ? data.join('') : data;
-				hasDynamicHeight = false;
-				return {
-					shadowContent: str,
-					hasDynamicHeight
-				};
-			} else if (output.data['image/svg+xml']) {
-				let data = output.data['image/svg+xml'];
-				let str = isArray(data) ? data.join('') : data;
-				hasDynamicHeight = false;
-				return {
-					shadowContent: str,
-					hasDynamicHeight
-				};
-			} else if (output.data['text/markdown']) {
-				let data = output.data['text/markdown'];
-				const str = isArray(data) ? data.join('') : data;
-				const mdOutput = document.createElement('div');
-				mdOutput.innerHTML = marked(str, { renderer: this._mdRenderer });
-				container.appendChild(mdOutput);
-				hasDynamicHeight = true;
-			} else if (output.data['image/png']) {
-				const image = document.createElement('img');
-				image.src = `data:image/png;base64,${output.data['image/png']}`;
-				const display = document.createElement('div');
-				DOM.addClasses(display, 'display');
-				display.appendChild(image);
-				container.appendChild(display);
-				hasDynamicHeight = true;
-			} else if (output.data['image/jpeg']) {
-				const image = document.createElement('img');
-				image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
-				const display = document.createElement('div');
-				DOM.addClasses(display, 'display');
-				display.appendChild(image);
-				container.appendChild(display);
-				hasDynamicHeight = true;
-			} else if (output.data['text/plain']) {
-				let data = output.data['text/plain'];
-				let str = isArray(data) ? data.join('') : data;
-				const contentNode = document.createElement('p');
-				contentNode.innerText = str;
-				container.appendChild(contentNode);
-			} else {
-				const contentNode = document.createElement('p');
-				let mimeTypes = [];
-				for (const property in output.data) {
-					mimeTypes.push(property);
-				}
-
-				let mimeTypesMessage = mimeTypes.join(', ');
-
-				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
-				container.appendChild(contentNode);
-			}
-		} else {
-			const contentNode = document.createElement('p');
-			contentNode.innerText = `No data could be found for output.`;
-			container.appendChild(contentNode);
-		}
-
-		return {
-			hasDynamicHeight
-		};
+	dispose(): void {
 	}
 }
 
-registerMineTypeRenderer(['display_data', 'execute_result'], new RichDisplayRenderer());
-
+registerOutputTransform('notebook.output.error', ['error'], ErrorTransform);
 
 /**
  * @param text The content to stylize.
@@ -582,26 +383,4 @@ export function calcANSI8bitColor(colorNumber: number): RGBA | undefined {
 		// {{SQL CARBON EDIT}} @todo anthonydresser 4/12/19 this is necessary because we don't use strict null checks
 		return undefined;
 	}
-}
-
-export function getJSONSimpleEditorOptions(): IEditorOptions {
-	return {
-		wordWrap: 'on',
-		overviewRulerLanes: 0,
-		glyphMargin: false,
-		selectOnLineNumbers: false,
-		hideCursorInOverviewRuler: true,
-		selectionHighlight: false,
-		lineDecorationsWidth: 0,
-		overviewRulerBorder: false,
-		scrollBeyondLastLine: false,
-		renderLineHighlight: 'none',
-		minimap: {
-			enabled: false
-		},
-		lineNumbers: 'off',
-		scrollbar: {
-			alwaysConsumeMouseWheel: false
-		}
-	};
 }

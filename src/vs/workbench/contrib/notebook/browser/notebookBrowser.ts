@@ -9,6 +9,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 
 export interface NotebookHandler {
 	viewType: string | undefined;
@@ -24,6 +25,7 @@ export interface NotebookHandler {
 	triggerWheel(event: IMouseWheelEvent): void;
 	getFontInfo(): BareFontInfo | undefined;
 	getListDimension(): DOM.Dimension | null;
+	getOutputRenderer(): OutputRenderer;
 }
 
 export interface CellRenderTemplate {

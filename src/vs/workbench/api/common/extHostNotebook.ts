@@ -14,7 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebook';
+import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -68,6 +68,18 @@ export class ExtHostCell implements vscode.NotebookCell {
 		this._initalVersion = -1;
 	}
 }
+
+const standardTransforms = [
+	'application/json',
+	'application/javascript',
+	'text/html',
+	'image/svg+xml',
+	'text/markdown',
+	'image/svg+xml',
+	'image/png',
+	'image/jpeg',
+	'text/plain'
+];
 
 export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	private static _handlePool: number = 0;

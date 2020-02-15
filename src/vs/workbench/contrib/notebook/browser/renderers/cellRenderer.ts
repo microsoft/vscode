@@ -22,7 +22,7 @@ import { CellViewModel } from './cellViewModel';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookHandler';
+import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
