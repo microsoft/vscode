@@ -69,11 +69,11 @@ type IMessage = IDimentionMessage | IScrollAckMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
-	public element: HTMLElement;
-	public webview: WebviewElement;
-	public mapping: Map<string, { cell: CellViewModel, offset: number, top: number }> = new Map();
-	public outputMapping: Map<string, boolean> = new Map();
-	public preloadsCache: Map<string, boolean> = new Map();
+	element: HTMLElement;
+	webview: WebviewElement;
+	mapping: Map<string, { cell: CellViewModel, offset: number, top: number }> = new Map();
+	outputMapping: Map<string, boolean> = new Map();
+	preloadsCache: Map<string, boolean> = new Map();
 
 	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: INotebookEditor, public environmentSerice: IEnvironmentService) {
 		super();
@@ -276,7 +276,7 @@ export class BackLayerWebView extends Disposable {
 		return webview;
 	}
 
-	public shouldRenderContentWidget(id: string, widgetTop: number) {
+	shouldRenderContentWidget(id: string, widgetTop: number) {
 		let item = this.mapping.get(id);
 
 		if (item && widgetTop + item.offset !== item.top) {
@@ -286,7 +286,7 @@ export class BackLayerWebView extends Disposable {
 		return undefined;
 	}
 
-	public updateViewScrollTop(top: number, items: { top: number, id: string }[]) {
+	updateViewScrollTop(top: number, items: { top: number, id: string }[]) {
 		items.forEach(item => {
 			if (this.mapping.has(item.id)) {
 				this.mapping.get(item.id)!.top = item.top;
@@ -303,7 +303,7 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage(message);
 	}
 
-	public createContentWidget(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number, preloads: Set<number>) {
+	createContentWidget(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number, preloads: Set<number>) {
 		this.updateRendererPreloads(preloads);
 
 		let message: ICreationRequestMessage = {
@@ -317,7 +317,7 @@ export class BackLayerWebView extends Disposable {
 		this.mapping.set(cell.id, { cell: cell, offset, top: initialTop });
 	}
 
-	public clearContentWidgets() {
+	clearContentWidgets() {
 		this.webview.sendMessage({
 			type: 'clear'
 		});
@@ -326,7 +326,7 @@ export class BackLayerWebView extends Disposable {
 		this.outputMapping = new Map();
 	}
 
-	public updateRendererPreloads(preloads: Set<number>) {
+	updateRendererPreloads(preloads: Set<number>) {
 		let resources: string[] = [];
 		preloads.forEach(preload => {
 			let preloadResources = this.notebookService.getRendererPreloads(preload).map(preloadResource => preloadResource.with({ scheme: WebviewResourceScheme }));
@@ -348,7 +348,7 @@ export class BackLayerWebView extends Disposable {
 		// @TODO, update allowed resources folder
 	}
 
-	public clearPreloadsCache() {
+	clearPreloadsCache() {
 		this.preloadsCache.clear();
 	}
 }

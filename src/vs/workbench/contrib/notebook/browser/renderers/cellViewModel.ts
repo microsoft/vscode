@@ -51,7 +51,8 @@ export class CellViewModel extends Disposable {
 	get dynamicHeight(): number | null {
 		return this._dynamicHeight;
 	}
-	public id: string;
+	id: string;
+
 	constructor(
 		public viewType: string,
 		public notebookHandle: number,

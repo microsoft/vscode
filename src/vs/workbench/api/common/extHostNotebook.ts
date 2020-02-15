@@ -389,7 +389,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._activeNotebookDocument;
 	}
 
-	public registerNotebookOutputRenderer(
+	registerNotebookOutputRenderer(
 		extension: IExtensionDescription,
 		filter: vscode.NotebookOutputSelector,
 		renderer: vscode.NotebookOutputRenderer
@@ -413,7 +413,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return;
 	}
 
-	public registerNotebookProvider(
+	registerNotebookProvider(
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.NotebookProvider,

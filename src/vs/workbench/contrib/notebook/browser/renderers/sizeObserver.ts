@@ -44,23 +44,23 @@ export class BrowserResizeObserver extends Disposable implements IResizeObserver
 		});
 	}
 
-	public getWidth(): number {
+	getWidth(): number {
 		return this.width;
 	}
 
-	public getHeight(): number {
+	getHeight(): number {
 		return this.height;
 	}
 
-	public startObserving(): void {
+	startObserving(): void {
 		this.observer.observe(this.referenceDomElement!);
 	}
 
-	public stopObserving(): void {
+	stopObserving(): void {
 		this.observer.unobserve(this.referenceDomElement!);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.observer.disconnect();
 		super.dispose();
 	}

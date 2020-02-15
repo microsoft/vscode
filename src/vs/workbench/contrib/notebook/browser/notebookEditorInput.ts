@@ -42,7 +42,7 @@ export class NotebookEditorModel extends EditorModel {
 		return this._dirty;
 	}
 
-	public getNotebook(): INotebook {
+	getNotebook(): INotebook {
 		if (this._notebook) {
 			return this._notebook;
 		}

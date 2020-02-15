@@ -14,9 +14,9 @@ export interface NotebookSelector {
 
 export class NotebookProviderInfo {
 
-	public readonly id: string;
-	public readonly displayName: string;
-	public readonly selector: readonly NotebookSelector[];
+	readonly id: string;
+	readonly displayName: string;
+	readonly selector: readonly NotebookSelector[];
 
 	constructor(descriptor: {
 		readonly id: string;

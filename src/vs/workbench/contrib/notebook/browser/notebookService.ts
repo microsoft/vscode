@@ -55,15 +55,15 @@ export interface INotebookService {
 export class NotebookInfoStore {
 	private readonly contributedEditors = new Map<string, NotebookProviderInfo>();
 
-	public clear() {
+	clear() {
 		this.contributedEditors.clear();
 	}
 
-	public get(viewType: string): NotebookProviderInfo | undefined {
+	get(viewType: string): NotebookProviderInfo | undefined {
 		return this.contributedEditors.get(viewType);
 	}
 
-	public add(info: NotebookProviderInfo): void {
+	add(info: NotebookProviderInfo): void {
 		if (this.contributedEditors.has(info.id)) {
 			console.log(`Custom editor with id '${info.id}' already registered`);
 			return;
@@ -71,7 +71,7 @@ export class NotebookInfoStore {
 		this.contributedEditors.set(info.id, info);
 	}
 
-	public getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
+	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
 		return Array.from(this.contributedEditors.values()).filter(customEditor =>
 			customEditor.matches(resource));
 	}
@@ -87,7 +87,7 @@ class ModelData implements IDisposable {
 		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._modelEventListeners.dispose();
 	}
 }
@@ -97,7 +97,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
-	public notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
+	notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
@@ -211,11 +211,11 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 	}
 
-	public getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
+	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
 		return this.notebookProviderInfoStore.getContributedNotebook(resource);
 	}
 
-	public getNotebookProviderResourceRoots(): URI[] {
+	getNotebookProviderResourceRoots(): URI[] {
 		let ret: URI[] = [];
 		this._notebookProviders.forEach(val => {
 			ret.push(URI.revive(val.extensionData.location));

@@ -27,7 +27,7 @@ export function registerOutputTransform<Services extends BrandedService[]>(id: s
 
 class NotebookRegistryImpl {
 
-	public static readonly INSTANCE = new NotebookRegistryImpl();
+	static readonly INSTANCE = new NotebookRegistryImpl();
 
 	private readonly outputTransforms: IOutputTransformDescription[];
 
@@ -35,11 +35,11 @@ class NotebookRegistryImpl {
 		this.outputTransforms = [];
 	}
 
-	public registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
+	registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
 		this.outputTransforms.push({ id: id, types: types, ctor: ctor as IOutputTransformCtor });
 	}
 
-	public getNotebookOutputTransform(): IOutputTransformDescription[] {
+	getNotebookOutputTransform(): IOutputTransformDescription[] {
 		return this.outputTransforms.slice(0);
 	}
 }

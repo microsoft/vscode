@@ -21,11 +21,11 @@ export class MainThreadCell implements ICell {
 
 	private _outputs: IOutput[];
 
-	public get outputs(): IOutput[] {
+	get outputs(): IOutput[] {
 		return this._outputs;
 	}
 
-	public set outputs(newOutputs: IOutput[]) {
+	set outputs(newOutputs: IOutput[]) {
 		this._outputs = newOutputs;
 		this._onDidChangeOutputs.fire();
 	}
@@ -58,17 +58,17 @@ export class MainThreadCell implements ICell {
 
 export class MainThreadNotebookDocument extends Disposable implements INotebook {
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
+	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	private readonly _onDidChangeCells = new Emitter<void>();
 	get onDidChangeCells(): Event<void> { return this._onDidChangeCells.event; }
 	private _onDidChangeDirtyState = new Emitter<boolean>();
 	onDidChangeDirtyState: Event<boolean> = this._onDidChangeDirtyState.event;
 	private _mapping: Map<number, MainThreadCell> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
-	public cells: MainThreadCell[];
-	public activeCell: MainThreadCell | undefined;
-	public languages: string[] = [];
-	public renderers = new Set<number>();
+	cells: MainThreadCell[];
+	activeCell: MainThreadCell | undefined;
+	languages: string[] = [];
+	renderers = new Set<number>();
 
 	private _isDirty: boolean = false;
 
