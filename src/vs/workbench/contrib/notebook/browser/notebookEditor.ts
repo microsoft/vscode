@@ -34,7 +34,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotebook, CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 
 const $ = DOM.$;
@@ -46,7 +46,7 @@ interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 }
 
-export class NotebookEditor extends BaseEditor implements NotebookHandler {
+export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
@@ -185,7 +185,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		return this.dimension;
 	}
 
-	triggerWheel(event: IMouseWheelEvent) {
+	triggerScroll(event: IMouseWheelEvent) {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
@@ -339,7 +339,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			});
 	}
 
-	layoutElement(cell: CellViewModel, height: number) {
+	layoutNotebookCell(cell: CellViewModel, height: number) {
 		let relayout = (cell: CellViewModel, height: number) => {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			if (index >= 0) {

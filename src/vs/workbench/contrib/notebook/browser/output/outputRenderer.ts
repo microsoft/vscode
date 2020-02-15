@@ -7,14 +7,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IOutputTransformContribution, IOutput, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
 	protected readonly _mimeTypeMapping: { [key: string]: IOutputTransformContribution; };
 
 	constructor(
-		private readonly notebookHandler: NotebookHandler,
+		private readonly notebookHandler: INotebookEditor,
 		private readonly instantiationService: IInstantiationService
 	) {
 		this._contributions = {};

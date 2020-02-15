@@ -5,9 +5,9 @@
 
 import { IOutputTransformContribution } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export type IOutputTransformCtor = IConstructorSignature1<NotebookHandler, IOutputTransformContribution>;
+export type IOutputTransformCtor = IConstructorSignature1<INotebookEditor, IOutputTransformContribution>;
 
 export interface IOutputTransformDescription {
 	id: string;
@@ -21,7 +21,7 @@ export namespace NotebookRegistry {
 	}
 }
 
-export function registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(handler: NotebookHandler, ...services: Services): IOutputTransformContribution }): void {
+export function registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(handler: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
 	NotebookRegistryImpl.INSTANCE.registerOutputTransform(id, types, ctor);
 }
 
@@ -35,7 +35,7 @@ class NotebookRegistryImpl {
 		this.outputTransforms = [];
 	}
 
-	public registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(handler: NotebookHandler, ...services: Services): IOutputTransformContribution }): void {
+	public registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(handler: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
 		this.outputTransforms.push({ id: id, types: types, ctor: ctor as IOutputTransformCtor });
 	}
 

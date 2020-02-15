@@ -10,7 +10,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookHandler, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
@@ -20,7 +20,7 @@ export class StatefullMarkdownCell extends Disposable {
 	private localDisposables: DisposableStore;
 
 	constructor(
-		handler: NotebookHandler,
+		handler: INotebookEditor,
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		editorOptions: IEditorOptions,
@@ -84,7 +84,7 @@ export class StatefullMarkdownCell extends Disposable {
 							this.cellContainer.appendChild(renderedHTML);
 						}
 
-						handler.layoutElement(viewCell, realContentHeight + 32 + clientHeight);
+						handler.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
 					}));
 
 					this.localDisposables.add(this.editor.onDidContentSizeChange(e => {
@@ -98,7 +98,7 @@ export class StatefullMarkdownCell extends Disposable {
 								}
 							);
 							const clientHeight = this.cellContainer.clientHeight;
-							handler.layoutElement(viewCell, e.contentHeight + 32 + clientHeight);
+							handler.layoutNotebookCell(viewCell, e.contentHeight + 32 + clientHeight);
 						}
 					}));
 
@@ -126,20 +126,20 @@ export class StatefullMarkdownCell extends Disposable {
 						this.cellContainer.appendChild(renderedHTML);
 						this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 							const clientHeight = this.cellContainer.clientHeight;
-							handler.layoutElement(viewCell, clientHeight);
+							handler.layoutNotebookCell(viewCell, clientHeight);
 						}));
 					}
 				}
 
 				const clientHeight = this.cellContainer.clientHeight;
-				handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
+				handler.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 				this.editor.focus();
 			} else {
 				if (this.editor) {
 					// switch from editing mode
 					this.editingContainer!.style.display = 'none';
 					const clientHeight = this.cellContainer.clientHeight;
-					handler.layoutElement(viewCell, clientHeight);
+					handler.layoutNotebookCell(viewCell, clientHeight);
 				} else {
 					// first time, readonly mode
 					this.editingContainer!.style.display = 'none';
@@ -153,7 +153,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 						const clientHeight = this.cellContainer.clientHeight;
-						handler.layoutElement(viewCell, clientHeight);
+						handler.layoutNotebookCell(viewCell, clientHeight);
 					}));
 				}
 			}

@@ -9,11 +9,11 @@ import * as DOM from 'vs/base/browser/dom';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 class ErrorTransform implements IOutputTransformContribution {
 	constructor(
-		public handler: NotebookHandler,
+		public handler: INotebookEditor,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 	}

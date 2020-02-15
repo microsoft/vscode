@@ -11,11 +11,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class CodeCell extends Disposable {
 	constructor(
-		handler: NotebookHandler,
+		handler: INotebookEditor,
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		themeService: IThemeService,
@@ -88,9 +88,9 @@ export class CodeCell extends Disposable {
 
 					if (viewCell.outputs.length) {
 						let outputHeight = templateData.outputContainer!.clientHeight;
-						handler.layoutElement(viewCell, e.contentHeight + 32 + outputHeight);
+						handler.layoutNotebookCell(viewCell, e.contentHeight + 32 + outputHeight);
 					} else {
-						handler.layoutElement(viewCell, e.contentHeight + 16);
+						handler.layoutNotebookCell(viewCell, e.contentHeight + 16);
 					}
 				}
 			}
@@ -124,7 +124,7 @@ export class CodeCell extends Disposable {
 							let height = elementSizeObserver.getHeight();
 							if (clientHeight !== height) {
 								viewCell.dynamicHeight = totalHeight + 32 + height;
-								handler.layoutElement(viewCell, totalHeight + 32 + height);
+								handler.layoutNotebookCell(viewCell, totalHeight + 32 + height);
 							}
 
 							elementSizeObserver.dispose();
@@ -132,7 +132,7 @@ export class CodeCell extends Disposable {
 					});
 					elementSizeObserver.startObserving();
 					viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
-					handler.layoutElement(viewCell, totalHeight + 32 + clientHeight);
+					handler.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 
 					this._register(elementSizeObserver);
 				}
@@ -166,7 +166,7 @@ export class CodeCell extends Disposable {
 						let height = elementSizeObserver.getHeight();
 						if (clientHeight !== height) {
 							viewCell.dynamicHeight = totalHeight + 32 + height;
-							handler.layoutElement(viewCell, totalHeight + 32 + height);
+							handler.layoutNotebookCell(viewCell, totalHeight + 32 + height);
 						}
 
 						elementSizeObserver.dispose();

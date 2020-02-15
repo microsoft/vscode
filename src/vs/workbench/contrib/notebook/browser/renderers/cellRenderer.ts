@@ -22,7 +22,7 @@ import { CellViewModel } from './cellViewModel';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellRenderTemplate, NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -58,7 +58,7 @@ class AbstractCellRenderer {
 	protected editorOptions: IEditorOptions;
 
 	constructor(
-		protected handler: NotebookHandler,
+		protected handler: INotebookEditor,
 		private contextMenuService: IContextMenuService,
 		private configurationService: IConfigurationService,
 		language: string
@@ -186,7 +186,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	private disposables: Map<CellViewModel, DisposableStore> = new Map();
 
 	constructor(
-		handler: NotebookHandler,
+		handler: INotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService
@@ -268,7 +268,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private disposables: Map<CellViewModel, DisposableStore> = new Map();
 
 	constructor(
-		protected handler: NotebookHandler,
+		protected handler: INotebookEditor,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

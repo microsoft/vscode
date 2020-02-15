@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import * as path from 'vs/base/common/path';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface IDimentionMessage {
 	type: 'dimension';
@@ -75,7 +75,7 @@ export class BackLayerWebView extends Disposable {
 	public outputMapping: Map<string, boolean> = new Map();
 	public preloadsCache: Map<string, boolean> = new Map();
 
-	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler, public environmentSerice: IEnvironmentService) {
+	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: INotebookEditor, public environmentSerice: IEnvironmentService) {
 		super();
 		this.element = document.createElement('div');
 
@@ -242,7 +242,7 @@ export class BackLayerWebView extends Disposable {
 		this.webview.mountTo(this.element);
 
 		this._register(this.webview.onDidWheel(e => {
-			this.notebookHandler.triggerWheel(e);
+			this.notebookHandler.triggerScroll(e);
 		}));
 
 		this._register(this.webview.onMessage((data: IMessage) => {
@@ -255,7 +255,7 @@ export class BackLayerWebView extends Disposable {
 					const lineHeight = this.notebookHandler.getFontInfo()?.lineHeight ?? 18;
 					const totalHeight = lineNum * lineHeight;
 					cell.dynamicHeight = totalHeight + 32 /* code cell padding */ + outputHeight;
-					this.notebookHandler.layoutElement(cell, totalHeight + 32 /* code cell padding */ + outputHeight);
+					this.notebookHandler.layoutNotebookCell(cell, totalHeight + 32 /* code cell padding */ + outputHeight);
 				}
 			} else if (data.type === 'scroll-ack') {
 				// const date = new Date();

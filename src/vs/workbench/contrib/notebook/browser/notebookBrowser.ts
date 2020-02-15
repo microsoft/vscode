@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -11,18 +10,18 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 
-export interface NotebookHandler {
+export interface INotebookEditor {
 	viewType: string | undefined;
-	insertEmptyNotebookCell(listIndex: number | undefined, cell: CellViewModel, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
-	deleteNotebookCell(listIndex: number | undefined, cell: CellViewModel): void;
-	editNotebookCell(listIndex: number | undefined, cell: CellViewModel): void;
-	saveNotebookCell(listIndex: number | undefined, cell: CellViewModel): void;
+	insertEmptyNotebookCell(index: number | undefined, cell: CellViewModel, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
+	deleteNotebookCell(index: number | undefined, cell: CellViewModel): void;
+	editNotebookCell(index: number | undefined, cell: CellViewModel): void;
+	saveNotebookCell(index: number | undefined, cell: CellViewModel): void;
 	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void;
 	getActiveCell(): CellViewModel | undefined;
-	layoutElement(cell: CellViewModel, height: number): void;
+	layoutNotebookCell(cell: CellViewModel, height: number): void;
 	createContentWidget(cell: CellViewModel, index: number, shadowContent: string, offset: number): void;
 	disposeViewCell(cell: CellViewModel): void;
-	triggerWheel(event: IMouseWheelEvent): void;
+	triggerScroll(event: IMouseWheelEvent): void;
 	getFontInfo(): BareFontInfo | undefined;
 	getListDimension(): DOM.Dimension | null;
 	getOutputRenderer(): OutputRenderer;

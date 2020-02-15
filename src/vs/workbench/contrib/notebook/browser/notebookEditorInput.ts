@@ -47,6 +47,7 @@ export class NotebookEditorModel extends EditorModel {
 			return this._notebook;
 		}
 
+		// TODO, remove file based notebook from core
 		let content = this.textModel.getValue();
 		this._notebook = JSON.parse(content);
 		return this._notebook!;

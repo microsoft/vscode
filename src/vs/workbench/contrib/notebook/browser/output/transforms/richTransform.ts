@@ -6,7 +6,7 @@
 import { IOutputTransformContribution, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,7 +20,7 @@ class RichRenderer implements IOutputTransformContribution {
 	private _mdRenderer: marked.Renderer = new marked.Renderer({ gfm: true });;
 
 	constructor(
-		public handler: NotebookHandler,
+		public handler: INotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService

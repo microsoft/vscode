@@ -5,11 +5,11 @@
 
 import { IOutputTransformContribution, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
-import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 class StreamRenderer implements IOutputTransformContribution {
 	constructor(
-		handler: NotebookHandler
+		handler: INotebookEditor
 	) {
 	}
 
