@@ -11,7 +11,7 @@ import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebo
 
 export class CodeCell extends Disposable {
 	constructor(
-		handler: INotebookEditor,
+		notebookEditor: INotebookEditor,
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		height: number | undefined
@@ -19,7 +19,7 @@ export class CodeCell extends Disposable {
 		super();
 
 		let width;
-		const listDimension = handler.getListDimension();
+		const listDimension = notebookEditor.getListDimension();
 		if (listDimension) {
 			width = listDimension.width - CELL_MARGIN * 2;
 		} else {
@@ -27,7 +27,7 @@ export class CodeCell extends Disposable {
 		}
 
 		const lineNum = viewCell.lineCount;
-		const lineHeight = handler.getFontInfo()?.lineHeight ?? 18;
+		const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
 		const totalHeight = lineNum * lineHeight;
 		const model = viewCell.getTextModel();
 		templateData.editor?.setModel(model);
@@ -80,9 +80,9 @@ export class CodeCell extends Disposable {
 
 					if (viewCell.outputs.length) {
 						let outputHeight = templateData.outputContainer!.clientHeight;
-						handler.layoutNotebookCell(viewCell, e.contentHeight + 32 + outputHeight);
+						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 32 + outputHeight);
 					} else {
-						handler.layoutNotebookCell(viewCell, e.contentHeight + 16);
+						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 16);
 					}
 				}
 			}
@@ -93,20 +93,20 @@ export class CodeCell extends Disposable {
 				let hasDynamicHeight = true;
 				for (let i = 0; i < viewCell.outputs.length; i++) {
 					let outputItemDiv = document.createElement('div');
-					let result = handler.getOutputRenderer().render(viewCell.outputs[i], outputItemDiv);
+					let result = notebookEditor.getOutputRenderer().render(viewCell.outputs[i], outputItemDiv);
 					templateData.outputContainer?.appendChild(outputItemDiv);
 					if (result) {
 						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 						if (result.shadowContent) {
 							hasDynamicHeight = false;
-							handler.createInset(viewCell, i, result.shadowContent, totalHeight + 8);
+							notebookEditor.createInset(viewCell, i, result.shadowContent, totalHeight + 8);
 						}
 					}
 				}
 
 				if (height !== undefined && hasDynamicHeight) {
 					let clientHeight = templateData.outputContainer!.clientHeight;
-					let listDimension = handler.getListDimension();
+					let listDimension = notebookEditor.getListDimension();
 					let dimension = listDimension ? {
 						width: listDimension.width - CELL_MARGIN * 2,
 						height: clientHeight
@@ -116,7 +116,7 @@ export class CodeCell extends Disposable {
 							let height = elementSizeObserver.getHeight();
 							if (clientHeight !== height) {
 								viewCell.dynamicHeight = totalHeight + 32 + height;
-								handler.layoutNotebookCell(viewCell, totalHeight + 32 + height);
+								notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + height);
 							}
 
 							elementSizeObserver.dispose();
@@ -124,7 +124,7 @@ export class CodeCell extends Disposable {
 					});
 					elementSizeObserver.startObserving();
 					viewCell.dynamicHeight = totalHeight + 32 + clientHeight;
-					handler.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
+					notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 
 					this._register(elementSizeObserver);
 				}
@@ -135,20 +135,20 @@ export class CodeCell extends Disposable {
 			let hasDynamicHeight = true;
 			for (let i = 0; i < viewCell.outputs.length; i++) {
 				let outputItemDiv = document.createElement('div');
-				let result = handler.getOutputRenderer().render(viewCell.outputs[i], outputItemDiv);
+				let result = notebookEditor.getOutputRenderer().render(viewCell.outputs[i], outputItemDiv);
 				templateData.outputContainer?.appendChild(outputItemDiv);
 				if (result) {
 					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 					if (result.shadowContent) {
 						hasDynamicHeight = false;
-						handler.createInset(viewCell, i, result.shadowContent, totalHeight + 8);
+						notebookEditor.createInset(viewCell, i, result.shadowContent, totalHeight + 8);
 					}
 				}
 			}
 
 			if (height !== undefined && hasDynamicHeight) {
 				let clientHeight = templateData.outputContainer!.clientHeight;
-				let listDimension = handler.getListDimension();
+				let listDimension = notebookEditor.getListDimension();
 				let dimension = listDimension ? {
 					width: listDimension.width - CELL_MARGIN * 2,
 					height: clientHeight
@@ -158,7 +158,7 @@ export class CodeCell extends Disposable {
 						let height = elementSizeObserver.getHeight();
 						if (clientHeight !== height) {
 							viewCell.dynamicHeight = totalHeight + 32 + height;
-							handler.layoutNotebookCell(viewCell, totalHeight + 32 + height);
+							notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + height);
 						}
 
 						elementSizeObserver.dispose();

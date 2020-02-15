@@ -9,7 +9,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 
 class StreamRenderer implements IOutputTransformContribution {
 	constructor(
-		handler: INotebookEditor
+		editor: INotebookEditor
 	) {
 	}
 

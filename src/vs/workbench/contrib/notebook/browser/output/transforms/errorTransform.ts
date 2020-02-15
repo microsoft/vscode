@@ -13,7 +13,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 
 class ErrorTransform implements IOutputTransformContribution {
 	constructor(
-		public handler: INotebookEditor,
+		public editor: INotebookEditor,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 	}

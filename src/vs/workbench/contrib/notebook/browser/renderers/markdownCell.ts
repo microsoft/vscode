@@ -20,7 +20,7 @@ export class StatefullMarkdownCell extends Disposable {
 	private localDisposables: DisposableStore;
 
 	constructor(
-		handler: INotebookEditor,
+		notebookEditor: INotebookEditor,
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		editorOptions: IEditorOptions,
@@ -37,7 +37,7 @@ export class StatefullMarkdownCell extends Disposable {
 			if (viewCell.isEditing) {
 				// switch to editing mode
 				let width;
-				const listDimension = handler.getListDimension();
+				const listDimension = notebookEditor.getListDimension();
 				if (listDimension) {
 					width = listDimension.width - CELL_MARGIN * 2;
 				} else {
@@ -45,7 +45,7 @@ export class StatefullMarkdownCell extends Disposable {
 				}
 
 				const lineNum = viewCell.lineCount;
-				const lineHeight = handler.getFontInfo()?.lineHeight ?? 18;
+				const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
 				const totalHeight = Math.max(lineNum, 1) * lineHeight;
 
 				if (this.editor) {
@@ -84,7 +84,7 @@ export class StatefullMarkdownCell extends Disposable {
 							this.cellContainer.appendChild(renderedHTML);
 						}
 
-						handler.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
+						notebookEditor.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
 					}));
 
 					this.localDisposables.add(this.editor.onDidContentSizeChange(e => {
@@ -98,7 +98,7 @@ export class StatefullMarkdownCell extends Disposable {
 								}
 							);
 							const clientHeight = this.cellContainer.clientHeight;
-							handler.layoutNotebookCell(viewCell, e.contentHeight + 32 + clientHeight);
+							notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 32 + clientHeight);
 						}
 					}));
 
@@ -126,20 +126,20 @@ export class StatefullMarkdownCell extends Disposable {
 						this.cellContainer.appendChild(renderedHTML);
 						this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 							const clientHeight = this.cellContainer.clientHeight;
-							handler.layoutNotebookCell(viewCell, clientHeight);
+							notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 						}));
 					}
 				}
 
 				const clientHeight = this.cellContainer.clientHeight;
-				handler.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
+				notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 				this.editor.focus();
 			} else {
 				if (this.editor) {
 					// switch from editing mode
 					this.editingContainer!.style.display = 'none';
 					const clientHeight = this.cellContainer.clientHeight;
-					handler.layoutNotebookCell(viewCell, clientHeight);
+					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				} else {
 					// first time, readonly mode
 					this.editingContainer!.style.display = 'none';
@@ -153,7 +153,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 						const clientHeight = this.cellContainer.clientHeight;
-						handler.layoutNotebookCell(viewCell, clientHeight);
+						notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 					}));
 				}
 			}

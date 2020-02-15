@@ -55,7 +55,7 @@ class AbstractCellRenderer {
 	protected editorOptions: IEditorOptions;
 
 	constructor(
-		protected handler: INotebookEditor,
+		protected notebookEditor: INotebookEditor,
 		private contextMenuService: IContextMenuService,
 		private configurationService: IConfigurationService,
 		language: string
@@ -87,7 +87,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'above');
+				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'code', 'above');
 			}
 		);
 		actions.push(insertAbove);
@@ -98,7 +98,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'below');
+				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'code', 'below');
 			}
 		);
 		actions.push(insertBelow);
@@ -109,7 +109,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'above');
+				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'markdown', 'above');
 			}
 		);
 		actions.push(insertMarkdownAbove);
@@ -120,7 +120,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'below');
+				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'markdown', 'below');
 			}
 		);
 		actions.push(insertMarkdownBelow);
@@ -132,7 +132,7 @@ class AbstractCellRenderer {
 				undefined,
 				true,
 				async () => {
-					this.handler.editNotebookCell(listIndex, element);
+					this.notebookEditor.editNotebookCell(listIndex, element);
 				}
 			);
 
@@ -144,7 +144,7 @@ class AbstractCellRenderer {
 				undefined,
 				true,
 				async () => {
-					this.handler.saveNotebookCell(listIndex, element);
+					this.notebookEditor.saveNotebookCell(listIndex, element);
 				}
 			);
 
@@ -157,7 +157,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.deleteNotebookCell(listIndex, element);
+				this.notebookEditor.deleteNotebookCell(listIndex, element);
 			}
 		);
 
@@ -183,12 +183,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	private disposables: Map<CellViewModel, DisposableStore> = new Map();
 
 	constructor(
-		handler: INotebookEditor,
+		notehookEditor: INotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super(handler, contextMenuService, configurationService, 'markdown');
+		super(notehookEditor, contextMenuService, configurationService, 'markdown');
 	}
 
 	get templateId() {
@@ -244,7 +244,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 				this.showContextMenu(listIndex, element, e.posx, top + height);
 			}));
 
-			elementDisposable!.add(new StatefullMarkdownCell(this.handler, element, templateData, this.editorOptions, this.instantiationService));
+			elementDisposable!.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
 		}
 	}
 
@@ -265,12 +265,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private disposables: Map<CellViewModel, DisposableStore> = new Map();
 
 	constructor(
-		protected handler: INotebookEditor,
+		protected notebookEditor: INotebookEditor,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(handler, contextMenuService, configurationService, 'python');
+		super(notebookEditor, contextMenuService, configurationService, 'python');
 	}
 
 	get templateId() {
@@ -329,7 +329,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.showContextMenu(listIndex, element, e.posx, top + height);
 		}));
 
-		elementDisposable?.add(new CodeCell(this.handler, element, templateData, height));
+		elementDisposable?.add(new CodeCell(this.notebookEditor, element, templateData, height));
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {

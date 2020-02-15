@@ -20,7 +20,7 @@ class RichRenderer implements IOutputTransformContribution {
 	private _mdRenderer: marked.Renderer = new marked.Renderer({ gfm: true });;
 
 	constructor(
-		public handler: INotebookEditor,
+		public notebookEditor: INotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
@@ -50,8 +50,8 @@ class RichRenderer implements IOutputTransformContribution {
 				const textModel = this.modelService.createModel(str, mode, resource, false);
 				editor.setModel(textModel);
 
-				let width = this.handler.getListDimension()!.width;
-				let fontInfo = this.handler.getFontInfo();
+				let width = this.notebookEditor.getListDimension()!.width;
+				let fontInfo = this.notebookEditor.getFontInfo();
 				let height = Math.min(textModel.getLineCount(), 16) * (fontInfo?.lineHeight || 18);
 
 				editor.layout({

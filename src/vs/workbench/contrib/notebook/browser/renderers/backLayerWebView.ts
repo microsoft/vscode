@@ -75,7 +75,7 @@ export class BackLayerWebView extends Disposable {
 	outputMapping: Map<string, boolean> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
 
-	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: INotebookEditor, public environmentSerice: IEnvironmentService) {
+	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookEditor: INotebookEditor, public environmentSerice: IEnvironmentService) {
 		super();
 		this.element = document.createElement('div');
 
@@ -242,7 +242,7 @@ export class BackLayerWebView extends Disposable {
 		this.webview.mountTo(this.element);
 
 		this._register(this.webview.onDidWheel(e => {
-			this.notebookHandler.triggerScroll(e);
+			this.notebookEditor.triggerScroll(e);
 		}));
 
 		this._register(this.webview.onMessage((data: IMessage) => {
@@ -252,10 +252,10 @@ export class BackLayerWebView extends Disposable {
 				let outputHeight = height === 0 ? 0 : height + 16;
 				if (cell) {
 					const lineNum = cell.lineCount;
-					const lineHeight = this.notebookHandler.getFontInfo()?.lineHeight ?? 18;
+					const lineHeight = this.notebookEditor.getFontInfo()?.lineHeight ?? 18;
 					const totalHeight = lineNum * lineHeight;
 					cell.dynamicHeight = totalHeight + 32 /* code cell padding */ + outputHeight;
-					this.notebookHandler.layoutNotebookCell(cell, totalHeight + 32 /* code cell padding */ + outputHeight);
+					this.notebookEditor.layoutNotebookCell(cell, totalHeight + 32 /* code cell padding */ + outputHeight);
 				}
 			} else if (data.type === 'scroll-ack') {
 				// const date = new Date();
