@@ -14,7 +14,7 @@ export class OutputRenderer {
 	protected readonly _mimeTypeMapping: { [key: string]: IOutputTransformContribution; };
 
 	constructor(
-		private readonly notebookHandler: INotebookEditor,
+		notebookEditor: INotebookEditor,
 		private readonly instantiationService: IInstantiationService
 	) {
 		this._contributions = {};
@@ -24,7 +24,7 @@ export class OutputRenderer {
 
 		for (const desc of contributions) {
 			try {
-				const contribution = this.instantiationService.createInstance(desc.ctor, notebookHandler);
+				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
 				this._contributions[desc.id] = contribution;
 				desc.types.forEach(mimeType => {
 					this._mimeTypeMapping[mimeType] = contribution;

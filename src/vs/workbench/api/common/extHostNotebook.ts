@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { URI } from 'vs/base/common/uri';
@@ -69,17 +69,17 @@ export class ExtHostCell implements vscode.NotebookCell {
 	}
 }
 
-const standardTransforms = [
-	'application/json',
-	'application/javascript',
-	'text/html',
-	'image/svg+xml',
-	'text/markdown',
-	'image/svg+xml',
-	'image/png',
-	'image/jpeg',
-	'text/plain'
-];
+// const standardTransforms = [
+// 	'application/json',
+// 	'application/javascript',
+// 	'text/html',
+// 	'image/svg+xml',
+// 	'text/markdown',
+// 	'image/svg+xml',
+// 	'image/png',
+// 	'image/jpeg',
+// 	'text/plain'
+// ];
 
 export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	private static _handlePool: number = 0;
@@ -258,12 +258,10 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 
 	constructor(
-		private viewType: string,
-		private readonly _proxy: MainThreadNotebookShape,
+		viewType: string,
 		readonly id: string,
 		public uri: URI,
 		public document: ExtHostNotebookDocument,
-		private readonly documentsProxy: MainThreadDocumentsShape,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
 		let regex = new RegExp(`notebook\\+${viewType}-(\\d+)-(\\d+)`);
@@ -375,7 +373,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _documentsProxy: MainThreadDocumentsShape;
 	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
@@ -384,8 +381,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
-		this._documentsProxy = mainContext.getProxy(MainContext.MainThreadDocuments);
-
 	}
 
 	private _activeNotebookDocument: ExtHostNotebookDocument | undefined;
@@ -453,11 +448,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			let editor = new ExtHostNotebookEditor(
 				viewType,
-				this._proxy,
+				// this._proxy,
 				`${ExtHostNotebookController._handlePool++}`,
 				uri,
 				this._documents.get(URI.revive(uri).toString())!,
-				this._documentsProxy,
+				// this._documentsProxy,
 				this._documentsAndEditors
 			);
 

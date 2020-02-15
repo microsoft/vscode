@@ -21,7 +21,7 @@ export namespace NotebookRegistry {
 	}
 }
 
-export function registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(handler: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
+export function registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
 	NotebookRegistryImpl.INSTANCE.registerOutputTransform(id, types, ctor);
 }
 
@@ -35,7 +35,7 @@ class NotebookRegistryImpl {
 		this.outputTransforms = [];
 	}
 
-	public registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(handler: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
+	public registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
 		this.outputTransforms.push({ id: id, types: types, ctor: ctor as IOutputTransformCtor });
 	}
 
