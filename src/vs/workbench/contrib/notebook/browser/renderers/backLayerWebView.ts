@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import * as DOM from 'vs/base/browser/dom';
-import * as UUID from 'vs/base/common/uuid';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import * as path from 'vs/base/common/path';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { URI } from 'vs/base/common/uri';
+import * as UUID from 'vs/base/common/uuid';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 
 export interface IDimentionMessage {
 	type: 'dimension';
@@ -276,7 +276,7 @@ export class BackLayerWebView extends Disposable {
 		return webview;
 	}
 
-	shouldRenderContentWidget(id: string, widgetTop: number) {
+	shouldRenderInset(id: string, widgetTop: number) {
 		let item = this.mapping.get(id);
 
 		if (item && widgetTop + item.offset !== item.top) {
@@ -303,7 +303,7 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage(message);
 	}
 
-	createContentWidget(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number, preloads: Set<number>) {
+	createInset(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number, preloads: Set<number>) {
 		this.updateRendererPreloads(preloads);
 
 		let message: ICreationRequestMessage = {
@@ -317,7 +317,7 @@ export class BackLayerWebView extends Disposable {
 		this.mapping.set(cell.id, { cell: cell, offset, top: initialTop });
 	}
 
-	clearContentWidgets() {
+	clearInsets() {
 		this.webview.sendMessage({
 			type: 'clear'
 		});

@@ -4,25 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!../notebook';
-import * as DOM from 'vs/base/browser/dom';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { deepClone } from 'vs/base/common/objects';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import * as DOM from 'vs/base/browser/dom';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Action } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { deepClone } from 'vs/base/common/objects';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
-import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -272,9 +269,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
 	) {
 		super(handler, contextMenuService, configurationService, 'python');
 	}
@@ -335,7 +329,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.showContextMenu(listIndex, element, e.posx, top + height);
 		}));
 
-		elementDisposable?.add(new CodeCell(this.handler, element, templateData, this.themeService, this.instantiationService, this.modelService, this.modeService, height));
+		elementDisposable?.add(new CodeCell(this.handler, element, templateData, height));
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {

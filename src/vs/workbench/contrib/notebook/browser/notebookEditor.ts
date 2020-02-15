@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebook';
-import * as DOM from 'vs/base/browser/dom';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
-import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/contentWidget';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import * as DOM from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./notebook';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotebook, CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
+import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
+import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { CELL_MARGIN, INotebook } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -87,9 +87,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 	}
 
-	getOutputRenderer(): OutputRenderer {
-		return this.outputRenderer;
-	}
 
 	get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
@@ -98,6 +95,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
+
+	//#region Editor
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = DOM.append(parent, $('.notebook-editor'));
@@ -177,47 +176,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this._register(this.list);
 	}
 
-	getFontInfo(): BareFontInfo | undefined {
-		return this.fontInfo;
-	}
-
-	getListDimension(): DOM.Dimension | null {
-		return this.dimension;
-	}
-
-	triggerScroll(event: IMouseWheelEvent) {
-		this.list?.triggerScrollFromMouseWheelEvent(event);
-	}
-
-	createContentWidget(cell: CellViewModel, outputIndex: number, shadowContent: string, offset: number) {
-		if (!this.webview) {
-			return;
-		}
-
-		let preloads = this.notebook!.renderers;
-
-		if (!this.webview!.mapping.has(cell.id)) {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getAbsoluteTop(index) || 0;
-			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset, preloads);
-			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
-		} else if (!this.webview!.outputMapping.has(cell.id + `-${outputIndex}`)) {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getAbsoluteTop(index) || 0;
-			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
-			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset, preloads);
-		} else {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getAbsoluteTop(index) || 0;
-			let scrollTop = this.list?.scrollTop || 0;
-
-			this.webview!.updateViewScrollTop(-scrollTop, [{ id: cell.id, top: top + offset }]);
-		}
-	}
-
-	disposeViewCell(cell: CellViewModel) {
-	}
-
 	onHide() {
 		this.viewCells.forEach(cell => {
 			if (cell.getText() !== '') {
@@ -275,7 +233,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				});
 
 				if (this.webview) {
-					this.webview?.clearContentWidgets();
+					this.webview?.clearInsets();
 					this.webview?.clearPreloadsCache();
 				} else {
 					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
@@ -305,7 +263,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					this.webview?.mapping.forEach((item) => {
 						let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
 						let top = this.list?.getAbsoluteTop(index) || 0;
-						let newTop = this.webview!.shouldRenderContentWidget(item.cell.id, top);
+						let newTop = this.webview!.shouldRenderInset(item.cell.id, top);
 
 						if (newTop !== undefined) {
 							updateItems.push({
@@ -339,6 +297,43 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			});
 	}
 
+	private saveTextEditorViewState(input: NotebookEditorInput): void {
+		if (this.group) {
+			let state: { [key: number]: boolean } = {};
+			this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
+			this.editorMemento.saveEditorState(this.group, input, {
+				editingCells: state
+			});
+		}
+	}
+
+	private loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+		if (this.group) {
+			return this.editorMemento.loadEditorState(this.group, input);
+		}
+
+		return;
+	}
+
+	layout(dimension: DOM.Dimension): void {
+		this.dimension = new DOM.Dimension(dimension.width, dimension.height);
+		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
+		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
+		DOM.size(this.body, dimension.width, dimension.height);
+		this.list?.layout(dimension.height, dimension.width);
+	}
+
+	protected saveState(): void {
+		if (this.input instanceof NotebookEditorInput) {
+			this.saveTextEditorViewState(this.input);
+		}
+
+		super.saveState();
+	}
+
+	//#endregion
+
+	//#region Cell operations
 	layoutNotebookCell(cell: CellViewModel, height: number) {
 		let relayout = (cell: CellViewModel, height: number) => {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
@@ -449,40 +444,53 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.splice(index, 1);
 	}
 
-	layout(dimension: DOM.Dimension): void {
-		this.dimension = new DOM.Dimension(dimension.width, dimension.height);
-		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
-		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-		DOM.size(this.body, dimension.width, dimension.height);
-		this.list?.layout(dimension.height, dimension.width);
+	//#endregion
+
+	//#region MISC
+
+	getFontInfo(): BareFontInfo | undefined {
+		return this.fontInfo;
 	}
 
-	protected saveState(): void {
-		if (this.input instanceof NotebookEditorInput) {
-			this.saveTextEditorViewState(this.input);
+	getListDimension(): DOM.Dimension | null {
+		return this.dimension;
+	}
+
+	triggerScroll(event: IMouseWheelEvent) {
+		this.list?.triggerScrollFromMouseWheelEvent(event);
+	}
+
+	createInset(cell: CellViewModel, outputIndex: number, shadowContent: string, offset: number) {
+		if (!this.webview) {
+			return;
 		}
 
-		super.saveState();
-	}
+		let preloads = this.notebook!.renderers;
 
-	private saveTextEditorViewState(input: NotebookEditorInput): void {
-		if (this.group) {
-			let state: { [key: number]: boolean } = {};
-			this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
-			this.editorMemento.saveEditorState(this.group, input, {
-				editingCells: state
-			});
+		if (!this.webview!.mapping.has(cell.id)) {
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let top = this.list?.getAbsoluteTop(index) || 0;
+			this.webview!.createInset(cell, offset, shadowContent, top + offset, preloads);
+			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
+		} else if (!this.webview!.outputMapping.has(cell.id + `-${outputIndex}`)) {
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let top = this.list?.getAbsoluteTop(index) || 0;
+			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
+			this.webview!.createInset(cell, offset, shadowContent, top + offset, preloads);
+		} else {
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let top = this.list?.getAbsoluteTop(index) || 0;
+			let scrollTop = this.list?.scrollTop || 0;
+
+			this.webview!.updateViewScrollTop(-scrollTop, [{ id: cell.id, top: top + offset }]);
 		}
 	}
 
-	private loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
-		if (this.group) {
-			return this.editorMemento.loadEditorState(this.group, input);
-		}
-
-		return;
+	getOutputRenderer(): OutputRenderer {
+		return this.outputRenderer;
 	}
 
+	//#endregion
 }
 
 const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';

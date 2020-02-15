@@ -6,10 +6,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -18,10 +14,6 @@ export class CodeCell extends Disposable {
 		handler: INotebookEditor,
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
-		themeService: IThemeService,
-		instantiationService: IInstantiationService,
-		modelService: IModelService,
-		modeService: IModeService,
 		height: number | undefined
 	) {
 		super();
@@ -107,7 +99,7 @@ export class CodeCell extends Disposable {
 						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 						if (result.shadowContent) {
 							hasDynamicHeight = false;
-							handler.createContentWidget(viewCell, i, result.shadowContent, totalHeight + 8);
+							handler.createInset(viewCell, i, result.shadowContent, totalHeight + 8);
 						}
 					}
 				}
@@ -149,7 +141,7 @@ export class CodeCell extends Disposable {
 					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 					if (result.shadowContent) {
 						hasDynamicHeight = false;
-						handler.createContentWidget(viewCell, i, result.shadowContent, totalHeight + 8);
+						handler.createInset(viewCell, i, result.shadowContent, totalHeight + 8);
 					}
 				}
 			}
