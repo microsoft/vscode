@@ -235,10 +235,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let taskClone = undefined;
 		if (instance > 0) {
 			taskClone = task.clone();
-			taskClone._id += '|' + this.instances[commonKey].counter.toString();
+			taskClone._id = commonKey + '|' + this.instances[commonKey].counter.toString();
 		}
 		let taskToExecute = taskClone ?? task;
-		let lastTaskInstance = this.getLastInstance(task);
+		let lastTaskInstance = this.getNthInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (terminalData && terminalData.promise && !validInstance) {
 			this.lastTask = this.currentTask;
@@ -339,14 +339,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public getLastInstance(task: Task): Task | undefined {
-		let lastInstance = undefined;
+	public getNthInstance(task: Task, n?: number): Task | undefined {
+		let lastInstance: Task | undefined = undefined;
 		let commonId = task._id.split('|')[0];
-		Object.keys(this.activeTasks).forEach((key) => {
-			if (commonId === this.activeTasks[key].task._id.split('|')[0]) {
-				lastInstance = this.activeTasks[key].task;
+		for (let task of this.getActiveTasks()) {
+			if (commonId === task._id.split('|')[0]) {
+				lastInstance = task;
+				if (n !== undefined && n !== null) {
+					if (n <= 0) {
+						return lastInstance;
+					}
+					n--;
+				}
 			}
-		});
+		}
 		return lastInstance;
 	}
 

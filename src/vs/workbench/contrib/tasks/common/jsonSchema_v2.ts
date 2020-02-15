@@ -334,6 +334,12 @@ const runOptions: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
 			default: 1
 		},
+		instancePolicy: {
+			type: 'string',
+			enum: ['terminateNewest', 'terminateOldest', 'prompt', 'warn', 'silent'],
+			description: nls.localize('JsonSchema.tasks.instancePolicy', 'Policy to apply when instance limit is reached.'),
+			default: 'prompt'
+		}
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
 };
