@@ -28,6 +28,32 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
 
+// --- Close Side Bar
+
+export class CloseSidebarAction extends Action {
+
+	static readonly ID = 'workbench.action.closeSidebar';
+	static readonly LABEL = nls.localize('closeSidebar', "Close Side Bar");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label);
+
+		this.enabled = !!this.layoutService;
+	}
+
+	run(): Promise<any> {
+		this.layoutService.setSideBarHidden(true);
+
+		return Promise.resolve();
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseSidebarAction, CloseSidebarAction.ID, CloseSidebarAction.LABEL), 'View: Close Side Bar ', viewCategory);
+
 // --- Toggle Activity Bar
 
 export class ToggleActivityBarVisibilityAction extends Action {

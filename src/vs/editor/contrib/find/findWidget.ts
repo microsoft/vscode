@@ -418,10 +418,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
 		}
 		if (currentMatch) {
-			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}' at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
+			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
 			const lineContent = this._codeEditor.getModel()?.getLineContent(currentMatch.startLineNumber);
 			if (lineContent) {
-				return `${lineContent} ${ariaLabel}`;
+				return `${lineContent}, ${ariaLabel}`;
 			}
 
 			return ariaLabel;
@@ -611,7 +611,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 				return;
 			} else {
-				const scrollAdjustment = this._getHeight();
+				let scrollAdjustment = this._getHeight();
+
+				// if the editor has top padding, factor that into the zone height
+				scrollAdjustment -= this._codeEditor.getOption(EditorOption.padding).top;
+				if (scrollAdjustment <= 0) {
+					return;
+				}
+
 				viewZone.heightInPx = scrollAdjustment;
 				this._viewZoneId = accessor.addZone(viewZone);
 

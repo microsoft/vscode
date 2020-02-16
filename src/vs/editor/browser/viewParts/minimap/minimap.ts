@@ -22,11 +22,11 @@ import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimap
 import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { minimapSelection, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, minimapBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
@@ -109,7 +109,7 @@ class MinimapOptions {
 
 	public readonly backgroundColor: RGBA8;
 
-	constructor(configuration: IConfiguration, theme: ITheme, tokensColorTracker: MinimapTokensColorTracker) {
+	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
 		const options = configuration.options;
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -137,7 +137,7 @@ class MinimapOptions {
 		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, tokensColorTracker);
 	}
 
-	private static _getMinimapBackground(theme: ITheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
+	private static _getMinimapBackground(theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
 		const themeColor = theme.getColor(minimapBackground);
 		if (themeColor) {
 			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, themeColor.rgba.a);

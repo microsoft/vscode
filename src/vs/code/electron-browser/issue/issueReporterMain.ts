@@ -440,7 +440,7 @@ export class IssueReporter extends Disposable {
 			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
-		this.addEventListener('extensionBugsLink', 'click', (e: MouseEvent) => {
+		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
 			shell.openExternal(url);
 		});

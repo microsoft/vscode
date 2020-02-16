@@ -26,7 +26,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenResultsInEditorAction, OpenSearchEditorAction, ReRunSearchEditorSearchAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -74,7 +74,10 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
+			if (endsWith(resource.path, '.code-search')) {
+				this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
+			}
+
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: resource });
 			const opened = editorService.openEditor(input, { ...options, pinned: resource.scheme === SearchEditorConstants.SearchEditorScheme, ignoreOverrides: true }, group);
 			return { override: Promise.resolve(opened) };
@@ -103,18 +106,17 @@ class SearchEditorInputFactory implements IEditorInputFactory {
 
 		const config = input.getConfigSync();
 		const dirty = input.isDirty();
-		const highlights = input.highlights;
+		const matchRanges = input.getMatchRanges();
 
-		return JSON.stringify({ resource, dirty, config, viewState: input.viewState, name: input.getName(), highlights });
+		return JSON.stringify({ resource, dirty, config, name: input.getName(), matchRanges });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, viewState, highlights } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, matchRanges } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
-			input.viewState = viewState;
 			input.setDirty(dirty);
-			input.setHighlights(highlights);
+			input.setMatchRanges(matchRanges);
 			return input;
 		}
 		return undefined;
@@ -163,19 +165,14 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 const category = localize('search', "Search Editor");
 
 registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(ReRunSearchEditorSearchAction, ReRunSearchEditorSearchAction.ID, ReRunSearchEditorSearchAction.LABEL),
-	'Search Editor: Rerun search', category, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)
-);
-
-registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
 		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
 		ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey, SearchEditorConstants.EnableSearchEditorPreview)),
-	'Search: Open Results in Editor', category,
+	'Search Editor: Open Results in Editor', category,
 	ContextKeyExpr.and(SearchEditorConstants.EnableSearchEditorPreview));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
-	'Search: Open New Search Editor', category,
+	'Search Editor: Open New Search Editor', category,
 	ContextKeyExpr.and(SearchEditorConstants.EnableSearchEditorPreview));
 //#endregion

@@ -133,6 +133,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// provided by Electron
 		'disable-color-correct-rendering'
 	];
+	if (process.platform === 'linux') {
+		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+	}
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();

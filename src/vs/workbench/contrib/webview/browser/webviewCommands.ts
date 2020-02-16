@@ -13,6 +13,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 
 export class ShowWebViewEditorFindWidgetAction extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
@@ -22,7 +23,6 @@ export class ShowWebViewEditorFindWidgetAction extends Action2 {
 		super({
 			id: ShowWebViewEditorFindWidgetAction.ID,
 			title: ShowWebViewEditorFindWidgetAction.LABEL,
-			precondition: contextKeyExpr,
 			keybinding: {
 				when: contextKeyExpr,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
@@ -41,13 +41,11 @@ export class HideWebViewEditorFindCommand extends Action2 {
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.hideFind', "Stop find");
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
-		const precondition = ContextKeyExpr.and(contextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE);
 		super({
 			id: HideWebViewEditorFindCommand.ID,
 			title: HideWebViewEditorFindCommand.LABEL,
-			precondition: precondition,
 			keybinding: {
-				when: precondition,
+				when: ContextKeyExpr.and(contextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
 				primary: KeyCode.Escape,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -64,13 +62,11 @@ export class WebViewEditorFindNextCommand extends Action2 {
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.findNext', 'Find next');
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
-		const precondition = ContextKeyExpr.and(contextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED);
 		super({
 			id: WebViewEditorFindNextCommand.ID,
 			title: WebViewEditorFindNextCommand.LABEL,
-			precondition: precondition,
 			keybinding: {
-				when: precondition,
+				when: ContextKeyExpr.and(contextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -87,13 +83,11 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.findPrevious', 'Find previous');
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
-		const precondition = ContextKeyExpr.and(contextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED);
 		super({
 			id: WebViewEditorFindPreviousCommand.ID,
 			title: WebViewEditorFindPreviousCommand.LABEL,
-			precondition: precondition,
 			keybinding: {
-				when: precondition,
+				when: ContextKeyExpr.and(contextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -104,6 +98,29 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 		getActiveWebviewEditor(accessor)?.find(true);
 	}
 }
+
+export class SelectAllWebviewEditorCommand extends Action2 {
+	public static readonly ID = 'editor.action.webvieweditor.selectAll';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.selectAll', 'Select all');
+
+	constructor(contextKeyExpr: ContextKeyExpr) {
+		const precondition = ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey));
+		super({
+			id: SelectAllWebviewEditorCommand.ID,
+			title: SelectAllWebviewEditorCommand.LABEL,
+			keybinding: {
+				when: precondition,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, args: any): void {
+		getActiveWebviewEditor(accessor)?.selectAll();
+	}
+}
+
 export class ReloadWebviewAction extends Action {
 	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
 	static readonly LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");

@@ -219,8 +219,6 @@ export interface IGlobalExtensionEnablementService {
 	enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
 	disableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
 
-	// Async method until storage service is available in shared process
-	getDisabledExtensionsAsync(): Promise<IExtensionIdentifier[]>;
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

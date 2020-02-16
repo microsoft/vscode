@@ -224,7 +224,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	private readonly _collections = new Map<string, DiagnosticCollection>();
 	private readonly _onDidChangeDiagnostics = new Emitter<(vscode.Uri | string)[]>();
 
-	static _debouncer(last: (vscode.Uri | string)[], current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
+	static _debouncer(last: (vscode.Uri | string)[] | undefined, current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
 		if (!last) {
 			return current;
 		} else {

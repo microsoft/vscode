@@ -15,14 +15,16 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	echo Running integration tests out of sources.
 ) else (
 	:: Run from a built: need to compile all test extensions
-	call yarn gulp compile-extension:vscode-api-tests
-	call yarn gulp compile-extension:vscode-colorize-tests
-	call yarn gulp compile-extension:markdown-language-features
-	call yarn gulp compile-extension:emmet
-	call yarn gulp compile-extension:css-language-features-server
-	call yarn gulp compile-extension:html-language-features-server
-	call yarn gulp compile-extension:json-language-features-server
-	call yarn gulp compile-extension:git
+	:: because we run extension tests from their source folders
+	:: and the build bundles extensions into .build webpacked
+	call yarn gulp 	compile-extension:vscode-api-tests^
+					compile-extension:vscode-colorize-tests^
+					compile-extension:markdown-language-features^
+					compile-extension:emmet^
+					compile-extension:css-language-features-server^
+					compile-extension:html-language-features-server^
+					compile-extension:json-language-features-server^
+					compile-extension:git
 
 	:: Configuration for more verbose output
 	set VSCODE_CLI=1
@@ -47,7 +49,10 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-colorize-tests\test --extensionDevelopmentPath=%~dp0\..\extensions\vscode-colorize-tests --extensionTestsPath=%~dp0\..\extensions\vscode-colorize-tests\out --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
+call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\markdown-language-features\out\test\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\markdown-language-features --extensionTestsPath=%~dp0\..\extensions\markdown-language-features\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+call "%INTEGRATION_TEST_ELECTRON_PATH%" $%~dp0\..\extensions\emmet\out\test\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR% .
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
@@ -59,10 +64,6 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 :: Tests in commonJS (HTML, CSS, JSON language server tests...)
 call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\*\server\out\test\**\*.test.js
 if %errorlevel% neq 0 exit /b %errorlevel%
-
-if exist ".\resources\server\test\test-remote-integration.bat" (
-	call .\resources\server\test\test-remote-integration.bat
-)
 
 rmdir /s /q %VSCODEUSERDATADIR%
 

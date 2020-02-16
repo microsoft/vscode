@@ -211,6 +211,12 @@ export const serializeSearchResultForEditor =
 			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
 			: [];
 
+		const info = [
+			searchResult.count()
+				? localize('resultCount', "{0} results in {1} files", searchResult.count(), searchResult.fileCount())
+				: localize('noResults', "No Results"),
+			''];
+
 		const allResults =
 			flattenSearchResultSerializations(
 				flatten(
@@ -219,10 +225,8 @@ export const serializeSearchResultForEditor =
 							.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 		return {
-			matchRanges: allResults.matchRanges.map(translateRangeLines(header.length)),
-			text: header
-				.concat(allResults.text.length ? allResults.text : ['No Results'])
-				.join(lineDelimiter)
+			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),
+			text: header.concat(info).concat(allResults.text).join(lineDelimiter)
 		};
 	};
 

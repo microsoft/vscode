@@ -20,7 +20,7 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		id: string;
-		accessToken: string;
+		accessToken(): Promise<string>;
 		accountName: string;
 		scopes: string[]
 	}
@@ -170,10 +170,15 @@ declare module 'vscode' {
 
 		/**
 		 * Fired when the list of tunnels has changed.
+		 * @deprecated use onDidChangeTunnels instead
 		 */
 		// TODO@alexr
 		// eslint-disable-next-line vscode-dts-event-naming
 		export const onDidTunnelsChange: Event<void>;
+		/**
+		 * Fired when the list of tunnels has changed.
+		 */
+		export const onDidChangeTunnels: Event<void>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -871,7 +876,65 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Debug:
+	//#region locate evaluatable expressions for debug hover: https://github.com/microsoft/vscode/issues/89084
+
+	/**
+	* An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
+	* The result of this evaluation is shown in a tooltip-like widget.
+	* If only a range is specified, the expression will be extracted from the underlying document.
+	* An optional expression can be used to override the extracted expression.
+	* In this case the range is still used to highlight the range in the document.
+	*/
+	export class EvaluatableExpression {
+		/*
+		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
+		 */
+		readonly range: Range;
+		/*
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+
+		/**
+		 * Creates a new evaluatable expression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * The evaluatable expression provider interface defines the contract between extensions and
+	 * the debug hover.
+	 */
+	export interface EvaluatableExpressionProvider {
+
+		/**
+		 * Provide an evaluatable expression for the given document and position.
+		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position where the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+	}
+
+	export namespace languages {
+		/**
+		 * Register a provider that locates evaluatable expressions in text documents.
+		 *
+		 * If multiple providers are registered for a language an arbitrary provider will be used.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An evaluatable expression provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+	}
 
 	// deprecated
 
@@ -1016,38 +1079,6 @@ declare module 'vscode' {
 		 * terminal, including VT sequences.
 		 */
 		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
-	}
-
-	//#endregion
-
-	//#region Terminal exit status https://github.com/microsoft/vscode/issues/62103
-
-	export interface TerminalExitStatus {
-		/**
-		 * The exit code that a terminal exited with, it can have the following values:
-		 * - Zero: the terminal process or custom execution succeeded.
-		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
-		 *   without providing an exit code.
-		 */
-		readonly code: number | undefined;
-	}
-
-	export interface Terminal {
-		/**
-		 * The exit status of the terminal, this will be undefined while the terminal is active.
-		 *
-		 * **Example:** Show a notification with the exit code when the terminal exits with a
-		 * non-zero exit code.
-		 * ```typescript
-		 * window.onDidCloseTerminal(t => {
-		 *   if (t.exitStatus && t.exitStatus.code) {
-		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
-		 *   }
-		 * });
-		 * ```
-		 */
-		readonly exitStatus: TerminalExitStatus | undefined;
 	}
 
 	//#endregion
@@ -1353,26 +1384,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
-
-	export interface CodeAction {
-		/**
-		 * Marks that the code action cannot currently be applied.
-		 *
-		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
-		 */
-		disabled?: {
-			/**
-			 * Human readable description of why the code action is currently disabled.
-			 *
-			 * This is displayed in the UI.
-			 */
-			reason: string;
-		};
-	}
-
-	//#endregion
-
 	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
 
 	export interface MarkdownString {
@@ -1459,10 +1470,31 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/77728
 
+	/**
+	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
+	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
+	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
+	 */
 	export interface WorkspaceEditMetadata {
+
+		/**
+		 * A flag which indicates that user confirmation is needed.
+		 */
 		needsConfirmation: boolean;
+
+		/**
+		 * A human-readable string which is rendered prominent.
+		 */
 		label: string;
+
+		/**
+		 * A human-readable string which is rendered less prominent on the same line.
+		 */
 		description?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
+		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
@@ -1493,9 +1525,9 @@ declare module 'vscode' {
 			value: string | number;
 
 			/**
-			 * A link to a URI with more information about the diagnostic error.
+			 * A target URI to open with more information about the diagnostic error.
 			 */
-			link: Uri;
+			target: Uri;
 		}
 	}
 
@@ -1579,6 +1611,40 @@ declare module 'vscode' {
 		uri?: Uri;
 	}
 
+	export interface TimelineCursor {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items to be returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag to specify whether the timeline items requested are before or after (default) the provided cursor.
+		 */
+		before?: boolean;
+
+		/**
+		 * The maximum number of timeline items that should be returned.
+		 */
+		limit?: number;
+	}
+
+	export interface Timeline {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag which indicates whether there are any more items that weren't returned.
+		 */
+		more?: boolean;
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		items: TimelineItem[];
+	}
+
 	export interface TimelineProvider {
 		/**
 		 * An optional event to signal that the timeline for a source has changed.
@@ -1601,10 +1667,11 @@ declare module 'vscode' {
 		 *
 		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
 		 * @param token A cancellation token.
-		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
+		 * @param cursor TBD
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, token: CancellationToken): ProviderResult<TimelineItem[]>;
+		provideTimeline(uri: Uri, cursor: TimelineCursor, token: CancellationToken): ProviderResult<Timeline>;
 	}
 
 	export namespace workspace {
@@ -1615,11 +1682,55 @@ declare module 'vscode' {
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
 		 * not cause a failure of the whole operation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
 		 * @param provider A timeline provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
-		export function registerTimelineProvider(selector: DocumentSelector, provider: TimelineProvider): Disposable;
+		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
+	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/90208
+
+	export interface ExtensionContext {
+		/**
+		 * Get the uri of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The uri of the resource.
+		 */
+		asExtensionUri(relativePath: string): Uri;
+	}
+
+	export interface Extension<T> {
+		/**
+		 * Get the uri of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The uri of the resource.
+		 */
+		asExtensionUri(relativePath: string): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/86788
+
+	export interface CodeActionProviderMetadata {
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * The documentation is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. Note that in this case, we always pick the most specific
+		 *  documentation. For example, if documentation for both `Refactor` and `RefactorExtract` is provided, and we
+		 *  request code actions for `RefactorExtract`, we prefer the more specific documentation for `RefactorExtract`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 */
+		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command }>;
 	}
 
 	//#endregion

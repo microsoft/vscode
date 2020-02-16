@@ -163,3 +163,18 @@
 	font-size: 11px;
 	font-weight: normal;
 }
+
+.search-editor .messages {
+	margin-top: -5px;
+	cursor: default;
+}
+
+.search-editor .message {
+	padding-left: 22px;
+	padding-right: 22px;
+	padding-top: 0px;
+}
+
+.search-editor a.prominent {
+	text-decoration: underline;
+}

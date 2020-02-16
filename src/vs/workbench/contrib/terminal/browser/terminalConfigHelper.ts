@@ -312,9 +312,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 	}
 
-	private isExtensionInstalled(id: string): Promise<boolean> {
-		return this._extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			return extensions.some(e => e.identifier.id === id);
-		});
+	private async isExtensionInstalled(id: string): Promise<boolean> {
+		const extensions = await this._extensionManagementService.getInstalled(ExtensionType.User);
+		return extensions.some(e => e.identifier.id === id);
 	}
 }

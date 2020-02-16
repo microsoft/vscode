@@ -120,7 +120,6 @@ suite('Files - TextFileEditorModel', () => {
 
 		await pendingSave;
 
-		assert.ok(model.getLastSaveAttemptTime() <= Date.now());
 		assert.ok(model.hasState(ModelState.SAVED));
 		assert.ok(!model.isDirty());
 		assert.ok(savedEvent);
@@ -488,8 +487,6 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 		assert.ok(assertIsDefined(model1.getStat()).mtime > m1Mtime);
 		assert.ok(assertIsDefined(model2.getStat()).mtime > m2Mtime);
-		assert.ok(model1.getLastSaveAttemptTime() > m1Mtime);
-		assert.ok(model2.getLastSaveAttemptTime() > m2Mtime);
 
 		model1.dispose();
 		model2.dispose();
@@ -506,12 +503,11 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		accessor.textFileService.saveParticipant = {
-			participate: model => {
+			participate: async model => {
 				assert.ok(model.isDirty());
 				model.textEditorModel!.setValue('bar');
 				assert.ok(model.isDirty());
 				eventCounter++;
-				return Promise.resolve();
 			}
 		};
 
@@ -545,8 +541,8 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		accessor.textFileService.saveParticipant = {
-			participate: (model) => {
-				return Promise.reject(new Error('boom'));
+			participate: async model => {
+				new Error('boom');
 			}
 		};
 
@@ -556,4 +552,78 @@ suite('Files - TextFileEditorModel', () => {
 		await model.save();
 		model.dispose();
 	});
+
+	test('Save Participant, participant cancelled when saved again', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		let participations: boolean[] = [];
+
+		accessor.textFileService.saveParticipant = {
+			participate: async model => {
+				await timeout(10);
+				participations.push(true);
+			}
+		};
+
+		await model.load();
+
+		model.textEditorModel!.setValue('foo');
+		const p1 = model.save();
+
+		model.textEditorModel!.setValue('foo 1');
+		const p2 = model.save();
+
+		model.textEditorModel!.setValue('foo 2');
+		await model.save();
+
+		await p1;
+		await p2;
+		assert.equal(participations.length, 1);
+		model.dispose();
+	});
+
+	test('Save Participant, calling save from within is unsupported but does not explode (sync save)', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await testSaveFromSaveParticipant(model, false);
+
+		model.dispose();
+	});
+
+	test('Save Participant, calling save from within is unsupported but does not explode (async save)', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await testSaveFromSaveParticipant(model, true);
+
+		model.dispose();
+	});
+
+	async function testSaveFromSaveParticipant(model: TextFileEditorModel, async: boolean): Promise<void> {
+		let savePromise: Promise<boolean>;
+		let breakLoop = false;
+
+		accessor.textFileService.saveParticipant = {
+			participate: async model => {
+				if (breakLoop) {
+					return;
+				}
+
+				breakLoop = true;
+
+				if (async) {
+					await timeout(10);
+				}
+				const newSavePromise = model.save();
+
+				// assert that this is the same promise as the outer one
+				assert.equal(savePromise, newSavePromise);
+			}
+		};
+
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+
+		savePromise = model.save();
+		await savePromise;
+	}
 });

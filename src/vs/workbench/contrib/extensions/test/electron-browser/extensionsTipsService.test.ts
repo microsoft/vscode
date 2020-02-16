@@ -496,7 +496,7 @@ suite('ExtensionsTipsService Test', () => {
 		});
 	});
 
-	test('test global extensions are modified and recommendation change event is fired when an extension is ignored', () => {
+	test('test global extensions are modified and recommendation change event is fired when an extension is ignored', async () => {
 		const storageSetterTarget = sinon.spy();
 		const changeHandlerTarget = sinon.spy();
 		const ignoredExtensionId = 'Some.Extension';
@@ -508,15 +508,15 @@ suite('ExtensionsTipsService Test', () => {
 			}
 		});
 
-		return setUpFolderWorkspace('myFolder', []).then(() => {
-			testObject = instantiationService.createInstance(ExtensionTipsService);
-			testObject.onRecommendationChange(changeHandlerTarget);
-			testObject.toggleIgnoredRecommendation(ignoredExtensionId, true);
+		await setUpFolderWorkspace('myFolder', []);
+		testObject = instantiationService.createInstance(ExtensionTipsService);
+		testObject.onRecommendationChange(changeHandlerTarget);
+		testObject.toggleIgnoredRecommendation(ignoredExtensionId, true);
+		await testObject.loadWorkspaceConfigPromise;
 
-			assert.ok(changeHandlerTarget.calledOnce);
-			assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ extensionId: 'Some.Extension', isRecommended: false }));
-			assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
-		});
+		assert.ok(changeHandlerTarget.calledOnce);
+		assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ extensionId: 'Some.Extension', isRecommended: false }));
+		assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
 	});
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {

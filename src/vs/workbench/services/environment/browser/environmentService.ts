@@ -108,7 +108,7 @@ interface IBrowserWorkbenchEnvironmentConstructionOptions extends IWorkbenchCons
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
-	extensionDevelopmentLocationURI: URI[];
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 }
 
@@ -177,7 +177,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
 	}
 
-	get extensionDevelopmentLocationURI(): URI[] {
+	get extensionDevelopmentLocationURI(): URI[] | undefined {
 		if (!this._extensionHostDebugEnvironment) {
 			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
@@ -289,7 +289,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				break: false
 			},
 			isExtensionDevelopment: false,
-			extensionDevelopmentLocationURI: []
+			extensionDevelopmentLocationURI: undefined
 		};
 
 		// Fill in selected extra environmental properties
