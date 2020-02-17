@@ -25,7 +25,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground} from 'vs/platform/theme/common/colorRegistry';
+import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
