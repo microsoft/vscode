@@ -215,13 +215,6 @@ suite('workspace-namespace', () => {
 	});
 
 	test('eol, change via onWillSave', async function () {
-		if (vscode.env.uiKind === vscode.UIKind.Web) {
-			// TODO@Jo Test seems to fail when running in web due to
-			// onWillSaveTextDocument not getting called
-			this.skip();
-			return;
-		}
-
 		let called = false;
 		let sub = vscode.workspace.onWillSaveTextDocument(e => {
 			called = true;
@@ -245,26 +238,32 @@ suite('workspace-namespace', () => {
 		sub.dispose();
 	});
 
+	function assertEqualPath(a: string, b: string): void {
+		assert.ok(pathEquals(a, b), `${a} <-> ${b}`);
+	}
+
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
 		const file = await createRandomFile();
 		let disposables: vscode.Disposable[] = [];
 
+		await vscode.workspace.saveAll();
+
 		let pendingAsserts: Function[] = [];
 		let onDidOpenTextDocument = false;
 		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-			pendingAsserts.push(() => assert.ok(pathEquals(e.uri.fsPath, file.fsPath)));
+			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
 			onDidOpenTextDocument = true;
 		}));
 
 		let onDidChangeTextDocument = false;
 		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-			pendingAsserts.push(() => assert.ok(pathEquals(e.document.uri.fsPath, file.fsPath)));
+			pendingAsserts.push(() => assertEqualPath(e.document.uri.fsPath, file.fsPath));
 			onDidChangeTextDocument = true;
 		}));
 
 		let onDidSaveTextDocument = false;
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assert.ok(pathEquals(e.uri.fsPath, file.fsPath)));
+			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
 			onDidSaveTextDocument = true;
 		}));
 
@@ -291,7 +290,7 @@ suite('workspace-namespace', () => {
 
 		let onDidSaveTextDocument = false;
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assert.ok(pathEquals(e.uri.fsPath, file.fsPath)));
+			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
 			onDidSaveTextDocument = true;
 		}));
 

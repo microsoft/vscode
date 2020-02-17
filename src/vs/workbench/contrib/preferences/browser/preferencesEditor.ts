@@ -29,7 +29,7 @@ import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/multicursor'
 import * as nls from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -984,7 +984,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	private static _getContributions(): IEditorContributionDescription[] {
 		const skipContributions = [FoldingController.ID, SelectionHighlighter.ID, FindController.ID];
 		const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
-		contributions.push({ id: DefaultSettingsEditorContribution.ID, ctor: DefaultSettingsEditorContribution });
+		contributions.push({ id: DefaultSettingsEditorContribution.ID, ctor: DefaultSettingsEditorContribution as IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution> });
 		return contributions;
 	}
 

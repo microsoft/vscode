@@ -447,6 +447,22 @@
         "command": "git.stashDrop",
         "title": "%command.stashDrop%",
         "category": "Git"
+      },
+      {
+        "command": "git.timeline.openDiff",
+        "title": "%command.timelineOpenDiff%",
+        "icon": "$(compare-changes)",
+        "category": "Git"
+      },
+      {
+        "command": "git.timeline.copyCommitId",
+        "title": "%command.timelineCopyCommitId%",
+        "category": "Git"
+      },
+      {
+        "command": "git.timeline.copyCommitMessage",
+        "title": "%command.timelineCopyCommitMessage%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -718,14 +734,21 @@
         {
           "command": "git.stashDrop",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.timeline.openDiff",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.copyCommitId",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.copyCommitMessage",
+          "when": "false"
         }
       ],
       "scm/title": [
-        {
-          "command": "git.init",
-          "group": "navigation",
-          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0 && workspaceFolderCount != 0"
-        },
         {
           "command": "git.commit",
           "group": "navigation",
@@ -1248,6 +1271,28 @@
           "command": "git.revertChange",
           "when": "originalResourceScheme == git"
         }
+      ],
+      "timeline/item/context": [
+        {
+          "command": "git.timeline.openDiff",
+          "group": "inline",
+          "when": "timelineItem =~ /git:file\\b/"
+        },
+        {
+          "command": "git.timeline.openDiff",
+          "group": "1_timeline",
+          "when": "timelineItem =~ /git:file\\b/"
+        },
+        {
+          "command": "git.timeline.copyCommitId",
+          "group": "2_timeline@1",
+          "when": "timelineItem =~ /git:file:commit\\b/"
+        },
+        {
+          "command": "git.timeline.copyCommitMessage",
+          "group": "2_timeline@2",
+          "when": "timelineItem =~ /git:file:commit\\b/"
+        }
       ]
     },
     "configuration": {
@@ -1761,7 +1806,34 @@
           72
         ]
       }
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.disabled%",
+        "when": "!config.git.enabled"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.missing%",
+        "when": "config.git.enabled && git.missing"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.empty%",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.folder%",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.workspace%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace"
+      }
+    ]
   },
   "dependencies": {
     "byline": "^5.0.0",

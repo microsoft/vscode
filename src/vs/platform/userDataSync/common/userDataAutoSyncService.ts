@@ -98,7 +98,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	async triggerAutoSync(): Promise<void> {
 		if (this.enabled) {
 			return this.syncDelayer.trigger(() => {
-				this.logService.info('Auto Sync: Triggerred.');
+				this.logService.info('Auto Sync: Triggered.');
 				return this.sync(false, true);
 			}, this.successiveFailures
 				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */

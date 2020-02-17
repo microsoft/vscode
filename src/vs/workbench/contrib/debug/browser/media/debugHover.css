@@ -12,7 +12,6 @@
 	user-select: text;
 	-webkit-user-select: text;
 	word-break: break-all;
-	padding: 4px 5px;
 }
 
 .monaco-editor .debug-hover-widget .complex-value {
@@ -62,6 +61,7 @@
 	overflow: auto;
 	font-family: var(--monaco-monospace-font);
 	max-height: 500px;
+	padding: 4px 5px;
 }
 
 .monaco-editor .debug-hover-widget .error {

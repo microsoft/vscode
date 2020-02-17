@@ -41,7 +41,7 @@ suite('Notifications', () => {
 
 		// Events
 		let called = 0;
-		item1.onDidExpansionChange(() => {
+		item1.onDidChangeExpansion(() => {
 			called++;
 		});
 
@@ -53,7 +53,7 @@ suite('Notifications', () => {
 		assert.equal(called, 2);
 
 		called = 0;
-		item1.onDidLabelChange(e => {
+		item1.onDidChangeLabel(e => {
 			if (e.kind === NotificationViewItemLabelKind.PROGRESS) {
 				called++;
 			}
@@ -65,7 +65,7 @@ suite('Notifications', () => {
 		assert.equal(called, 2);
 
 		called = 0;
-		item1.onDidLabelChange(e => {
+		item1.onDidChangeLabel(e => {
 			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
 				called++;
 			}
@@ -74,7 +74,7 @@ suite('Notifications', () => {
 		item1.updateMessage('message update');
 
 		called = 0;
-		item1.onDidLabelChange(e => {
+		item1.onDidChangeLabel(e => {
 			if (e.kind === NotificationViewItemLabelKind.SEVERITY) {
 				called++;
 			}
@@ -83,7 +83,7 @@ suite('Notifications', () => {
 		item1.updateSeverity(Severity.Error);
 
 		called = 0;
-		item1.onDidLabelChange(e => {
+		item1.onDidChangeLabel(e => {
 			if (e.kind === NotificationViewItemLabelKind.ACTIONS) {
 				called++;
 			}
@@ -146,12 +146,12 @@ suite('Notifications', () => {
 		const model = new NotificationsModel();
 
 		let lastNotificationEvent!: INotificationChangeEvent;
-		model.onDidNotificationChange(e => {
+		model.onDidChangeNotification(e => {
 			lastNotificationEvent = e;
 		});
 
 		let lastStatusMessageEvent!: IStatusMessageChangeEvent;
-		model.onDidStatusMessageChange(e => {
+		model.onDidChangeStatusMessage(e => {
 			lastStatusMessageEvent = e;
 		});
 

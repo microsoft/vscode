@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -87,26 +87,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Events
 
-	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onZenModeChange: Event<boolean> = this._onZenModeChange.event;
+	private readonly _onZenModeChange = this._register(new Emitter<boolean>());
+	readonly onZenModeChange = this._onZenModeChange.event;
 
-	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onFullscreenChange: Event<boolean> = this._onFullscreenChange.event;
+	private readonly _onFullscreenChange = this._register(new Emitter<boolean>());
+	readonly onFullscreenChange = this._onFullscreenChange.event;
 
-	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onCenteredLayoutChange: Event<boolean> = this._onCenteredLayoutChange.event;
+	private readonly _onCenteredLayoutChange = this._register(new Emitter<boolean>());
+	readonly onCenteredLayoutChange = this._onCenteredLayoutChange.event;
 
-	private readonly _onMaximizeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onMaximizeChange: Event<boolean> = this._onMaximizeChange.event;
+	private readonly _onMaximizeChange = this._register(new Emitter<boolean>());
+	readonly onMaximizeChange = this._onMaximizeChange.event;
 
-	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
-	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
+	private readonly _onPanelPositionChange = this._register(new Emitter<string>());
+	readonly onPanelPositionChange = this._onPanelPositionChange.event;
 
-	private readonly _onPartVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onPartVisibilityChange: Event<void> = this._onPartVisibilityChange.event;
+	private readonly _onPartVisibilityChange = this._register(new Emitter<void>());
+	readonly onPartVisibilityChange = this._onPartVisibilityChange.event;
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
-	readonly onLayout: Event<IDimension> = this._onLayout.event;
+	readonly onLayout = this._onLayout.event;
 
 	//#endregion
 

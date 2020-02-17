@@ -82,7 +82,7 @@ app.once('ready', function () {
 			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
 		};
 
-		contentTracing.startRecording(traceOptions, () => onReady());
+		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {
 		onReady();
 	}
@@ -133,6 +133,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// provided by Electron
 		'disable-color-correct-rendering'
 	];
+	if (process.platform === 'linux') {
+		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+	}
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
@@ -158,6 +161,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+
+	// TODO@Ben TODO@Deepak Electron 7 workaround for https://github.com/microsoft/vscode/issues/88873
+	app.commandLine.appendSwitch('disable-features', 'LayoutNG');
 
 	return argvConfig;
 }

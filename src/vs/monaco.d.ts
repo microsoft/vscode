@@ -2390,6 +2390,8 @@ declare namespace monaco.editor {
 	 * An event describing that model decorations have changed.
 	 */
 	export interface IModelDecorationsChangedEvent {
+		readonly affectsMinimap: boolean;
+		readonly affectsOverviewRuler: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -3330,6 +3332,14 @@ declare namespace monaco.editor {
 		 * The width of the minimap
 		 */
 		readonly minimapWidth: number;
+		readonly minimapHeightIsEditorHeight: boolean;
+		readonly minimapIsSampling: boolean;
+		readonly minimapScale: number;
+		readonly minimapLineHeight: number;
+		readonly minimapCanvasInnerWidth: number;
+		readonly minimapCanvasInnerHeight: number;
+		readonly minimapCanvasOuterWidth: number;
+		readonly minimapCanvasOuterHeight: number;
 		/**
 		 * Minimap render type
 		 */
@@ -3379,6 +3389,11 @@ declare namespace monaco.editor {
 		 * Defaults to 'right'.
 		 */
 		side?: 'right' | 'left';
+		/**
+		 * Control the minimap rendering mode.
+		 * Defaults to 'actual'.
+		 */
+		mode?: 'actual' | 'cover' | 'contain';
 		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.
@@ -5236,6 +5251,31 @@ declare namespace monaco.languages {
 		 * to the word range at the position when omitted.
 		 */
 		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	}
+
+	/**
+	 * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
+	 * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
+	 */
+	export interface EvaluatableExpression {
+		/**
+		 * The range to which this expression applies.
+		 */
+		range: IRange;
+		expression?: string;
+	}
+
+	/**
+	 * The hover provider interface defines the contract between extensions and
+	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+	 */
+	export interface EvaluatableExpressionProvider {
+		/**
+		 * Provide a hover for the given position and document. Multiple hovers at the same
+		 * position will be merged by the editor. A hover can have a range which defaults
+		 * to the word range at the position when omitted.
+		 */
+		provideEvaluatableExpression(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
 	}
 
 	export enum CompletionItemKind {
