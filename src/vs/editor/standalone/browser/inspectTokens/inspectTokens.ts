@@ -224,13 +224,13 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 
 		result += `<hr class="tokens-inspect-separator" style="clear:both"/>`;
 
-		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
+		let metadata = (token2Index << 1) + 1 < data.tokens2.length ? this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]) : null;
 		result += `<table class="tm-metadata-table"><tbody>`;
-		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
-		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
-		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.foreground)}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.background)}</td>`;
+		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${metadata ? escape(metadata.languageIdentifier.language) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${metadata ? this._tokenTypeToString(metadata.tokenType) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${metadata ? this._fontStyleToString(metadata.fontStyle) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata ? Color.Format.CSS.formatHex(metadata.foreground) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata ? Color.Format.CSS.formatHex(metadata.background) : '-?-'}</td>`;
 		result += `</tbody></table>`;
 
 		result += `<hr class="tokens-inspect-separator"/>`;
