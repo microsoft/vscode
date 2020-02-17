@@ -15,6 +15,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NOTEBOOK_EDITOR_FOCUSED, NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 
+// TODO@joh,peng This is outdated, registerAction2 should be used instead!
+
 export class ExecuteNotebookCellAction extends Action {
 
 	static readonly ID = 'workbench.action.executeNotebookCell';
