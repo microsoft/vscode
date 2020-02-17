@@ -11,14 +11,11 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./notebook';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -27,7 +24,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService, createCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
@@ -36,6 +33,7 @@ import { CELL_MARGIN, INotebook } from 'vs/workbench/contrib/notebook/common/not
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -70,8 +68,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
 		@IStorageService storageService: IStorageService,
 		@IWebviewService private webviewService: IWebviewService,
 		@INotebookService private notebookService: INotebookService,
@@ -79,7 +75,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
@@ -222,7 +218,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			.then(() => {
 				return input.resolve();
 			})
-			.then(model => {
+			.then(async model => {
 				if (this.model !== undefined && this.model.textModel === model.textModel && this.webview !== null) {
 					return;
 				}
@@ -249,10 +245,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				this.notebook = model.getNotebook();
 				this.webview.updateRendererPreloads(this.notebook.renderers);
 				this.viewType = input.viewType;
-				this.viewCells = this.notebook!.cells.map(cell => {
+				this.viewCells = await Promise.all(this.notebook!.cells.map(async cell => {
+					const uri = createCellUri(input.viewType!, this.notebook!, cell);
+					const ref = await this.textModelService.createModelReference(uri);
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return new CellViewModel(input.viewType!, this.notebook!.handle, cell, !!isEditing, this.modelService, this.modeService, this.openerService, this.notebookService, this.themeService);
-				});
+					return this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, ref.object.textEditorModel, !!isEditing);
+				}));
 
 				const updateScrollPosition = () => {
 					let scrollTop = this.list?.scrollTop || 0;
@@ -383,7 +381,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		let newCell = new CellViewModel(this.viewType!, this.notebook!.handle, newModeCell!, false, this.modelService, this.modeService, this.openerService, this.notebookService, this.themeService);
+		let uri = createCellUri(this.viewType!, this.notebook!, newModeCell!);
+		let ref = await this.textModelService.createModelReference(uri);
+		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, newModeCell!, ref.object.textEditorModel, false);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);

@@ -30,10 +30,10 @@ export class MarkdownRenderer extends Disposable {
 
 	constructor(
 		private readonly viewType: string,
-		private readonly _modeService: IModeService,
-		private readonly _openerService: IOpenerService,
-		private readonly _notebookService: INotebookService,
-		private readonly _themeService: IThemeService
+		@IModeService private readonly _modeService: IModeService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 

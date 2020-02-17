@@ -12,6 +12,28 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { basename, extname } from 'vs/base/common/path';
+
+export function createCellUri(viewType: string, notebook: INotebook, cell: ICell): URI {
+	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
+	return URI.from({
+		scheme: 'vscode-notebook',
+		authority: viewType,
+		path: `/cell_${cell.handle}.${cell.cell_type === 'markdown' ? 'md' : 'py'}`,
+		query: notebook.uri.toString()
+	});
+}
+
+export function parseCellUri(resource: URI): { viewType: string, notebook: URI, cellHandle: number } | undefined {
+	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
+	const match = /cell_(\d+)/.exec(basename(resource.path, extname(resource.path)));
+	if (!match) {
+		return undefined;
+	}
+	const viewType = resource.authority;
+	const notebook = URI.parse(resource.query);
+	return { viewType, notebook, cellHandle: parseInt(match[1]) };
+}
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -144,25 +166,24 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			let notebookModel = await provider.controller.resolveNotebook(viewType, uri);
-
-			if (notebookModel) {
-				// new notebook model created
-				const modelId = MODEL_ID(uri);
-
-				const modelData = new ModelData(
-					notebookModel,
-					(model) => this._onWillDispose(model),
-				);
-				this._models[modelId] = modelData;
-				return modelData.model;
-			}
+		const provider = this._notebookProviders.get(viewType);
+		if (!provider) {
+			return undefined;
 		}
 
-		return;
+		const notebookModel = await provider.controller.resolveNotebook(viewType, uri);
+		if (!notebookModel) {
+			return undefined;
+		}
+
+		// new notebook model created
+		const modelId = MODEL_ID(uri);
+		const modelData = new ModelData(
+			notebookModel,
+			(model) => this._onWillDispose(model),
+		);
+		this._models[modelId] = modelData;
+		return modelData.model;
 	}
 
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void {

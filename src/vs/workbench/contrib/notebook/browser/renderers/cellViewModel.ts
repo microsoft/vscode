@@ -3,21 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CellViewModel extends Disposable {
-	private _textModel: ITextModel | null = null;
+
 	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
 	private _dynamicHeight: number | null = null;
@@ -51,24 +46,26 @@ export class CellViewModel extends Disposable {
 	get dynamicHeight(): number | null {
 		return this._dynamicHeight;
 	}
-	id: string;
+
+	readonly id: string = UUID.generateUuid();
 
 	constructor(
-		public viewType: string,
-		public notebookHandle: number,
-		public cell: ICell,
+		readonly viewType: string,
+		readonly notebookHandle: number,
+		readonly cell: ICell,
+		private _textModel: ITextModel,
 		private _isEditing: boolean,
-		private readonly modelService: IModelService,
-		private readonly modeService: IModeService,
-		private readonly openerService: IOpenerService,
-		private readonly notebookService: INotebookService,
-		private readonly themeService: IThemeService) {
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+	) {
 		super();
-		this.id = UUID.generateUuid();
+
+		this._register(this._textModel.onDidChangeContent(() => {
+			this.cell.isDirty = true;
+		}));
 		if (this.cell.onDidChangeOutputs) {
-			this.cell.onDidChangeOutputs(() => {
+			this._register(this.cell.onDidChangeOutputs(() => {
 				this._onDidChangeOutputs.fire();
-			});
+			}));
 		}
 	}
 	hasDynamicHeight() {
@@ -107,7 +104,7 @@ export class CellViewModel extends Disposable {
 		this._html = null;
 	}
 	save() {
-		if (this._textModel && (this.cell.isDirty || this.isEditing)) {
+		if (this.cell.isDirty || this.isEditing) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -115,6 +112,7 @@ export class CellViewModel extends Disposable {
 	getText(): string {
 		return this.cell.source.join('\n');
 	}
+
 	getHTML(): HTMLElement | null {
 		if (this.cellType === 'markdown') {
 			if (this._html) {
@@ -126,25 +124,14 @@ export class CellViewModel extends Disposable {
 		}
 		return null;
 	}
+
 	getTextModel(): ITextModel {
-		if (!this._textModel) {
-			let mode = this.modeService.create(this.cellType === 'markdown' ? 'markdown' : this.cell.language);
-			let ext = this.cellType === 'markdown' ? 'md' : 'py';
-			let resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
-			resource = resource.with({ authority: `notebook+${this.viewType}-${this.notebookHandle}-${this.cell.handle}` });
-			let content = this.cell.source.join('\n');
-			this._textModel = this.modelService.createModel(content, mode, resource, false);
-			this._register(this._textModel);
-			this._register(this._textModel.onDidChangeContent(() => {
-				this.cell.isDirty = true;
-			}));
-		}
 		return this._textModel;
 	}
 
 	getMarkdownRenderer() {
 		if (!this._mdRenderer) {
-			this._mdRenderer = new MarkdownRenderer(this.viewType, this.modeService, this.openerService, this.notebookService, this.themeService);
+			this._mdRenderer = this._instaService.createInstance(MarkdownRenderer, this.viewType);
 		}
 		return this._mdRenderer;
 	}

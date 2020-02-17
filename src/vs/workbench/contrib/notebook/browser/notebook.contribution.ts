@@ -14,9 +14,15 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService, NotebookService, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModel } from 'vs/editor/common/model';
+import { URI } from 'vs/base/common/uri';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 // Output renderers registration
 
@@ -25,7 +31,6 @@ import 'vs/workbench/contrib/notebook/browser/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/output/transforms/richTransform';
 
 // Actions
-
 import 'vs/workbench/contrib/notebook/browser/notebookActions';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -89,7 +94,48 @@ export class NotebookContribution implements IWorkbenchContribution {
 	}
 }
 
+class CellContentProvider implements ITextModelContentProvider {
+
+	private readonly _registration: IDisposable;
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+		@IModeService private readonly _modeService: IModeService,
+		@INotebookService private readonly _notebookService: INotebookService,
+	) {
+		this._registration = textModelService.registerTextModelContentProvider('vscode-notebook', this);
+	}
+
+	dispose(): void {
+		this._registration.dispose();
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const data = parseCellUri(resource);
+		if (!data) {
+			return null;
+		}
+		const notebook = await this._notebookService.resolveNotebook(data.viewType, data.notebook);
+		if (!notebook) {
+			return null;
+		}
+		for (let cell of notebook.cells) {
+			if (cell.handle === data.cellHandle) {
+				return this._modelService.createModel(
+					cell.source.join('\n'),
+					this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]),
+					resource
+				);
+			}
+		}
+
+		return null;
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
