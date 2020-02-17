@@ -102,29 +102,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 			let store = this._cellDisposableMapping.get(cell.handle)!;
 			store.add(cell.onDidChangeOutputs(() => {
-				let renderers = new Set<number>();
-				let outputs = cell.outputs;
-				if (outputs && outputs.length) {
-					outputs = outputs.map(output => {
-						let handler = this.renderingHandler.findBestMatchedRenderer(output);
-
-						if (handler) {
-							renderers.add(handler.handle);
-							return handler.render(this, cell, output);
-						} else {
-							return output;
-						}
-					});
-				}
-
-				this._proxy.$updateNotebookCells(this.viewType, this.uri, [{
-					handle: cell.handle,
-					source: cell.source,
-					language: cell.language,
-					cell_type: cell.cell_type,
-					outputs: outputs,
-					isDirty: false
-				}], Array.from(renderers));
+				this.triggerCellUpdates([cell]);
 			}));
 		});
 	}
@@ -164,8 +142,41 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	get isDirty() { return false; }
 
 	async $updateCells(): Promise<void> {
+		return await this.triggerCellUpdates(this.cells);
+	}
+
+	insertCell(index: number, cell: ExtHostCell) {
+		this.cells.splice(index, 0, cell);
+
+		if (!this._cellDisposableMapping.has(cell.handle)) {
+			this._cellDisposableMapping.set(cell.handle, new DisposableStore());
+		}
+
+		let store = this._cellDisposableMapping.get(cell.handle)!;
+
+		store.add(cell.onDidChangeOutputs(() => {
+			this.triggerCellUpdates([cell]);
+		}));
+	}
+
+	deleteCell(index: number): boolean {
+		if (index >= this.cells.length) {
+			return false;
+		}
+
+		let cell = this.cells[index];
+		this._cellDisposableMapping.get(cell.handle)?.dispose();
+		this._cellDisposableMapping.delete(cell.handle);
+
+		this.cells.splice(index, 1);
+		return true;
+	}
+
+	private async triggerCellUpdates(cells: ExtHostCell[]) {
+		// @TODO peng, diffing
+
 		let renderers = new Set<number>();
-		let cells = this.cells.map(cell => {
+		let cellDtos = this.cells.map(cell => {
 			let outputs = cell.outputs;
 			if (outputs && outputs.length) {
 				outputs = outputs.map(output => {
@@ -191,56 +202,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		}
 		);
 
-		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, cells, Array.from(renderers));
-	}
-
-	insertCell(index: number, cell: ExtHostCell) {
-		this.cells.splice(index, 0, cell);
-
-		if (!this._cellDisposableMapping.has(cell.handle)) {
-			this._cellDisposableMapping.set(cell.handle, new DisposableStore());
-		}
-
-		let store = this._cellDisposableMapping.get(cell.handle)!;
-
-		store.add(cell.onDidChangeOutputs(() => {
-			let outputs = cell.outputs;
-			let renderers = new Set<number>();
-			if (outputs && outputs.length) {
-				outputs = outputs.map(output => {
-					let handler = this.renderingHandler.findBestMatchedRenderer(output);
-
-					if (handler) {
-						renderers.add(handler.handle);
-						return handler.render(this, cell, output);
-					} else {
-						return output;
-					}
-				});
-			}
-
-			this._proxy.$updateNotebookCells(this.viewType, this.uri, [{
-				handle: cell.handle,
-				source: cell.source,
-				language: cell.language,
-				cell_type: cell.cell_type,
-				outputs: outputs,
-				isDirty: false
-			}], Array.from(renderers));
-		}));
-	}
-
-	deleteCell(index: number): boolean {
-		if (index >= this.cells.length) {
-			return false;
-		}
-
-		let cell = this.cells[index];
-		this._cellDisposableMapping.get(cell.handle)?.dispose();
-		this._cellDisposableMapping.delete(cell.handle);
-
-		this.cells.splice(index, 1);
-		return true;
+		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, cellDtos, Array.from(renderers));
 	}
 
 	getCell(cellHandle: number) {
