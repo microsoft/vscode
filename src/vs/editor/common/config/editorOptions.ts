@@ -1765,11 +1765,12 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		height: number;
 		lineHeight: number;
 		pixelRatio: number;
-	}): { extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
-		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (input.height / input.lineHeight - 1) : 0;
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+		const typicalViewportLineCount = input.height / input.lineHeight;
+		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
 		const desiredRatio = (input.modelLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
 		const minimapLineCount = Math.floor(input.modelLineCount / desiredRatio);
-		return { extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
+		return { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
 	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
@@ -1857,7 +1858,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			if (minimapMode === 'cover' || minimapMode === 'contain') {
 				const modelLineCount = env.maxLineNumber;
-				const { extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 					modelLineCount: modelLineCount,
 					scrollBeyondLastLine: scrollBeyondLastLine,
 					height: outerHeight,
@@ -1879,13 +1880,13 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 					if (minimapMode === 'cover' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
 						minimapHeightIsEditorHeight = true;
 						const configuredFontScale = minimapScale;
-						minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
+						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
 						minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
 						if (minimapScale > configuredFontScale) {
 							minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
 						}
 						minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
-						minimapCanvasInnerHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+						minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, modelLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
 					}
 				}
 			}
