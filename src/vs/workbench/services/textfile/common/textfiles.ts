@@ -53,12 +53,6 @@ export interface ITextFileService extends IDisposable {
 	readonly encoding: IResourceEncodings;
 
 	/**
-	 * The handler that should be called when saving fails. Can be overridden
-	 * to handle save errors in a custom way.
-	 */
-	saveErrorHandler: ISaveErrorHandler;
-
-	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
 	 *
 	 * @param resource the resource to check for being dirty
@@ -376,6 +370,8 @@ export interface ITextFileEditorModelManager {
 
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
 	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+
+	saveErrorHandler: ISaveErrorHandler;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

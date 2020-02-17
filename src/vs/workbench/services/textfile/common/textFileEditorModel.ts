@@ -738,7 +738,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Show to user
-		this.textFileService.saveErrorHandler.onSaveError(error, this);
+		this.textFileService.files.saveErrorHandler.onSaveError(error, this);
 
 		// Emit as event
 		this._onDidSaveError.fire();

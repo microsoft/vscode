@@ -33,8 +33,6 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { coalesce } from 'vs/base/common/arrays';
 import { suggestFilename } from 'vs/base/common/mime';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { isValidBasename } from 'vs/base/common/extpath';
 
@@ -59,16 +57,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
 
-	saveErrorHandler = (() => {
-		const notificationService = this.notificationService;
-
-		return {
-			onSaveError(error: Error, model: ITextFileEditorModel): void {
-				notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
-			}
-		};
-	})();
-
 	abstract get encoding(): IResourceEncodings;
 
 	constructor(
@@ -84,7 +72,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IRemotePathService private readonly remotePathService: IRemotePathService
 	) {
 		super();

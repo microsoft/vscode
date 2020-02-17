@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -18,6 +20,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -42,6 +45,16 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<ITextFileEditorModel>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
+	saveErrorHandler = (() => {
+		const notificationService = this.notificationService;
+
+		return {
+			onSaveError(error: Error, model: ITextFileEditorModel): void {
+				notificationService.error(localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
+			}
+		};
+	})();
+
 	private readonly mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
 	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
@@ -52,7 +65,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
