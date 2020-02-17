@@ -88,19 +88,22 @@ export interface IStatusMessageChangeEvent {
 	kind: StatusMessageChangeType;
 }
 
-export class NotificationHandle implements INotificationHandle {
+export class NotificationHandle extends Disposable implements INotificationHandle {
 
-	private readonly _onDidClose: Emitter<void> = new Emitter();
-	readonly onDidClose: Event<void> = this._onDidClose.event;
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
 
-	constructor(private readonly item: INotificationViewItem, private readonly closeItem: (item: INotificationViewItem) => void) {
+	constructor(private readonly item: INotificationViewItem, private readonly onClose: (item: INotificationViewItem) => void) {
+		super();
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		Event.once(this.item.onDidClose)(() => {
 			this._onDidClose.fire();
-			this._onDidClose.dispose();
+
+			this.dispose();
 		});
 	}
 
@@ -121,8 +124,9 @@ export class NotificationHandle implements INotificationHandle {
 	}
 
 	close(): void {
-		this.closeItem(this.item);
-		this._onDidClose.dispose();
+		this.onClose(this.item);
+
+		this.dispose();
 	}
 }
 
