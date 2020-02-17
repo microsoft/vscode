@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { basename, extname, relativePath } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -106,8 +106,8 @@ export class ResourceGlobMatcher extends Disposable {
 
 	private static readonly NO_ROOT: string | null = null;
 
-	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onExpressionChange: Event<void> = this._onExpressionChange.event;
+	private readonly _onExpressionChange = this._register(new Emitter<void>());
+	readonly onExpressionChange = this._onExpressionChange.event;
 
 	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
 	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();

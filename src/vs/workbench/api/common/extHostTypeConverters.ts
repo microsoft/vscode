@@ -257,7 +257,7 @@ export namespace MarkdownString {
 		} else if (htmlContent.isMarkdownString(markup)) {
 			res = markup;
 		} else if (typeof markup === 'string') {
-			res = { value: <string>markup };
+			res = { value: markup };
 		} else {
 			res = { value: '' };
 		}

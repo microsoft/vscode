@@ -89,6 +89,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
+import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
@@ -120,7 +121,6 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService,
 		@IRemotePathService remotePathService: IRemotePathService
 	) {
 		super(
@@ -136,7 +136,6 @@ export class TestTextFileService extends BrowserTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			notificationService,
 			remotePathService
 		);
 	}
@@ -175,6 +174,7 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	const contextKeyService = <IContextKeyService>instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
+	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
@@ -215,6 +215,19 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 
 	return instantiationService;
+}
+
+export class TestProgressService implements IProgressService {
+
+	_serviceBrand: undefined;
+
+	withProgress(
+		options: IProgressOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<any>,
+		onDidCancel?: ((choice?: number | undefined) => void) | undefined
+	): Promise<any> {
+		return task(emptyProgress);
+	}
 }
 
 export class TestAccessibilityService implements IAccessibilityService {

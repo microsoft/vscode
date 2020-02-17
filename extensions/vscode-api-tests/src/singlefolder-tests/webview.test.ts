@@ -336,7 +336,7 @@ suite('Webview tests', () => {
 	});
 
 	if (os.platform() === 'darwin') {
-		test('webview can copy text from webview', async () => {
+		conditionalTest('webview can copy text from webview', async () => {
 			const expectedText = `webview text from: ${Date.now()}!`;
 
 			const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
