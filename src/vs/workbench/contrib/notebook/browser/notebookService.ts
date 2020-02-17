@@ -10,7 +10,6 @@ import { notebookExtensionPoint } from 'vs/workbench/contrib/notebook/browser/ex
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { basename, extname } from 'vs/base/common/path';
 
@@ -255,16 +254,6 @@ export class NotebookService extends Disposable implements INotebookService {
 	updateActiveNotebookDocument(viewType: string, resource: URI): void {
 		this._onDidChangeActiveEditor.fire({ viewType, uri: resource });
 	}
-
-	// async latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
-	// 	let provider = this._notebookProviders.get(viewType);
-
-	// 	if (provider) {
-	// 		return provider.controller.latexRenderer(value);
-	// 	}
-
-	// 	return;
-	// }
 
 	private _onWillDispose(model: INotebook): void {
 		let modelId = MODEL_ID(model.uri);
