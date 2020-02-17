@@ -134,7 +134,6 @@ export interface RunOptionsConfig {
 	reevaluateOnRerun?: boolean;
 	runOn?: string;
 	instanceLimit?: number;
-	instancePolicy?: string;
 }
 
 export interface TaskIdentifier {
@@ -679,34 +678,12 @@ export namespace RunOnOptions {
 	}
 }
 
-export namespace InstancePolicy {
-	export function fromString(value: string | undefined): Tasks.InstancePolicy {
-		if (!value) {
-			return Tasks.InstancePolicy.prompt;
-		}
-		switch (value.toLowerCase()) {
-			case 'terminatenewest':
-				return Tasks.InstancePolicy.terminateNewest;
-			case 'terminateoldest':
-				return Tasks.InstancePolicy.terminateOldest;
-			case 'warn':
-				return Tasks.InstancePolicy.warn;
-			case 'silent':
-				return Tasks.InstancePolicy.silent;
-			case 'prompt':
-			default:
-				return Tasks.InstancePolicy.prompt;
-		}
-	}
-}
-
 export namespace RunOptions {
 	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instanceLimit: value ? value.instanceLimit : 1,
-			instancePolicy: value ? InstancePolicy.fromString(value.instancePolicy) : Tasks.InstancePolicy.prompt
+			instanceLimit: value ? value.instanceLimit : 1
 		};
 	}
 }

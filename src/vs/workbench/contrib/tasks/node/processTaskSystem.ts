@@ -94,7 +94,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return result;
 	}
 
-	public getNthInstance(task: Task): Task | undefined {
+	public getLastInstance(task: Task): Task | undefined {
 		let result = undefined;
 		if (this.activeTask) {
 			result = this.activeTask;
