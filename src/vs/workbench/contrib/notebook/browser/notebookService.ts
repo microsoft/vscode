@@ -16,6 +16,7 @@ import { basename, extname } from 'vs/base/common/path';
 
 export function createCellUri(viewType: string, notebook: INotebook, cell: ICell): URI {
 	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
+	// @todo Jo,Peng: `authority` will be transformed to lower case in `URI.toString()`, so we won't retrive the same viewType later on.
 	return URI.from({
 		scheme: 'vscode-notebook',
 		authority: viewType,

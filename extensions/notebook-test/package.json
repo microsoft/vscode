@@ -40,7 +40,7 @@
         ]
       },
       {
-        "viewType": "jupyterTest",
+        "viewType": "jupytertest",
         "displayName": "Jupyter Test",
         "selector": [
           {

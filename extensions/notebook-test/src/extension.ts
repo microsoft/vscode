@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log(context.extensionPath);
 
 	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyter', new NotebookProvider(context.extensionPath, true)));
-	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyterTest', new NotebookProvider(context.extensionPath, false)));
+	context.subscriptions.push(vscode.window.registerNotebookProvider('jupytertest', new NotebookProvider(context.extensionPath, false)));
 	vscode.commands.registerCommand('notebook.saveToMarkdown', () => {
 		if (vscode.window.activeNotebookDocument) {
 			let document = vscode.window.activeNotebookDocument;
