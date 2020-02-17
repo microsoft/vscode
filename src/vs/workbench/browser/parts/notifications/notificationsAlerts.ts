@@ -23,10 +23,10 @@ export class NotificationsAlerts extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
+	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
 
 			// ARIA alert for screen readers
@@ -46,7 +46,7 @@ export class NotificationsAlerts extends Disposable {
 	private triggerAriaAlert(notifiation: INotificationViewItem): void {
 
 		// Trigger the alert again whenever the label changes
-		const listener = notifiation.onDidLabelChange(e => {
+		const listener = notifiation.onDidChangeLabel(e => {
 			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
 				this.doTriggerAriaAlert(notifiation);
 			}
