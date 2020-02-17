@@ -9,7 +9,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ICell, IOutput, INotebook, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class MainThreadCell implements ICell {
@@ -139,7 +138,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 	}
 
 	async createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<MainThreadCell | undefined> {
-		let cell = await this._proxy.$createRawCell(viewType, uri, index, language, type);
+		let cell = await this._proxy.$createEmptyCell(viewType, uri, index, language, type);
 		if (cell) {
 			let mainCell = new MainThreadCell(cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
 			this._mapping.set(cell.handle, mainCell);
@@ -231,8 +230,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			controller.createNotebookDocument(handle, viewType, resource);
 		}
 
-		// let document = new MainThreadNotebookDocument(this._proxy, handle, viewType, URI.revive(resource));
-		// this._documents.set(handle, document);
 		return;
 	}
 
@@ -244,15 +241,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async $updateNotebookCell(viewType: string, resource: UriComponents, cell: ICell, renderers: number[]): Promise<void> {
-		let controller = this._notebookProviders.get(viewType);
-
-		if (controller) {
-			controller.updateNotebookCell(resource, cell, renderers);
-		}
-
-	}
-
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
@@ -261,21 +249,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	// async $updateNotebook(viewType: string, resource: UriComponents, notebook: INotebookDto): Promise<void> {
-	// 	let controller = this._notebookProviders.get(viewType);
-
-	// 	if (controller) {
-	// 		controller.updateNotebook(resource, notebook);
-	// 	}
-	// }
-
 	async resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
 		let handle = await this._proxy.$resolveNotebook(viewType, uri);
 		return handle;
 	}
 
-	executeNotebook(viewType: string, uri: URI): Promise<void> {
-		return this._proxy.$executeNotebook(viewType, uri);
+	async executeNotebook(viewType: string, uri: URI): Promise<void> {
+		return this._proxy.$executeNotebook(viewType, uri, undefined);
 	}
 }
 
@@ -317,63 +297,40 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	updateNotebook(resource: UriComponents, notebook: INotebook): void {
-		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
-
-		if (mainthreadNotebook) {
-			mainthreadNotebook.updateCells(notebook.cells);
-		}
+		let document = this._mapping.get(URI.from(resource).toString());
+		document?.updateCells(notebook.cells);
 	}
 
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());
-
-		if (document) {
-			document.updateLanguages(languages);
-		}
+		document?.updateLanguages(languages);
 	}
 
 	updateNotebookCells(resource: UriComponents, cells: ICell[], renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
-
-		if (document) {
-			document.updateRenderers(renderers);
-			document.updateCells(cells);
-		}
+		document?.updateRenderers(renderers);
+		document?.updateCells(cells);
 	}
 
 	updateNotebookCell(resource: UriComponents, cell: ICell, renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
-
-		if (document) {
-			document.updateRenderers(renderers);
-			document.updateCell(cell);
-		}
+		document?.updateRenderers(renderers);
+		document?.updateCell(cell);
 	}
 
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
-
-		if (document) {
-			document.updateRenderers(renderers);
-		}
+		document?.updateRenderers(renderers);
 	}
 
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-
-		if (mainthreadNotebook) {
-			mainthreadNotebook.updateActiveCell(cellHandle);
-		}
+		mainthreadNotebook?.updateActiveCell(cellHandle);
 	}
 
 	async createRawCell(uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-
-		if (mainthreadNotebook) {
-			return mainthreadNotebook.createRawCell(this._viewType, uri, index, language, type);
-		}
-
-		return;
+		return mainthreadNotebook?.createRawCell(this._viewType, uri, index, language, type);
 	}
 
 	async deleteCell(uri: URI, index: number): Promise<boolean> {
@@ -390,23 +347,25 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook && mainthreadNotebook.activeCell) {
-			this._proxy.$executeNotebookCell(this._viewType, uri, mainthreadNotebook.activeCell.handle);
+			this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.activeCell.handle);
 		}
 	}
 
-	async latexRenderer(value: string): Promise<IMarkdownString | undefined> {
-		return this._proxy.$latexRenderer(this._viewType, value);
-	}
+	// async latexRenderer(value: string): Promise<IMarkdownString | undefined> {
+	// 	return this._proxy.$latexRenderer(this._viewType, value);
+	// }
 
 	async destoryNotebookDocument(notebook: INotebook): Promise<void> {
-		let mainthreadNotebook = this._mapping.get(URI.from(notebook.uri).toString());
+		let document = this._mapping.get(URI.from(notebook.uri).toString());
 
-		if (mainthreadNotebook) {
-			let removeFromExtHost = await this._proxy.$destoryNotebookDocument(this._viewType, notebook.uri);
-			if (removeFromExtHost) {
-				mainthreadNotebook.dispose();
-				this._mapping.delete(URI.from(notebook.uri).toString());
-			}
+		if (!document) {
+			return;
+		}
+
+		let removeFromExtHost = await this._proxy.$destoryNotebookDocument(this._viewType, notebook.uri);
+		if (removeFromExtHost) {
+			document.dispose();
+			this._mapping.delete(URI.from(notebook.uri).toString());
 		}
 	}
 }

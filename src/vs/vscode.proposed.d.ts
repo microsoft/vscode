@@ -1399,6 +1399,7 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 		languages: string[];
 		cells: NotebookCell[];
+		displayOrder?: GlobPattern[];
 	}
 
 	export interface NotebookEditor {
@@ -1411,7 +1412,6 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookProvider {
-		displayOrder?: GlobPattern[];
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;

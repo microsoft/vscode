@@ -649,9 +649,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
-	// $updateNotebook(viewType: string, resource: UriComponents, notebook: INotebookDto): Promise<void>;
 	$updateNotebookCells(viewType: string, resource: UriComponents, cells: ICellDto[], renderers: number[]): Promise<void>;
-	$updateNotebookCell(viewType: string, resource: UriComponents, cell: ICellDto, renderers: number[]): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 }
 
@@ -1475,10 +1473,9 @@ export interface ExtHostCommentsShape {
 
 export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
-	$executeNotebook(viewType: string, uri: UriComponents): Promise<void>;
-	$executeNotebookCell(viewType: string, uri: UriComponents, cellHandle: number): Promise<void>;
-	$latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
-	$createRawCell(viewType: string, uri: UriComponents, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined>;
+	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
+	// $latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
+	$createEmptyCell(viewType: string, uri: UriComponents, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined>;
 	$deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;

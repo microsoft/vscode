@@ -59,9 +59,19 @@ export class Cell {
 export class JupyterNotebook {
 	public mapping: Map<number, any> = new Map();
 	private preloadScript = false;
+	private _displayOrders = [
+		'application/json',
+		'application/javascript',
+		'text/html',
+		'image/svg+xml',
+		'text/markdown',
+		'image/svg+xml',
+		'image/png',
+		'image/jpeg',
+		'text/plain'
+	];
 	constructor(
 		private _extensionPath: string,
-		public document: vscode.NotebookDocument,
 		editor: vscode.NotebookEditor,
 		public notebookJSON: any,
 		private fillOutputs: boolean
@@ -228,7 +238,7 @@ export class NotebookProvider implements vscode.NotebookProvider {
 					}]
 				};
 			}
-			let jupyterNotebook = new JupyterNotebook(this._extensionPath, editor.document, editor, json, this.fillOutputs);
+			let jupyterNotebook = new JupyterNotebook(this._extensionPath, editor, json, this.fillOutputs);
 			this._notebooks.set(editor.document.uri.toString(), jupyterNotebook);
 		} catch {
 

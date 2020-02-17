@@ -117,14 +117,14 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 					});
 				}
 
-				this._proxy.$updateNotebookCell(this.viewType, this.uri, {
+				this._proxy.$updateNotebookCells(this.viewType, this.uri, [{
 					handle: cell.handle,
 					source: cell.source,
 					language: cell.language,
 					cell_type: cell.cell_type,
 					outputs: outputs,
 					isDirty: false
-				}, Array.from(renderers));
+				}], Array.from(renderers));
 			}));
 		});
 	}
@@ -138,6 +138,16 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	set languages(newLanguages: string[]) {
 		this._languages = newLanguages;
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
+	}
+
+	private _displayOrder: vscode.GlobPattern[] = [];
+
+	get displayOrder() {
+		return this._displayOrder;
+	}
+
+	set displayOrder(newOrder: vscode.GlobPattern[]) {
+		this._displayOrder = newOrder;
 	}
 
 	constructor(
@@ -184,7 +194,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, cells, Array.from(renderers));
 	}
 
-	insertRawCell(index: number, cell: ExtHostCell) {
+	insertCell(index: number, cell: ExtHostCell) {
 		this.cells.splice(index, 0, cell);
 
 		if (!this._cellDisposableMapping.has(cell.handle)) {
@@ -209,14 +219,14 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 				});
 			}
 
-			this._proxy.$updateNotebookCell(this.viewType, this.uri, {
+			this._proxy.$updateNotebookCells(this.viewType, this.uri, [{
 				handle: cell.handle,
 				source: cell.source,
 				language: cell.language,
 				cell_type: cell.cell_type,
 				outputs: outputs,
 				isDirty: false
-			}, Array.from(renderers));
+			}], Array.from(renderers));
 		}));
 	}
 
@@ -233,7 +243,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		return true;
 	}
 
-	getActiveCell(cellHandle: number) {
+	getCell(cellHandle: number) {
 		return this.cells.find(cell => cell.handle === cellHandle);
 	}
 
@@ -448,11 +458,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			let editor = new ExtHostNotebookEditor(
 				viewType,
-				// this._proxy,
 				`${ExtHostNotebookController._handlePool++}`,
 				URI.revive(uri),
 				this._documents.get(URI.revive(uri).toString())!,
-				// this._documentsProxy,
 				this._documentsAndEditors
 			);
 
@@ -465,41 +473,35 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return Promise.resolve(undefined);
 	}
 
-	async $executeNotebook(viewType: string, uri: UriComponents): Promise<void> {
+	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
-		if (provider) {
-			let document = this._documents.get(URI.revive(uri).toString());
-
-			return provider.provider.executeCell(document!, undefined);
-		}
-	}
-
-	async $executeNotebookCell(viewType: string, uri: UriComponents, cellHandle: number): Promise<void> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			let document = this._documents.get(URI.revive(uri).toString());
-			let cell = document?.getActiveCell(cellHandle);
-
-			if (cell) {
-				return provider.provider.executeCell(document!, cell!);
-			}
-		}
-	}
-
-	async $latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider && provider.provider.latexRenderer) {
-			let res = await provider.provider.latexRenderer(value);
-			return extHostTypeConverter.MarkdownString.from(res);
+		if (!provider) {
+			return;
 		}
 
-		return;
+		let document = this._documents.get(URI.revive(uri).toString());
+
+		if (!document) {
+			return;
+		}
+
+		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+		return provider.provider.executeCell(document!, cell);
 	}
 
-	async $createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
+	// async $latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
+	// 	let provider = this._notebookProviders.get(viewType);
+
+	// 	if (provider && provider.provider.latexRenderer) {
+	// 		let res = await provider.provider.latexRenderer(value);
+	// 		return extHostTypeConverter.MarkdownString.from(res);
+	// 	}
+
+	// 	return;
+	// }
+
+	async $createEmptyCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -507,7 +509,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let document = this._documents.get(URI.revive(uri).toString());
 
 			let rawCell = editor?.createCell('', language, type, []) as ExtHostCell;
-			document?.insertRawCell(index, rawCell!);
+			document?.insertCell(index, rawCell!);
 			return {
 				handle: rawCell.handle,
 				source: rawCell.source,

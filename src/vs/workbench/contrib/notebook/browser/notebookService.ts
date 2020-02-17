@@ -51,7 +51,7 @@ export interface IMainNotebookController {
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
 	destoryNotebookDocument(notebook: INotebook): Promise<void>;
-	latexRenderer(value: string): Promise<IMarkdownString | undefined>;
+	// latexRenderer(value: string): Promise<IMarkdownString | undefined>;
 }
 
 export interface INotebookService {
@@ -72,7 +72,7 @@ export interface INotebookService {
 	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean>;
 	destoryNotebookDocument(viewType: string, notebook: INotebook): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
-	latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
+	// latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
 }
 
 export class NotebookInfoStore {
@@ -258,15 +258,15 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._onDidChangeActiveEditor.fire({ viewType, uri: resource });
 	}
 
-	async latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
-		let provider = this._notebookProviders.get(viewType);
+	// async latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
+	// 	let provider = this._notebookProviders.get(viewType);
 
-		if (provider) {
-			return provider.controller.latexRenderer(value);
-		}
+	// 	if (provider) {
+	// 		return provider.controller.latexRenderer(value);
+	// 	}
 
-		return;
-	}
+	// 	return;
+	// }
 
 	private _onWillDispose(model: INotebook): void {
 		let modelId = MODEL_ID(model.uri);
