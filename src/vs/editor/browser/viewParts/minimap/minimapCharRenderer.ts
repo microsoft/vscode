@@ -39,7 +39,8 @@ export class MinimapCharRenderer {
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
 		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		if (dx + charWidth > target.width || dy + charHeight > target.height) {
+		const renderHeight = (force1pxHeight ? 1 : charHeight);
+		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
@@ -61,7 +62,6 @@ export class MinimapCharRenderer {
 		let sourceOffset = charIndex * charWidth * charHeight;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		const renderHeight = (force1pxHeight ? 1 : charHeight);
 		for (let y = 0; y < renderHeight; y++) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
