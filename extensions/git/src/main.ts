@@ -175,6 +175,7 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 		console.warn(err.message);
 		outputChannel.appendLine(err.message);
 
+		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();
 
 		return new GitExtensionImpl();

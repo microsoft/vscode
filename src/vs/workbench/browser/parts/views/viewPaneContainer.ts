@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -60,6 +60,88 @@ export interface IViewPaneOptions extends IPaneOptions {
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
+interface IItem {
+	readonly descriptor: IViewContentDescriptor;
+	visible: boolean;
+}
+
+class ViewWelcomeController {
+
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	private defaultItem: IItem | undefined;
+	private items: IItem[] = [];
+	get contents(): IViewContentDescriptor[] {
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.defaultItem) {
+			return [this.defaultItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
+	}
+
+	private contextKeyService: IContextKeyService;
+	private disposables = new DisposableStore();
+
+	constructor(
+		private id: string,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this.contextKeyService = contextKeyService.createScoped();
+		this.disposables.add(this.contextKeyService);
+
+		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
+		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.onDidChangeViewWelcomeContent();
+	}
+
+	private onDidChangeViewWelcomeContent(): void {
+		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+
+		this.items = [];
+
+		for (const descriptor of descriptors) {
+			if (descriptor.when === 'default') {
+				this.defaultItem = { descriptor, visible: true };
+			} else {
+				const visible = descriptor.when ? this.contextKeyService.contextMatchesRules(descriptor.when) : true;
+				this.items.push({ descriptor, visible });
+			}
+		}
+
+		this._onDidChange.fire();
+	}
+
+	private onDidChangeContext(): void {
+		let didChange = false;
+
+		for (const item of this.items) {
+			if (!item.descriptor.when || item.descriptor.when === 'default') {
+				continue;
+			}
+
+			const visible = this.contextKeyService.contextMatchesRules(item.descriptor.when);
+
+			if (item.visible === visible) {
+				continue;
+			}
+
+			item.visible = visible;
+			didChange = true;
+		}
+
+		if (didChange) {
+			this._onDidChange.fire();
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
+}
+
 export abstract class ViewPane extends Pane implements IView {
 
 	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
@@ -76,8 +158,8 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	protected _onDidChangeEmptyState = this._register(new Emitter<void>());
-	readonly onDidChangeEmptyState: Event<void> = this._onDidChangeEmptyState.event;
+	protected _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
+	readonly onDidChangeViewWelcomeState: Event<void> = this._onDidChangeViewWelcomeState.event;
 
 	private focusedViewContextKey: IContextKey<string>;
 
@@ -95,8 +177,9 @@ export abstract class ViewPane extends Pane implements IView {
 	protected twistiesContainer?: HTMLElement;
 
 	private bodyContainer!: HTMLElement;
-	private emptyViewContainer!: HTMLElement;
-	private emptyViewDisposable: IDisposable = Disposable.None;
+	private viewWelcomeContainer!: HTMLElement;
+	private viewWelcomeDisposable: IDisposable = Disposable.None;
+	private viewWelcomeController: ViewWelcomeController;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -119,6 +202,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+
+		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -206,18 +291,15 @@ export abstract class ViewPane extends Pane implements IView {
 
 	protected renderBody(container: HTMLElement): void {
 		this.bodyContainer = container;
-		this.emptyViewContainer = append(container, $('.empty-view', { tabIndex: 0 }));
+		this.viewWelcomeContainer = append(container, $('.welcome-view', { tabIndex: 0 }));
 
-		// we should update our empty state whenever
-		const onEmptyViewContentChange = Event.any(
-			// the registry changes
-			Event.map(Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id), () => this.isEmpty()),
-			// or the view's empty state changes
-			Event.latch(Event.map(this.onDidChangeEmptyState, () => this.isEmpty()))
-		);
+		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
+		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
+		this.updateViewWelcome();
+	}
 
-		this._register(onEmptyViewContentChange(this.updateEmptyState, this));
-		this.updateEmptyState(this.isEmpty());
+	protected layoutBody(height: number, width: number): void {
+		// noop
 	}
 
 	protected getProgressLocation(): string {
@@ -286,26 +368,26 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private updateEmptyState(isEmpty: boolean): void {
-		this.emptyViewDisposable.dispose();
+	private updateViewWelcome(): void {
+		this.viewWelcomeDisposable.dispose();
 
-		if (!isEmpty) {
-			removeClass(this.bodyContainer, 'empty');
-			this.emptyViewContainer.innerHTML = '';
+		if (!this.shouldShowWelcome()) {
+			removeClass(this.bodyContainer, 'welcome');
+			this.viewWelcomeContainer.innerHTML = '';
 			return;
 		}
 
-		const contents = viewsRegistry.getEmptyViewContent(this.id);
+		const contents = this.viewWelcomeController.contents;
 
 		if (contents.length === 0) {
-			removeClass(this.bodyContainer, 'empty');
-			this.emptyViewContainer.innerHTML = '';
+			removeClass(this.bodyContainer, 'welcome');
+			this.viewWelcomeContainer.innerHTML = '';
 			return;
 		}
 
 		const disposables = new DisposableStore();
-		addClass(this.bodyContainer, 'empty');
-		this.emptyViewContainer.innerHTML = '';
+		addClass(this.bodyContainer, 'welcome');
+		this.viewWelcomeContainer.innerHTML = '';
 
 		for (const { content } of contents) {
 			const lines = content.split('\n');
@@ -317,7 +399,7 @@ export abstract class ViewPane extends Pane implements IView {
 					continue;
 				}
 
-				const p = append(this.emptyViewContainer, $('p'));
+				const p = append(this.viewWelcomeContainer, $('p'));
 				const linkedText = parseLinkedText(line);
 
 				for (const node of linkedText) {
@@ -339,10 +421,10 @@ export abstract class ViewPane extends Pane implements IView {
 			}
 		}
 
-		this.emptyViewDisposable = disposables;
+		this.viewWelcomeDisposable = disposables;
 	}
 
-	isEmpty(): boolean {
+	shouldShowWelcome(): boolean {
 		return false;
 	}
 }
