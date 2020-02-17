@@ -712,6 +712,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 
 		this.onDidSelectEmitter.fire({ item, index, model: completionModel });
+		this.editor.setAriaOptions({ ariaLabel: undefined });
 		this.editor.focus();
 	}
 

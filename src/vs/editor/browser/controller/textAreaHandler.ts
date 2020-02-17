@@ -456,6 +456,13 @@ export class TextAreaHandler extends ViewPart {
 			this.textArea.setAttribute('aria-autocomplete', 'both');
 			this.textArea.removeAttribute('aria-activedescendant');
 		}
+		if (options.ariaLabel) {
+			this.textArea.setAttribute('aria-label', options.ariaLabel);
+		} else {
+			this.textArea.setAttribute('aria-haspopup', 'false');
+			this.textArea.setAttribute('aria-autocomplete', 'both');
+			this.textArea.removeAttribute('aria-label');
+		}
 	}
 
 	// --- end view API

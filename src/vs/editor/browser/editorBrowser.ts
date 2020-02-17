@@ -332,7 +332,8 @@ export interface IOverviewRuler {
  * @internal
  */
 export interface IEditorAriaOptions {
-	activeDescendant: string | undefined;
+	activeDescendant?: string | undefined;
+	ariaLabel?: string | undefined;
 }
 
 /**
