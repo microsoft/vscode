@@ -402,10 +402,10 @@ export abstract class ViewPane extends Pane implements IView {
 				const p = append(this.viewWelcomeContainer, $('p'));
 				const linkedText = parseLinkedText(line);
 
-				for (const node of linkedText) {
+				for (const node of linkedText.nodes) {
 					if (typeof node === 'string') {
 						append(p, document.createTextNode(node));
-					} else if (linkedText.length === 1) {
+					} else if (linkedText.nodes.length === 1) {
 						const button = new Button(p, { title: node.title });
 						button.label = node.label;
 						button.onDidClick(_ => this.openerService.open(node.href), null, disposables);
