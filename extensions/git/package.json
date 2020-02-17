@@ -750,11 +750,6 @@
       ],
       "scm/title": [
         {
-          "command": "git.init",
-          "group": "navigation",
-          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0 && workspaceFolderCount != 0"
-        },
-        {
           "command": "git.commit",
           "group": "navigation",
           "when": "scmProvider == git"
@@ -1811,7 +1806,34 @@
           72
         ]
       }
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.disabled%",
+        "when": "!config.git.enabled"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.missing%",
+        "when": "config.git.enabled && git.missing"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.empty%",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.folder%",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder"
+      },
+      {
+        "view": "workbench.scm",
+        "contents": "%view.workbench.scm.workspace%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace"
+      }
+    ]
   },
   "dependencies": {
     "byline": "^5.0.0",
