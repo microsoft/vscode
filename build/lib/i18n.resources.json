@@ -63,10 +63,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/documentation",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
