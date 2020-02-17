@@ -274,6 +274,15 @@ export class LanguageConfigurationRegistryImpl {
 		return ensureValidWordDefinition(value.wordDefinition || null);
 	}
 
+	public getWordDefinitions(): [LanguageId, RegExp][] {
+		const languages = this._entries.keys();
+		let result: [LanguageId, RegExp][] = [];
+		for (const language of languages) {
+			result.push([language, this._entries.get(language)!.wordDefinition]);
+		}
+		return result;
+	}
+
 	public getFoldingRules(languageId: LanguageId): FoldingRules {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
