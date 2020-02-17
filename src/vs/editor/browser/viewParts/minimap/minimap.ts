@@ -1666,6 +1666,7 @@ class InnerMinimap extends Disposable {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
 		const maxDx = target.width - charWidth;
+		const force1pxHeight = (minimapLineHeight === 1);
 
 		let dx = MINIMAP_GUTTER_WIDTH;
 		let charIndex = 0;
@@ -1697,9 +1698,9 @@ class InnerMinimap extends Disposable {
 
 					for (let i = 0; i < count; i++) {
 						if (renderMinimap === RenderMinimap.Blocks) {
-							minimapCharRenderer.blockRenderChar(target, dx, dy + innerLinePadding, tokenColor, backgroundColor, useLighterFont);
+							minimapCharRenderer.blockRenderChar(target, dx, dy + innerLinePadding, tokenColor, backgroundColor, useLighterFont, force1pxHeight);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy + innerLinePadding, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, minimapLineHeight === 1);
+							minimapCharRenderer.renderChar(target, dx, dy + innerLinePadding, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, force1pxHeight);
 						}
 
 						dx += charWidth;
