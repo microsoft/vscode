@@ -68,7 +68,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		let viewType: string | undefined = undefined;
 
 		if (resource) {
-			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource!);
 
 			if (notebookProviders.length > 0) {
 				viewType = notebookProviders[0].id;

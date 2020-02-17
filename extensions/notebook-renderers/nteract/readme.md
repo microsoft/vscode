@@ -300,6 +300,8 @@ With above list
 
 - priority list 
 - renders for custom mimetypes  --> primitives
+  - *!* strongly typed output. Currently output is `any`, but we can define a fixed list of mimetypes which can be rendered in the core
+
 - renders for primitives (initially provided by the core)
 
 
@@ -307,7 +309,6 @@ With above list
 # MISC
 
 - preload resources types: (script, css, font?)
-- strongly typed output. Currently output is `any`, but we can define a fixed list of mimetypes which can be rendered in the core
 - kernel adapter -- local/remote runtime
 - perf
   - forced reflow in `CodeEditorWidget.ContentWidget` https://github.com/microsoft/vscode/blob/20f4cbf4b6e585a15751effe59ab40e180d11b43/src/vs/editor/browser/viewParts/contentWidgets/contentWidgets.ts#L437-L441

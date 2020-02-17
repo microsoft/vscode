@@ -312,12 +312,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.updateCells(cells);
 	}
 
-	updateNotebookCell(resource: UriComponents, cell: ICell, renderers: number[]): void {
-		let document = this._mapping.get(URI.from(resource).toString());
-		document?.updateRenderers(renderers);
-		document?.updateCell(cell);
-	}
-
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.updateRenderers(renderers);
@@ -350,10 +344,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.activeCell.handle);
 		}
 	}
-
-	// async latexRenderer(value: string): Promise<IMarkdownString | undefined> {
-	// 	return this._proxy.$latexRenderer(this._viewType, value);
-	// }
 
 	async destoryNotebookDocument(notebook: INotebook): Promise<void> {
 		let document = this._mapping.get(URI.from(notebook.uri).toString());

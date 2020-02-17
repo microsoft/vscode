@@ -36,7 +36,7 @@ export class ExecuteNotebookCellAction extends Action {
 		let resource = this.editorService.activeEditor?.getResource();
 
 		if (resource) {
-			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource!);
 
 			if (notebookProviders.length > 0) {
 				let viewType = notebookProviders[0].id;
@@ -64,7 +64,7 @@ export class ExecuteNotebookAction extends Action {
 		let resource = this.editorService.activeEditor?.getResource();
 
 		if (resource) {
-			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource!);
 
 			if (notebookProviders.length > 0) {
 				let viewType = notebookProviders[0].id;
@@ -95,7 +95,7 @@ export class QuitNotebookEditAction extends Action {
 		let editorControl = this.editorService.activeControl;
 
 		if (resource && editorControl) {
-			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource!);
 
 			if (notebookProviders.length > 0) {
 				let editorViewType = (editorControl! as NotebookEditor).viewType;
@@ -132,7 +132,7 @@ export class EditNotebookCellAction extends Action {
 		let editorControl = this.editorService.activeControl;
 
 		if (resource && editorControl) {
-			let notebookProviders = this.notebookService.getContributedNotebook(resource!);
+			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource!);
 
 			if (notebookProviders.length > 0) {
 				let editorViewType = (editorControl! as NotebookEditor).viewType;

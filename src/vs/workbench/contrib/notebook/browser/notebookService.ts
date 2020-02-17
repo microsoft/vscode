@@ -51,7 +51,6 @@ export interface IMainNotebookController {
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
 	destoryNotebookDocument(notebook: INotebook): Promise<void>;
-	// latexRenderer(value: string): Promise<IMarkdownString | undefined>;
 }
 
 export interface INotebookService {
@@ -65,14 +64,13 @@ export interface INotebookService {
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
-	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[];
+	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
 	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
 	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean>;
 	destoryNotebookDocument(viewType: string, notebook: INotebook): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
-	// latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
 }
 
 export class NotebookInfoStore {
@@ -233,7 +231,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 	}
 
-	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
+	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[] {
 		return this.notebookProviderInfoStore.getContributedNotebook(resource);
 	}
 
