@@ -10,9 +10,8 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { startsWith } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
 import { find, equals } from 'vs/base/common/arrays';
+import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
 
 export interface INotificationsModel {
 
@@ -393,17 +392,12 @@ export interface IMessageLink {
 export interface INotificationMessage {
 	raw: string;
 	original: NotificationMessage;
-	value: string;
-	links: IMessageLink[];
+	linkedText: LinkedText;
 }
 
 export class NotificationViewItem extends Disposable implements INotificationViewItem {
 
 	private static readonly MAX_MESSAGE_LENGTH = 1000;
-
-	// Example link: "Some message with [link text](http://link.href)."
-	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
-	private static readonly LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
 
 	private _expanded: boolean | undefined;
 
@@ -469,23 +463,9 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		message = message.replace(/(\r\n|\n|\r)/gm, ' ').trim();
 
 		// Parse Links
-		const links: IMessageLink[] = [];
-		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, title: string, offset: number) => {
-			let massagedTitle: string;
-			if (title && title.length > 0) {
-				massagedTitle = title;
-			} else if (startsWith(href, 'command:')) {
-				massagedTitle = localize('executeCommand', "Click to execute command '{0}'", href.substr('command:'.length));
-			} else {
-				massagedTitle = href;
-			}
+		const linkedText = parseLinkedText(message);
 
-			links.push({ name, href, title: massagedTitle, offset, length: matchString.length });
-
-			return matchString;
-		});
-
-		return { raw, value: message, links, original: input };
+		return { raw, linkedText, original: input };
 	}
 
 	private constructor(
@@ -649,7 +629,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		if (this._message.value !== other.message.value) {
+		if (this._message.raw !== other.message.raw) {
 			return false;
 		}
 
