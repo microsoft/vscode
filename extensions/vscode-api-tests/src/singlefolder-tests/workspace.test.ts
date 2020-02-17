@@ -215,13 +215,6 @@ suite('workspace-namespace', () => {
 	});
 
 	test('eol, change via onWillSave', async function () {
-		if (vscode.env.uiKind === vscode.UIKind.Web) {
-			// TODO@Jo Test seems to fail when running in web due to
-			// onWillSaveTextDocument not getting called
-			this.skip();
-			return;
-		}
-
 		let called = false;
 		let sub = vscode.workspace.onWillSaveTextDocument(e => {
 			called = true;

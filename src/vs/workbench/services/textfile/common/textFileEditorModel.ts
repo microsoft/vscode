@@ -616,7 +616,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.textEditorModel.pushStackElement();
 		}
 
-		const saveParticipantCancellation = new CancellationTokenSource();
+		const saveCancellation = new CancellationTokenSource();
 
 		return this.saveSequentializer.setPending(versionId, (async () => {
 
@@ -625,12 +625,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// In addition we update our version right after in case it changed because of a model change
 			//
 			// Save participants can also be skipped through API.
-			if (this.isResolved() && this.textFileService.saveParticipant && !options.skipSaveParticipants) {
+			if (this.isResolved() && !options.skipSaveParticipants) {
 				try {
-					await this.textFileService.saveParticipant.participate(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveParticipantCancellation.token);
+					await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
 				} catch (error) {
-					// Ignore
+					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString());
 				}
+			}
+
+			// It is possible that a subsequent save is cancelling this
+			// running save. As such we return early when we detect that
+			// However, we do not pass the token into the file service
+			// because that is an atomic operation currently without
+			// cancellation support, so we dispose the cancellation if
+			// it was not cancelled yet.
+			if (saveCancellation.token.isCancellationRequested) {
+				return;
+			} else {
+				saveCancellation.dispose();
 			}
 
 			// We have to protect against being disposed at this point. It could be that the save() operation
@@ -687,7 +699,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.handleSaveError(error, versionId, options);
 				}
 			})());
-		})(), () => saveParticipantCancellation.cancel());
+		})(), () => saveCancellation.cancel());
 	}
 
 	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: ITextFileSaveOptions): void {

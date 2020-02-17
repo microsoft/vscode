@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, IModelLoadOrCreateOptions, ITextFileModelLoadEvent, ITextFileModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, IModelLoadOrCreateOptions, ITextFileModelLoadEvent, ITextFileModelSaveEvent, ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -15,6 +15,9 @@ import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { ResourceQueue } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
+import { SaveReason } from 'vs/workbench/common/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -226,6 +229,20 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			this.mapResourceToModelListeners.delete(resource);
 		}
 	}
+
+	//#region Save participants
+
+	private readonly saveParticipants = this._register(this.instantiationService.createInstance(TextFileSaveParticipant));
+
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
+		return this.saveParticipants.addSaveParticipant(participant);
+	}
+
+	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+		return this.saveParticipants.participate(model, context, token);
+	}
+
+	//#endregion
 
 	clear(): void {
 
