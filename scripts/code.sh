@@ -50,7 +50,7 @@ function code() {
 	export VSCODE_LOGS=
 
 	# Launch Code
-	exec "$CODE" . "$@"
+	exec "$CODE" . --no-sandbox "$@"
 }
 
 function code-wsl()

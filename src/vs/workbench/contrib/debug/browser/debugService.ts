@@ -117,7 +117,6 @@ export class DebugService implements IDebugService {
 
 		this.model = new DebugModel(this.loadBreakpoints(), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadDataBreakpoints(), this.loadWatchExpressions(), this.textFileService);
-		this.toDispose.push(this.model);
 		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
 		this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		setBreakpointsExistContext();
@@ -126,7 +125,7 @@ export class DebugService implements IDebugService {
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.toDispose.push(this.lifecycleService.onShutdown(this.dispose, this));
 
 		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {
 			const session = this.model.getSession(event.sessionId, true);
@@ -522,7 +521,6 @@ export class DebugService implements IDebugService {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {
-			session.shutdown();
 			if (this.viewModel.focusedSession === session) {
 				await this.focusStackFrame(undefined);
 			}
@@ -567,7 +565,6 @@ export class DebugService implements IDebugService {
 					this.notificationService.error(err);
 				}
 			}
-			session.shutdown();
 			this.endInitializingState();
 			this._onDidEndSession.fire(session);
 

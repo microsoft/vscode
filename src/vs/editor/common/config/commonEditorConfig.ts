@@ -287,6 +287,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	public options!: ComputedEditorOptions;
 
 	private _isDominatedByLongLines: boolean;
+	private _maxLineNumber: number;
 	private _lineNumbersDigitCount: number;
 
 	private _rawOptions: IEditorOptions;
@@ -298,6 +299,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		this.isSimpleWidget = isSimpleWidget;
 
 		this._isDominatedByLongLines = false;
+		this._maxLineNumber = 1;
 		this._lineNumbersDigitCount = 1;
 
 		this._rawOptions = deepCloneAndMigrateOptions(_options);
@@ -347,6 +349,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 			fontInfo: this.readConfiguration(bareFontInfo),
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
+			maxLineNumber: this._maxLineNumber,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
@@ -405,11 +408,11 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
-		let digitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
-		if (this._lineNumbersDigitCount === digitCount) {
+		if (this._maxLineNumber === maxLineNumber) {
 			return;
 		}
-		this._lineNumbersDigitCount = digitCount;
+		this._maxLineNumber = maxLineNumber;
+		this._lineNumbersDigitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
 		this._recomputeOptions();
 	}
 
