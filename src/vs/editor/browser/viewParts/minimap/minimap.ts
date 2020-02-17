@@ -174,6 +174,7 @@ class MinimapLayout {
 	*/
 	public readonly scrollHeight: number;
 
+	public readonly sliderNeeded: boolean;
 	private readonly _computedSliderRatio: number;
 
 	/**
@@ -197,6 +198,7 @@ class MinimapLayout {
 	constructor(
 		scrollTop: number,
 		scrollHeight: number,
+		sliderNeeded: boolean,
 		computedSliderRatio: number,
 		sliderTop: number,
 		sliderHeight: number,
@@ -205,6 +207,7 @@ class MinimapLayout {
 	) {
 		this.scrollTop = scrollTop;
 		this.scrollHeight = scrollHeight;
+		this.sliderNeeded = sliderNeeded;
 		this._computedSliderRatio = computedSliderRatio;
 		this.sliderTop = sliderTop;
 		this.sliderHeight = sliderHeight;
@@ -252,7 +255,8 @@ class MinimapLayout {
 			// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
 			const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
 			const sliderTop = (scrollTop * computedSliderRatio);
-			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, 1, lineCount);
+			const sliderNeeded = (maxMinimapSliderTop > 0);
+			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, 1, lineCount);
 		}
 
 		// The visible line count in a viewport can change due to a number of reasons:
@@ -301,8 +305,8 @@ class MinimapLayout {
 			// All lines fit in the minimap
 			const startLineNumber = 1;
 			const endLineNumber = lineCount;
-
-			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			const sliderNeeded = (maxMinimapSliderTop > 0);
+			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
 		} else {
 			let startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
 
@@ -321,7 +325,7 @@ class MinimapLayout {
 
 			const endLineNumber = Math.min(lineCount, startLineNumber + minimapLinesFitting - 1);
 
-			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
 		}
 	}
 }
@@ -1321,6 +1325,7 @@ class InnerMinimap extends Disposable {
 			renderingCtx.scrollHeight,
 			this._lastRenderData ? this._lastRenderData.renderedLayout : null
 		);
+		this._slider.setDisplay(layout.sliderNeeded ? 'block' : 'none');
 		this._slider.setTop(layout.sliderTop);
 		this._slider.setHeight(layout.sliderHeight);
 
