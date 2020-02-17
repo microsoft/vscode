@@ -76,6 +76,8 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
+	readonly affectsMinimap: boolean;
+	readonly affectsOverviewRuler: boolean;
 }
 
 /**

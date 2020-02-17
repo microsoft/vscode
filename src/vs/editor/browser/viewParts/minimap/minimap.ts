@@ -781,7 +781,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return this._actual.onSelectionChanged();
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return this._actual.onDecorationsChanged();
+		if (e.affectsMinimap) {
+			return this._actual.onDecorationsChanged();
+		}
+		return false;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return this._actual.onFlushed();
