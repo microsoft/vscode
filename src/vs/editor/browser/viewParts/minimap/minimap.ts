@@ -1101,6 +1101,15 @@ class InnerMinimap extends Disposable {
 			if (!this._lastRenderData) {
 				return;
 			}
+			if (this._model.options.minimapHeightIsEditorHeight) {
+				if (e.leftButton && this._lastRenderData) {
+					// pretend the click occured in the center of the slider
+					const position = dom.getDomNodePagePosition(this._slider.domNode);
+					const initialPosY = position.top + position.height / 2;
+					this._startSliderDragging(e.buttons, e.posx, initialPosY, e.posy, this._lastRenderData.renderedLayout);
+				}
+				return;
+			}
 			const minimapLineHeight = this._model.options.minimapLineHeight;
 			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.browserEvent.offsetY;
 			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
@@ -1117,32 +1126,7 @@ class InnerMinimap extends Disposable {
 			e.preventDefault();
 			e.stopPropagation();
 			if (e.leftButton && this._lastRenderData) {
-
-				const initialMousePosition = e.posy;
-				const initialMouseOrthogonalPosition = e.posx;
-				const initialSliderState = this._lastRenderData.renderedLayout;
-				this._slider.toggleClassName('active', true);
-
-				this._sliderMouseMoveMonitor.startMonitoring(
-					e.target,
-					e.buttons,
-					standardMouseMoveMerger,
-					(mouseMoveData: IStandardMouseMoveEventData) => {
-						const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-
-						if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-							// The mouse has wondered away from the scrollbar => reset dragging
-							this._model.setScrollTop(initialSliderState.scrollTop);
-							return;
-						}
-
-						const mouseDelta = mouseMoveData.posy - initialMousePosition;
-						this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(mouseDelta));
-					},
-					() => {
-						this._slider.toggleClassName('active', false);
-					}
-				);
+				this._startSliderDragging(e.buttons, e.posx, e.posy, e.posy, this._lastRenderData.renderedLayout);
 			}
 		});
 
@@ -1171,6 +1155,37 @@ class InnerMinimap extends Disposable {
 			this._gestureInProgress = false;
 			this._slider.toggleClassName('active', false);
 		});
+	}
+
+	private _startSliderDragging(initialButtons: number, initialPosX: number, initialPosY: number, posy: number, initialSliderState: MinimapLayout): void {
+		this._slider.toggleClassName('active', true);
+
+		const handleMouseMove = (posy: number, posx: number) => {
+			const mouseOrthogonalDelta = Math.abs(posx - initialPosX);
+
+			if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+				// The mouse has wondered away from the scrollbar => reset dragging
+				this._model.setScrollTop(initialSliderState.scrollTop);
+				return;
+			}
+
+			const mouseDelta = posy - initialPosY;
+			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(mouseDelta));
+		};
+
+		if (posy !== initialPosY) {
+			handleMouseMove(posy, initialPosX);
+		}
+
+		this._sliderMouseMoveMonitor.startMonitoring(
+			this._slider.domNode,
+			initialButtons,
+			standardMouseMoveMerger,
+			(mouseMoveData: IStandardMouseMoveEventData) => handleMouseMove(mouseMoveData.posy, mouseMoveData.posx),
+			() => {
+				this._slider.toggleClassName('active', false);
+			}
+		);
 	}
 
 	private scrollDueToTouchEvent(touch: GestureEvent) {
