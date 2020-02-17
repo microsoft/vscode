@@ -261,13 +261,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async $updateNotebook(viewType: string, resource: UriComponents, notebook: INotebook): Promise<void> {
-		let controller = this._notebookProviders.get(viewType);
+	// async $updateNotebook(viewType: string, resource: UriComponents, notebook: INotebookDto): Promise<void> {
+	// 	let controller = this._notebookProviders.get(viewType);
 
-		if (controller) {
-			controller.updateNotebook(resource, notebook);
-		}
-	}
+	// 	if (controller) {
+	// 		controller.updateNotebook(resource, notebook);
+	// 	}
+	// }
 
 	async resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
 		let handle = await this._proxy.$resolveNotebook(viewType, uri);

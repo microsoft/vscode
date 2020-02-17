@@ -50,7 +50,7 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { TimelineItem, TimelineProviderDescriptor, TimelineChangeEvent, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
-import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookMimeTypeSelector, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -625,15 +625,33 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean>;
 }
 
+// export interface INotebookDto {
+// 	handle: number;
+// 	// metadata: IMetadata;
+// 	readonly uri: UriComponents;
+// 	languages: string[];
+// 	cells: ICellDto[];
+// 	renderers: Set<number>;
+// }
+
+export interface ICellDto {
+	handle: number;
+	source: string[];
+	language: string;
+	cell_type: 'markdown' | 'code';
+	outputs: IOutput[];
+	isDirty: boolean;
+}
+
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
-	$updateNotebook(viewType: string, resource: UriComponents, notebook: INotebook): Promise<void>;
-	$updateNotebookCells(viewType: string, resource: UriComponents, cells: ICell[], renderers: number[]): Promise<void>;
-	$updateNotebookCell(viewType: string, resource: UriComponents, cell: ICell, renderers: number[]): Promise<void>;
+	// $updateNotebook(viewType: string, resource: UriComponents, notebook: INotebookDto): Promise<void>;
+	$updateNotebookCells(viewType: string, resource: UriComponents, cells: ICellDto[], renderers: number[]): Promise<void>;
+	$updateNotebookCell(viewType: string, resource: UriComponents, cell: ICellDto, renderers: number[]): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 }
 
@@ -1456,15 +1474,15 @@ export interface ExtHostCommentsShape {
 }
 
 export interface ExtHostNotebookShape {
-	$resolveNotebook(viewType: string, uri: URI): Promise<number | undefined>;
-	$executeNotebook(viewType: string, uri: URI): Promise<void>;
-	$executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void>;
+	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
+	$executeNotebook(viewType: string, uri: UriComponents): Promise<void>;
+	$executeNotebookCell(viewType: string, uri: UriComponents, cellHandle: number): Promise<void>;
 	$latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
-	$createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
-	$deleteCell(viewType: string, uri: URI, index: number): Promise<boolean>;
-	$saveNotebook(viewType: string, uri: URI): Promise<boolean>;
-	$updateActiveEditor(viewType: string, uri: URI): Promise<void>;
-	$destoryNotebookDocument(viewType: string, uri: URI): Promise<boolean>;
+	$createRawCell(viewType: string, uri: UriComponents, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined>;
+	$deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean>;
+	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
+	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;
+	$destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean>;
 }
 
 export interface ExtHostStorageShape {

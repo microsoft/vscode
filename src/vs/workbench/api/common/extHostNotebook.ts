@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -431,7 +431,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
+	async $resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -450,7 +450,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				viewType,
 				// this._proxy,
 				`${ExtHostNotebookController._handlePool++}`,
-				uri,
+				URI.revive(uri),
 				this._documents.get(URI.revive(uri).toString())!,
 				// this._documentsProxy,
 				this._documentsAndEditors
@@ -465,7 +465,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return Promise.resolve(undefined);
 	}
 
-	async $executeNotebook(viewType: string, uri: URI): Promise<void> {
+	async $executeNotebook(viewType: string, uri: UriComponents): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -475,7 +475,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	async $executeNotebookCell(viewType: string, uri: URI, cellHandle: number): Promise<void> {
+	async $executeNotebookCell(viewType: string, uri: UriComponents, cellHandle: number): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -521,7 +521,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return;
 	}
 
-	async $deleteCell(viewType: string, uri: URI, index: number): Promise<boolean> {
+	async $deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -537,7 +537,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return false;
 	}
 
-	async $saveNotebook(viewType: string, uri: URI): Promise<boolean> {
+	async $saveNotebook(viewType: string, uri: UriComponents): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 		let document = this._documents.get(URI.revive(uri).toString());
 
@@ -548,7 +548,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return false;
 	}
 
-	async $updateActiveEditor(viewType: string, uri: URI): Promise<void> {
+	async $updateActiveEditor(viewType: string, uri: UriComponents): Promise<void> {
 		let document = this._documents.get(URI.revive(uri).toString());
 
 		if (document) {
@@ -558,7 +558,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	async $destoryNotebookDocument(viewType: string, uri: URI): Promise<boolean> {
+	async $destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
