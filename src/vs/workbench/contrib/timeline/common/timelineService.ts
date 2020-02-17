@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 // import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineProvider, TimelineItem, TimelineChangeEvent, TimelineProvidersChangeEvent } from './timeline';
+import { ITimelineService, TimelineChangeEvent, TimelineCursor, TimelineProvidersChangeEvent, TimelineProvider } from './timeline';
 
 export class TimelineService implements ITimelineService {
 	_serviceBrand: undefined;
@@ -81,42 +81,7 @@ export class TimelineService implements ITimelineService {
 		return [...this._providers.keys()];
 	}
 
-	async getTimeline(uri: URI, token: CancellationToken, predicate?: (provider: TimelineProvider) => boolean) {
-		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)})`);
-
-		const requests: Promise<[string, TimelineItem[]]>[] = [];
-
-		for (const provider of this._providers.values()) {
-			if (typeof provider.scheme === 'string') {
-				if (provider.scheme !== '*' && provider.scheme !== uri.scheme) {
-					continue;
-				}
-			} else if (!provider.scheme.includes(uri.scheme)) {
-				continue;
-			}
-			if (!(predicate?.(provider) ?? true)) {
-				continue;
-			}
-
-			requests.push(provider.provideTimeline(uri, token).then(p => [provider.id, p]));
-		}
-
-		const timelines = await Promise.all(requests);
-
-		const timeline = [];
-		for (const [source, items] of timelines) {
-			if (items.length === 0) {
-				continue;
-			}
-
-			timeline.push(...items.map(item => ({ ...item, source: source })));
-		}
-
-		timeline.sort((a, b) => b.timestamp - a.timestamp);
-		return timeline;
-	}
-
-	getTimelineRequest(id: string, uri: URI, tokenSource: CancellationTokenSource) {
+	getTimeline(id: string, uri: URI, cursor: TimelineCursor, tokenSource: CancellationTokenSource, options?: { cacheResults?: boolean }) {
 		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
 
 		const provider = this._providers.get(id);
@@ -133,12 +98,16 @@ export class TimelineService implements ITimelineService {
 		}
 
 		return {
-			items: provider.provideTimeline(uri, tokenSource.token)
-				.then(items => {
-					items = items.map(item => ({ ...item, source: provider.id }));
-					items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
+			result: provider.provideTimeline(uri, cursor, tokenSource.token, options)
+				.then(result => {
+					if (result === undefined) {
+						return undefined;
+					}
 
-					return items;
+					result.items = result.items.map(item => ({ ...item, source: provider.id }));
+					result.items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
+
+					return result;
 				}),
 			source: provider.id,
 			tokenSource: tokenSource,

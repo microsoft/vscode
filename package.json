@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.43.0",
-  "distro": "6bf87915eae2f87dc4194c489df2ef1505c96b9c",
+  "distro": "821d61f0e38d2eb3e02bec3962fe61e4e5a61527",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -139,7 +139,7 @@
     "opn": "^6.0.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
-    "playwright": "^0.10.0",
+    "playwright": "0.11.0",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",

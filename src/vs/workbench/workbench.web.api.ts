@@ -80,16 +80,28 @@ interface IApplicationLink {
 	uri: URI;
 
 	/**
-	 * A label for the link to display.
+	 * A label for the application link to display.
 	 */
 	label: string;
 }
 
-interface IApplicationLinkProvider {
-	(): IApplicationLink[] | undefined
+interface ICommand {
+
+	/**
+	 * An identifier for the command. Commands can be executed from extensions
+	 * using the `vscode.commands.executeCommand` API using that command ID.
+	 */
+	id: string,
+
+	/**
+	 * A function that is being executed with any arguments passed over.
+	 */
+	handler: (...args: any[]) => void;
 }
 
 interface IWorkbenchConstructionOptions {
+
+	//#region Connection related configuration
 
 	/**
 	 * The remote authority is the IP:PORT from where the workbench is served
@@ -109,6 +121,36 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * A factory for web sockets.
+	 */
+	readonly webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * A provider for resource URIs.
+	 */
+	readonly resourceUriProvider?: IResourceUriProvider;
+
+	/**
+	 * Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: IExternalUriResolver;
+
+	/**
+	 * Support for creating tunnels.
+	 */
+	readonly tunnelFactory?: ITunnelFactory;
+
+	/**
+	 * Support for filtering candidate ports
+	 */
+	readonly showCandidate?: IShowCandidate;
+
+	//#endregion
+
+
+	//#region Workbench configuration
+
+	/**
 	 * A handler for opening workspaces and providing the initial workspace.
 	 */
 	readonly workspaceProvider?: IWorkspaceProvider;
@@ -118,16 +160,6 @@ interface IWorkbenchConstructionOptions {
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
-
-	/**
-	 * A factory for web sockets.
-	 */
-	readonly webSocketFactory?: IWebSocketFactory;
-
-	/**
-	 * A provider for resource URIs.
-	 */
-	readonly resourceUriProvider?: IResourceUriProvider;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -155,21 +187,6 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
 
 	/**
-	 * Resolves an external uri before it is opened.
-	 */
-	readonly resolveExternalUri?: IExternalUriResolver;
-
-	/**
-	 * Support for creating tunnels.
-	 */
-	readonly tunnelFactory?: ITunnelFactory;
-
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowCandidate;
-
-	/**
 	 * Provide entries for the "Open in Desktop" feature.
 	 *
 	 * Depending on the returned elements the behaviour is:
@@ -179,7 +196,20 @@ interface IWorkbenchConstructionOptions {
 	 * - N elements: there will be a "Open in Desktop" affordance that opens
 	 *   a picker on click to select which application to open.
 	 */
-	readonly applicationLinkProvider?: IApplicationLinkProvider;
+	readonly applicationLinks?: readonly IApplicationLink[];
+
+	/**
+	 * A set of optional commands that should be registered with the commands
+	 * registry.
+	 *
+	 * Note: commands can be called from extensions if the identifier is known!
+	 */
+	readonly commands?: readonly ICommand[];
+
+	//#endregion
+
+
+	//#region Diagnostics
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
@@ -190,20 +220,8 @@ interface IWorkbenchConstructionOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly driver?: boolean;
-}
 
-interface ICommandHandler {
-	(...args: any[]): void;
-}
-
-interface IWorkbench {
-
-	/**
-	 * Register a command with the provided identifier and handler with
-	 * the workbench. The command can be called from extensions using the
-	 * `vscode.commands.executeCommand` API.
-	 */
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
+	//#endregion
 }
 
 /**
@@ -211,24 +229,22 @@ interface IWorkbench {
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
- *
- * @returns the workbench facade with additional methods to call on.
  */
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
 
 	// Startup workbench
 	await main(domElement, options);
 
-	// Return facade
-	return {
-		registerCommand: (id: string, command: ICommandHandler): IDisposable => {
-			return CommandsRegistry.registerCommand(id, (accessor, ...args: any[]) => {
+	// Register commands if any
+	if (Array.isArray(options.commands)) {
+		for (const command of options.commands) {
+			CommandsRegistry.registerCommand(command.id, (accessor, ...args: any[]) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
-				command(...args);
+				command.handler(...args);
 			});
 		}
-	};
+	}
 }
 
 export {
@@ -237,9 +253,6 @@ export {
 	create,
 	IWorkbenchConstructionOptions,
 
-	// Workbench Facade
-	IWorkbench,
-	ICommandHandler,
 
 	// Basic Types
 	URI,
@@ -291,5 +304,7 @@ export {
 
 	// Protocol Links
 	IApplicationLink,
-	IApplicationLinkProvider
+
+	// Commands
+	ICommand
 };

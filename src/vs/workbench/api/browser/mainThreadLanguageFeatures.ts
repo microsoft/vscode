@@ -213,6 +213,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- debug hover
+
+	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.EvaluatableExpressionProviderRegistry.register(selector, <modes.EvaluatableExpressionProvider>{
+			provideEvaluatableExpression: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> => {
+				return this._proxy.$provideEvaluatableExpression(handle, model.uri, position, token);
+			}
+		}));
+	}
+
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {

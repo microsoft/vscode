@@ -147,13 +147,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (sessions.length === 0) {
-			this.setActiveAccount(undefined);
+			await this.setActiveAccount(undefined);
 			return;
 		}
 
 		if (sessions.length === 1) {
 			this.logAuthenticatedEvent(sessions[0]);
-			this.setActiveAccount(sessions[0]);
+			await this.setActiveAccount(sessions[0]);
 			return;
 		}
 
@@ -167,7 +167,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (selectedAccount) {
 			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
 			this.logAuthenticatedEvent(selected);
-			this.setActiveAccount(selected);
+			await this.setActiveAccount(selected);
 		}
 	}
 
@@ -565,7 +565,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async signIn(): Promise<void> {
 		try {
-			this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
+			await this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
 		} catch (e) {
 			this.notificationService.error(e);
 			throw e;
@@ -575,7 +575,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async signOut(): Promise<void> {
 		if (this.activeAccount) {
 			await this.authenticationService.logout(this.userDataSyncStore!.authenticationProviderId, this.activeAccount.id);
-			this.setActiveAccount(undefined);
+			await this.setActiveAccount(undefined);
 		}
 	}
 

@@ -865,6 +865,7 @@ export class TestHostService implements IHostService {
 	_serviceBrand: undefined;
 
 	readonly hasFocus: boolean = true;
+	async hadLastFocus(): Promise<boolean> { return true; }
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 
 	async restart(): Promise<void> { }
