@@ -1686,6 +1686,7 @@ export interface EditorLayoutInfo {
 	 * The width of the minimap
 	 */
 	readonly minimapWidth: number;
+	readonly minimapHeightIsEditorHeight: boolean;
 	readonly minimapIsSampling: boolean;
 	readonly minimapScale: number;
 	readonly minimapLineHeight: number;
@@ -1758,7 +1759,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		});
 	}
 
-	public static computeEntireDocumentMinimapLineCount(input: {
+	public static computeContainedMinimapLineCount(input: {
 		modelLineCount: number;
 		scrollBeyondLastLine: boolean;
 		height: number;
@@ -1790,7 +1791,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const minimapRenderCharacters = minimap.renderCharacters;
 		let minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
-		const minimapEntireDocument = minimap.entireDocument;
+		const minimapMode = minimap.mode;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
@@ -1838,6 +1839,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
 		let minimapCanvasOuterWidth: number;
 		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
+		let minimapHeightIsEditorHeight = false;
 		let minimapIsSampling = false;
 		let minimapLineHeight = baseCharHeight * minimapScale;
 		let contentWidth: number;
@@ -1853,9 +1855,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			let minimapCharWidth = minimapScale / pixelRatio;
 			let minimapWidthMultiplier: number = 1;
 
-			if (minimapEntireDocument) {
+			if (minimapMode === 'cover' || minimapMode === 'contain') {
 				const modelLineCount = env.maxLineNumber;
-				const { extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeEntireDocumentMinimapLineCount({
+				const { extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 					modelLineCount: modelLineCount,
 					scrollBeyondLastLine: scrollBeyondLastLine,
 					height: outerHeight,
@@ -1867,19 +1869,24 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				const ratio = modelLineCount / minimapLineCount;
 
 				if (ratio > 1) {
+					minimapHeightIsEditorHeight = true;
 					minimapIsSampling = true;
 					minimapScale = 1;
 					minimapLineHeight = 1;
 					minimapCharWidth = minimapScale / pixelRatio;
 				} else {
-					const configuredFontScale = minimapScale;
-					minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
-					minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
-					if (minimapScale > configuredFontScale) {
-						minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+					const effectiveMinimapHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					if (minimapMode === 'cover' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+						minimapHeightIsEditorHeight = true;
+						const configuredFontScale = minimapScale;
+						minimapLineHeight = Math.max(1, Math.floor(1 / desiredRatio));
+						minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+						if (minimapScale > configuredFontScale) {
+							minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+						}
+						minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
+						minimapCanvasInnerHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 					}
-					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
-					minimapCanvasInnerHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 				}
 			}
 
@@ -1944,6 +1951,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			renderMinimap: renderMinimap,
 			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
+			minimapHeightIsEditorHeight: minimapHeightIsEditorHeight,
 			minimapIsSampling: minimapIsSampling,
 			minimapScale: minimapScale,
 			minimapLineHeight: minimapLineHeight,
@@ -2052,6 +2060,11 @@ export interface IEditorMinimapOptions {
 	 */
 	side?: 'right' | 'left';
 	/**
+	 * Control the minimap rendering mode.
+	 * Defaults to 'actual'.
+	 */
+	mode?: 'actual' | 'cover' | 'contain';
+	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
 	 */
@@ -2066,15 +2079,10 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
-
 	/**
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
 	scale?: number;
-	/**
-	* Minimap covers entire document.
-	*/
-	entireDocument?: boolean;
 }
 
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
@@ -2084,12 +2092,12 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	constructor() {
 		const defaults: EditorMinimapOptions = {
 			enabled: true,
+			mode: 'actual',
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
-			entireDocument: false,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -2098,6 +2106,17 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.mode': {
+					type: 'string',
+					enum: ['actual', 'cover', 'contain'],
+					enumDescriptions: [
+						nls.localize('minimap.mode.actual', "The minimap will be displayed in its original size, so it might be higher than the editor."),
+						nls.localize('minimap.mode.cover', "The minimap will always have the height of the editor and will stretch or shrink as necessary."),
+						nls.localize('minimap.mode.contain', "The minimap will shrink as necessary to never be higher than the editor."),
+					],
+					default: defaults.mode,
+					description: nls.localize('minimap.mode', "Controls the rendering mode of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
@@ -2127,12 +2146,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
-				},
-				'editor.minimap.entireDocument': {
-					type: 'boolean',
-					default: defaults.entireDocument,
-					description: nls.localize('minimap.entireDocument', "Show entire document in the minimap.")
-				},
+				}
 			}
 		);
 	}
@@ -2144,12 +2158,12 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			mode: EditorStringEnumOption.stringSet<'actual' | 'cover' | 'contain'>(input.mode, this.defaultValue.mode, ['actual', 'cover', 'contain']),
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
-			entireDocument: EditorBooleanOption.boolean(input.entireDocument, this.defaultValue.entireDocument),
 		};
 	}
 }

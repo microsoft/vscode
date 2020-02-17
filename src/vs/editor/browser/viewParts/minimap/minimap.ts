@@ -46,7 +46,9 @@ class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
 
-	public readonly entireDocument: boolean;
+	public readonly mode: 'actual' | 'cover' | 'contain';
+
+	public readonly minimapHeightIsEditorHeight: boolean;
 
 	public readonly scrollBeyondLastLine: boolean;
 
@@ -104,7 +106,8 @@ class MinimapOptions {
 		const minimapOpts = options.get(EditorOption.minimap);
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
-		this.entireDocument = minimapOpts.entireDocument;
+		this.mode = minimapOpts.mode;
+		this.minimapHeightIsEditorHeight = layoutInfo.minimapHeightIsEditorHeight;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		this.showSlider = minimapOpts.showSlider;
 		this.pixelRatio = pixelRatio;
@@ -137,7 +140,8 @@ class MinimapOptions {
 
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
-			&& this.entireDocument === other.entireDocument
+			&& this.mode === other.mode
+			&& this.minimapHeightIsEditorHeight === other.minimapHeightIsEditorHeight
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
 			&& this.pixelRatio === other.pixelRatio
@@ -237,7 +241,7 @@ class MinimapLayout {
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
 		const lineHeight = options.lineHeight;
 
-		if (options.entireDocument) {
+		if (options.minimapHeightIsEditorHeight) {
 			const logicalScrollHeight = (
 				realLineCount * options.lineHeight
 				+ (options.scrollBeyondLastLine ? viewportHeight - options.lineHeight : 0)
@@ -291,7 +295,7 @@ class MinimapLayout {
 		let extraLinesAtTheBottom = 0;
 		if (options.scrollBeyondLastLine) {
 			const expectedViewportLineCount = viewportHeight / lineHeight;
-			extraLinesAtTheBottom = expectedViewportLineCount;
+			extraLinesAtTheBottom = expectedViewportLineCount - 1;
 		}
 		if (minimapLinesFitting >= lineCount + extraLinesAtTheBottom) {
 			// All lines fit in the minimap
@@ -531,7 +535,7 @@ class MinimapSamplingState {
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const lineHeight = options.get(EditorOption.lineHeight);
 		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
-		const { minimapLineCount } = EditorLayoutInfoComputer.computeEntireDocumentMinimapLineCount({
+		const { minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 			modelLineCount: modelLineCount,
 			scrollBeyondLastLine: scrollBeyondLastLine,
 			height: layoutInfo.height,

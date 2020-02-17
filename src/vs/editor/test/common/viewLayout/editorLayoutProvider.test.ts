@@ -33,7 +33,7 @@ interface IEditorLayoutProviderOpts {
 	readonly minimapSide: 'left' | 'right';
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
-	minimapEntireDocument?: boolean;
+	minimapMode?: 'actual' | 'cover' | 'contain';
 	readonly pixelRatio: number;
 }
 
@@ -47,12 +47,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		options._write(EditorOption.folding, false);
 		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
+			mode: input.minimapMode || 'actual',
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
 			scale: 1,
-			entireDocument: input.minimapEntireDocument || false
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -129,6 +129,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -190,6 +191,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -251,6 +253,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -312,6 +315,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -373,6 +377,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -434,6 +439,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -495,6 +501,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -556,6 +563,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -617,6 +625,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -678,6 +687,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.None,
 			minimapLeft: 0,
 			minimapWidth: 0,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -739,6 +749,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 903,
 			minimapWidth: 97,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 1,
 			minimapLineHeight: 2,
@@ -800,6 +811,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 903,
 			minimapWidth: 97,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 2,
 			minimapLineHeight: 4,
@@ -861,6 +873,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 945,
 			minimapWidth: 55,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 2,
 			minimapLineHeight: 4,
@@ -922,6 +935,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 0,
 			minimapWidth: 55,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 2,
 			minimapLineHeight: 4,
@@ -943,7 +957,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		});
 	});
 
-	test('EditorLayoutProvider 11 - render entire document in minimap without sampling', () => {
+	test('EditorLayoutProvider 11 - minimap mode cover without sampling', () => {
 		doTest({
 			outerWidth: 1000,
 			outerHeight: 800,
@@ -964,7 +978,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
-			minimapEntireDocument: true,
+			minimapMode: 'cover',
 			pixelRatio: 2,
 		}, {
 			width: 1000,
@@ -980,19 +994,20 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			decorationsWidth: 10,
 
 			contentLeft: 10,
-			contentWidth: 818,
+			contentWidth: 893,
 
 			renderMinimap: RenderMinimap.Text,
-			minimapLeft: 828,
-			minimapWidth: 172,
+			minimapLeft: 903,
+			minimapWidth: 97,
+			minimapHeightIsEditorHeight: true,
 			minimapIsSampling: false,
-			minimapScale: 4,
+			minimapScale: 3,
 			minimapLineHeight: 13,
-			minimapCanvasInnerWidth: 344,
+			minimapCanvasInnerWidth: 291,
 			minimapCanvasInnerHeight: 1560,
-			minimapCanvasOuterWidth: 172,
+			minimapCanvasOuterWidth: 97,
 			minimapCanvasOuterHeight: 800,
-			viewportColumn: 81,
+			viewportColumn: 89,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -1006,7 +1021,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		});
 	});
 
-	test('EditorLayoutProvider 12 - render entire document in minimap with sampling', () => {
+	test('EditorLayoutProvider 12 - minimap mode cover with sampling', () => {
 		doTest({
 			outerWidth: 1000,
 			outerHeight: 800,
@@ -1027,7 +1042,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
-			minimapEntireDocument: true,
+			minimapMode: 'cover',
 			pixelRatio: 2,
 		}, {
 			width: 1000,
@@ -1048,6 +1063,135 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 945,
 			minimapWidth: 55,
+			minimapHeightIsEditorHeight: true,
+			minimapIsSampling: true,
+			minimapScale: 1,
+			minimapLineHeight: 1,
+			minimapCanvasInnerWidth: 110,
+			minimapCanvasInnerHeight: 1600,
+			minimapCanvasOuterWidth: 55,
+			minimapCanvasOuterHeight: 800,
+			viewportColumn: 93,
+
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+
+			overviewRuler: {
+				top: 0,
+				width: 0,
+				height: 800,
+				right: 0
+			}
+		});
+	});
+
+	test('EditorLayoutProvider 13 - minimap mode contain without sampling', () => {
+		doTest({
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: false,
+			lineHeight: 16,
+			showLineNumbers: false,
+			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 3,
+			maxLineNumber: 120,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapSide: 'right',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			minimapMode: 'contain',
+			pixelRatio: 2,
+		}, {
+			width: 1000,
+			height: 800,
+
+			glyphMarginLeft: 0,
+			glyphMarginWidth: 0,
+
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+
+			contentLeft: 10,
+			contentWidth: 893,
+
+			renderMinimap: RenderMinimap.Text,
+			minimapLeft: 903,
+			minimapWidth: 97,
+			minimapHeightIsEditorHeight: false,
+			minimapIsSampling: false,
+			minimapScale: 2,
+			minimapLineHeight: 4,
+			minimapCanvasInnerWidth: 194,
+			minimapCanvasInnerHeight: 1600,
+			minimapCanvasOuterWidth: 97,
+			minimapCanvasOuterHeight: 800,
+			viewportColumn: 89,
+
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+
+			overviewRuler: {
+				top: 0,
+				width: 0,
+				height: 800,
+				right: 0
+			}
+		});
+	});
+
+	test('EditorLayoutProvider 14 - minimap mode contain with sampling', () => {
+		doTest({
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: false,
+			lineHeight: 16,
+			showLineNumbers: false,
+			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 4,
+			maxLineNumber: 2500,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapSide: 'right',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			minimapMode: 'contain',
+			pixelRatio: 2,
+		}, {
+			width: 1000,
+			height: 800,
+
+			glyphMarginLeft: 0,
+			glyphMarginWidth: 0,
+
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+
+			contentLeft: 10,
+			contentWidth: 935,
+
+			renderMinimap: RenderMinimap.Text,
+			minimapLeft: 945,
+			minimapWidth: 55,
+			minimapHeightIsEditorHeight: true,
 			minimapIsSampling: true,
 			minimapScale: 1,
 			minimapLineHeight: 1,
@@ -1109,6 +1253,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 1096,
 			minimapWidth: 91,
+			minimapHeightIsEditorHeight: false,
 			minimapIsSampling: false,
 			minimapScale: 2,
 			minimapLineHeight: 4,

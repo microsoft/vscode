@@ -3330,6 +3330,7 @@ declare namespace monaco.editor {
 		 * The width of the minimap
 		 */
 		readonly minimapWidth: number;
+		readonly minimapHeightIsEditorHeight: boolean;
 		readonly minimapIsSampling: boolean;
 		readonly minimapScale: number;
 		readonly minimapLineHeight: number;
@@ -3387,6 +3388,11 @@ declare namespace monaco.editor {
 		 */
 		side?: 'right' | 'left';
 		/**
+		 * Control the minimap rendering mode.
+		 * Defaults to 'actual'.
+		 */
+		mode?: 'actual' | 'cover' | 'contain';
+		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.
 		 */
@@ -3405,10 +3411,6 @@ declare namespace monaco.editor {
 		 * Relative size of the font in the minimap. Defaults to 1.
 		 */
 		scale?: number;
-		/**
-		* Minimap covers entire document.
-		*/
-		entireDocument?: boolean;
 	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
