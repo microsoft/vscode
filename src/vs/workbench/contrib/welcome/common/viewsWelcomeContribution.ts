@@ -33,7 +33,7 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 
 			for (const contribution of added) {
 				for (const welcome of contribution.value) {
-					const disposable = viewsRegistry.registerEmptyViewContent(welcome.view, {
+					const disposable = viewsRegistry.registerViewWelcomeContent(welcome.view, {
 						content: welcome.contents,
 						when: ContextKeyExpr.deserialize(welcome.when)
 					});

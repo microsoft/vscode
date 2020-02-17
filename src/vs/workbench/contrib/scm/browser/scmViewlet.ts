@@ -60,7 +60,7 @@ export class EmptyPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 	}
 
-	isEmpty(): boolean {
+	shouldShowWelcome(): boolean {
 		return true;
 	}
 }
@@ -131,9 +131,9 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 
-		viewsRegistry.registerEmptyViewContent(EmptyPane.ID, {
+		viewsRegistry.registerViewWelcomeContent(EmptyPane.ID, {
 			content: localize('no open repo', "No source control providers registered."),
-			when: 'placeholder'
+			when: 'default'
 		});
 
 		viewsRegistry.registerViews([new EmptyPaneDescriptor()], this.viewContainer);
