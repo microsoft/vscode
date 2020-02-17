@@ -34,7 +34,7 @@ export abstract class Part extends Component implements ISerializableView {
 	get dimension(): Dimension | undefined { return this._dimension; }
 
 	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
 
 	private parent: HTMLElement | undefined;
 	private titleArea: HTMLElement | undefined;
