@@ -38,7 +38,7 @@ import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { parseLinkedText } from 'vs/base/browser/linkedText';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';

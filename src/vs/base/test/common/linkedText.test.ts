@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parseLinkedText } from 'vs/base/browser/linkedText';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 
 suite('LinkedText', () => {
 	test('parses correctly', () => {
