@@ -46,6 +46,7 @@ import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutSer
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -248,6 +249,72 @@ export class SimpleNotificationService implements INotificationService {
 	}
 
 	public setFilter(filter: NotificationsFilter): void { }
+}
+
+export class StandaloneClipboardService implements IClipboardService {
+	_serviceBrand: undefined;
+
+	private _internalResourcesClipboard: URI[] | undefined;
+
+	async writeText(text: string, type?: string): Promise<void> {
+		if (type) {
+			return;
+		}
+
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			return navigator.clipboard.writeText(text);
+		} else {
+			const activeElement = <HTMLElement>document.activeElement;
+			const newTextarea = document.createElement('textarea');
+			newTextarea.className = 'clipboard-copy';
+			newTextarea.style.visibility = 'false';
+			newTextarea.style.height = '1px';
+			newTextarea.style.width = '1px';
+			newTextarea.setAttribute('aria-hidden', 'true');
+			newTextarea.style.position = 'absolute';
+			newTextarea.style.top = '-1000';
+			newTextarea.style.left = '-1000';
+			document.body.appendChild(newTextarea);
+			newTextarea.value = text;
+			newTextarea.focus();
+			newTextarea.select();
+			document.execCommand('copy');
+			activeElement.focus();
+			document.body.removeChild(newTextarea);
+		}
+		return;
+	}
+
+	async readText(type?: string): Promise<string> {
+		if (type) {
+			return '';
+		}
+
+		return navigator.clipboard.readText();
+	}
+
+	readTextSync(): string | undefined {
+		return undefined;
+	}
+
+	readFindText(): string {
+		// @ts-ignore
+		return undefined;
+	}
+
+	writeFindText(text: string): void { }
+
+	writeResources(resources: URI[]): void {
+		this._internalResourcesClipboard = resources;
+	}
+
+	readResources(): URI[] {
+		return this._internalResourcesClipboard || [];
+	}
+
+	hasResources(): boolean {
+		return this._internalResourcesClipboard !== undefined && this._internalResourcesClipboard.length > 0;
+	}
 }
 
 export class StandaloneCommandService implements ICommandService {
