@@ -249,6 +249,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		let modelPromise: Promise<ITextFileEditorModel>;
 		let model = this.get(resource);
+		let didCreateModel = false;
 
 		// Model exists
 		if (model) {
@@ -271,6 +272,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model does not exist
 		else {
+			didCreateModel = true;
+
 			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
 			modelPromise = model.load(options);
 
@@ -285,13 +288,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			listeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(newModel)));
 
 			this.mapResourceToModelListeners.set(resource, listeners);
-
-			// Signal as event
-			this._onDidCreate.fire(newModel);
 		}
 
 		// Store pending loads to avoid race conditions
 		this.mapResourceToPendingModelLoaders.set(resource, modelPromise);
+
+		// Signal as event if we created the model
+		if (didCreateModel) {
+			this._onDidCreate.fire(model);
+		}
 
 		try {
 			const resolvedModel = await modelPromise;
