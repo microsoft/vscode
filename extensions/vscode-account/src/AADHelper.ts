@@ -274,9 +274,9 @@ export class AzureActiveDirectoryService {
 				res.writeHead(302, { Location: '/' });
 				res.end();
 			} catch (err) {
-				Logger.error(err.message);
 				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 				res.end();
+				throw new Error(err.message);
 			}
 		} catch (e) {
 			Logger.error(e.message);
@@ -285,6 +285,7 @@ export class AzureActiveDirectoryService {
 			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
 				await this.loginWithoutLocalServer(scope);
 			}
+			throw new Error(e.message);
 		} finally {
 			setTimeout(() => {
 				server.close();

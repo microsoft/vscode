@@ -569,7 +569,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			await this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
 		} catch (e) {
-			this.notificationService.error(e);
+			this.notificationService.error(localize('loginFailed', "Logging in failed: {0}", e));
 			throw e;
 		}
 	}
