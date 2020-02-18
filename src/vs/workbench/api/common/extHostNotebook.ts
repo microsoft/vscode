@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as glob from 'vs/base/common/glob';
-import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ICell, INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface ExtHostOutputDisplayOrder {
 	defaultOrder: glob.ParsedPattern[];
@@ -500,7 +500,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return provider.provider.executeCell(document!, cell);
 	}
 
-	async $createEmptyCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
+	async $createEmptyCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {

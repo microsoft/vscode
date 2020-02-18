@@ -11,31 +11,16 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { basename, extname } from 'vs/base/common/path';
 
-export function createCellUri(viewType: string, notebook: INotebook, cell: ICell): URI {
-	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
-	// @todo Jo,Peng: `authority` will be transformed to lower case in `URI.toString()`, so we won't retrive the same viewType later on.
-	return URI.from({
-		scheme: 'vscode-notebook',
-		authority: viewType,
-		path: `/cell_${cell.handle}.${cell.cell_type === 'markdown' ? 'md' : 'py'}`,
-		query: notebook.uri.toString()
-	});
-}
-
-export function parseCellUri(resource: URI): { viewType: string, notebook: URI, cellHandle: number } | undefined {
+export function parseCellUri(resource: URI): { viewType: string, notebook: URI } | undefined {
 	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
 	if (resource.scheme !== 'vscode-notebook') {
 		return undefined;
 	}
-	const match = /cell_(\d+)/.exec(basename(resource.path, extname(resource.path)));
-	if (!match) {
-		return undefined;
-	}
+	// @todo Jo,Peng: `authority` will be transformed to lower case in `URI.toString()`, so we won't retrive the same viewType later on.
 	const viewType = resource.authority;
 	const notebook = URI.parse(resource.query);
-	return { viewType, notebook, cellHandle: parseInt(match[1]) };
+	return { viewType, notebook };
 }
 
 function MODEL_ID(resource: URI): string {

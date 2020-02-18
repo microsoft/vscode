@@ -41,7 +41,10 @@ export class MainThreadCell implements ICell {
 		this._onDidChangeDirtyState.fire(newState);
 	}
 
+	readonly uri: URI;
+
 	constructor(
+		parent: MainThreadNotebookDocument,
 		public handle: number,
 		public source: string[],
 		public language: string,
@@ -49,6 +52,12 @@ export class MainThreadCell implements ICell {
 		outputs: IOutput[]
 	) {
 		this._outputs = outputs;
+		this.uri = URI.from({
+			scheme: 'vscode-notebook',
+			authority: parent.viewType,
+			path: `/cell_${handle}.${cell_type === 'markdown' ? 'md' : 'py'}`,
+			query: parent.uri.toString()
+		});
 	}
 
 	save() {
@@ -114,7 +123,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 
 		if (this.cells.length === 0) {
 			newCells.forEach(cell => {
-				let mainCell = new MainThreadCell(cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
+				let mainCell = new MainThreadCell(this, cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
 				this._mapping.set(cell.handle, mainCell);
 				this.cells.push(mainCell);
 				let dirtyStateListener = mainCell.onDidChangeDirtyState((cellState) => {
@@ -141,7 +150,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 	async createRawCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<MainThreadCell | undefined> {
 		let cell = await this._proxy.$createEmptyCell(viewType, uri, index, language, type);
 		if (cell) {
-			let mainCell = new MainThreadCell(cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
+			let mainCell = new MainThreadCell(this, cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
 			this._mapping.set(cell.handle, mainCell);
 			this.cells.splice(index, 0, mainCell);
 

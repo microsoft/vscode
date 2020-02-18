@@ -24,7 +24,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, IEditorControl } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService, createCellUri, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
@@ -160,7 +160,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				if (data && that.notebook?.uri.toString() === data.notebook.toString()) {
 					for (let i = 0; i < that.list!.length; i++) {
 						const item = that.list!.element(i);
-						if (item.cell.handle === data.cellHandle) {
+						if (item.cell.uri.toString() === input.resource.toString()) {
 							that.list!.reveal(i, 0.2);
 							const editor = that.renderedEditors.get(item);
 							if (!editor) {
@@ -318,7 +318,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				this.webview.updateRendererPreloads(this.notebook.renderers);
 				this.viewType = input.viewType;
 				this.viewCells = await Promise.all(this.notebook!.cells.map(async cell => {
-					const uri = createCellUri(input.viewType!, this.notebook!, cell);
+					const uri = cell.uri;
 					const ref = await this.textModelService.createModelReference(uri);
 					const isEditing = viewState && viewState.editingCells[cell.handle];
 					return this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, ref.object.textEditorModel, !!isEditing);
@@ -453,7 +453,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		let uri = createCellUri(this.viewType!, this.notebook!, newModeCell!);
+		let uri = newModeCell!.uri;
 		let ref = await this.textModelService.createModelReference(uri);
 		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, newModeCell!, ref.object.textEditorModel, false);
 

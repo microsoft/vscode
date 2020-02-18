@@ -94,6 +94,7 @@ export type IOutput = IGenericOutput;
  * @internal
  */
 export interface ICell {
+	readonly uri: URI;
 	handle: number;
 	source: string[];
 	language: string;
@@ -122,6 +123,7 @@ export interface IMetadata {
  */
 export interface INotebook {
 	handle: number;
+	viewType: string;
 	// metadata: IMetadata;
 	readonly uri: URI;
 	languages: string[];
