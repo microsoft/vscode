@@ -22,10 +22,10 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { ITextSnapshot } from 'vs/editor/common/model';
+import { ITextSnapshot, ITextBufferFactory } from 'vs/editor/common/model';
 import { joinPath, isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -72,8 +72,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IModelService private readonly modelService: IModelService
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
 	) {
 		super();
 
@@ -123,7 +122,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; encoding?: string; mode?: string }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
@@ -148,7 +147,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// remember each source model to load again after move is done
 			// with optional content to restore if it was dirty
-			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; encoding?: string; mode?: string }[] = [];
+			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
 			for (const sourceModel of sourceModels) {
 				const sourceModelResource = sourceModel.resource;
 
@@ -210,12 +209,22 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						// we know the file has changed on disk after the move and the
 						// model might have still existed with the previous state. this
 						// ensures we are not tracking a stale state.
-						const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding, mode: modelToRestore.mode });
+						const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding });
 
-						// restore previous dirty content if any and ensure to mark
-						// the model as dirty
-						if (modelToRestore.snapshot && restoredModel.isResolved()) {
-							this.modelService.updateModel(restoredModel.textEditorModel, createTextBufferFactoryFromSnapshot(modelToRestore.snapshot));
+						// restore previous dirty content if any and ensure to mark the model as dirty
+						let textBufferFactory: ITextBufferFactory | undefined = undefined;
+						if (modelToRestore.snapshot) {
+							textBufferFactory = createTextBufferFactoryFromSnapshot(modelToRestore.snapshot);
+						}
+
+						// restore previous mode only if the mode is now unspecified
+						let preferredMode: string | undefined = undefined;
+						if (restoredModel.getMode() === PLAINTEXT_MODE_ID && modelToRestore.mode !== PLAINTEXT_MODE_ID) {
+							preferredMode = modelToRestore.mode;
+						}
+
+						if (textBufferFactory || preferredMode) {
+							restoredModel.updateTextEditorModel(textBufferFactory, preferredMode);
 						}
 					}));
 				}
