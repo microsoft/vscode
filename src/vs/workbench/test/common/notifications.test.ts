@@ -105,29 +105,6 @@ suite('Notifications', () => {
 		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
 		assert.equal(item6.actions!.primary!.length, 1);
 
-		// Links
-		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and [Link 3](command:without.title) and [Invalid Link4](ftp://link4.com)' })!;
-
-		const links = item7.message.links;
-		assert.equal(links.length, 3);
-		assert.equal(links[0].name, 'Link 1');
-		assert.equal(links[0].href, 'http://link1.com');
-		assert.equal(links[0].title, 'http://link1.com');
-		assert.equal(links[0].length, '[Link 1](http://link1.com)'.length);
-		assert.equal(links[0].offset, 'Unable to '.length);
-
-		assert.equal(links[1].name, 'Link 2');
-		assert.equal(links[1].href, 'command:open.me');
-		assert.equal(links[1].title, 'Open This');
-		assert.equal(links[1].length, '[Link 2](command:open.me "Open This")'.length);
-		assert.equal(links[1].offset, 'Unable to [Link 1](http://link1.com) open '.length);
-
-		assert.equal(links[2].name, 'Link 3');
-		assert.equal(links[2].href, 'command:without.title');
-		assert.equal(links[2].title, 'Click to execute command \'without.title\'');
-		assert.equal(links[2].length, '[Link 3](command:without.title)'.length);
-		assert.equal(links[2].offset, 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and '.length);
-
 		// Filter
 		let item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;
 		assert.equal(item8.silent, true);
@@ -162,19 +139,19 @@ suite('Notifications', () => {
 
 		let item1Handle = model.addNotification(item1);
 		assert.equal(lastNotificationEvent.item.severity, item1.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item1.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item1.message);
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
 		let item2Handle = model.addNotification(item2);
 		assert.equal(lastNotificationEvent.item.severity, item2.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item2.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item2.message);
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
 		model.addNotification(item3);
 		assert.equal(lastNotificationEvent.item.severity, item3.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item3.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item3.message);
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
@@ -189,27 +166,27 @@ suite('Notifications', () => {
 		assert.equal(called, 1);
 		assert.equal(model.notifications.length, 2);
 		assert.equal(lastNotificationEvent.item.severity, item1.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item1.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item1.message);
 		assert.equal(lastNotificationEvent.index, 2);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.REMOVE);
 
 		model.addNotification(item2Duplicate);
 		assert.equal(model.notifications.length, 2);
 		assert.equal(lastNotificationEvent.item.severity, item2Duplicate.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item2Duplicate.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item2Duplicate.message);
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
 		item2Handle.close();
 		assert.equal(model.notifications.length, 1);
 		assert.equal(lastNotificationEvent.item.severity, item2Duplicate.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item2Duplicate.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item2Duplicate.message);
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.REMOVE);
 
 		model.notifications[0].expand();
 		assert.equal(lastNotificationEvent.item.severity, item3.severity);
-		assert.equal(lastNotificationEvent.item.message.value, item3.message);
+		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item3.message);
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
 

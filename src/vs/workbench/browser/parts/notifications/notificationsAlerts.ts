@@ -37,7 +37,7 @@ export class NotificationsAlerts extends Disposable {
 				if (e.item.message.original instanceof Error) {
 					console.error(e.item.message.original);
 				} else {
-					console.error(toErrorMessage(e.item.message.value, true));
+					console.error(toErrorMessage(e.item.message.linkedText.toString(), true));
 				}
 			}
 		}
@@ -60,11 +60,11 @@ export class NotificationsAlerts extends Disposable {
 	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
 		let alertText: string;
 		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
+			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.linkedText.toString());
 		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
+			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.linkedText.toString());
 		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
+			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.linkedText.toString());
 		}
 
 		alert(alertText);
