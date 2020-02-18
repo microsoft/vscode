@@ -110,11 +110,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private registerListeners(): void {
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 	}
 
-	private async onFileChanges(e: FileChangesEvent): Promise<void> {
+	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
 		let fileEventImpactsModel = false;
 		let newInOrphanModeGuess: boolean | undefined;
 

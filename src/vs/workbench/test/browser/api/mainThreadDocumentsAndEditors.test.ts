@@ -58,7 +58,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const editorGroupService = new TestEditorGroupsService();
 
 		const fileService = new class extends mock<IFileService>() {
-			onAfterOperation = Event.None;
+			onDidRunOperation = Event.None;
 		};
 
 		new MainThreadDocumentsAndEditors(

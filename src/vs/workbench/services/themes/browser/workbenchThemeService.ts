@@ -252,7 +252,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		});
 
-		this.fileService.onFileChanges(async e => {
+		this.fileService.onDidFilesChange(async e => {
 			if (this.watchedColorThemeLocation && this.currentColorTheme && e.contains(this.watchedColorThemeLocation, FileChangeType.UPDATED)) {
 				this.reloadCurrentColorTheme();
 			}

@@ -53,10 +53,10 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private registerListeners(): void {
 
 		// Update editors from operation changes
-		this._register(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this._register(this.fileService.onDidRunOperation(e => this.onFileOperation(e)));
 
 		// Update editors from disk changes
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
 		// Ensure dirty text file and untitled models are always opened as editors
 		this._register(this.textFileService.files.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
@@ -187,7 +187,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 		if (e.gotDeleted()) {
 			this.handleDeletes(e, true);
 		}

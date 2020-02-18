@@ -37,31 +37,33 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
 		this._modeService = modeService;
 
-		const updateAllWordDefinitions = () => {
-			const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
-			let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-			for (const [languageId, wordDefinition] of langWordPairs) {
-				const language = this._modeService.getLanguageIdentifier(languageId);
-				if (!language) {
-					continue;
+		if (this._modeService) {
+			const updateAllWordDefinitions = () => {
+				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
+				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
+				for (const [languageId, wordDefinition] of langWordPairs) {
+					const language = this._modeService.getLanguageIdentifier(languageId);
+					if (!language) {
+						continue;
+					}
+					wordDefinitionDtos.push({
+						languageId: language.language,
+						regexSource: wordDefinition.source,
+						regexFlags: wordDefinition.flags
+					});
 				}
-				wordDefinitionDtos.push({
-					languageId: language.language,
+				this._proxy.$setWordDefinitions(wordDefinitionDtos);
+			};
+			LanguageConfigurationRegistry.onDidChange((e) => {
+				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
+				this._proxy.$setWordDefinitions([{
+					languageId: e.languageIdentifier.language,
 					regexSource: wordDefinition.source,
 					regexFlags: wordDefinition.flags
-				});
-			}
-			this._proxy.$setWordDefinitions(wordDefinitionDtos);
-		};
-		LanguageConfigurationRegistry.onDidChange((e) => {
-			const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
-			this._proxy.$setWordDefinitions([{
-				languageId: e.languageIdentifier.language,
-				regexSource: wordDefinition.source,
-				regexFlags: wordDefinition.flags
-			}]);
-		});
-		updateAllWordDefinitions();
+				}]);
+			});
+			updateAllWordDefinitions();
+		}
 	}
 
 	dispose(): void {

@@ -61,7 +61,7 @@ export class TextFileEditor extends BaseTextEditor {
 		this.updateRestoreViewStateConfiguration();
 
 		// Clear view state for deleted files
-		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {

@@ -174,7 +174,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	) {
 		super(source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
 		this._register(this.fileService.watch(dirname(file)));
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
 
 	async stop(): Promise<void> {

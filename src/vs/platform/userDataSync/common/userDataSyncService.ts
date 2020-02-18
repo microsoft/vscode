@@ -14,10 +14,13 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 type SyncErrorClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
+
+const SESSION_ID_KEY = 'sync.sessionId';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -48,6 +51,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
@@ -96,7 +100,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.setStatus(SyncStatus.Syncing);
 			}
 
-			const manifest = await this.userDataSyncStoreService.manifest();
+			let manifest = await this.userDataSyncStoreService.manifest();
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.hasPreviouslySynced()) {
@@ -104,12 +108,28 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				throw new UserDataSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
 			}
 
+			const sessionId = this.storageService.get(SESSION_ID_KEY, StorageScope.GLOBAL);
+			// Server session is different from client session
+			if (sessionId && manifest && sessionId !== manifest.session) {
+				throw new UserDataSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+			}
+
 			for (const synchroniser of this.synchronisers) {
 				try {
-					await synchroniser.sync(manifest ? manifest[synchroniser.resourceKey] : undefined);
+					await synchroniser.sync(manifest && manifest.latest ? manifest.latest[synchroniser.resourceKey] : undefined);
 				} catch (e) {
 					this.handleSyncError(e, synchroniser.source);
 				}
+			}
+
+			// After syncing, get the manifest if it was not available before
+			if (manifest === null) {
+				manifest = await this.userDataSyncStoreService.manifest();
+			}
+
+			// Update local session id
+			if (manifest && manifest.session !== sessionId) {
+				this.storageService.store(SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
@@ -138,26 +158,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(source);
 		return synchroniser.accept(content);
-	}
-
-	private async hasPreviouslySynced(): Promise<boolean> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasPreviouslySynced()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private async hasLocalData(): Promise<boolean> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasLocalData()) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
@@ -189,6 +189,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async resetLocal(): Promise<void> {
 		await this.checkEnablement();
+		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		for (const synchroniser of this.synchronisers) {
 			try {
 				synchroniser.resetLocal();
@@ -197,6 +198,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.logService.error(e);
 			}
 		}
+	}
+
+	private async hasPreviouslySynced(): Promise<boolean> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private async hasLocalData(): Promise<boolean> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasLocalData()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async resetRemote(): Promise<void> {

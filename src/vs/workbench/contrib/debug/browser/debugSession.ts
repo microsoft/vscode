@@ -88,10 +88,12 @@ export class DebugSession implements IDebugSession {
 
 		const toDispose: IDisposable[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
-		toDispose.push(lifecycleService.onShutdown(() => {
-			this.shutdown();
-			dispose(toDispose);
-		}));
+		if (lifecycleService) {
+			toDispose.push(lifecycleService.onShutdown(() => {
+				this.shutdown();
+				dispose(toDispose);
+			}));
+		}
 	}
 
 	getId(): string {

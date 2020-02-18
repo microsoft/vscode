@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
+import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -21,19 +21,13 @@ import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
+export interface TextFileCreateEvent extends IWaitUntil {
+	readonly resource: URI;
+}
+
 export interface ITextFileService extends IDisposable {
 
 	_serviceBrand: undefined;
-
-	/**
-	 * An event that is fired before attempting a certain file operation.
-	 */
-	readonly onWillRunOperation: Event<FileOperationWillRunEvent>;
-
-	/**
-	 * An event that is fired after a file operation has been performed.
-	 */
-	readonly onDidRunOperation: Event<FileOperationDidRunEvent>;
 
 	/**
 	 * Access to the manager of text file editor models providing further
@@ -102,40 +96,20 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
+	 * An event that is fired before attempting to create a text file.
+	 */
+	readonly onWillCreateTextFile: Event<TextFileCreateEvent>;
+
+	/**
+	 * An event that is fired after a text file has been created.
+	 */
+	readonly onDidCreateTextFile: Event<TextFileCreateEvent>;
+
+	/**
 	 * Create a file. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
 	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Move a file. If the file is dirty, its contents will be preserved and restored.
-	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
-	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
-	 */
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
-}
-
-export interface FileOperationWillRunEvent extends IWaitUntil {
-	operation: FileOperation;
-	target: URI;
-	source?: URI;
-}
-
-export class FileOperationDidRunEvent {
-
-	constructor(
-		readonly operation: FileOperation,
-		readonly target: URI,
-		readonly source?: URI | undefined
-	) { }
 }
 
 export interface IReadTextFileOptions extends IReadFileOptions {
@@ -415,6 +389,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	hasState(state: ModelState): boolean;
 
 	updatePreferredEncoding(encoding: string | undefined): void;
+
+	updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void;
 
 	save(options?: ITextFileSaveOptions): Promise<boolean>;
 
