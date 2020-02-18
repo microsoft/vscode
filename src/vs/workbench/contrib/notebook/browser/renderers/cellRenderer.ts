@@ -20,6 +20,7 @@ import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebo
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -266,6 +267,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	constructor(
 		protected notebookEditor: INotebookEditor,
+		private renderedEditors: Map<CellViewModel, ICodeEditor | undefined>,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -330,6 +332,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 
 		elementDisposable?.add(new CodeCell(this.notebookEditor, element, templateData, height));
+		this.renderedEditors.set(element, templateData.editor);
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
@@ -337,5 +340,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	disposeElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		this.disposables.get(element)?.clear();
+		this.renderedEditors.delete(element);
 	}
 }
