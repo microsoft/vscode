@@ -329,6 +329,7 @@ export interface ITextFileSaveParticipant {
 
 export interface ITextFileEditorModelManager {
 
+	readonly onDidCreate: Event<ITextFileEditorModel>;
 	readonly onDidLoad: Event<ITextFileModelLoadEvent>;
 	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
 	readonly onDidSaveError: Event<ITextFileEditorModel>;

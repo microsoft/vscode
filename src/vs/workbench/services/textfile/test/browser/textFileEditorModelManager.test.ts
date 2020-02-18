@@ -13,6 +13,7 @@ import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/file
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 
 class ServiceAccessor {
 	constructor(
@@ -92,6 +93,11 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
+		const events: ITextFileEditorModel[] = [];
+		const listener = manager.onDidCreate(model => {
+			events.push(model);
+		});
+
 		const model = await manager.resolve(resource, { encoding });
 		assert.ok(model);
 		assert.equal(model.getEncoding(), encoding);
@@ -105,6 +111,12 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.notEqual(model3, model2);
 		assert.equal(manager.get(resource), model3);
 		model3.dispose();
+
+		assert.equal(events.length, 2);
+		assert.equal(events[0].resource.toString(), model.resource.toString());
+		assert.equal(events[1].resource.toString(), model2.resource.toString());
+
+		listener.dispose();
 	});
 
 	test('removed from cache when model disposed', function () {

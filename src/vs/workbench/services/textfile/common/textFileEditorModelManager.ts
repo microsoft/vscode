@@ -29,6 +29,9 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
+	private readonly _onDidCreate = this._register(new Emitter<ITextFileEditorModel>());
+	readonly onDidCreate = this._onDidCreate.event;
+
 	private readonly _onDidLoad = this._register(new Emitter<ITextFileModelLoadEvent>());
 	readonly onDidLoad = this._onDidLoad.event;
 
@@ -245,9 +248,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 
 		let modelPromise: Promise<ITextFileEditorModel>;
+		let model = this.get(resource);
 
 		// Model exists
-		let model = this.get(resource);
 		if (model) {
 			if (options?.reload) {
 
@@ -282,6 +285,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			listeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(newModel)));
 
 			this.mapResourceToModelListeners.set(resource, listeners);
+
+			// Signal as event
+			this._onDidCreate.fire(newModel);
 		}
 
 		// Store pending loads to avoid race conditions
@@ -293,17 +299,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			// Make known to manager (if not already known)
 			this.add(resource, resolvedModel);
 
-			// Model can be dirty if a backup was restored, so we make sure to have this event delivered
-			if (resolvedModel.isDirty()) {
-				this._onDidChangeDirty.fire(resolvedModel);
-			}
-
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
 			// Apply mode if provided
 			if (options?.mode) {
 				resolvedModel.setMode(options.mode);
+			}
+
+			// Model can be dirty if a backup was restored, so we make sure to have this event delivered
+			if (resolvedModel.isDirty()) {
+				this._onDidChangeDirty.fire(resolvedModel);
 			}
 
 			return resolvedModel;

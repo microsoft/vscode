@@ -187,4 +187,24 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(resolved);
 		resolved.dispose();
 	});
+
+	test('attaches to model when created and reports dirty', async function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined);
+
+		let listenerCount = 0;
+		const listener = input.onDidChangeDirty(() => {
+			listenerCount++;
+		});
+
+		// instead of going through file input resolve method
+		// we resolve the model directly through the service
+		const model = await accessor.textFileService.files.resolve(input.getResource());
+		model.textEditorModel?.setValue('hello world');
+
+		assert.equal(listenerCount, 1);
+		assert.ok(input.isDirty());
+
+		input.dispose();
+		listener.dispose();
+	});
 });
