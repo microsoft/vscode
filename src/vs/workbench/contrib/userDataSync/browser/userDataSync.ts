@@ -540,13 +540,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		});
 		if (result.confirmed) {
-			await this.disableSync();
 			if (result.checkboxChecked) {
 				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
 			} else {
 				await this.userDataSyncService.resetLocal();
 			}
+			await this.disableSync();
 		}
 	}
 

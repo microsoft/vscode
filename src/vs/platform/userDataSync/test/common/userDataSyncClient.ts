@@ -44,7 +44,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService = new TestInstantiationService();
 	}
 
-	async setUp(): Promise<void> {
+	async setUp(empty: boolean = false): Promise<void> {
 		const userDataDirectory = URI.file('userdata').with({ scheme: Schemas.inMemory });
 		const userDataSyncHome = joinPath(userDataDirectory, '.sync');
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
@@ -71,7 +71,6 @@ export class UserDataSyncClient extends Disposable {
 				authenticationProviderId: 'test'
 			}
 		})));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
 
 		const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
 		await configurationService.initialize();
@@ -102,6 +101,14 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(ISettingsSyncService, this.instantiationService.createInstance(SettingsSynchroniser));
 		this.instantiationService.stub(IUserDataSyncService, this.instantiationService.createInstance(UserDataSyncService));
+
+		if (empty) {
+			await fileService.del(environmentService.settingsResource);
+		} else {
+			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
+			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
+		}
+		await configurationService.reloadConfiguration();
 	}
 
 }

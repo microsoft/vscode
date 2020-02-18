@@ -166,6 +166,7 @@ export enum UserDataSyncErrorCode {
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
+	SessionExpired = 'SessionExpired',
 
 	// Local Errors
 	LocalPreconditionFailed = 'LocalPreconditionFailed',

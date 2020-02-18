@@ -41,7 +41,38 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } }
+			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } },
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+		]);
+
+	});
+
+	test('test first time sync ever with no data', async () => {
+		// Setup the client
+		const target = new UserDataSyncTestServer();
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp(true);
+		const testObject = client.instantiationService.get(IUserDataSyncService);
+
+		// Sync for first time
+		await testObject.sync();
+
+		assert.deepEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Settings
+			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
+			// Keybindings
+			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			// Global state
+			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
+			// Extensions
+			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } },
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 		]);
 
 	});
@@ -333,12 +364,14 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } }
+			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } },
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 		]);
 
 	});
 
-	test('test delete on one client throws error on other client while syncing', async () => {
+	test('test delete on one client throws turned off error on other client while syncing', async () => {
 		const target = new UserDataSyncTestServer();
 
 		// Set up and sync from the client
@@ -362,6 +395,42 @@ suite('UserDataSyncService', () => {
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
 			assert.deepEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.TurnedOff);
+			assert.deepEqual(target.requests, [
+				// Manifest
+				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			]);
+			return;
+		}
+		throw assert.fail('Should fail with turned off error');
+	});
+
+	test('test creating new session from one client throws session expired error on another client while syncing', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Set up and sync from the client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await client.instantiationService.get(IUserDataSyncService).sync();
+
+		// Set up and sync from the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		await testObject.sync();
+
+		// Reset from the first client
+		await client.instantiationService.get(IUserDataSyncService).reset();
+
+		// Sync again from the first client to create new session
+		await client.instantiationService.get(IUserDataSyncService).sync();
+
+		// Sync from the test client
+		target.reset();
+		try {
+			await testObject.sync();
+		} catch (e) {
+			assert.ok(e instanceof UserDataSyncError);
+			assert.deepEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.SessionExpired);
 			assert.deepEqual(target.requests, [
 				// Manifest
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
