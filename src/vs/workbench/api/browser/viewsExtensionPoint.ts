@@ -375,16 +375,15 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const registeredViews = this.viewsRegistry.getViews(container);
 				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
 					if (viewIds.indexOf(item.id) !== -1) {
-						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the view container `{1}`", item.id, container.id));
+						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
 						return null;
 					}
-					if (registeredViews.some(v => v.id === item.id)) {
-						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the view container `{1}`", item.id, container.id));
+					if (this.viewsRegistry.getView(item.id) !== null) {
+						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
 						return null;
 					}
 
