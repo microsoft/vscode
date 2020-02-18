@@ -21,6 +21,7 @@ interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
 
 	expiresIn?: string; // How long access token is valid, in seconds
+	expiresAt?: number; // UNIX epoch time at which token will expire
 	refreshToken: string;
 
 	accountName: string;
@@ -183,10 +184,31 @@ export class AzureActiveDirectoryService {
 	private convertToSession(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
-			accessToken: () => !token.accessToken ? Promise.reject('Unavailable due to network problems') : Promise.resolve(token.accessToken),
+			accessToken: () => this.resolveAccessToken(token),
 			accountName: token.accountName,
 			scopes: token.scope.split(' ')
 		};
+	}
+
+	private async resolveAccessToken(token: IToken): Promise<string> {
+		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
+			Logger.info('Token available from cache');
+			return Promise.resolve(token.accessToken);
+		}
+
+		try {
+			Logger.info('Token expired or unavailable, trying refresh');
+			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope);
+			if (refreshedToken.accessToken) {
+				Promise.resolve(token.accessToken);
+			} else {
+				throw new Error();
+			}
+		} catch (e) {
+			throw new Error('Unavailable due to network problems');
+		}
+
+		throw new Error('Unavailable due to network problems');
 	}
 
 	private getTokenClaims(accessToken: string): ITokenClaims {
@@ -374,6 +396,7 @@ export class AzureActiveDirectoryService {
 		const claims = this.getTokenClaims(json.access_token);
 		return {
 			expiresIn: json.expires_in,
+			expiresAt: Date.now() + json.expires_in * 1000,
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,

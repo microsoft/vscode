@@ -96,6 +96,7 @@ export class UserDataAuthTokenServiceChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeToken': return this.service.onDidChangeToken;
+			case 'onTokenFailed': return this.service.onTokenFailed;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}

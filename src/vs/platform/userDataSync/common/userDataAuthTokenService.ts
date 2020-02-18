@@ -14,6 +14,9 @@ export class UserDataAuthTokenService extends Disposable implements IUserDataAut
 	private _onDidChangeToken: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeToken: Event<string | undefined> = this._onDidChangeToken.event;
 
+	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
+	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
+
 	private _token: string | undefined;
 
 	constructor() {
@@ -29,5 +32,9 @@ export class UserDataAuthTokenService extends Disposable implements IUserDataAut
 			this._token = token;
 			this._onDidChangeToken.fire(token);
 		}
+	}
+
+	sendTokenFailed(): void {
+		this._onTokenFailed.fire();
 	}
 }

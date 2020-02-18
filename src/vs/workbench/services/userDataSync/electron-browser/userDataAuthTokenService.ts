@@ -18,11 +18,15 @@ export class UserDataAuthTokenService extends Disposable implements IUserDataAut
 	private _onDidChangeToken: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeToken: Event<string | undefined> = this._onDidChangeToken.event;
 
+	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
+	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('authToken');
+		this._register(this.channel.listen<void[]>('onTokenFailed')(_ => this.sendTokenFailed()));
 	}
 
 	getToken(): Promise<string | undefined> {
@@ -31,6 +35,10 @@ export class UserDataAuthTokenService extends Disposable implements IUserDataAut
 
 	setToken(token: string | undefined): Promise<undefined> {
 		return this.channel.call('setToken', token);
+	}
+
+	sendTokenFailed(): void {
+		this._onTokenFailed.fire();
 	}
 }
 
