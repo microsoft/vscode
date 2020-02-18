@@ -167,11 +167,18 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	private decorateLabel(label: string): string {
-		if (this.model?.hasState(ModelState.ORPHAN)) {
+		const orphaned = this.model?.hasState(ModelState.ORPHAN);
+		const readonly = this.isReadonly();
+
+		if (orphaned && readonly) {
+			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+		}
+
+		if (orphaned) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (this.isReadonly()) {
+		if (readonly) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 
