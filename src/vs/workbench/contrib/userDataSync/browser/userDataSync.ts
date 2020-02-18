@@ -546,7 +546,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			} else {
 				await this.userDataSyncService.resetLocal();
 			}
-			await this.disableSync();
+			await this.signOut();
+			this.disableSync();
 		}
 	}
 
@@ -671,7 +672,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 
 		const stopSyncCommandId = 'workbench.userData.actions.stopSync';
-		CommandsRegistry.registerCommand(stopSyncCommandId, () => this.turnOff());
+		CommandsRegistry.registerCommand(stopSyncCommandId, async () => {
+			try {
+				await this.turnOff();
+			} catch (e) {
+				if (!isPromiseCanceledError(e)) {
+					this.notificationService.error(localize('turn off failed', "Error while turning off sync: {0}", toErrorMessage(e)));
+				}
+			}
+		});
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
