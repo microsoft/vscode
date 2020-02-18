@@ -30,6 +30,7 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
+	readonly contextValue: string
 	open(): Promise<void>;
 }
 
