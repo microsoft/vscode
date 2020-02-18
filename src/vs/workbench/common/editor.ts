@@ -672,9 +672,7 @@ export abstract class TextResourceEditorInput extends EditorInput {
 			return true; // resources without file support are always readonly
 		}
 
-		const model = this.textFileService.files.get(this.resource);
-
-		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isSaving(): boolean {

@@ -182,6 +182,14 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		return !!(this.model?.isDirty());
 	}
 
+	isReadonly(): boolean {
+		if (this.model) {
+			return this.model.isReadonly();
+		}
+
+		return super.isReadonly();
+	}
+
 	isSaving(): boolean {
 		if (this.model?.hasState(ModelState.SAVED) || this.model?.hasState(ModelState.CONFLICT) || this.model?.hasState(ModelState.ERROR)) {
 			return false; // require the model to be dirty and not in conflict or error state
