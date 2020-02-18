@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord, currentSchemaVersion } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestLifecycleService, TestExtensionService } from 'vs/workbench/test/browser/workbenchTestServices';
 import {
@@ -165,6 +165,36 @@ suite('Experiment Service', () => {
 			assert.equal(results[4].enabled, true);
 			assert.equal(results[4].state, ExperimentState.Run);
 		});
+	});
+
+	test('filters out experiments with newer schema versions', async () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					// no version == 0
+				},
+				{
+					id: 'experiment2',
+					schemaVersion: currentSchemaVersion,
+				},
+				{
+					id: 'experiment3',
+					schemaVersion: currentSchemaVersion + 1,
+				},
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		const actual = await Promise.all([
+			testObject.getExperimentById('experiment1'),
+			testObject.getExperimentById('experiment2'),
+			testObject.getExperimentById('experiment3'),
+		]);
+
+		assert.equal(actual[0]?.id, 'experiment1');
+		assert.equal(actual[1]?.id, 'experiment2');
+		assert.equal(actual[2], undefined);
 	});
 
 	test('Insiders only experiment shouldnt be enabled in stable', () => {
