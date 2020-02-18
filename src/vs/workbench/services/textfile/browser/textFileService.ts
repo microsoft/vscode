@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { AsyncEmitter } from 'vs/base/common/event';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, TextFileCreateEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, TextFileCreateEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
@@ -16,7 +16,6 @@ import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,7 +30,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { coalesce } from 'vs/base/common/arrays';
 import { suggestFilename } from 'vs/base/common/mime';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { isValidBasename } from 'vs/base/common/extpath';
@@ -215,18 +213,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		return undefined;
-	}
-
-	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
-		if (Array.isArray(resources)) {
-			return coalesce(resources.map(resource => this.files.get(resource)));
-		}
-
-		return this.files.getAll();
-	}
-
-	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[] {
-		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
 	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
@@ -476,34 +462,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// File
-		return !(await this.doRevertFiles([resource], options)).results.some(result => result.error);
-	}
+		const model = this.files.get(resource);
+		if (model && (model.isDirty() || options?.force)) {
+			return model.revert(options);
+		}
 
-	private async doRevertFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
-		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
-
-		const mapResourceToResult = new ResourceMap<IResult>();
-		fileModels.forEach(fileModel => {
-			mapResourceToResult.set(fileModel.resource, {
-				source: fileModel.resource
-			});
-		});
-
-		await Promise.all(fileModels.map(async model => {
-
-			// Revert through model
-			await model.revert(options);
-
-			// If model is still dirty, mark the resulting operation as error
-			if (model.isDirty()) {
-				const result = mapResourceToResult.get(model.resource);
-				if (result) {
-					result.error = true;
-				}
-			}
-		}));
-
-		return { results: mapResourceToResult.values() };
+		return false;
 	}
 
 	//#endregion

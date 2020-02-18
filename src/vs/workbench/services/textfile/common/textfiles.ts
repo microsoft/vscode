@@ -336,7 +336,8 @@ export interface ITextFileEditorModelManager {
 	readonly onDidSave: Event<ITextFileModelSaveEvent>;
 	readonly onDidRevert: Event<ITextFileEditorModel>;
 	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
-	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
+
+	saveErrorHandler: ISaveErrorHandler;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 	getAll(): ITextFileEditorModel[];
@@ -345,8 +346,6 @@ export interface ITextFileEditorModelManager {
 
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
 	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
-
-	saveErrorHandler: ISaveErrorHandler;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

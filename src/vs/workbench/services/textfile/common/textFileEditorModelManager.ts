@@ -50,9 +50,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidChangeEncoding = this._register(new Emitter<ITextFileEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<ITextFileEditorModel>());
-	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
-
 	saveErrorHandler = (() => {
 		const notificationService = this.notificationService;
 
@@ -285,7 +282,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			listeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: newModel, reason })));
 			listeners.add(model.onDidRevert(() => this._onDidRevert.fire(newModel)));
 			listeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(newModel)));
-			listeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(newModel)));
 
 			this.mapResourceToModelListeners.set(resource, listeners);
 		}
