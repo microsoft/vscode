@@ -41,7 +41,7 @@ class TestEditorControl extends BaseEditor {
 
 class TestEditorInput extends EditorInput implements IFileEditorInput {
 
-	constructor(private resource: URI) { super(); }
+	constructor(public resource: URI) { super(); }
 
 	getTypeId() { return TEST_EDITOR_INPUT_ID; }
 	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
@@ -51,7 +51,6 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 }
 
@@ -73,7 +72,7 @@ suite('EditorGroupsService', () => {
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;
 				const testInput: ISerializedTestEditorInput = {
-					resource: testEditorInput.getResource().toString()
+					resource: testEditorInput.resource.toString()
 				};
 
 				return JSON.stringify(testInput);

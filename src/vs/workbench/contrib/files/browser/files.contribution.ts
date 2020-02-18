@@ -127,7 +127,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
-		const resource = fileEditorInput.getResource();
+		const resource = fileEditorInput.resource;
 		const fileInput: ISerializedFileInput = {
 			resourceJSON: resource.toJSON(),
 			encoding: fileEditorInput.getEncoding(),

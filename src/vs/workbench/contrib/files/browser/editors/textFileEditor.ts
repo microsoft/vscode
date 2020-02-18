@@ -142,7 +142,7 @@ export class TextFileEditor extends BaseTextEditor {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
-			const editorViewState = this.loadTextEditorViewState(input.getResource());
+			const editorViewState = this.loadTextEditorViewState(input.resource);
 			if (editorViewState) {
 				textEditor.restoreViewState(editorViewState);
 			}
@@ -180,14 +180,14 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.resource))) {
 			throw createErrorWithActions(toErrorMessage(error), {
 				actions: [
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.getResource());
+						await this.textFileService.create(input.resource);
 
 						return this.editorService.openEditor({
-							resource: input.getResource(),
+							resource: input.resource,
 							options: {
 								pinned: true // new file gets pinned by default
 							}
@@ -227,10 +227,10 @@ export class TextFileEditor extends BaseTextEditor {
 		await this.group.closeEditor(this.input);
 
 		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.getResource())) {
+		if (this.contextService.isInsideWorkspace(input.resource)) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 
-			this.explorerService.select(input.getResource(), true);
+			this.explorerService.select(input.resource, true);
 		}
 	}
 
@@ -278,12 +278,12 @@ export class TextFileEditor extends BaseTextEditor {
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
 		if (!this.restoreViewState && (!this.group || !this.group.isOpened(input))) {
-			this.clearTextEditorViewState([input.getResource()], this.group);
+			this.clearTextEditorViewState([input.resource], this.group);
 		}
 
 		// Otherwise we save the view state to restore it later
 		else if (!input.isDisposed()) {
-			this.saveTextEditorViewState(input.getResource());
+			this.saveTextEditorViewState(input.resource);
 		}
 	}
 }

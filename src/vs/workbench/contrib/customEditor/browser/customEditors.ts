@@ -141,7 +141,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		if (!(activeInput instanceof CustomFileEditorInput)) {
 			return undefined;
 		}
-		const resource = activeInput.getResource();
+		const resource = activeInput.resource;
 		return { resource, viewType: activeInput.viewType };
 	}
 
@@ -174,7 +174,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		let currentlyOpenedEditorType: undefined | string;
 		for (const editor of group ? group.editors : []) {
-			if (editor.getResource() && isEqual(editor.getResource(), resource)) {
+			if (editor.resource && isEqual(editor.resource, resource)) {
 				currentlyOpenedEditorType = editor instanceof CustomFileEditorInput ? editor.viewType : defaultEditorId;
 				break;
 			}
@@ -246,7 +246,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const targetGroup = group || this.editorGroupService.activeGroup;
 
 		// Try to replace existing editors for resource
-		const existingEditors = targetGroup.editors.filter(editor => editor.getResource() && isEqual(editor.getResource(), resource));
+		const existingEditors = targetGroup.editors.filter(editor => editor.resource && isEqual(editor.resource, resource));
 		if (existingEditors.length) {
 			const existing = existingEditors[0];
 			if (!input.matches(existing)) {
@@ -267,7 +267,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private updateContexts() {
 		const activeControl = this.editorService.activeControl;
-		const resource = activeControl?.input.getResource();
+		const resource = activeControl?.input.resource;
 		if (!resource) {
 			this._hasCustomEditor.reset();
 			this._focusedCustomEditorIsEditable.reset();
@@ -350,7 +350,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				// Unlike normal editor inputs, we do not want to share custom editor inputs
 				// between multiple editors / groups.
 				return {
-					override: this.customEditorService.openWith(editor.getResource(), editor.viewType, options, group)
+					override: this.customEditorService.openWith(editor.resource, editor.viewType, options, group)
 				};
 			}
 		}
@@ -359,7 +359,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			return this.onDiffEditorOpening(editor, options, group);
 		}
 
-		const resource = editor.getResource();
+		const resource = editor.resource;
 		if (resource) {
 			return this.onResourceEditorOpening(resource, editor, options, group);
 		}
@@ -382,7 +382,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		// If there is, we want to open that instead of creating a new editor.
 		// This ensures that we preserve whatever type of editor was previously being used
 		// when the user switches back to it.
-		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.getResource()));
+		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.resource));
 		if (existingEditorForResource) {
 			return {
 				override: this.editorService.openEditor(existingEditorForResource, { ...options, ignoreOverrides: true }, group)
@@ -441,7 +441,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			if (subInput instanceof CustomFileEditorInput) {
 				return undefined;
 			}
-			const resource = subInput.getResource();
+			const resource = subInput.resource;
 			if (!resource) {
 				return undefined;
 			}
