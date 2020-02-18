@@ -90,6 +90,7 @@ export class VariablesView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
@@ -109,10 +110,6 @@ export class VariablesView extends ViewPane {
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		if (this.toolbar) {
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
-			this.toolbar.setActions([collapseAction])();
-		}
 		this.tree.updateChildren();
 
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
@@ -147,11 +144,10 @@ export class VariablesView extends ViewPane {
 				this.tree.rerender(e);
 			}
 		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
-			}
-		}));
+	}
+
+	getActions(): IAction[] {
+		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {

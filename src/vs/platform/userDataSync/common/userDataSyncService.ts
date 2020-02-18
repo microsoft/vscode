@@ -106,7 +106,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			for (const synchroniser of this.synchronisers) {
 				try {
-					await synchroniser.sync(manifest ? manifest[synchroniser.resourceKey] : undefined);
+					await synchroniser.sync(manifest && manifest.latest ? manifest.latest[synchroniser.resourceKey] : undefined);
 				} catch (e) {
 					this.handleSyncError(e, synchroniser.source);
 				}
@@ -140,10 +140,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return synchroniser.accept(content);
 	}
 
-	async hasPreviouslySynced(): Promise<boolean> {
+	private async hasPreviouslySynced(): Promise<boolean> {
 		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
 			}
 		}
 		return false;
@@ -153,6 +154,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasLocalData()) {
+				return true;
 			}
 		}
 		return false;
@@ -189,6 +191,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			try {
+				synchroniser.resetLocal();
 			} catch (e) {
 				this.logService.error(`${synchroniser.source}: ${toErrorMessage(e)}`);
 				this.logService.error(e);

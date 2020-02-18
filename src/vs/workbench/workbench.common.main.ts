@@ -272,6 +272,9 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
 
+// Welcome
+import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
+
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
 

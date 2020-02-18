@@ -18,6 +18,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IApplicationLink } from 'vs/workbench/workbench.web.api';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class OpenInDesktopIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -28,13 +29,13 @@ export class OpenInDesktopIndicator extends Disposable implements IWorkbenchCont
 	) {
 		super();
 
-		const links = environmentService.options?.applicationLinkProvider?.();
+		const links = environmentService.options?.applicationLinks;
 		if (Array.isArray(links) && links?.length > 0) {
 			this.installOpenInDesktopIndicator(links);
 		}
 	}
 
-	private installOpenInDesktopIndicator(links: IApplicationLink[]): void {
+	private installOpenInDesktopIndicator(links: readonly IApplicationLink[]): void {
 
 		// Register action to trigger "Open In Desktop"
 		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -63,16 +64,17 @@ export class OpenInDesktopAction extends Action {
 		id: string,
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		const links = this.environmentService.options?.applicationLinkProvider?.();
+		const links = this.environmentService.options?.applicationLinks;
 		if (Array.isArray(links)) {
 			if (links.length === 1) {
-				return this.runWithoutPicker(links[0]);
+				return this.openApplicationLink(links[0]);
 			}
 
 			return this.runWithPicker(links);
@@ -81,7 +83,7 @@ export class OpenInDesktopAction extends Action {
 		return true;
 	}
 
-	private async runWithPicker(links: IApplicationLink[]): Promise<boolean> {
+	private async runWithPicker(links: readonly IApplicationLink[]): Promise<boolean> {
 
 		// Show a picker with choices
 		const quickPick = this.quickInputService.createQuickPick<IApplicationLink>();
@@ -91,7 +93,7 @@ export class OpenInDesktopAction extends Action {
 		quickPick.onDidAccept(() => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
-				this.runWithoutPicker(selectedItems[0]);
+				this.openApplicationLink(selectedItems[0]);
 			}
 			quickPick.hide();
 		});
@@ -101,10 +103,8 @@ export class OpenInDesktopAction extends Action {
 		return true;
 	}
 
-	private async runWithoutPicker(link: IApplicationLink): Promise<boolean> {
-
-		// Open directly
-		window.location.href = link.uri.toString();
+	private async openApplicationLink(link: IApplicationLink): Promise<boolean> {
+		this.openerService.open(link.uri, { openExternal: true });
 
 		return true;
 	}

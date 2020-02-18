@@ -16,6 +16,8 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -49,17 +51,6 @@ export interface ITextFileService extends IDisposable {
 	 * Helper to determine encoding for resources.
 	 */
 	readonly encoding: IResourceEncodings;
-
-	/**
-	 * The handler that should be called when saving fails. Can be overridden
-	 * to handle save errors in a custom way.
-	 */
-	saveErrorHandler: ISaveErrorHandler;
-
-	/**
-	 * The save participant if any. By default, no save participant is registered.
-	 */
-	saveParticipant: ISaveParticipant | undefined;
 
 	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
@@ -225,14 +216,6 @@ export interface ISaveErrorHandler {
 	onSaveError(error: Error, model: ITextFileEditorModel): void;
 }
 
-export interface ISaveParticipant {
-
-	/**
-	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
-	 */
-	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
-}
-
 /**
  * States the text file editor model can be in.
  */
@@ -356,6 +339,20 @@ export interface ITextFileModelLoadEvent {
 	reason: LoadReason;
 }
 
+export interface ITextFileSaveParticipant {
+
+	/**
+	 * Participate in a save of a model. Allows to change the model
+	 * before it is being saved to disk.
+	 */
+	participate(
+		model: IResolvedTextFileEditorModel,
+		context: { reason: SaveReason },
+		progress: IProgress<IProgressStep>,
+		token: CancellationToken
+	): Promise<void>;
+}
+
 export interface ITextFileEditorModelManager {
 
 	readonly onDidLoad: Event<ITextFileModelLoadEvent>;
@@ -370,6 +367,11 @@ export interface ITextFileEditorModelManager {
 	getAll(): ITextFileEditorModel[];
 
 	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
+
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
+	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+
+	saveErrorHandler: ISaveErrorHandler;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

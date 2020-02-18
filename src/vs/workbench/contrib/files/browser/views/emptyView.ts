@@ -50,7 +50,7 @@ export class EmptyView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section: No Folder Opened") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
 	}

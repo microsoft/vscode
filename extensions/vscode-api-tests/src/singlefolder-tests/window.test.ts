@@ -145,14 +145,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	// TODO this randomly fails when running against web and visually
-	// what seems to happen is that the second editor opens and both
-	// left and right editor show a blinking cursor. Since active editor
-	// tracking relies on editor focus to function properly, this
-	// seems to be the root cause of the failure.
-	// https://github.com/microsoft/vscode/issues/90470
-	test.skip('active editor not always correct... #49125', async function () {
-
+	test('active editor not always correct... #49125', async function () {
 		const randomFile1 = await createRandomFile();
 		const randomFile2 = await createRandomFile();
 

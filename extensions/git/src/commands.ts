@@ -6,7 +6,7 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions } from './api/git';
@@ -17,6 +17,7 @@ import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineC
 import { fromGitUri, toGitUri, isGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
 import { Log, LogLevel } from './log';
+import { GitTimelineItem } from './timelineProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -2331,22 +2332,46 @@ export class CommandCenter {
 		return result && result.stash;
 	}
 
-	@command('git.openDiff', { repository: false })
-	async openDiff(uri: Uri, lhs: string, rhs: string) {
+	@command('git.timeline.openDiff', { repository: false })
+	async timelineOpenDiff(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		// eslint-disable-next-line eqeqeq
+		if (uri == null || !GitTimelineItem.is(item)) {
+			return undefined;
+		}
+
 		const basename = path.basename(uri.fsPath);
 
 		let title;
-		if ((lhs === 'HEAD' || lhs === '~') && rhs === '') {
+		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
 			title = `${basename} (Working Tree)`;
 		}
-		else if (lhs === 'HEAD' && rhs === '~') {
+		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = `${basename} (Index)`;
 		} else {
-			title = `${basename} (${lhs.endsWith('^') ? `${lhs.substr(0, 8)}^` : lhs.substr(0, 8)}) \u27f7 ${basename} (${rhs.endsWith('^') ? `${rhs.substr(0, 8)}^` : rhs.substr(0, 8)})`;
+			title = `${basename} (${item.shortPreviousRef}) \u27f7 ${basename} (${item.shortRef})`;
 		}
 
-		return commands.executeCommand('vscode.diff', toGitUri(uri, lhs), rhs === '' ? uri : toGitUri(uri, rhs), title);
+		return commands.executeCommand('vscode.diff', toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
+
+	@command('git.timeline.copyCommitId', { repository: false })
+	async timelineCopyCommitId(item: TimelineItem, _uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		env.clipboard.writeText(item.ref);
+	}
+
+	@command('git.timeline.copyCommitMessage', { repository: false })
+	async timelineCopyCommitMessage(item: TimelineItem, _uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		env.clipboard.writeText(item.message);
+	}
+
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {

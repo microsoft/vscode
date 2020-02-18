@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -36,6 +36,34 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
 		this._modeService = modeService;
+
+		if (this._modeService) {
+			const updateAllWordDefinitions = () => {
+				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
+				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
+				for (const [languageId, wordDefinition] of langWordPairs) {
+					const language = this._modeService.getLanguageIdentifier(languageId);
+					if (!language) {
+						continue;
+					}
+					wordDefinitionDtos.push({
+						languageId: language.language,
+						regexSource: wordDefinition.source,
+						regexFlags: wordDefinition.flags
+					});
+				}
+				this._proxy.$setWordDefinitions(wordDefinitionDtos);
+			};
+			LanguageConfigurationRegistry.onDidChange((e) => {
+				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
+				this._proxy.$setWordDefinitions([{
+					languageId: e.languageIdentifier.language,
+					regexSource: wordDefinition.source,
+					regexFlags: wordDefinition.flags
+				}]);
+			});
+			updateAllWordDefinitions();
+		}
 	}
 
 	dispose(): void {
@@ -209,6 +237,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
 			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
 				return this._proxy.$provideHover(handle, model.uri, position, token);
+			}
+		}));
+	}
+
+	// --- debug hover
+
+	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.EvaluatableExpressionProviderRegistry.register(selector, <modes.EvaluatableExpressionProvider>{
+			provideEvaluatableExpression: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> => {
+				return this._proxy.$provideEvaluatableExpression(handle, model.uri, position, token);
 			}
 		}));
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -24,6 +24,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { WorkspaceFileEdit } from 'vs/editor/common/modes';
+import { compare } from 'vs/base/common/strings';
 
 // --- VIEW MODEL
 
@@ -245,6 +246,39 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		}
 
 		return [];
+	}
+}
+
+
+export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
+
+	compare(a: BulkEditElement, b: BulkEditElement): number {
+		if (a instanceof CategoryElement && b instanceof CategoryElement) {
+			//
+			const aConfirm = BulkEditSorter._needsConfirmation(a.category);
+			const bConfirm = BulkEditSorter._needsConfirmation(b.category);
+			if (aConfirm === bConfirm) {
+				return a.category.metadata.label.localeCompare(b.category.metadata.label);
+			} else if (aConfirm) {
+				return -1;
+			} else {
+				return 1;
+			}
+		}
+
+		if (a instanceof FileElement && b instanceof FileElement) {
+			return compare(a.edit.uri.toString(), b.edit.uri.toString());
+		}
+
+		if (a instanceof TextEditElement && b instanceof TextEditElement) {
+			return Range.compareRangesUsingStarts(a.edit.textEdit.edit.range, b.edit.textEdit.edit.range);
+		}
+
+		return 0;
+	}
+
+	private static _needsConfirmation(a: BulkCategory): boolean {
+		return a.fileOperations.some(ops => ops.needsConfirmation());
 	}
 }
 

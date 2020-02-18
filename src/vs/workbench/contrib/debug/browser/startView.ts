@@ -20,7 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -170,6 +170,7 @@ export class StartView extends ViewPane {
 		}));
 		attachButtonStyler(this.debugButton, this.themeService);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-start-view');
 
 		this.secondMessageContainer = $('.section');

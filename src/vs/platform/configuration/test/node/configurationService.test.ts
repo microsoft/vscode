@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { testFile } from 'vs/base/test/node/utils';

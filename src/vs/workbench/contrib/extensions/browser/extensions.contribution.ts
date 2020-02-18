@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
@@ -47,6 +47,7 @@ import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewConta
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -287,6 +288,30 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 			throw e;
 		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.search',
+	description: {
+		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.search.arg.name', "Query to use in search"),
+				schema: { 'type': 'string' }
+			}
+		]
+	},
+	handler: async (accessor, query: string = '') => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+
+		if (!viewlet) {
+			return;
+		}
+
+		(viewlet.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
+		viewlet.focus();
 	}
 });
 
