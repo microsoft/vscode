@@ -21,6 +21,8 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { RunOnceWorker } from 'vs/base/common/async';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { equals } from 'vs/base/common/objects';
 
 export const enum ExperimentState {
 	Evaluating,
@@ -49,7 +51,7 @@ export interface IExperimentActionPromptProperties {
 }
 
 export interface IExperimentActionPromptCommand {
-	text: string | { [key: string]: string };
+	text: string | { [key: string]: string; };
 	externalLink?: string;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];
@@ -88,24 +90,62 @@ interface IRawExperiment {
 		insidersOnly?: boolean;
 		newUser?: boolean;
 		displayLanguage?: string;
+		// Evaluates to true iff all the given user settings are deeply equal
+		userSetting?: { [key: string]: unknown; };
+		// Start the experiment if the number of activation events have happened over the last week:
+		activationEvent?: {
+			event: string;
+			uniqueDays?: number;
+			minEvents: number;
+		};
 		installedExtensions?: {
 			excludes?: string[];
 			includes?: string[];
-		},
+		};
 		fileEdits?: {
 			filePathPattern?: string;
 			workspaceIncludes?: string[];
 			workspaceExcludes?: string[];
 			minEditCount: number;
-		},
+		};
 		experimentsPreviouslyRun?: {
 			excludes?: string[];
 			includes?: string[];
-		}
+		};
 		userProbability?: number;
 	};
 	action?: IExperimentAction;
 }
+
+interface IActivationEventRecord {
+	count: number[];
+	mostRecentBucket: number;
+}
+
+const experimentEventStorageKey = (event: string) => 'experimentEventRecord-' + event.replace(/[^0-9a-z]/ig, '-');
+
+/**
+ * Updates the activation record to shift off days outside the window
+ * we're interested in.
+ */
+export const getCurrentActivationRecord = (previous?: IActivationEventRecord, dayWindow = 7): IActivationEventRecord => {
+	const oneDay = 1000 * 60 * 60 * 24;
+	const now = Date.now();
+	if (!previous) {
+		return { count: new Array(dayWindow).fill(0), mostRecentBucket: now };
+	}
+
+	// get the number of days, up to dayWindow, that passed since the last bucket update
+	const shift = Math.min(dayWindow, Math.floor((now - previous.mostRecentBucket) / oneDay));
+	if (!shift) {
+		return previous;
+	}
+
+	return {
+		count: new Array(shift).fill(0).concat(previous.count.slice(0, -shift)),
+		mostRecentBucket: previous.mostRecentBucket + shift * oneDay,
+	};
+};
 
 export class ExperimentService extends Disposable implements IExperimentService {
 	_serviceBrand: undefined;
@@ -125,11 +165,13 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
-		this._loadExperimentsPromise = Promise.resolve(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() => this.loadExperiments());
+		this._loadExperimentsPromise = Promise.resolve(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() =>
+			this.loadExperiments());
 	}
 
 	public getExperimentById(id: string): Promise<IExperiment> {
@@ -223,6 +265,15 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				this.storageService.remove('allExperiments', StorageScope.GLOBAL);
 			}
 
+			const activationEvents = new Set(rawExperiments.map(exp => exp.condition?.activationEvent?.event).filter(evt => !!evt));
+			if (activationEvents.size) {
+				this._register(this.extensionService.onWillActivateByEvent(evt => {
+					if (activationEvents.has(evt.event)) {
+						this.recordActivatedEvent(evt.event);
+					}
+				}));
+			}
+
 			const promises = rawExperiments.map(experiment => {
 				const processedExperiment: IExperiment = {
 					id: experiment.id,
@@ -276,9 +327,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			});
 			return Promise.all(promises).then(() => {
 				type ExperimentsClassification = {
-					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 				};
-				this.telemetryService.publicLog2<{ experiments: IExperiment[] }, ExperimentsClassification>('experiments', { experiments: this._experiments });
+				this.telemetryService.publicLog2<{ experiments: IExperiment[]; }, ExperimentsClassification>('experiments', { experiments: this._experiments });
 			});
 		});
 	}
@@ -298,7 +349,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
-		const experimentsPreviouslyRun = experiment.condition ? experiment.condition.experimentsPreviouslyRun : undefined;
+		const experimentsPreviouslyRun = experiment.condition?.experimentsPreviouslyRun;
 		if (experimentsPreviouslyRun) {
 			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
 			let includeCheck = true;
@@ -318,6 +369,33 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		return true;
 	}
 
+	private recordActivatedEvent(event: string) {
+		const key = experimentEventStorageKey(event);
+		const record = getCurrentActivationRecord(safeParse(this.storageService.get(key, StorageScope.GLOBAL), undefined));
+		record.count[0]++;
+		this.storageService.store(key, JSON.stringify(record), StorageScope.GLOBAL);
+	}
+
+	private checkActivationEventFrequency(experiment: IRawExperiment) {
+		const setting = experiment.condition?.activationEvent;
+		if (!setting) {
+			return true;
+		}
+
+		const { count } = getCurrentActivationRecord(safeParse(this.storageService.get(experimentEventStorageKey(setting.event), StorageScope.GLOBAL), undefined));
+
+		let total = 0;
+		let uniqueDays = 0;
+		for (const entry of count) {
+			if (entry > 0) {
+				uniqueDays++;
+				total += entry;
+			}
+		}
+
+		return total >= setting.minEvents && (!setting.uniqueDays || uniqueDays >= setting.uniqueDays);
+	}
+
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): Promise<ExperimentState> {
 		if (processedExperiment.state !== ExperimentState.Evaluating) {
 			return Promise.resolve(processedExperiment.state);
@@ -334,6 +412,16 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 		if (!this.checkExperimentDependencies(experiment)) {
 			return Promise.resolve(ExperimentState.NoRun);
+		}
+
+		for (const [key, value] of Object.entries(experiment.condition?.userSetting || {})) {
+			if (!equals(this.configurationService.getValue(key), value)) {
+				return Promise.resolve(ExperimentState.NoRun);
+			}
+		}
+
+		if (!this.checkActivationEventFrequency(experiment)) {
+			return Promise.resolve(ExperimentState.Evaluating);
 		}
 
 		if (this.productService.quality === 'stable' && condition.insidersOnly === true) {
