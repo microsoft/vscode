@@ -717,7 +717,7 @@
         },
         {
           "command": "git.showOutput",
-          "when": "config.git.enabled && !git.missing"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.ignore",
