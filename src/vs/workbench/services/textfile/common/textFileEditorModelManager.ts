@@ -83,7 +83,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private registerListeners(): void {
 
 		// Update models from file change events
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
 		// Working copy operations
 		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
@@ -94,7 +94,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 
 		// Collect distinct (saved) models to update.
 		//

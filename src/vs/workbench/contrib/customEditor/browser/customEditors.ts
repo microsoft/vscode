@@ -125,7 +125,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(this._editorInfoStore.onChange(() => this.updateContexts()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
 
-		this._register(fileService.onAfterOperation(e => {
+		this._register(fileService.onDidRunOperation(e => {
 			if (e.isOperation(FileOperation.MOVE)) {
 				this.handleMovedFileInOpenedFileEditors(e.resource, e.target.resource);
 			}

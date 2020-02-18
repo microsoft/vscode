@@ -125,7 +125,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
-		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
+		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
 		this._register(this.resourceFilter.onExpressionChange(() => this.removeExcludedFromHistory()));
 		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
@@ -220,7 +220,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return identifier.editor.matches(editor.input);
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 		if (e.gotDeleted()) {
 			this.remove(e); // remove from history files that got deleted or moved
 		}

@@ -603,8 +603,8 @@ export class TestFileService implements IFileService {
 
 	_serviceBrand: undefined;
 
-	private readonly _onFileChanges: Emitter<FileChangesEvent>;
-	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
+	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
+	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
 
 	readonly onWillActivateFileSystemProvider = Event.None;
 	readonly onDidChangeFileSystemProviderCapabilities = Event.None;
@@ -613,18 +613,13 @@ export class TestFileService implements IFileService {
 	private content = 'Hello Html';
 	private lastReadFileUri!: URI;
 
-	constructor() {
-		this._onFileChanges = new Emitter<FileChangesEvent>();
-		this._onAfterOperation = new Emitter<FileOperationEvent>();
-	}
-
 	setContent(content: string): void { this.content = content; }
 	getContent(): string { return this.content; }
 	getLastReadFileUri(): URI { return this.lastReadFileUri; }
-	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onFileChanges.fire(event); }
-	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onAfterOperation.fire(event); }
+	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
