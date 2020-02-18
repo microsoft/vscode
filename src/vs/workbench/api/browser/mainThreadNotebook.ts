@@ -9,7 +9,8 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MainThreadCell implements ICell {
 	private _onDidChangeOutputs = new Emitter<void>();
@@ -193,13 +194,35 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@INotebookService private _notebookService: INotebookService
+		@INotebookService private _notebookService: INotebookService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this.registerListeners();
+	}
+
+	registerListeners() {
 		this._register(this._notebookService.onDidChangeActiveEditor(e => {
 			this._proxy.$updateActiveEditor(e.viewType, e.uri);
 		}));
+
+		let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
+		this._proxy.$acceptDisplayOrder({
+			defaultOrder: NOTEBOOK_DISPLAY_ORDER,
+			userOrder: userOrder
+		});
+
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.indexOf('notebook.displayOrder') >= 0) {
+				let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
+
+				this._proxy.$acceptDisplayOrder({
+					defaultOrder: NOTEBOOK_DISPLAY_ORDER,
+					userOrder: userOrder
+				});
+			}
+		});
 	}
 
 	async $registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void> {

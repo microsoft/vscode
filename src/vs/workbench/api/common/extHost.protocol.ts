@@ -50,7 +50,7 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { TimelineItem, TimelineProviderDescriptor, TimelineChangeEvent, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
-import { INotebookMimeTypeSelector, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1474,12 +1474,12 @@ export interface ExtHostCommentsShape {
 export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
-	// $latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined>;
 	$createEmptyCell(viewType: string, uri: UriComponents, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined>;
 	$deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;
 	$destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean>;
+	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 }
 
 export interface ExtHostStorageShape {

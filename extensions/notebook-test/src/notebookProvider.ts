@@ -8,13 +8,13 @@ import * as path from 'path';
 
 declare var TextEncoder: any;
 
-const mjAPI = require('mathjax-node');
-mjAPI.config({
-	MathJax: {
-		// traditional MathJax configuration
-	}
-});
-mjAPI.start();
+// const mjAPI = require('mathjax-node');
+// mjAPI.config({
+// 	MathJax: {
+// 		// traditional MathJax configuration
+// 	}
+// });
+// mjAPI.start();
 
 export class Cell {
 	public outputs: vscode.CellOutput[] = [];
@@ -59,7 +59,8 @@ export class Cell {
 export class JupyterNotebook {
 	public mapping: Map<number, any> = new Map();
 	private preloadScript = false;
-	private _displayOrders = [
+	private displayOrders = [
+		'application/vnd.*',
 		'application/json',
 		'application/javascript',
 		'text/html',
@@ -70,6 +71,7 @@ export class JupyterNotebook {
 		'image/jpeg',
 		'text/plain'
 	];
+
 	constructor(
 		private _extensionPath: string,
 		editor: vscode.NotebookEditor,
@@ -120,6 +122,7 @@ export class JupyterNotebook {
 
 		editor.document.languages = ['python'];
 		editor.document.cells = cells;
+		editor.document.displayOrder = this.displayOrders;
 	}
 
 	execute(document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) {
@@ -204,22 +207,22 @@ export class NotebookProvider implements vscode.NotebookProvider {
 
 	constructor(private _extensionPath: string, private fillOutputs: boolean) {
 	}
-	async latexRenderer(value: string): Promise<vscode.MarkdownString> {
-		return new Promise((resolve, reject) => {
-			mjAPI.typeset({
-				math: value,
-				format: "inline-TeX", // or "inline-TeX", "MathML"
-				svg: true
-			}, function (data: any) {
-				if (!data.errors) {
-					var encodedData = Buffer.from(data.svg).toString('base64')
-					resolve(new vscode.MarkdownString(`![value](data:image/svg+xml;base64,${encodedData})`));
-				} else {
-					reject();
-				}
-			});
-		});
-	}
+	// async latexRenderer(value: string): Promise<vscode.MarkdownString> {
+	// 	return new Promise((resolve, reject) => {
+	// 		mjAPI.typeset({
+	// 			math: value,
+	// 			format: 'inline-TeX', // or "inline-TeX", "MathML"
+	// 			svg: true
+	// 		}, function (data: any) {
+	// 			if (!data.errors) {
+	// 				var encodedData = Buffer.from(data.svg).toString('base64');
+	// 				resolve(new vscode.MarkdownString(`![value](data:image/svg+xml;base64,${encodedData})`));
+	// 			} else {
+	// 				reject();
+	// 			}
+	// 		});
+	// 	});
+	// }
 
 	async resolveNotebook(editor: vscode.NotebookEditor): Promise<void> {
 

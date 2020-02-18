@@ -6,6 +6,24 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IRelativePattern } from 'vs/base/common/glob';
+
+export const NOTEBOOK_DISPLAY_ORDER = [
+	'application/json',
+	'application/javascript',
+	'text/html',
+	'image/svg+xml',
+	'text/markdown',
+	'image/svg+xml',
+	'image/png',
+	'image/jpeg',
+	'text/plain'
+];
+
+export interface INotebookDisplayOrder {
+	defaultOrder: (string | IRelativePattern)[];
+	userOrder?: (string | IRelativePattern)[];
+}
 
 export interface INotebookMimeTypeSelector {
 	type: string;
@@ -63,12 +81,14 @@ export interface IDisplayOutput {
  */
 export interface IGenericOutput {
 	output_type: string;
+	pickedMimeType?: string;
+	// transformedOutput?: IGenericOutput;
 }
 
 /**
  * @internal
  */
-export type IOutput = IStreamOutput | any;
+export type IOutput = IGenericOutput;
 
 /**
  * @internal

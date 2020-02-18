@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as glob from 'vs/base/common/glob';
 import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
@@ -12,9 +13,12 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
+interface ExtHostOutputDisplayOrder {
+	defaultOrder: glob.ParsedPattern[];
+	userOrder?: glob.ParsedPattern[];
+}
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -69,18 +73,6 @@ export class ExtHostCell implements vscode.NotebookCell {
 	}
 }
 
-// const standardTransforms = [
-// 	'application/json',
-// 	'application/javascript',
-// 	'text/html',
-// 	'image/svg+xml',
-// 	'text/markdown',
-// 	'image/svg+xml',
-// 	'image/png',
-// 	'image/jpeg',
-// 	'text/plain'
-// ];
-
 export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostNotebookDocument._handlePool++;
@@ -119,6 +111,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	}
 
 	private _displayOrder: vscode.GlobPattern[] = [];
+	private _parsedDisplayOrder: glob.ParsedPattern[] = [];
 
 	get displayOrder() {
 		return this._displayOrder;
@@ -126,6 +119,11 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 	set displayOrder(newOrder: vscode.GlobPattern[]) {
 		this._displayOrder = newOrder;
+		this._parsedDisplayOrder = newOrder.map(pattern => glob.parse(pattern));
+	}
+
+	get parsedDisplayOrder() {
+		return this._parsedDisplayOrder;
 	}
 
 	constructor(
@@ -180,14 +178,26 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 			let outputs = cell.outputs;
 			if (outputs && outputs.length) {
 				outputs = outputs.map(output => {
-					let handler = this.renderingHandler.findBestMatchedRenderer(output);
+					let richestMimeType: string | undefined = undefined;
 
-					if (handler) {
-						renderers.add(handler.handle);
-						return handler.render(this, cell, output);
-					} else {
-						return output;
+					if (this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
+						richestMimeType = this.findRichestMimeType(output);
 					}
+
+					let transformedOutput: vscode.CellOutput | undefined = undefined;
+
+					if (richestMimeType) {
+						let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
+						if (handler) {
+							renderers.add(handler.handle);
+							transformedOutput = handler?.render(this, cell, output);
+
+							output = transformedOutput;
+							output.pickedMimeType = richestMimeType;
+						}
+					}
+
+					return output;
 				});
 			}
 
@@ -203,6 +213,52 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		);
 
 		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, cellDtos, Array.from(renderers));
+	}
+
+	findRichestMimeType(output: vscode.CellOutput) {
+		if (output.output_type === 'display_data' || output.output_type === 'execute_result') {
+			let mimeTypes = Object.keys(output.data);
+
+			const sorted = mimeTypes.sort((a, b) => {
+				return this.getMimeTypeOrder(a) - this.getMimeTypeOrder(b);
+			});
+
+			if (sorted.length) {
+				return sorted[0];
+			}
+		}
+
+		return undefined;
+	}
+
+	getMimeTypeOrder(mimeType: string) {
+		let order = 0;
+		let coreDisplayOrder = this.renderingHandler.outputDisplayOrder;
+		if (coreDisplayOrder) {
+			// User order has highest priority
+			let userDisplayOrder = coreDisplayOrder.userOrder;
+
+			if (userDisplayOrder) {
+				for (let i = 0; i < userDisplayOrder.length; i++) {
+					if (userDisplayOrder[i](mimeType)) {
+						return order;
+					}
+					order++;
+				}
+			}
+
+			let documentDisplayOrder = this._parsedDisplayOrder;
+
+			for (let i = 0; i < documentDisplayOrder.length; i++) {
+				if (documentDisplayOrder[i](mimeType)) {
+					return order;
+				}
+
+				order++;
+			}
+		}
+
+		return order;
 	}
 
 	getCell(cellHandle: number) {
@@ -301,25 +357,12 @@ export class ExtHostNotebookOutputRenderer {
 
 	}
 
-	matches(output: vscode.CellOutput): boolean {
-		if (output.output_type === this.filter.type) {
-			if (output.output_type === 'stream' || output.output_type === 'error') {
-				return true;
-			}
-
-			if (this.filter.subTypes) {
-				for (let i = 0; i < this.filter.subTypes.length; i++) {
-					if (output.data[this.filter.subTypes[i]] !== undefined) {
-						return true;
-					}
-				}
-
-				return false;
-			} else {
+	matches(mimeType: string): boolean {
+		if (this.filter.subTypes) {
+			if (this.filter.subTypes.indexOf(mimeType) >= 0) {
 				return true;
 			}
 		}
-
 		return false;
 	}
 
@@ -338,7 +381,8 @@ export class ExtHostNotebookOutputRenderer {
 }
 
 export interface ExtHostNotebookOutputRenderingHandler {
-	findBestMatchedRenderer(output: vscode.CellOutput): ExtHostNotebookOutputRenderer | undefined;
+	outputDisplayOrder: ExtHostOutputDisplayOrder | undefined;
+	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer | undefined;
 }
 
 export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
@@ -349,16 +393,20 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
+	private _outputDisplayOrder: ExtHostOutputDisplayOrder | undefined;
 
-
-	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
+	get outputDisplayOrder(): ExtHostOutputDisplayOrder | undefined {
+		return this._outputDisplayOrder;
 	}
 
 	private _activeNotebookDocument: ExtHostNotebookDocument | undefined;
 
 	get activeNotebookDocument() {
 		return this._activeNotebookDocument;
+	}
+
+	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 	}
 
 	registerNotebookOutputRenderer(
@@ -375,9 +423,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	findBestMatchedRenderer(output: vscode.CellOutput): ExtHostNotebookOutputRenderer | undefined {
+	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer | undefined {
 		for (let renderer of this._notebookOutputRenderers) {
-			if (renderer[1].matches(output)) {
+			if (renderer[1].matches(mimeType)) {
 				return renderer[1];
 			}
 		}
@@ -451,17 +499,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 		return provider.provider.executeCell(document!, cell);
 	}
-
-	// async $latexRenderer(viewType: string, value: string): Promise<IMarkdownString | undefined> {
-	// 	let provider = this._notebookProviders.get(viewType);
-
-	// 	if (provider && provider.provider.latexRenderer) {
-	// 		let res = await provider.provider.latexRenderer(value);
-	// 		return extHostTypeConverter.MarkdownString.from(res);
-	// 	}
-
-	// 	return;
-	// }
 
 	async $createEmptyCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
 		let provider = this._notebookProviders.get(viewType);
@@ -544,4 +581,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return false;
 	}
 
+	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
+		let parsedDefaultDisplayOrder = displayOrder.defaultOrder.map(pattern => glob.parse(pattern));
+		let parsedUserPattern = displayOrder.userOrder?.map(pattern => glob.parse(pattern));
+		this._outputDisplayOrder = {
+			defaultOrder: parsedDefaultDisplayOrder,
+			userOrder: parsedUserPattern
+		};
+	}
 }

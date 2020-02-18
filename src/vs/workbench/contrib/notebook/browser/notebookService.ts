@@ -260,7 +260,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		let modelData = this._models[modelId];
 
 		delete this._models[modelId];
-		modelData.dispose();
+		modelData?.dispose();
 
 		// this._onModelRemoved.fire(model);
 	}
