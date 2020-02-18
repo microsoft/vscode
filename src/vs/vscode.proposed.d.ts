@@ -914,8 +914,8 @@ declare module 'vscode' {
 		 * Provide an evaluatable expression for the given document and position.
 		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position where the command was invoked.
+		 * @param document The document in which the debug hover is opened.
+		 * @param position The position in the document where the debug hover is opened.
 		 * @param token A cancellation token.
 		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
