@@ -106,7 +106,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			for (const synchroniser of this.synchronisers) {
 				try {
-					await synchroniser.sync(manifest ? manifest[synchroniser.resourceKey] : undefined);
+					await synchroniser.sync(manifest && manifest.latest ? manifest.latest[synchroniser.resourceKey] : undefined);
 				} catch (e) {
 					this.handleSyncError(e, synchroniser.source);
 				}
