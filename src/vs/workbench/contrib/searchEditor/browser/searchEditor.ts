@@ -483,7 +483,7 @@ export class SearchEditor extends BaseTextEditor {
 	}
 
 	private loadViewState() {
-		const resource = assertIsDefined(this.input?.getResource());
+		const resource = assertIsDefined(this.input?.resource);
 		return this.loadTextEditorViewState(resource) as SearchEditorViewState;
 	}
 

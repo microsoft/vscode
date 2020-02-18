@@ -26,6 +26,11 @@ export class WebviewInput extends EditorInput {
 	private readonly _onDisposeWebview = this._register(new Emitter<void>());
 	readonly onDisposeWebview = this._onDisposeWebview.event;
 
+	readonly resource = URI.from({
+		scheme: WebviewPanelResourceScheme,
+		path: `webview-panel/webview-${this.id}`
+	});
+
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
@@ -50,13 +55,6 @@ export class WebviewInput extends EditorInput {
 
 	public getTypeId(): string {
 		return WebviewInput.typeId;
-	}
-
-	public getResource(): URI {
-		return URI.from({
-			scheme: WebviewPanelResourceScheme,
-			path: `webview-panel/webview-${this.id}`
-		});
 	}
 
 	public getName(): string {

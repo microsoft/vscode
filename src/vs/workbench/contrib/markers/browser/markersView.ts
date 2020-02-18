@@ -517,7 +517,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.getResource()) : null;
+		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.resource) : null;
 	}
 
 	private onSelected(): void {

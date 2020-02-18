@@ -170,13 +170,13 @@ suite('BackupTracker', () => {
 
 		await accessor.backupFileService.joinBackupResource();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.getResource()), true);
+		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), true);
 
 		untitledModel.dispose();
 
 		await accessor.backupFileService.joinDiscardBackup();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.getResource()), false);
+		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), false);
 
 		part.dispose();
 		tracker.dispose();

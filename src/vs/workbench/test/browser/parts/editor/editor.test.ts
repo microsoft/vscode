@@ -20,16 +20,12 @@ class ServiceAccessor {
 
 class FileEditorInput extends EditorInput {
 
-	constructor(private resource: URI) {
+	constructor(public resource: URI) {
 		super();
 	}
 
 	getTypeId(): string {
 		return 'editorResourceFileTest';
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 
 	resolve(): Promise<IEditorModel | null> {
@@ -58,18 +54,18 @@ suite('Workbench editor', () => {
 
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 
-		assert.equal(toResource(untitled)!.toString(), untitled.getResource().toString());
-		assert.equal(toResource(untitled, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), untitled.getResource().toString());
-		assert.equal(toResource(untitled, { filterByScheme: Schemas.untitled })!.toString(), untitled.getResource().toString());
-		assert.equal(toResource(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.getResource().toString());
+		assert.equal(toResource(untitled)!.toString(), untitled.resource.toString());
+		assert.equal(toResource(untitled, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), untitled.resource.toString());
+		assert.equal(toResource(untitled, { filterByScheme: Schemas.untitled })!.toString(), untitled.resource.toString());
+		assert.equal(toResource(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource.toString());
 		assert.ok(!toResource(untitled, { filterByScheme: Schemas.file }));
 
 		const file = new FileEditorInput(URI.file('/some/path.txt'));
 
-		assert.equal(toResource(file)!.toString(), file.getResource().toString());
-		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), file.getResource().toString());
-		assert.equal(toResource(file, { filterByScheme: Schemas.file })!.toString(), file.getResource().toString());
-		assert.equal(toResource(file, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.getResource().toString());
+		assert.equal(toResource(file)!.toString(), file.resource.toString());
+		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), file.resource.toString());
+		assert.equal(toResource(file, { filterByScheme: Schemas.file })!.toString(), file.resource.toString());
+		assert.equal(toResource(file, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
 		assert.ok(!toResource(file, { filterByScheme: Schemas.untitled }));
 
 		const diffEditorInput = new DiffEditorInput('name', 'description', untitled, file);
@@ -77,8 +73,8 @@ suite('Workbench editor', () => {
 		assert.ok(!toResource(diffEditorInput));
 		assert.ok(!toResource(diffEditorInput, { filterByScheme: Schemas.file }));
 
-		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), file.getResource().toString());
-		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file })!.toString(), file.getResource().toString());
-		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.getResource().toString());
+		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), file.resource.toString());
+		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file })!.toString(), file.resource.toString());
+		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
 	});
 });

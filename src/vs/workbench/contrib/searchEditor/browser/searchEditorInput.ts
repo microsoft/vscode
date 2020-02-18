@@ -102,7 +102,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input.getResource();
+			readonly resource = input.resource;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -114,10 +114,6 @@ export class SearchEditorInput extends EditorInput {
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
-	}
-
-	getResource() {
-		return this.resource;
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {

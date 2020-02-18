@@ -540,13 +540,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		});
 		if (result.confirmed) {
-			await this.disableSync();
 			if (result.checkboxChecked) {
 				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
 			} else {
 				await this.userDataSyncService.resetLocal();
 			}
+			await this.signOut();
+			this.disableSync();
 		}
 	}
 
@@ -583,12 +584,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const previewResource = source === SyncSource.Settings ? this.workbenchEnvironmentService.settingsSyncPreviewResource
 			: source === SyncSource.Keybindings ? this.workbenchEnvironmentService.keybindingsSyncPreviewResource
 				: null;
-		return previewResource ? this.editorService.editors.filter(input => input instanceof DiffEditorInput && isEqual(previewResource, input.master.getResource()))[0] : undefined;
+		return previewResource ? this.editorService.editors.filter(input => input instanceof DiffEditorInput && isEqual(previewResource, input.master.resource))[0] : undefined;
 	}
 
 	private getAllConflictsEditorInputs(): IEditorInput[] {
 		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.master.getResource() : input.getResource();
+			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
 			return isEqual(resource, this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(resource, this.workbenchEnvironmentService.keybindingsSyncPreviewResource);
 		});
 	}
@@ -671,7 +672,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 
 		const stopSyncCommandId = 'workbench.userData.actions.stopSync';
-		CommandsRegistry.registerCommand(stopSyncCommandId, () => this.turnOff());
+		CommandsRegistry.registerCommand(stopSyncCommandId, async () => {
+			try {
+				await this.turnOff();
+			} catch (e) {
+				if (!isPromiseCanceledError(e)) {
+					this.notificationService.error(localize('turn off failed', "Error while turning off sync: {0}", toErrorMessage(e)));
+				}
+			}
+		});
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {

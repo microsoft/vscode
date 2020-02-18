@@ -109,6 +109,7 @@ export class DebugHoverWidget implements IContentWidget {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
 			horizontalScrolling: true,
+			useShadows: false,
 			overrideStyles: {
 				listBackground: editorHoverBackground
 			}

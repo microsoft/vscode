@@ -29,7 +29,7 @@ export interface IConstructorSignature0<T> {
 }
 
 export interface IConstructorSignature1<A1, T> {
-	new(first: A1, ...services: BrandedService[]): T;
+	new <Services extends BrandedService[]>(first: A1, ...services: Services): T;
 }
 
 export interface IConstructorSignature2<A1, A2, T> {

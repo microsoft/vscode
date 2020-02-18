@@ -13,6 +13,11 @@ export class ExtensionsInput extends EditorInput {
 	static readonly ID = 'workbench.extensions.input2';
 	get extension(): IExtension { return this._extension; }
 
+	readonly resource = URI.from({
+		scheme: 'extension',
+		path: this.extension.identifier.id
+	});
+
 	constructor(
 		private _extension: IExtension,
 	) {
@@ -48,12 +53,5 @@ export class ExtensionsInput extends EditorInput {
 
 	supportsSplitEditor(): boolean {
 		return false;
-	}
-
-	getResource(): URI {
-		return URI.from({
-			scheme: 'extension',
-			path: this.extension.identifier.id
-		});
 	}
 }

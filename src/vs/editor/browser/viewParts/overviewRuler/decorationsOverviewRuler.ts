@@ -276,7 +276,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return true;
+		if (e.affectsOverviewRuler) {
+			return true;
+		}
+		return false;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;

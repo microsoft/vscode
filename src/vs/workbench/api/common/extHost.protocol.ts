@@ -49,7 +49,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
-import { TimelineItem, TimelineProviderDescriptor, TimelineChangeEvent, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
+import { Timeline, TimelineChangeEvent, TimelineCursor, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -803,8 +803,6 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
 	$emitTimelineChangeEvent(e: TimelineChangeEvent): void;
-
-	$getTimeline(uri: UriComponents, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // -- extension host
@@ -1199,6 +1197,12 @@ export interface IOutgoingCallDto {
 	to: ICallHierarchyItemDto;
 }
 
+export interface ILanguageWordDefinitionDto {
+	languageId: string;
+	regexSource: string;
+	regexFlags: string
+}
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1241,6 +1245,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IIncomingCallDto[] | undefined>;
 	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;
 	$releaseCallHierarchy(handle: number, sessionId: string): void;
+	$setWordDefinitions(wordDefinitions: ILanguageWordDefinitionDto[]): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1459,7 +1464,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, token: CancellationToken): Promise<TimelineItemWithSource[]>;
+	$getTimeline(source: string, uri: UriComponents, cursor: TimelineCursor, token: CancellationToken, options?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
 }
 
 // --- proxy identifiers

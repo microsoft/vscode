@@ -125,7 +125,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
-		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
+		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
 		this._register(this.resourceFilter.onExpressionChange(() => this.removeExcludedFromHistory()));
 		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
@@ -220,7 +220,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return identifier.editor.matches(editor.input);
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 		if (e.gotDeleted()) {
 			this.remove(e); // remove from history files that got deleted or moved
 		}
@@ -511,7 +511,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		const resource = input.getResource();
+		const resource = input.resource;
 		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
@@ -586,7 +586,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		if (arg2 instanceof EditorInput) {
-			const inputResource = arg2.getResource();
+			const inputResource = arg2.resource;
 			if (!inputResource) {
 				return false;
 			}
@@ -615,7 +615,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Track closing of editor to support to reopen closed editors (unless editor was replaced)
 		if (!event.replaced) {
-			const resource = event.editor ? event.editor.getResource() : undefined;
+			const resource = event.editor ? event.editor.resource : undefined;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
 			if (resource && supportsReopen) {
 
@@ -661,7 +661,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private containsRecentlyClosedFile(group: IEditorGroup, recentlyClosedEditor: IRecentlyClosedFile): boolean {
 		for (const editor of group.editors) {
-			if (isEqual(editor.getResource(), recentlyClosedEditor.resource)) {
+			if (isEqual(editor.resource, recentlyClosedEditor.resource)) {
 				return true;
 			}
 		}

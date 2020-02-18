@@ -240,7 +240,7 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled editor for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			const untitledEditorResource = this.editorService.createInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).getResource();
+			const untitledEditorResource = this.editorService.createInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
 			if (untitledEditorResource) {
 				droppedDirtyEditor.resource = untitledEditorResource;
 			}
@@ -299,7 +299,7 @@ export class ResourcesDropHandler {
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
+			await this.hostService.openWindow(toOpen);
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open

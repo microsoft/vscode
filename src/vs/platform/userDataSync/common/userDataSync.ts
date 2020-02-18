@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
@@ -120,23 +120,27 @@ export interface IUserData {
 }
 
 export interface IUserDataSyncStore {
-	url: string;
+	url: URI;
 	authenticationProviderId: string;
 }
 
 export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
-	return value && value.url && value.authenticationProviderId ? value : undefined;
+	const value = configurationService.getValue<{ url: string, authenticationProviderId: string }>(CONFIGURATION_SYNC_STORE_KEY);
+	if (value && value.url && value.authenticationProviderId) {
+		return {
+			url: joinPath(URI.parse(value.url), 'v1'),
+			authenticationProviderId: value.authenticationProviderId
+		};
+	}
+	return undefined;
 }
 
 export const ALL_RESOURCE_KEYS: ResourceKey[] = ['settings', 'keybindings', 'extensions', 'globalState'];
 export type ResourceKey = 'settings' | 'keybindings' | 'extensions' | 'globalState';
 
 export interface IUserDataManifest {
-	settings: string;
-	keybindings: string;
-	extensions: string;
-	globalState: string;
+	latest?: Record<ResourceKey, string>
+	session: string;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
@@ -162,6 +166,7 @@ export enum UserDataSyncErrorCode {
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
+	SessionExpired = 'SessionExpired',
 
 	// Local Errors
 	LocalPreconditionFailed = 'LocalPreconditionFailed',

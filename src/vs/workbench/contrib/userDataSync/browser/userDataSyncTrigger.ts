@@ -48,7 +48,7 @@ export class UserDataSyncTrigger extends Disposable {
 		if (editorInput instanceof KeybindingsEditorInput) {
 			return true;
 		}
-		const resource = editorInput.getResource();
+		const resource = editorInput.resource;
 		if (isEqual(resource, this.workbenchEnvironmentService.settingsResource)) {
 			return true;
 		}

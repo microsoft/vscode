@@ -196,7 +196,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	serialize(editorInput: EditorInput): string {
 		const input = <DefaultPreferencesEditorInput>editorInput;
 
-		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
+		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.resource.toString() };
 
 		return JSON.stringify(serialized);
 	}

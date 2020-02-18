@@ -1611,6 +1611,40 @@ declare module 'vscode' {
 		uri?: Uri;
 	}
 
+	export interface TimelineCursor {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items to be returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag to specify whether the timeline items requested are before or after (default) the provided cursor.
+		 */
+		before?: boolean;
+
+		/**
+		 * The maximum number of timeline items that should be returned.
+		 */
+		limit?: number;
+	}
+
+	export interface Timeline {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag which indicates whether there are any more items that weren't returned.
+		 */
+		more?: boolean;
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		items: TimelineItem[];
+	}
+
 	export interface TimelineProvider {
 		/**
 		 * An optional event to signal that the timeline for a source has changed.
@@ -1633,10 +1667,11 @@ declare module 'vscode' {
 		 *
 		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
 		 * @param token A cancellation token.
-		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
+		 * @param cursor TBD
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, token: CancellationToken): ProviderResult<TimelineItem[]>;
+		provideTimeline(uri: Uri, cursor: TimelineCursor, token: CancellationToken): ProviderResult<Timeline>;
 	}
 
 	export namespace workspace {

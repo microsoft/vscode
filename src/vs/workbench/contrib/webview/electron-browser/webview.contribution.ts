@@ -26,8 +26,6 @@ actionRegistry.registerWorkbenchAction(
 function registerWebViewCommands(editorId: string): void {
 	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */)!;
 
-	registerAction2(class extends webviewCommands.SelectAllWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
-
 	// These commands are only needed on MacOS where we have to disable the menu bar commands
 	if (isMacintosh) {
 		registerAction2(class extends webviewCommands.CopyWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
