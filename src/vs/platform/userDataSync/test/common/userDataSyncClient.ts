@@ -7,7 +7,6 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IUserData, ResourceKey, IUserDataManifest, ALL_RESOURCE_KEYS, IUserDataAuthTokenService, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { relative } from 'vs/base/common/path';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -147,7 +146,8 @@ export class UserDataSyncTestServer implements IRequestService {
 	}
 
 	private async doRequest(options: IRequestOptions): Promise<IRequestContext> {
-		const relativePath = relative(`${this.url}/v1/`, options.url!);
+		const versionUrl = `${this.url}/v1/`;
+		const relativePath = options.url!.indexOf(versionUrl) === 0 ? options.url!.substring(versionUrl.length) : undefined;
 		const segments = relativePath ? relativePath.split('/') : [];
 		if (options.type === 'GET' && segments.length === 1 && segments[0] === 'manifest') {
 			return this.getManifest(options.headers);
