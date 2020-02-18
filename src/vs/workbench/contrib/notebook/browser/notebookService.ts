@@ -26,6 +26,9 @@ export function createCellUri(viewType: string, notebook: INotebook, cell: ICell
 
 export function parseCellUri(resource: URI): { viewType: string, notebook: URI, cellHandle: number } | undefined {
 	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
+	if (resource.scheme !== 'vscode-notebook') {
+		return undefined;
+	}
 	const match = /cell_(\d+)/.exec(basename(resource.path, extname(resource.path)));
 	if (!match) {
 		return undefined;
