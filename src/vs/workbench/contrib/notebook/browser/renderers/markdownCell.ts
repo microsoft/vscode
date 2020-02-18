@@ -11,6 +11,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditor, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { raceCancellation } from 'vs/base/common/async';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
@@ -36,7 +38,7 @@ export class StatefullMarkdownCell extends Disposable {
 		const viewUpdate = () => {
 			if (viewCell.isEditing) {
 				// switch to editing mode
-				let width;
+				let width: number;
 				const listDimension = notebookEditor.getListDimension();
 				if (listDimension) {
 					width = listDimension.width - CELL_MARGIN * 2;
@@ -62,30 +64,38 @@ export class StatefullMarkdownCell extends Disposable {
 						}
 					}, {});
 
-					const model = viewCell.getTextModel();
-					this.editor.setModel(model);
-					let realContentHeight = this.editor!.getContentHeight();
 
-					if (realContentHeight !== totalHeight) {
-						this.editor!.layout(
-							{
-								width: width,
-								height: realContentHeight
-							}
-						);
-					}
-
-					this.localDisposables.add(model.onDidChangeContent(() => {
-						viewCell.setText(model.getLinesContent());
-						const clientHeight = this.cellContainer.clientHeight;
-						this.cellContainer.innerHTML = '';
-						let renderedHTML = viewCell.getHTML();
-						if (renderedHTML) {
-							this.cellContainer.appendChild(renderedHTML);
+					const cts = new CancellationTokenSource();
+					this._register({ dispose() { cts.dispose(true); } });
+					raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => {
+						if (!model) {
+							return;
 						}
 
-						notebookEditor.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
-					}));
+						this.editor!.setModel(model);
+
+						const realContentHeight = this.editor!.getContentHeight();
+						if (realContentHeight !== totalHeight) {
+							this.editor!.layout(
+								{
+									width: width,
+									height: realContentHeight
+								}
+							);
+						}
+
+						this.localDisposables.add(model.onDidChangeContent(() => {
+							viewCell.setText(model.getLinesContent());
+							const clientHeight = this.cellContainer.clientHeight;
+							this.cellContainer.innerHTML = '';
+							let renderedHTML = viewCell.getHTML();
+							if (renderedHTML) {
+								this.cellContainer.appendChild(renderedHTML);
+							}
+
+							notebookEditor.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
+						}));
+					});
 
 					this.localDisposables.add(this.editor.onDidContentSizeChange(e => {
 						let viewLayout = this.editor!.getLayoutInfo();

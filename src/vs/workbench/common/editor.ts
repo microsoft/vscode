@@ -22,7 +22,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IEditorNavigation } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
@@ -112,6 +112,11 @@ export interface IEditor extends IPanel {
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
+
+	/**
+	 * Support to navigate code editors inside this editor.
+	 */
+	inEditorNavigation?: IEditorNavigation;
 }
 
 export interface ITextEditor extends IEditor {

@@ -21,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorMemento, IEditorControl } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -33,12 +33,9 @@ import { CELL_MARGIN, INotebook } from 'vs/workbench/contrib/notebook/common/not
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IEditorNavigation } from 'vs/workbench/services/editor/common/editorService';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 const $ = DOM.$;
@@ -71,6 +68,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private editorFocus: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 
+	readonly inEditorNavigation: IEditorNavigation;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -82,13 +81,56 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
+
+		this.inEditorNavigation = {
+			getActiveCodeEditor: (): IEditor | undefined => {
+				const focused = this.list?.getFocusedElements()[0];
+				return focused instanceof CellViewModel
+					? this.renderedEditors.get(focused)
+					: undefined;
+			},
+			openCodeEditor: async (input: IResourceInput, source?: IEditor | undefined): Promise<IEditor | undefined> => {
+				const data = parseCellUri(input.resource);
+				if (!data || this.notebook?.uri.toString() !== data.notebook.toString()) {
+					return undefined;
+				}
+				for (let i = 0; i < this.list!.length; i++) {
+					const item = this.list!.element(i);
+
+					// find the CellViewModel which represents the cell with the
+					// given uri, scroll it into view so that the editor is alive,
+					// and then set selection et al..
+					if (item.cell.uri.toString() === input.resource.toString()) {
+						this.list!.reveal(i, 0.2);
+						const editor = this.renderedEditors.get(item);
+						if (!editor) {
+							break;
+						}
+						if (input.options?.selection) {
+							const { selection } = input.options;
+							editor.setSelection({
+								...selection,
+								endLineNumber: selection.endLineNumber || selection.startLineNumber,
+								endColumn: selection.endColumn || selection.startColumn
+							});
+						}
+						if (!input.options?.preserveFocus) {
+							this.list?.setFocus([i]);
+							editor.focus();
+						}
+
+						return editor;
+					}
+				}
+
+				return undefined;
+			}
+		};
 	}
 
 
@@ -135,60 +177,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private createCellList(): void {
 		DOM.addClass(this.body, 'cell-list-container');
 
-		const that = this;
-		// TODO@joh this service is not the final solution because most commands
-		// will never see it, e.g the keybinding service and menu service don't
-		// see this special implementation and are therefore useless. The IN-direction
-		// (getActiveCodeEditor) works with the getControl-method below, the
-		// OUT - direction works with the  openCodeEditor-method in this service...
-		class CellCodeEditorService extends CodeEditorServiceImpl {
-
-			getActiveCodeEditor(): ICodeEditor | null {
-				const focused = that.list?.getFocusedElements()[0];
-				let candidate: ICodeEditor | undefined;
-				if (focused instanceof CellViewModel && focused.isEditing) {
-					candidate = that.renderedEditors.get(focused);
-				}
-				if (candidate) {
-					return candidate;
-				}
-				return that.codeEditorService.getActiveCodeEditor();
-			}
-
-			async openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean | undefined): Promise<ICodeEditor | null> {
-				const data = parseCellUri(input.resource);
-				if (data && that.notebook?.uri.toString() === data.notebook.toString()) {
-					for (let i = 0; i < that.list!.length; i++) {
-						const item = that.list!.element(i);
-						if (item.cell.uri.toString() === input.resource.toString()) {
-							that.list!.reveal(i, 0.2);
-							const editor = that.renderedEditors.get(item);
-							if (!editor) {
-								return null;
-							}
-							if (input.options?.selection) {
-								const { selection } = input.options;
-								editor.setSelection({
-									...selection,
-									endLineNumber: selection.endLineNumber || selection.startLineNumber,
-									endColumn: selection.endColumn || selection.startColumn
-								});
-							}
-							if (!input.options?.preserveFocus) {
-								that.list?.setFocus([i]);
-								editor.focus();
-							}
-
-							return editor;
-						}
-					}
-				}
-				return that.codeEditorService.openCodeEditor(input, source, sideBySide);
-			}
-		}
-
 		const renders = [
-			this.instantiationService.createChild(new ServiceCollection([ICodeEditorService, new SyncDescriptor(CellCodeEditorService)])).createInstance(CodeCellRenderer, this, this.renderedEditors),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors),
 			this.instantiationService.createInstance(MarkdownCellRenderer, this),
 		];
 
@@ -230,18 +220,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
 		this.list.view.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
-	}
-
-	getControl(): IEditorControl | undefined {
-		const focused = this.list?.getFocusedElements()[0];
-		let candidate: ICodeEditor | undefined;
-		if (focused instanceof CellViewModel) {
-			candidate = this.renderedEditors.get(focused);
-		}
-		if (candidate) {
-			return candidate;
-		}
-		return super.getControl();
 	}
 
 	onHide() {
@@ -318,10 +296,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				this.webview.updateRendererPreloads(this.notebook.renderers);
 				this.viewType = input.viewType;
 				this.viewCells = await Promise.all(this.notebook!.cells.map(async cell => {
-					const uri = cell.uri;
-					const ref = await this.textModelService.createModelReference(uri);
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, ref.object.textEditorModel, !!isEditing);
+					return this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, !!isEditing);
 				}));
 
 				const updateScrollPosition = () => {
@@ -453,9 +429,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		let uri = newModeCell!.uri;
-		let ref = await this.textModelService.createModelReference(uri);
-		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, newModeCell!, ref.object.textEditorModel, false);
+		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, newModeCell!, false);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);

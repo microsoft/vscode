@@ -23,6 +23,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {
+
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (isCodeEditor(activeTextEditorWidget)) {
 			return activeTextEditorWidget;
@@ -32,10 +33,15 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			return activeTextEditorWidget.getModifiedEditor();
 		}
 
+		const editor = this.editorService.activeControl?.inEditorNavigation?.getActiveCodeEditor();
+		if (isCodeEditor(editor)) {
+			return editor;
+		}
+
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	async openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified
@@ -55,7 +61,15 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			const textOptions = TextEditorOptions.create(input.options);
 			textOptions.apply(targetEditor, ScrollType.Smooth);
 
-			return Promise.resolve(targetEditor);
+			return targetEditor;
+		}
+
+		// Special case: in editor navigation support
+		if (this.editorService.activeControl?.inEditorNavigation) {
+			const editor = await this.editorService.activeControl?.inEditorNavigation.openCodeEditor(input, source ?? undefined, sideBySide);
+			if (isCodeEditor(editor)) {
+				return editor;
+			}
 		}
 
 		// Open using our normal editor service

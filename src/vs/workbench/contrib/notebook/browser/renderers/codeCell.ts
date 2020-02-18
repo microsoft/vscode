@@ -8,6 +8,8 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/c
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { raceCancellation } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class CodeCell extends Disposable {
 	constructor(
@@ -29,14 +31,15 @@ export class CodeCell extends Disposable {
 		const lineNum = viewCell.lineCount;
 		const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
 		const totalHeight = lineNum * lineHeight;
-		const model = viewCell.getTextModel();
-		templateData.editor?.setModel(model);
 		templateData.editor?.layout(
 			{
 				width: width,
 				height: totalHeight
 			}
 		);
+		const cts = new CancellationTokenSource();
+		this._register({ dispose() { cts.dispose(true); } });
+		raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => model && templateData.editor?.setModel(model));
 
 		let realContentHeight = templateData.editor?.getContentHeight();
 

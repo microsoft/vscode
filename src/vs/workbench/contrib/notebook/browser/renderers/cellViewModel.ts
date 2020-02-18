@@ -10,6 +10,7 @@ import * as UUID from 'vs/base/common/uuid';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
 import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class CellViewModel extends Disposable {
 
@@ -47,21 +48,18 @@ export class CellViewModel extends Disposable {
 		return this._dynamicHeight;
 	}
 
+	private _textModel?: ITextModel;
 	readonly id: string = UUID.generateUuid();
 
 	constructor(
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly cell: ICell,
-		private _textModel: ITextModel,
 		private _isEditing: boolean,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super();
-
-		this._register(this._textModel.onDidChangeContent(() => {
-			this.cell.isDirty = true;
-		}));
 		if (this.cell.onDidChangeOutputs) {
 			this._register(this.cell.onDidChangeOutputs(() => {
 				this._onDidChangeOutputs.fire();
@@ -104,7 +102,7 @@ export class CellViewModel extends Disposable {
 		this._html = null;
 	}
 	save() {
-		if (this.cell.isDirty || this.isEditing) {
+		if (this._textModel && (this.cell.isDirty || this.isEditing)) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -125,7 +123,15 @@ export class CellViewModel extends Disposable {
 		return null;
 	}
 
-	getTextModel(): ITextModel {
+	async resolveTextModel(): Promise<ITextModel> {
+		if (!this._textModel) {
+			const ref = await this._modelService.createModelReference(this.cell.uri);
+			this._textModel = ref.object.textEditorModel;
+			this._register(ref);
+			this._register(this._textModel.onDidChangeContent(() => {
+				this.cell.isDirty = true;
+			}));
+		}
 		return this._textModel;
 	}
 
