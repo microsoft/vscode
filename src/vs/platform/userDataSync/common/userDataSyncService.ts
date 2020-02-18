@@ -140,26 +140,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return synchroniser.accept(content);
 	}
 
-	private async hasPreviouslySynced(): Promise<boolean> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasPreviouslySynced()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private async hasLocalData(): Promise<boolean> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasLocalData()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
 		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
@@ -197,6 +177,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.logService.error(e);
 			}
 		}
+	}
+
+	private async hasPreviouslySynced(): Promise<boolean> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private async hasLocalData(): Promise<boolean> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasLocalData()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async resetRemote(): Promise<void> {

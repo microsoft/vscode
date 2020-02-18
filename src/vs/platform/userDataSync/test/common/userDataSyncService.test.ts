@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncService, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -369,6 +369,118 @@ suite('UserDataSyncService', () => {
 			return;
 		}
 		throw assert.fail('Should fail with turned off error');
+	});
+
+	test('test sync status', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup the client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncService);
+
+		// sync from the client
+		const actualStatuses: SyncStatus[] = [];
+		const disposable = testObject.onDidChangeStatus(status => actualStatuses.push(status));
+		await testObject.sync();
+
+		disposable.dispose();
+		assert.deepEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+	});
+
+	test('test sync conflicts status', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup and sync from the first client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		let fileService = client.instantiationService.get(IFileService);
+		let environmentService = client.instantiationService.get(IEnvironmentService);
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await client.instantiationService.get(IUserDataSyncService).sync();
+
+		// Setup the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		fileService = testClient.instantiationService.get(IFileService);
+		environmentService = testClient.instantiationService.get(IEnvironmentService);
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+
+		// sync from the client
+		await testObject.sync();
+
+		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepEqual(testObject.conflictsSources, [SyncSource.Settings]);
+	});
+
+	test('test sync will sync other non conflicted areas', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup and sync from the first client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		let fileService = client.instantiationService.get(IFileService);
+		let environmentService = client.instantiationService.get(IEnvironmentService);
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await client.instantiationService.get(IUserDataSyncService).sync();
+
+		// Setup the test client and get conflicts in settings
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		let testFileService = testClient.instantiationService.get(IFileService);
+		let testEnvironmentService = testClient.instantiationService.get(IEnvironmentService);
+		await testFileService.writeFile(testEnvironmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		await testObject.sync();
+
+		// sync from the first client with changes in keybindings
+		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await client.instantiationService.get(IUserDataSyncService).sync();
+
+		// sync from the test client
+		target.reset();
+		const actualStatuses: SyncStatus[] = [];
+		const disposable = testObject.onDidChangeStatus(status => actualStatuses.push(status));
+		await testObject.sync();
+
+		disposable.dispose();
+		assert.deepEqual(actualStatuses, []);
+		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+
+		assert.deepEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Keybindings
+			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: { 'If-None-Match': '1' } },
+		]);
+	});
+
+	test('test stop sync reset status', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup and sync from the first client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		let fileService = client.instantiationService.get(IFileService);
+		let environmentService = client.instantiationService.get(IEnvironmentService);
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await client.instantiationService.get(IUserDataSyncService).sync();
+
+		// Setup the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		fileService = testClient.instantiationService.get(IFileService);
+		environmentService = testClient.instantiationService.get(IEnvironmentService);
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		await testObject.sync();
+
+		// sync from the client
+		await testObject.stop();
+
+		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepEqual(testObject.conflictsSources, []);
 	});
 
 });
