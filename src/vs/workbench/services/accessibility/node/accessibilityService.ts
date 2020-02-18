@@ -78,11 +78,13 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 		@IAccessibilityService accessibilityService: AccessibilityService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		accessibilityService.onDidChangeScreenReaderOptimized(async () => {
+		const forceRendererAccessibility = () => {
 			if (accessibilityService.isScreenReaderOptimized()) {
-				await jsonEditingService.write(environmentService.argvResource, [{ key: 'force-renderer-accessibility', value: true }], true);
+				jsonEditingService.write(environmentService.argvResource, [{ key: 'force-renderer-accessibility', value: true }], true);
 			}
-		});
+		};
+		forceRendererAccessibility();
+		accessibilityService.onDidChangeScreenReaderOptimized(forceRendererAccessibility);
 	}
 }
 
