@@ -49,22 +49,26 @@ suite('WorkingCopyFileService', () => {
 		assert.ok(accessor.workingCopyService.isDirty(model.resource));
 
 		let eventCounter = 0;
+		let correlationId: number | undefined = undefined;
 
 		const listener0 = accessor.workingCopyFileService.onBeforeWorkingCopyFileOperation(e => {
 			assert.equal(e.target.toString(), model.resource.toString());
 			assert.equal(e.operation, FileOperation.DELETE);
 			eventCounter++;
+			correlationId = e.correlationId;
 		});
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
 			assert.equal(e.target.toString(), model.resource.toString());
 			assert.equal(e.operation, FileOperation.DELETE);
+			assert.equal(e.correlationId, correlationId);
 			eventCounter++;
 		});
 
 		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
 			assert.equal(e.target.toString(), model.resource.toString());
 			assert.equal(e.operation, FileOperation.DELETE);
+			assert.equal(e.correlationId, correlationId);
 			eventCounter++;
 		});
 
@@ -111,12 +115,14 @@ suite('WorkingCopyFileService', () => {
 		}
 
 		let eventCounter = 0;
+		let correlationId: number | undefined = undefined;
 
 		const listener0 = accessor.workingCopyFileService.onBeforeWorkingCopyFileOperation(e => {
 			assert.equal(e.target.toString(), targetModel.resource.toString());
 			assert.equal(e.source?.toString(), sourceModel.resource.toString());
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
 			eventCounter++;
+			correlationId = e.correlationId;
 		});
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
@@ -124,6 +130,7 @@ suite('WorkingCopyFileService', () => {
 			assert.equal(e.source?.toString(), sourceModel.resource.toString());
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
 			eventCounter++;
+			assert.equal(e.correlationId, correlationId);
 		});
 
 		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
@@ -131,6 +138,7 @@ suite('WorkingCopyFileService', () => {
 			assert.equal(e.source?.toString(), sourceModel.resource.toString());
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
 			eventCounter++;
+			assert.equal(e.correlationId, correlationId);
 		});
 
 		if (move) {
