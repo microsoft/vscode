@@ -33,7 +33,7 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 
@@ -142,6 +142,48 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
+			dndHandler: {
+				canDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
+					return true;
+				},
+				onDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
+					if (idType === 'composite') {
+						const currentContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id)!;
+						const currentLocation = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).getViewContainerLocation(currentContainer);
+						if (destinationCompositeId) {
+							if (currentLocation !== ViewContainerLocation.Panel) {
+								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
+								if (destinationContainer) {
+									this.viewDescriptorService.moveViewsToContainer(this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView), destinationContainer);
+									this.openComposite(destinationCompositeId, true);
+								}
+							} else {
+								this.compositeBar.move(id, destinationCompositeId);
+							}
+						}
+					} else {
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(id);
+						if (viewDescriptor && viewDescriptor.canMoveView) {
+							if (destinationCompositeId) {
+								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
+								if (destinationContainer) {
+									this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
+								}
+							} else {
+								this.viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
+								const newCompositeId = this.viewDescriptorService.getViewContainer(id)!.id;
+								const visibleItems = this.compositeBar.getCompositeBarItems().filter(item => item.visible);
+								const targetItem = visibleItems.length ? visibleItems[visibleItems.length - 1] : undefined;
+								if (targetItem && targetItem.id !== newCompositeId) {
+									this.compositeBar.move(newCompositeId, targetItem.id);
+								}
+
+								this.openComposite(newCompositeId, true);
+							}
+						}
+					}
+				}
+			},
 			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: (theme: ITheme) => ({
@@ -397,7 +439,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	getPanels(): readonly PanelDescriptor[] {
 		return this.panelRegistry.getPanels()
-			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
+			.sort((v1, v2) => {
+				if (typeof v1.order !== 'number') {
+					return 1;
+				}
+
+				if (typeof v2.order !== 'number') {
+					return -1;
+				}
+
+				return v1.order - v2.order;
+			});
 	}
 
 	getPinnedPanels(): readonly PanelDescriptor[] {

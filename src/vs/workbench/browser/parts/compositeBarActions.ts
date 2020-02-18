@@ -20,6 +20,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
+import { ICompositeBarDndHandler } from 'vs/workbench/browser/parts/compositeBar';
+import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -458,7 +460,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	private static manageExtensionAction: ManageExtensionAction;
 
 	private compositeActivity: IActivity | undefined;
-	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
+	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier | DraggedViewIdentifier>;
 
 	constructor(
 		private compositeActivityAction: ActivityAction,
@@ -467,6 +469,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
+		private dndHandler: ICompositeBarDndHandler,
 		private compositeBar: ICompositeBar,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -475,7 +478,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	) {
 		super(compositeActivityAction, { draggable: true, colors, icon }, themeService);
 
-		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
+		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier | DraggedViewIdentifier>();
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
@@ -571,7 +574,20 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 							this.updateFromDragging(container, false);
 							this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-							this.compositeBar.move(draggedCompositeId, this.activity.id);
+							if (this.dndHandler.canDrop(draggedCompositeId, 'composite', this.activity.id)) {
+								this.dndHandler.onDrop(draggedCompositeId, 'composite', this.activity.id);
+							}
+						}
+					}
+				}
+
+				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedViewId = data[0].id;
+
+						if (this.dndHandler.canDrop(draggedViewId, 'view', this.activity.id)) {
+							this.dndHandler.onDrop(draggedViewId, 'view', this.activity.id);
 						}
 					}
 				}
@@ -580,7 +596,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		// Activate on drag over to reveal targets
 		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
-			if (!this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) && !this.getAction().checked) {
+			if (!(this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
+				this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) &&
+				!this.getAction().checked) {
 				this.getAction().run();
 			}
 		})));

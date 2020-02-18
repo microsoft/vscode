@@ -20,6 +20,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
+import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -29,12 +30,18 @@ export interface ICompositeBarItem {
 	visible: boolean;
 }
 
+export interface ICompositeBarDndHandler {
+	canDrop(id: string, idType: 'composite' | 'view', destinationCompositeId?: string): boolean;
+	onDrop(id: string, idType: 'composite' | 'view', destinationCompositeId?: string): void;
+}
+
 export interface ICompositeBarOptions {
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly colors: (theme: ITheme) => ICompositeBarColors;
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
+	readonly dndHandler: ICompositeBarDndHandler;
 
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
@@ -58,7 +65,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private visibleComposites: string[];
 	private compositeSizeInBar: Map<string, number>;
 
-	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
+	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier | DraggedViewIdentifier>;
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -107,6 +114,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					() => this.getContextMenuActions() as Action[],
 					this.options.colors,
 					this.options.icon,
+					this.options.dndHandler,
 					this
 				);
 			},
@@ -131,6 +139,18 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					const targetItem = this.model.visibleItems[this.model.visibleItems.length - 1];
 					if (targetItem && targetItem.id !== draggedCompositeId) {
 						this.move(draggedCompositeId, targetItem.id);
+					}
+				}
+			}
+
+			if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+				const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+				if (Array.isArray(data)) {
+					const draggedViewId = data[0].id;
+					this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
+
+					if (this.options.dndHandler.canDrop(draggedViewId, 'view')) {
+						this.options.dndHandler.onDrop(draggedViewId, 'view');
 					}
 				}
 			}

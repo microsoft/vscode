@@ -26,7 +26,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
@@ -128,6 +128,53 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getContextMenuActionsForComposite: () => [],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.layoutService.setSideBarHidden(true),
+			dndHandler: {
+				canDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
+					if (idType === 'view' && !destinationCompositeId) {
+						return false;
+					}
+
+					return true;
+				},
+				onDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
+					if (idType === 'composite') {
+						const currentContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id)!;
+						const currentLocation = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).getViewContainerLocation(currentContainer);
+						if (destinationCompositeId) {
+							if (currentLocation !== ViewContainerLocation.Sidebar) {
+								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
+								if (destinationContainer) {
+									this.viewDescriptorService.moveViewsToContainer(this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView), destinationContainer);
+									this.viewletService.openViewlet(destinationCompositeId, true);
+								}
+							} else {
+								this.compositeBar.move(id, destinationCompositeId);
+							}
+						}
+					} else {
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(id);
+						if (viewDescriptor && viewDescriptor.canMoveView) {
+							if (destinationCompositeId) {
+								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
+								if (destinationContainer) {
+									this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
+									this.viewletService.openViewlet(destinationCompositeId, true);
+								}
+							} else {
+								this.viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Sidebar);
+								const newCompositeId = this.viewDescriptorService.getViewContainer(id)!.id;
+								const visibleItems = this.compositeBar.getCompositeBarItems().filter(item => item.visible);
+								const targetItem = visibleItems.length ? visibleItems[visibleItems.length - 1] : undefined;
+								if (targetItem && targetItem.id !== newCompositeId) {
+									this.compositeBar.move(newCompositeId, targetItem.id);
+								}
+
+								this.viewletService.openViewlet(newCompositeId, true);
+							}
+						}
+					}
+				}
+			},
 			compositeSize: 50,
 			colors: (theme: ITheme) => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT

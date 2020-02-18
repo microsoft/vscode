@@ -42,6 +42,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -57,6 +58,15 @@ export interface IViewPaneOptions extends IPaneOptions {
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
+
+export class DraggedViewIdentifier {
+	constructor(private _viewId: string) { }
+
+	get id(): string {
+		return this._viewId;
+	}
+}
+
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -446,6 +456,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
 
+	private viewTransfer: LocalSelectionTransfer<DraggedViewIdentifier>;
+
 	private visible: boolean = false;
 
 	private areExtensionsReady: boolean = false;
@@ -519,6 +531,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.options.dnd = new DefaultPaneDndController();
 		}
 
+		this.viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
@@ -887,6 +900,22 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+			}
+
+			// Register as dragged to local transfer
+			this.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
+		}));
+
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_END, (e: DragEvent) => {
+			if (this.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
+				this.viewTransfer.clearData(DraggedViewIdentifier.prototype);
+			}
+		}));
 	}
 
 	removePanes(panes: ViewPane[]): void {
