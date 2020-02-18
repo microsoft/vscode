@@ -5,11 +5,11 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { Emitter, AsyncEmitter } from 'vs/base/common/event';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
+import { AsyncEmitter } from 'vs/base/common/event';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, TextFileCreateEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -20,7 +20,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { isEqualOrParent, isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
+import { isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -45,11 +45,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region events
 
-	private _onWillRunOperation = this._register(new AsyncEmitter<FileOperationWillRunEvent>());
-	readonly onWillRunOperation = this._onWillRunOperation.event;
+	private _onWillCreateTextFile = this._register(new AsyncEmitter<TextFileCreateEvent>());
+	readonly onWillCreateTextFile = this._onWillCreateTextFile.event;
 
-	private _onDidRunOperation = this._register(new Emitter<FileOperationDidRunEvent>());
-	readonly onDidRunOperation = this._onDidRunOperation.event;
+	private _onDidCreateTextFile = this._register(new AsyncEmitter<TextFileCreateEvent>());
+	readonly onDidCreateTextFile = this._onDidCreateTextFile.event;
 
 	//#endregion
 
@@ -85,7 +85,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	//#region text file read / write
+	//#region text file read / write / create
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		const content = await this.fileService.readFile(resource, options);
@@ -141,19 +141,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
-	}
-
-	//#endregion
-
-	//#region text file IO primitives (create, move, copy, delete)
-
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync({ operation: FileOperation.CREATE, target: resource }, CancellationToken.None);
+		await this._onWillCreateTextFile.fireAsync({ resource }, CancellationToken.None);
 
+		// create file on disk
 		const stat = await this.doCreate(resource, value, options);
 
 		// If we had an existing model for the given resource, load
@@ -166,7 +159,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// after event
-		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.CREATE, resource));
+		await this._onDidCreateTextFile.fireAsync({ resource }, CancellationToken.None);
 
 		return stat;
 	}
@@ -175,126 +168,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
 	}
 
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return this.moveOrCopy(source, target, true, overwrite);
-	}
-
-	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return this.moveOrCopy(source, target, false, overwrite);
-	}
-
-	private async moveOrCopy(source: URI, target: URI, move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-
-		// before event
-		await this._onWillRunOperation.fireAsync({ operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source }, CancellationToken.None);
-
-		// find all models that related to either source or target (can be many if resource is a folder)
-		const sourceModels: ITextFileEditorModel[] = [];
-		const targetModels: ITextFileEditorModel[] = [];
-		for (const model of this.getFileModels()) {
-			const resource = model.resource;
-
-			if (isEqualOrParent(resource, target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
-				targetModels.push(model);
-			}
-
-			if (isEqualOrParent(resource, source)) {
-				sourceModels.push(model);
-			}
-		}
-
-		// remember each source model to load again after move is done
-		// with optional content to restore if it was dirty
-		type ModelToRestore = { resource: URI; snapshot?: ITextSnapshot; encoding?: string; mode?: string };
-		const modelsToRestore: ModelToRestore[] = [];
-		for (const sourceModel of sourceModels) {
-			const sourceModelResource = sourceModel.resource;
-
-			// If the source is the actual model, just use target as new resource
-			let modelToRestoreResource: URI;
-			if (isEqual(sourceModelResource, source)) {
-				modelToRestoreResource = target;
-			}
-
-			// Otherwise a parent folder of the source is being moved, so we need
-			// to compute the target resource based on that
-			else {
-				modelToRestoreResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
-			}
-
-			const modelToRestore: ModelToRestore = { resource: modelToRestoreResource, encoding: sourceModel.getEncoding() };
-			if (sourceModel.isDirty()) {
-				modelToRestore.snapshot = sourceModel.createSnapshot();
-			}
-
-			modelsToRestore.push(modelToRestore);
-		}
-
-		// handle dirty models depending on the operation:
-		// - move: revert both source and target (if any)
-		// - copy: revert target (if any)
-		const dirtyModelsToRevert = (move ? [...sourceModels, ...targetModels] : [...targetModels]).filter(model => model.isDirty());
-		await this.doRevertFiles(dirtyModelsToRevert.map(dirtyModel => dirtyModel.resource), { soft: true });
-
-		// now we can rename the source to target via file operation
-		let stat: IFileStatWithMetadata;
-		try {
-			if (move) {
-				stat = await this.fileService.move(source, target, overwrite);
-			} else {
-				stat = await this.fileService.copy(source, target, overwrite);
-			}
-		} catch (error) {
-
-			// in case of any error, ensure to set dirty flag back
-			dirtyModelsToRevert.forEach(dirtyModel => dirtyModel.setDirty(true));
-
-			throw error;
-		}
-
-		// finally, restore models that we had loaded previously
-		await Promise.all(modelsToRestore.map(async modelToRestore => {
-
-			// restore the model, forcing a reload. this is important because
-			// we know the file has changed on disk after the move and the
-			// model might have still existed with the previous state. this
-			// ensures we are not tracking a stale state.
-			const restoredModel = await this.files.resolve(modelToRestore.resource, { reload: { async: false }, encoding: modelToRestore.encoding, mode: modelToRestore.mode });
-
-			// restore previous dirty content if any and ensure to mark
-			// the model as dirty
-			if (modelToRestore.snapshot && restoredModel.isResolved()) {
-				this.modelService.updateModel(restoredModel.textEditorModel, createTextBufferFactoryFromSnapshot(modelToRestore.snapshot));
-
-				restoredModel.setDirty(true);
-			}
-		}));
-
-		// after event
-		this._onDidRunOperation.fire(new FileOperationDidRunEvent(move ? FileOperation.MOVE : FileOperation.COPY, target, source));
-
-		return stat;
-	}
-
-	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-
-		// before event
-		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
-
-		// Check for any existing dirty file model for the resource
-		// and do a soft revert before deleting to be able to close
-		// any opened editor with these files
-		const dirtyFiles = this.getDirtyFileModels().map(dirtyFileModel => dirtyFileModel.resource).filter(dirty => isEqualOrParent(dirty, resource));
-		await this.doRevertFiles(dirtyFiles, { soft: true });
-
-		// Now actually delete from disk
-		await this.fileService.del(resource, options);
-
-		// after event
-		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
+	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
 	}
 
 	//#endregion
+
 
 	//#region save
 

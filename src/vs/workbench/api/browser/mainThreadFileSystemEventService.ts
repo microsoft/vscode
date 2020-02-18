@@ -15,6 +15,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { URI } from 'vs/base/common/uri';
+import { IWaitUntil } from 'vs/base/common/event';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -28,6 +31,7 @@ export class MainThreadFileSystemEventService {
 		@IProgressService progressService: IProgressService,
 		@IConfigurationService configService: IConfigurationService,
 		@ILogService logService: ILogService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -66,9 +70,7 @@ export class MainThreadFileSystemEventService {
 		messages.set(FileOperation.DELETE, localize('msg-delete', "Running 'File Delete' participants..."));
 		messages.set(FileOperation.MOVE, localize('msg-rename', "Running 'File Rename' participants..."));
 
-
-		this._listener.add(textFileService.onWillRunOperation(e => {
-
+		function participateInFileOperation(e: IWaitUntil, operation: FileOperation, target: URI, source?: URI): void {
 			const timeout = configService.getValue<number>('files.participants.timeout');
 			if (timeout <= 0) {
 				return; // disabled
@@ -76,19 +78,19 @@ export class MainThreadFileSystemEventService {
 
 			const p = progressService.withProgress({ location: ProgressLocation.Window }, progress => {
 
-				progress.report({ message: messages.get(e.operation) });
+				progress.report({ message: messages.get(operation) });
 
 				return new Promise((resolve, reject) => {
 
 					const cts = new CancellationTokenSource();
 
 					const timeoutHandle = setTimeout(() => {
-						logService.trace('CANCELLED file participants because of timeout', timeout, e.target, e.operation);
+						logService.trace('CANCELLED file participants because of timeout', timeout, target, operation);
 						cts.cancel();
 						reject(new Error('timeout'));
 					}, timeout);
 
-					proxy.$onWillRunFileOperation(e.operation, e.target, e.source, timeout, cts.token)
+					proxy.$onWillRunFileOperation(operation, target, source, timeout, cts.token)
 						.then(resolve, reject)
 						.finally(() => clearTimeout(timeoutHandle));
 				});
@@ -96,10 +98,14 @@ export class MainThreadFileSystemEventService {
 			});
 
 			e.waitUntil(p);
-		}));
+		}
+
+		this._listener.add(textFileService.onWillCreateTextFile(e => participateInFileOperation(e, FileOperation.CREATE, e.resource)));
+		this._listener.add(workingCopyFileService.onBeforeWorkingCopyFileOperation(e => participateInFileOperation(e, e.operation, e.target, e.source)));
 
 		// AFTER file operation
-		this._listener.add(textFileService.onDidRunOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
+		this._listener.add(textFileService.onDidCreateTextFile(e => proxy.$onDidRunFileOperation(FileOperation.CREATE, e.resource, undefined)));
+		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
 	}
 
 	dispose(): void {
