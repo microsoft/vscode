@@ -22,6 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { equals } from 'vs/base/common/objects';
 
 export const enum ExperimentState {
 	Evaluating,
@@ -414,7 +415,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}
 
 		for (const [key, value] of Object.entries(experiment.condition?.userSetting || {})) {
-			if (this.configurationService.getValue(key) !== value) {
+			if (!equals(this.configurationService.getValue(key), value)) {
 				return Promise.resolve(ExperimentState.NoRun);
 			}
 		}
