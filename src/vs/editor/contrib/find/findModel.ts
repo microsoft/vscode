@@ -90,7 +90,7 @@ export class FindModelBoundToEditorModel {
 		this._decorations = new FindDecorations(editor);
 		this._toDispose.add(this._decorations);
 
-		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
+		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(), 100);
 		this._toDispose.add(this._updateDecorationsScheduler);
 
 		this._toDispose.add(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
@@ -118,7 +118,7 @@ export class FindModelBoundToEditorModel {
 
 		this._toDispose.add(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
-		this.research(false, this._state.searchScope);
+		this.research(this._state.searchScope);
 	}
 
 	public dispose(): void {
@@ -144,16 +144,16 @@ export class FindModelBoundToEditorModel {
 
 				this._startSearchingTimer.setIfNotSet(() => {
 					if (e.searchScope) {
-						this.research(e.moveCursor, this._state.searchScope);
+						this.research(this._state.searchScope);
 					} else {
-						this.research(e.moveCursor);
+						this.research();
 					}
 				}, RESEARCH_DELAY);
 			} else {
 				if (e.searchScope) {
-					this.research(e.moveCursor, this._state.searchScope);
+					this.research(this._state.searchScope);
 				} else {
-					this.research(e.moveCursor);
+					this.research();
 				}
 			}
 		}
@@ -168,7 +168,7 @@ export class FindModelBoundToEditorModel {
 		return model.getFullModelRange();
 	}
 
-	private research(moveCursor: boolean, newFindScope?: Range | null): void {
+	private research(newFindScope?: Range | null): void {
 		let findScope: Range | null = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
@@ -194,10 +194,6 @@ export class FindModelBoundToEditorModel {
 			this._decorations.getCount(),
 			undefined
 		);
-
-		if (moveCursor) {
-			this._moveToNextMatch(this._decorations.getStartPosition());
-		}
 	}
 
 	private _hasMatches(): boolean {
@@ -429,7 +425,7 @@ export class FindModelBoundToEditorModel {
 				this._executeEditorCommand('replace', command);
 
 				this._decorations.setStartPosition(new Position(selection.startLineNumber, selection.startColumn + replaceString.length));
-				this.research(true);
+				this.research();
 			} else {
 				this._decorations.setStartPosition(this._editor.getPosition());
 				this._setCurrentFindMatch(nextMatch.range);
@@ -456,7 +452,7 @@ export class FindModelBoundToEditorModel {
 			this._regularReplaceAll(findScope);
 		}
 
-		this.research(false);
+		this.research();
 	}
 
 	private _largeReplaceAll(): void {
