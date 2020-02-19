@@ -915,14 +915,13 @@ export class DebugSession implements IDebugSession {
 	// Disconnects and clears state. Session can be initialized again for a new connection.
 	private shutdown(): void {
 		dispose(this.rawListeners);
+		if (this.raw) {
+			this.raw.disconnect();
+			this.raw.dispose();
+			this.raw = undefined;
+		}
 		this.fetchThreadsScheduler = undefined;
 		this.model.clearThreads(this.getId(), true);
-		if (this.raw) {
-			const raw = this.raw;
-			this.raw = undefined;
-			raw.disconnect();
-			raw.dispose();
-		}
 		this._onDidChangeState.fire();
 	}
 

@@ -83,8 +83,16 @@ interface IExperimentStorageState {
 	lastEditedDate?: string;
 }
 
+/**
+ * Current version of the experiment schema in this VS Code build. This *must*
+ * be incremented when adding a condition, otherwise experiments might activate
+ * on older versions of VS Code where not intended.
+ */
+export const currentSchemaVersion = 1;
+
 interface IRawExperiment {
 	id: string;
+	schemaVersion: number;
 	enabled?: boolean;
 	condition?: {
 		insidersOnly?: boolean;
@@ -220,8 +228,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			if (context.res.statusCode !== 200) {
 				return null;
 			}
-			const result: any = await asJson(context);
-			return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
+			const result = await asJson<{ experiments?: IRawExperiment }>(context);
+			return result && Array.isArray(result.experiments) ? result.experiments : [];
 		} catch (_e) {
 			// Bad request or invalid JSON
 			return null;
@@ -248,6 +256,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 				return Promise.resolve(null);
 			}
+
+			// Don't look at experiments with newer schema versions. We can't
+			// understand them, trying to process them might even cause errors.
+			rawExperiments = rawExperiments.filter(e => (e.schemaVersion || 0) <= currentSchemaVersion);
 
 			// Clear disbaled/deleted experiments from storage
 			const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);

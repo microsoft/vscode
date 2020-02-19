@@ -133,6 +133,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 
 		if (context.res.statusCode === 401) {
+			this.authTokenService.sendTokenFailed();
 			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthorized, source);
 		}
 

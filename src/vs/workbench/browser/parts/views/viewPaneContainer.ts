@@ -12,7 +12,7 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, 
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionViewItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
@@ -52,7 +52,6 @@ export interface IPaneColors extends IColorMapping {
 }
 
 export interface IViewPaneOptions extends IPaneOptions {
-	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
 	showActionsAlways?: boolean;
@@ -179,7 +178,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private readonly menuActions: ViewMenuActions;
 
-	protected actionRunner?: IActionRunner;
 	private toolbar?: ToolBar;
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
@@ -206,7 +204,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this.id = options.id;
 		this.title = options.title;
-		this.actionRunner = options.actionRunner;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
@@ -272,7 +269,6 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionRunner: this.actionRunner
 		});
 
 		this._register(this.toolbar);
@@ -321,7 +317,9 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		if (this.element) {
+		if (this.shouldShowWelcome()) {
+			this.viewWelcomeContainer.focus();
+		} else if (this.element) {
 			this.element.focus();
 			this._onDidFocus.fire();
 		}
@@ -464,8 +462,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	private didLayout = false;
 	private dimension: Dimension | undefined;
-
-	protected actionRunner: IActionRunner | undefined;
 
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
@@ -812,7 +808,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				{
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
-					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
 					minimumBodySize: this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? 0 : 120
 				});
@@ -841,14 +836,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			panes.push(pane);
 		}
 		return panes;
-	}
-
-	getActionRunner(): IActionRunner {
-		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner();
-		}
-
-		return this.actionRunner;
 	}
 
 	private onDidRemoveViewDescriptors(removed: IViewDescriptorRef[]): void {

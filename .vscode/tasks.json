@@ -32,20 +32,6 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "strict-function-types-watch",
-			"label": "TS - Strict Function Types",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never"
-			},
-			"problemMatcher": {
-				"base": "$tsc-watch",
-				"owner": "typescript-function-types",
-				"applyTo": "allDocuments"
-			}
-		},
-		{
 			"label": "Run tests",
 			"type": "shell",
 			"command": "./scripts/test.sh",

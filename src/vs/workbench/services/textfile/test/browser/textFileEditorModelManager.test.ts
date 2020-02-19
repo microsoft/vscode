@@ -51,7 +51,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.ok(!manager.get(fileUpper));
 
-		let results = manager.getAll();
+		let results = manager.models;
 		assert.strictEqual(3, results.length);
 
 		let result = manager.get(URI.file('/yes'));
@@ -68,19 +68,19 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		manager.remove(URI.file(''));
 
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(3, results.length);
 
 		manager.remove(URI.file('/some/other.html'));
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(2, results.length);
 
 		manager.remove(fileUpper);
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(2, results.length);
 
 		manager.clear();
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(0, results.length);
 
 		model1.dispose();
@@ -98,7 +98,10 @@ suite('Files - TextFileEditorModelManager', () => {
 			events.push(model);
 		});
 
-		const model = await manager.resolve(resource, { encoding });
+		const modelPromise = manager.resolve(resource, { encoding });
+		assert.ok(manager.get(resource)); // model known even before resolved()
+
+		const model = await modelPromise;
 		assert.ok(model);
 		assert.equal(model.getEncoding(), encoding);
 		assert.equal(manager.get(resource), model);

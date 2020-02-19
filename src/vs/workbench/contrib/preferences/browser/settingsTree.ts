@@ -1640,12 +1640,13 @@ class StopSyncingSettingAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const currentValue = this.configService.getValue<string[]>('sync.ignoredSettings');
+		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
 		if (this.checked) {
-			this.configService.updateValue('sync.ignoredSettings', currentValue.filter(v => v !== this.setting.key));
+			currentValue = currentValue.filter(v => v !== this.setting.key);
 		} else {
-			this.configService.updateValue('sync.ignoredSettings', [...currentValue, this.setting.key]);
+			currentValue.push(this.setting.key);
 		}
+		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
 	}

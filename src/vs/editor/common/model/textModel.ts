@@ -1154,18 +1154,40 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
+	private _validateEditOperation(rawOperation: model.IIdentifiedSingleEditOperation): model.ValidAnnotatedEditOperation {
+		if (rawOperation instanceof model.ValidAnnotatedEditOperation) {
+			return rawOperation;
+		}
+		return new model.ValidAnnotatedEditOperation(
+			rawOperation.identifier || null,
+			this.validateRange(rawOperation.range),
+			rawOperation.text,
+			rawOperation.forceMoveMarkers || false,
+			rawOperation.isAutoWhitespaceEdit || false,
+			rawOperation._isTracked || false
+		);
+	}
+
+	private _validateEditOperations(rawOperations: model.IIdentifiedSingleEditOperation[]): model.ValidAnnotatedEditOperation[] {
+		const result: model.ValidAnnotatedEditOperation[] = [];
+		for (let i = 0, len = rawOperations.length; i < len; i++) {
+			result[i] = this._validateEditOperation(rawOperations[i]);
+		}
+		return result;
+	}
+
 	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._pushEditOperations(beforeCursorState, editOperations, cursorStateComputer);
+			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1238,10 +1260,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 					}
 
 					if (allowTrimLine) {
-						editOperations.push({
-							range: new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn),
-							text: null
-						});
+						const trimRange = new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn);
+						editOperations.push(new model.ValidAnnotatedEditOperation(null, trimRange, null, false, false, false));
 					}
 
 				}
@@ -1252,21 +1272,18 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
-	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
+	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._applyEdits(rawOperations);
+			return this._applyEdits(this._validateEditOperations(rawOperations));
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			rawOperations[i].range = this.validateRange(rawOperations[i].range);
-		}
+	private _applyEdits(rawOperations: model.ValidAnnotatedEditOperation[]): model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace);

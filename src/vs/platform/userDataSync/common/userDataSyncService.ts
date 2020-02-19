@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -49,7 +49,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISettingsSyncService private readonly settingsSynchroniser: ISettingsSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -62,7 +61,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
 			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
-			this._register(this.userDataAuthTokenService.onDidChangeToken(e => this.onDidChangeAuthTokenStatus(e)));
 		}
 
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
@@ -140,6 +138,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async stop(): Promise<void> {
+		await this.checkEnablement();
 		if (this.status === SyncStatus.Idle) {
 			return;
 		}
@@ -201,7 +200,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async hasPreviouslySynced(): Promise<boolean> {
-		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasPreviouslySynced()) {
 				return true;
@@ -211,7 +209,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async hasLocalData(): Promise<boolean> {
-		await this.checkEnablement();
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasLocalData()) {
 				return true;
@@ -288,14 +285,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
-		if (!(await this.userDataAuthTokenService.getToken())) {
-			throw new UserDataSyncError('Not Authenticated. Please sign in to start sync.', UserDataSyncErrorCode.Unauthorized);
-		}
 	}
 
-	private onDidChangeAuthTokenStatus(token: string | undefined): void {
-		if (!token) {
-			this.stop();
-		}
-	}
 }

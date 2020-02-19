@@ -7,7 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { basename, isEqual, extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
@@ -180,21 +180,62 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}
 
+		const resourceExt = extname(resource);
+
 		const items = customEditors.allEditors.map((editorDescriptor): IQuickPickItem => ({
 			label: editorDescriptor.displayName,
 			id: editorDescriptor.id,
 			description: editorDescriptor.id === currentlyOpenedEditorType
 				? nls.localize('openWithCurrentlyActive', "Currently Active")
-				: undefined
+				: undefined,
+			buttons: resourceExt ? [{
+				iconClass: 'codicon-settings-gear',
+				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
+			}] : undefined
 		}));
-		const pick = await this.quickInputService.pick(items, {
-			placeHolder: nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource)),
+
+		const picker = this.quickInputService.createQuickPick();
+		picker.items = items;
+		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource));
+
+		const pick = await new Promise<string | undefined>(resolve => {
+			picker.onDidAccept(() => {
+				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0].id : undefined);
+				picker.dispose();
+			});
+			picker.onDidTriggerItemButton(e => {
+				const pick = e.item.id;
+				resolve(pick); // open the view
+				picker.dispose();
+
+				// And persist the setting
+				if (pick) {
+					const newAssociation: CustomEditorAssociation = { viewType: pick, filenamePattern: '*' + resourceExt };
+					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey)] || [];
+
+					// First try updating existing association
+					for (let i = 0; i < currentAssociations.length; ++i) {
+						const existing = currentAssociations[i];
+						if (existing.filenamePattern === newAssociation.filenamePattern) {
+							currentAssociations.splice(i, 1, newAssociation);
+							this.configurationService.updateValue(customEditorsAssociationsKey, currentAssociations);
+							return;
+						}
+					}
+
+					// Otherwise, create a new one
+					currentAssociations.unshift(newAssociation);
+					this.configurationService.updateValue(customEditorsAssociationsKey, currentAssociations);
+				}
+			});
+			picker.show();
 		});
 
-		if (!pick || !pick.id) {
+		if (!pick) {
 			return;
 		}
-		return this.openWith(resource, pick.id, options, group);
+
+		return this.openWith(resource, pick, options, group);
 	}
 
 	public openWith(
@@ -312,7 +353,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 export const customEditorsAssociationsKey = 'workbench.experimental.editorAssociations';
 
-export type CustomEditorsAssociations = readonly (CustomEditorSelector & { readonly viewType: string; })[];
+export type CustomEditorAssociation = CustomEditorSelector & {
+	readonly viewType: string;
+};
+
+export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
 
 export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
 	constructor(

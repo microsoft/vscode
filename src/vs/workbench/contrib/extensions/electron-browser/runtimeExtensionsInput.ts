@@ -16,10 +16,6 @@ export class RuntimeExtensionsInput extends EditorInput {
 		path: 'default'
 	});
 
-	constructor() {
-		super();
-	}
-
 	getTypeId(): string {
 		return RuntimeExtensionsInput.ID;
 	}
