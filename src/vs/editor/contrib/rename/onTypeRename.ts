@@ -16,10 +16,8 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedS
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { OnTypeRenameProviderRegistry } from 'vs/editor/common/modes';
-import { first, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
-// import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
+import { first, createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -27,163 +25,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
-// import { Selection } from 'vs/editor/common/core/selection';
-
-function isWithin(inner: IRange, outer: IRange) {
-	return outer.startLineNumber <= inner.startLineNumber &&
-		outer.endLineNumber >= inner.endLineNumber &&
-		outer.startColumn <= inner.startColumn &&
-		outer.endColumn >= inner.endColumn;
-}
-
-function toRangeStringRepresentation(r: IRange) {
-	if (r.startLineNumber === r.endLineNumber) {
-		return `(${r.startLineNumber}, ${r.startColumn}-${r.endColumn})`;
-	}
-
-	return `(${r.startLineNumber}, ${r.startColumn})-(${r.endLineNumber}, ${r.endColumn})`;
-}
-
-function computeSyncedRegionEdits(editor: ICodeEditor, change: IModelContentChange, regions: IRange[] | null | undefined): IIdentifiedSingleEditOperation[] {
-	if (!regions) {
-		return [];
-	}
-
-	let containingRegion: IRange | undefined;
-	const beforeRegions: IRange[] = [];
-	const afterRegions: IRange[] = [];
-	for (let r of regions) {
-		if (isWithin(change.range, r)) {
-			containingRegion = r;
-		} else {
-			if (!containingRegion) {
-				beforeRegions.push(r);
-			} else {
-				afterRegions.push(r);
-			}
-		}
-	}
-	if (!containingRegion) {
-		return [];
-	}
-
-	const model = editor.getModel()!;
-	const startOffset = change.rangeOffset - model.getOffsetAt({
-		lineNumber: containingRegion.startLineNumber,
-		column: containingRegion.startColumn
-	});
-	const endOffset = change.rangeOffset + change.rangeLength - model.getOffsetAt({
-		lineNumber: containingRegion.endLineNumber,
-		column: containingRegion.endColumn
-	});
-
-	const beforeRegionEdits = beforeRegions
-		.map(r => {
-			const newStartPos = model.getPositionAt(model.getOffsetAt({
-				lineNumber: r.startLineNumber,
-				column: r.startColumn
-			}) + startOffset);
-			const newEndPos = model.getPositionAt(model.getOffsetAt({
-				lineNumber: r.endLineNumber,
-				column: r.endColumn
-			}) + endOffset);
-
-			const range = new Range(newStartPos.lineNumber, newStartPos.column, newEndPos.lineNumber, newEndPos.column);
-
-			return {
-				range,
-				text: change.text
-			};
-		});
-
-	const textDiffDelta = change.text === ''
-		? -change.rangeLength
-		: change.text.length;
-
-	const afterRegionEdits = afterRegions
-		.map(r => {
-			if (r.startLineNumber === containingRegion!.startLineNumber) {
-				const newStartPos = model.getPositionAt(model.getOffsetAt({
-					lineNumber: r.startLineNumber,
-					column: r.startColumn
-				}) + startOffset + (1) * textDiffDelta);
-				const newEndPos = model.getPositionAt(model.getOffsetAt({
-					lineNumber: r.endLineNumber,
-					column: r.endColumn
-				}) + endOffset + (1) * textDiffDelta);
-
-				const range = new Range(newStartPos.lineNumber, newStartPos.column, newEndPos.lineNumber, newEndPos.column);
-
-				return {
-					range,
-					text: change.text
-				};
-			} else {
-				const newStartPos = model.getPositionAt(model.getOffsetAt({
-					lineNumber: r.startLineNumber,
-					column: r.startColumn
-				}) + startOffset);
-				const newEndPos = model.getPositionAt(model.getOffsetAt({
-					lineNumber: r.endLineNumber,
-					column: r.endColumn
-				}) + endOffset);
-
-				const range = new Range(newStartPos.lineNumber, newStartPos.column, newEndPos.lineNumber, newEndPos.column);
-
-				return {
-					range,
-					text: change.text
-				};
-			}
-		});
-
-	return beforeRegionEdits.concat(afterRegionEdits);
-
-	// const deltaStartLine = change.range.startLineNumber - containingRegion.startLineNumber;
-	// const deltaStartColumn = change.range.startColumn - containingRegion.startColumn;
-	// const deltaEndLine = change.range.endLineNumber - containingRegion.endLineNumber;
-	// const deltaEndColumn = change.range.endColumn - containingRegion.endColumn;
-
-	// const beforeRegionEdits = beforeRegions
-	// 	.map(r => {
-	// 		const matchingRange = new Range(
-	// 			r.startLineNumber + deltaStartLine,
-	// 			r.startColumn + deltaStartColumn,
-	// 			r.endLineNumber + deltaEndLine,
-	// 			r.endColumn + deltaEndColumn,
-	// 		);
-
-	// 		console.log(`Applying changes to (${matchingRange.startLineNumber}, ${matchingRange.startColumn} - ${matchingRange.endColumn}): ${editor.getModel()?.getValueInRange(matchingRange)}`);
-
-	// 		return {
-	// 			range: matchingRange,
-	// 			text: change.text
-	// 		};
-	// 	});
-
-	// const columnDelta = change.text === ''
-	// 	? -change.rangeLength
-	// 	: change.text.length;
-
-	// const afterRegionEdits = afterRegions
-	// 	.map(r => {
-	// 		const matchingRange = new Range(
-	// 			r.startLineNumber + deltaStartLine,
-	// 			r.startColumn + deltaStartColumn + columnDelta,
-	// 			r.endLineNumber + deltaEndLine,
-	// 			r.endColumn + deltaEndColumn + columnDelta
-	// 		);
-
-	// 		console.log(`Applying changes to (${matchingRange.startLineNumber}, ${matchingRange.startColumn} - ${matchingRange.endColumn}): ${editor.getModel()?.getValueInRange(matchingRange)}`);
-
-	// 		return {
-	// 			range: matchingRange,
-	// 			text: change.text
-	// 		};
-	// 	});
-
-	// return beforeRegionEdits.concat(afterRegionEdits);
-}
+import * as strings from 'vs/base/common/strings';
 
 class OnTypeRenameContribution extends Disposable implements IEditorContribution {
 
@@ -202,12 +44,9 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 	private _enabled: boolean;
 
 	private _currentRequest: CancelablePromise<IRange[] | null | undefined> | null;
-	private _currentDecorations: string[];
-
-	private _syncedRanges: IRange[] | null | undefined;
-
-	private _shouldMirrorChanges = false;
-	private _lastVersion: number = -1;
+	private _currentDecorations: string[]; // The one at index 0 is the reference one
+	private _ignoreChangeEvent: boolean;
+	private _updateMirrors: RunOnceScheduler;
 
 	constructor(
 		editor: ICodeEditor,
@@ -217,6 +56,8 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		this._enabled = this._editor.getOption(EditorOption.autoRename);
 		this._currentRequest = null;
 		this._currentDecorations = [];
+		this._ignoreChangeEvent = false;
+		this._updateMirrors = this._register(new RunOnceScheduler(() => this._doUpdateMirrors(), 0));
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			this._stopAll();
@@ -240,52 +81,91 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		}));
 
 		this._register(this._editor.onDidChangeModelContent((e) => {
+			if (this._ignoreChangeEvent) {
+				return;
+			}
 			if (!this._editor.hasModel()) {
 				return;
 			}
+			if (this._currentDecorations.length === 0) {
+				// nothing to do
+				return;
+			}
+			if (e.isUndoing || e.isRedoing) {
+				return;
+			}
+			this._updateMirrors.schedule();
+		}));
+	}
 
-			console.log('=== Changes ===');
+	private _doUpdateMirrors(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (this._currentDecorations.length === 0) {
+			// nothing to do
+			return;
+		}
 
-			e.changes.forEach(c => {
-				const text = c.text === '' ? '<DEL>' : c.text;
-				console.log(toRangeStringRepresentation(c.range) + ' | ' + text);
-			});
+		const model = this._editor.getModel();
+		const currentRanges = this._currentDecorations.map(decId => model.getDecorationRange(decId)!);
 
-			// const model = this._editor.getModel();
-			// TODO
-			// console.log(`buffer changed!`);
+		const referenceRange = currentRanges[0];
+		if (referenceRange.isEmpty() || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
+			return this._stopAll();
+		}
 
-			if (e.changes.length === 1) {
-				const change = e.changes[0];
+		const referenceValue = model.getValueInRange(referenceRange);
+		if (/\s/.test(referenceValue)) {
+			// TODO: we need a better stop condition here
+			return this._stopAll();
+		}
 
-				// Insert non text - break case
-				if (change.text !== '' && !change.text.match(/^([A-Za-z\-_])/)) {
-					this._stopAll();
-					return;
-				}
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		for (let i = 1, len = currentRanges.length; i < len; i++) {
+			const mirrorRange = currentRanges[i];
+			if (mirrorRange.startLineNumber !== mirrorRange.endLineNumber) {
+				edits.push({
+					range: mirrorRange,
+					text: referenceValue
+				});
+			} else {
+				let oldValue = model.getValueInRange(mirrorRange);
+				let newValue = referenceValue;
+				let rangeStartColumn = mirrorRange.startColumn;
+				let rangeEndColumn = mirrorRange.endColumn;
 
-				if (e.versionId === this._lastVersion + 1 && !this._shouldMirrorChanges) {
-					console.log('=== Unmirrored changes ===');
-					this._shouldMirrorChanges = true;
-					return;
-				}
+				const commonPrefixLength = strings.commonPrefixLength(oldValue, newValue);
+				rangeStartColumn += commonPrefixLength;
+				oldValue = oldValue.substr(commonPrefixLength);
+				newValue = newValue.substr(commonPrefixLength);
 
-				const newChanges = computeSyncedRegionEdits(this._editor, change, this._syncedRanges);
-				this._lastVersion = e.versionId;
-				if (newChanges.length > 0) {
-					this._shouldMirrorChanges = false;
-					console.log('=== Mirror Changes ===');
-					newChanges.forEach(c => {
-						const text = c.text === '' ? '<DEL>' : c.text;
-						console.log(toRangeStringRepresentation(c.range) + ' | ' + text);
+				const commonSuffixLength = strings.commonSuffixLength(oldValue, newValue);
+				rangeEndColumn -= commonSuffixLength;
+				oldValue = oldValue.substr(0, oldValue.length - commonSuffixLength);
+				newValue = newValue.substr(0, newValue.length - commonSuffixLength);
+
+				if (rangeStartColumn !== rangeEndColumn || newValue.length !== 0) {
+					edits.push({
+						range: new Range(mirrorRange.startLineNumber, rangeStartColumn, mirrorRange.endLineNumber, rangeEndColumn),
+						text: newValue
 					});
-
-					this._editor.executeEdits('foo', newChanges);
 				}
 			}
+		}
 
-			// console.log(this._currentDecorations.map(id => model.getDecorationRange(id)));
-		}));
+		if (edits.length === 0) {
+			return;
+		}
+
+		try {
+			this._ignoreChangeEvent = true;
+			const prevEditOperationType = this._editor._getCursors().getPrevEditOperationType();
+			this._editor.executeEdits('onTypeRename', edits);
+			this._editor._getCursors().setPrevEditOperationType(prevEditOperationType);
+		} finally {
+			this._ignoreChangeEvent = false;
+		}
 	}
 
 	public dispose(): void {
@@ -317,16 +197,35 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 		this._currentRequest = createCancelablePromise(token => getOnTypeRenameRanges(model, position, token));
 
-		this._currentRequest.then((value) => {
-			if (!value) {
-				value = [];
+		this._currentRequest.then((ranges) => {
+			if (!ranges) {
+				ranges = [];
 			}
-			const decorations: IModelDeltaDecoration[] = value.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
-			this._syncedRanges = value;
+
+			let foundReferenceRange = false;
+			for (let i = 0, len = ranges.length; i < len; i++) {
+				if (Range.containsPosition(ranges[i], position)) {
+					foundReferenceRange = true;
+					if (i !== 0) {
+						const referenceRange = ranges[i];
+						ranges.splice(i, 1);
+						ranges.unshift(referenceRange);
+					}
+					break;
+				}
+			}
+
+			if (!foundReferenceRange) {
+				// Cannot do on type rename if the ranges are not where the cursor is...
+				this._stopAll();
+				return;
+			}
+
+			const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
 			this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
 		}, err => {
-			return;
-			// return onUnexpectedError(err);
+			onUnexpectedError(err);
+			this._stopAll();
 		});
 	}
 }
