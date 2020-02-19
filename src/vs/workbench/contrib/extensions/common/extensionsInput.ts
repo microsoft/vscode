@@ -13,13 +13,15 @@ export class ExtensionsInput extends EditorInput {
 	static readonly ID = 'workbench.extensions.input2';
 	get extension(): IExtension { return this._extension; }
 
-	readonly resource = URI.from({
-		scheme: 'extension',
-		path: this.extension.identifier.id
-	});
+	get resource() {
+		return URI.from({
+			scheme: 'extension',
+			path: this.extension.identifier.id
+		});
+	}
 
 	constructor(
-		private _extension: IExtension,
+		private readonly _extension: IExtension
 	) {
 		super();
 	}

@@ -28,10 +28,8 @@ export class LogViewerInput extends ResourceEditorInput {
 
 	static readonly ID = 'workbench.editorinputs.output';
 
-	readonly resource = this.outputChannelDescriptor.file;
-
 	constructor(
-		private readonly outputChannelDescriptor: IFileOutputChannelDescriptor,
+		outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
