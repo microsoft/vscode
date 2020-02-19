@@ -26,7 +26,10 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
+	get resource() { return this._editorResource; }
+
 	private _model?: ICustomEditorModel;
+
 
 	constructor(
 		resource: URI,
@@ -50,17 +53,13 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		return CustomFileEditorInput.typeId;
 	}
 
-	public getResource(): URI {
-		return this._editorResource;
-	}
-
 	public supportsSplitEditor() {
 		return true;
 	}
 
 	@memoize
 	getName(): string {
-		return basename(this.labelService.getUriLabel(this.getResource()));
+		return basename(this.labelService.getUriLabel(this.resource));
 	}
 
 	@memoize
@@ -71,7 +70,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 	matches(other: IEditorInput): boolean {
 		return this === other || (other instanceof CustomFileEditorInput
 			&& this.viewType === other.viewType
-			&& isEqual(this.getResource(), other.getResource()));
+			&& isEqual(this.resource, other.resource));
 	}
 
 	@memoize
@@ -81,12 +80,12 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.getResource(), { relative: true });
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.getResource());
+		return this.labelService.getUriLabel(this.resource);
 	}
 
 	public getTitle(verbosity?: Verbosity): string {
@@ -157,7 +156,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async resolve(): Promise<IEditorModel> {
-		this._model = await this.customEditorService.models.resolve(this.getResource(), this.viewType);
+		this._model = await this.customEditorService.models.resolve(this.resource, this.viewType);
 		this._register(this._model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		if (this.isDirty()) {
 			this._onDidChangeDirty.fire();

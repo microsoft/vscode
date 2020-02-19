@@ -64,7 +64,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
 
 		// Set as save error handler to service for text files
-		this.textFileService.saveErrorHandler = this;
+		this.textFileService.files.saveErrorHandler = this;
 
 		this.registerListeners();
 	}
@@ -81,10 +81,10 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 		const activeInput = this.editorService.activeEditor;
 		if (activeInput instanceof DiffEditorInput && activeInput.originalInput instanceof ResourceEditorInput && activeInput.modifiedInput instanceof FileEditorInput) {
-			const resource = activeInput.originalInput.getResource();
+			const resource = activeInput.originalInput.resource;
 			if (resource?.scheme === CONFLICT_RESOLUTION_SCHEME) {
 				isActiveEditorSaveConflictResolution = true;
-				activeConflictResolutionResource = activeInput.modifiedInput.getResource();
+				activeConflictResolutionResource = activeInput.modifiedInput.resource;
 			}
 		}
 

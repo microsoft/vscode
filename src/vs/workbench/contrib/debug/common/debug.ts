@@ -200,9 +200,6 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
 	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
 
-	// Disconnects and clears state. Session can be initialized again for a new connection.
-	shutdown(): void;
-
 	// DAP request
 
 	initialize(dbgr: IDebugger): Promise<void>;
@@ -467,7 +464,7 @@ export interface IDebugConfiguration {
 		closeOnEnd: boolean;
 	};
 	focusWindowOnBreak: boolean;
-	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'cancel';
+	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
 }

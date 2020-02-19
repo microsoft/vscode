@@ -876,7 +876,65 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Debug:
+	//#region locate evaluatable expressions for debug hover: https://github.com/microsoft/vscode/issues/89084
+
+	/**
+	* An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
+	* The result of this evaluation is shown in a tooltip-like widget.
+	* If only a range is specified, the expression will be extracted from the underlying document.
+	* An optional expression can be used to override the extracted expression.
+	* In this case the range is still used to highlight the range in the document.
+	*/
+	export class EvaluatableExpression {
+		/*
+		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
+		 */
+		readonly range: Range;
+		/*
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+
+		/**
+		 * Creates a new evaluatable expression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * The evaluatable expression provider interface defines the contract between extensions and
+	 * the debug hover.
+	 */
+	export interface EvaluatableExpressionProvider {
+
+		/**
+		 * Provide an evaluatable expression for the given document and position.
+		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position where the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+	}
+
+	export namespace languages {
+		/**
+		 * Register a provider that locates evaluatable expressions in text documents.
+		 *
+		 * If multiple providers are registered for a language an arbitrary provider will be used.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An evaluatable expression provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+	}
 
 	// deprecated
 
@@ -1362,6 +1420,8 @@ declare module 'vscode' {
 	}
 
 	export interface CellDisplayOutput {
+		// todo@peng
+		// eslint-disable-next-line vscode-dts-literal-or-types
 		output_type: 'display_data' | 'execute_result';
 		/**
 		 * { mime_type: value }
@@ -1388,6 +1448,8 @@ declare module 'vscode' {
 	export interface NotebookCell {
 		handle: number;
 		language: string;
+		// todo@peng
+		// eslint-disable-next-line vscode-dts-literal-or-types
 		cell_type: 'markdown' | 'code';
 		outputs: CellOutput[];
 		getContent(): string;
@@ -1408,6 +1470,8 @@ declare module 'vscode' {
 		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
+		// todo@peng
+		// eslint-disable-next-line vscode-dts-literal-or-types
 		createCell(content: string, language: string, type: 'markdown' | 'code', outputs: CellOutput[]): NotebookCell;
 	}
 
@@ -1538,7 +1602,7 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent in the same line.
+		 * A human-readable string which is rendered less prominent on the same line.
 		 */
 		description?: string;
 
@@ -1661,6 +1725,40 @@ declare module 'vscode' {
 		uri?: Uri;
 	}
 
+	export interface TimelineCursor {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items to be returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag to specify whether the timeline items requested are before or after (default) the provided cursor.
+		 */
+		before?: boolean;
+
+		/**
+		 * The maximum number of timeline items that should be returned.
+		 */
+		limit?: number;
+	}
+
+	export interface Timeline {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag which indicates whether there are any more items that weren't returned.
+		 */
+		more?: boolean;
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		items: TimelineItem[];
+	}
+
 	export interface TimelineProvider {
 		/**
 		 * An optional event to signal that the timeline for a source has changed.
@@ -1683,10 +1781,11 @@ declare module 'vscode' {
 		 *
 		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
 		 * @param token A cancellation token.
-		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
+		 * @param cursor TBD
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, token: CancellationToken): ProviderResult<TimelineItem[]>;
+		provideTimeline(uri: Uri, cursor: TimelineCursor, token: CancellationToken): ProviderResult<Timeline>;
 	}
 
 	export namespace workspace {

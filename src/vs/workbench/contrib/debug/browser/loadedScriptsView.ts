@@ -435,6 +435,7 @@ export class LoadedScriptsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-loaded-scripts');
 		dom.addClass(container, 'show-file-icons');
 
@@ -570,12 +571,6 @@ export class LoadedScriptsView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.treeNeedsRefreshOnVisible) {
 				this.changeScheduler.schedule();
-			}
-		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 

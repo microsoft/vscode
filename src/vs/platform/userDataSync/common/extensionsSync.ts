@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserData, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { localize } from 'vs/nls';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISyncPreviewResult {
@@ -22,18 +22,19 @@ interface ISyncPreviewResult {
 	readonly removed: IExtensionIdentifier[];
 	readonly updated: ISyncExtension[];
 	readonly remote: ISyncExtension[] | null;
-	readonly remoteUserData: IUserData;
+	readonly remoteUserData: IRemoteUserData;
 	readonly skippedExtensions: ISyncExtension[];
 	readonly lastSyncUserData: ILastSyncUserData | null;
 }
 
-interface ILastSyncUserData extends IUserData {
+interface ILastSyncUserData extends IRemoteUserData {
 	skippedExtensions: ISyncExtension[] | undefined;
 }
 
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	readonly resourceKey: ResourceKey = 'extensions';
+	protected readonly version: number = 1;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -72,9 +73,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 
-			if (remoteUserData.content !== null) {
+			if (remoteUserData.syncData !== null) {
 				const localExtensions = await this.getLocalExtensions();
-				const remoteExtensions: ISyncExtension[] = JSON.parse(remoteUserData.content);
+				const remoteExtensions: ISyncExtension[] = JSON.parse(remoteUserData.syncData.content);
 				const { added, updated, remote } = merge(localExtensions, remoteExtensions, [], [], this.getIgnoredExtensions());
 				await this.apply({ added, removed: [], updated, remote, remoteUserData, skippedExtensions: [], lastSyncUserData });
 			}
@@ -145,7 +146,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return null;
 	}
 
-	protected async doSync(remoteUserData: IUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
+	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
 		try {
 			const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
 			await this.apply(previewResult);
@@ -163,9 +164,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		this.setStatus(SyncStatus.Idle);
 	}
 
-	private async getPreview(remoteUserData: IUserData, lastSyncUserData: ILastSyncUserData | null): Promise<ISyncPreviewResult> {
-		const remoteExtensions: ISyncExtension[] = remoteUserData.content ? JSON.parse(remoteUserData.content) : null;
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? JSON.parse(lastSyncUserData.content!) : null;
+	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<ISyncPreviewResult> {
+		const remoteExtensions: ISyncExtension[] = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? JSON.parse(lastSyncUserData.syncData!.content) : null;
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
 
 		const localExtensions = await this.getLocalExtensions();
@@ -201,15 +202,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			// update remote
 			this.logService.trace('Extensions: Updating remote extensions...');
 			const content = JSON.stringify(remote);
-			const ref = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
-			remoteUserData = { ref, content };
+			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
 			this.logService.info('Extensions: Updated remote extensions');
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.trace('Extensions: Updating last synchronized extensions...');
-			await this.updateLastSyncUserData<ILastSyncUserData>({ ...remoteUserData, skippedExtensions });
+			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions });
 			this.logService.info('Extensions: Updated last synchronized extensions');
 		}
 	}

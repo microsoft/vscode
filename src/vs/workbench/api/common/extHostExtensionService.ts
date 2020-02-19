@@ -194,7 +194,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		} catch (err) {
 			// TODO: write to log once we have one
 		}
-		await allPromises;
+		await Promise.all(allPromises);
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {

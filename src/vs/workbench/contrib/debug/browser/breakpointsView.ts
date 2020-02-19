@@ -28,7 +28,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Gesture } from 'vs/base/browser/touch';
@@ -81,6 +81,7 @@ export class BreakpointsView extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
@@ -151,12 +152,6 @@ export class BreakpointsView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onBreakpointsChange();
-			}
-		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.list.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 	}

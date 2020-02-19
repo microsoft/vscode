@@ -16,10 +16,28 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ParseError, parse } from 'vs/base/common/json';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 type SyncConflictsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
+
+export interface IRemoteUserData {
+	ref: string;
+	syncData: ISyncData | null;
+}
+
+export interface ISyncData {
+	version: number;
+	content: string;
+}
+
+function isSyncData(thing: any): thing is ISyncData {
+	return thing
+		&& (thing.version && typeof thing.version === 'number')
+		&& (thing.content && typeof thing.content === 'string')
+		&& Object.keys(thing).length === 2;
+}
 
 export abstract class AbstractSynchroniser extends Disposable {
 
@@ -98,8 +116,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	async getRemoteContent(): Promise<string | null> {
 		const lastSyncData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getRemoteUserData(lastSyncData);
-		return remoteUserData.content;
+		const { syncData } = await this.getRemoteUserData(lastSyncData);
+		return syncData ? syncData.content : null;
 	}
 
 	async resetLocal(): Promise<void> {
@@ -108,25 +126,56 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) { /* ignore */ }
 	}
 
-	protected async getLastSyncUserData<T extends IUserData>(): Promise<T | null> {
+	protected async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {
 		try {
 			const content = await this.fileService.readFile(this.lastSyncResource);
-			return JSON.parse(content.value.toString());
+			const parsed = JSON.parse(content.value.toString());
+			let syncData: ISyncData = JSON.parse(parsed.content);
+
+			// Migration from old content to sync data
+			if (!isSyncData(syncData)) {
+				syncData = { version: this.version, content: parsed.content };
+			}
+
+			return { ...parsed, ...{ syncData, content: undefined } };
 		} catch (error) {
-			return null;
+			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+				// log error always except when file does not exist
+				this.logService.error(error);
+			}
 		}
+		return null;
 	}
 
-	protected async updateLastSyncUserData<T extends IUserData>(lastSyncUserData: T): Promise<void> {
+	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
+		const lastSyncUserData: IUserData = { ref: lastSyncRemoteUserData.ref, content: JSON.stringify(lastSyncRemoteUserData.syncData), ...additionalProps };
 		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
 	}
 
-	protected async getRemoteUserData(lastSyncData: IUserData | null): Promise<IUserData> {
-		return this.userDataSyncStoreService.read(this.resourceKey, lastSyncData, this.source);
+	protected async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
+		const lastSyncUserData: IUserData | null = lastSyncData ? { ref: lastSyncData.ref, content: lastSyncData.syncData ? JSON.stringify(lastSyncData.syncData) : null } : null;
+		const { ref, content } = await this.userDataSyncStoreService.read(this.resourceKey, lastSyncUserData, this.source);
+		let syncData: ISyncData | null = null;
+		if (content !== null) {
+			try {
+				syncData = <ISyncData>JSON.parse(content);
+
+				// Migration from old content to sync data
+				if (!isSyncData(syncData)) {
+					syncData = { version: this.version, content };
+				}
+
+			} catch (e) {
+				this.logService.error(e);
+			}
+		}
+		return { ref, syncData };
 	}
 
-	protected async updateRemoteUserData(content: string, ref: string | null): Promise<string> {
-		return this.userDataSyncStoreService.write(this.resourceKey, content, ref, this.source);
+	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
+		const syncData: ISyncData = { version: this.version, content };
+		ref = await this.userDataSyncStoreService.write(this.resourceKey, JSON.stringify(syncData), ref, this.source);
+		return { ref, syncData };
 	}
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
@@ -145,13 +194,14 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	abstract readonly resourceKey: ResourceKey;
-	protected abstract doSync(remoteUserData: IUserData, lastSyncUserData: IUserData | null): Promise<void>;
+	protected abstract readonly version: number;
+	protected abstract doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
 }
 
 export interface IFileSyncPreviewResult {
 	readonly fileContent: IFileContent | null;
-	readonly remoteUserData: IUserData;
-	readonly lastSyncUserData: IUserData | null;
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly content: string | null;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
@@ -174,7 +224,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	) {
 		super(source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
 		this._register(this.fileService.watch(dirname(file)));
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
 
 	async stop(): Promise<void> {
@@ -190,7 +240,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		if (preview) {
 			if (this.syncPreviewResultPromise) {
 				const result = await this.syncPreviewResultPromise;
-				return result.remoteUserData ? result.remoteUserData.content : null;
+				return result.remoteUserData && result.remoteUserData.syncData ? result.remoteUserData.syncData.content : null;
 			}
 		}
 		return super.getRemoteContent();

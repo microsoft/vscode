@@ -2283,6 +2283,17 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 	}
 }
 
+@es5ClassCompat
+export class EvaluatableExpression implements vscode.EvaluatableExpression {
+	readonly range: vscode.Range;
+	readonly expression?: string;
+
+	constructor(range: vscode.Range, expression?: string) {
+		this.range = range;
+		this.expression = expression;
+	}
+}
+
 export enum LogLevel {
 	Trace = 1,
 	Debug = 2,

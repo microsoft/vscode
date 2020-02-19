@@ -276,6 +276,27 @@ class HoverAdapter {
 	}
 }
 
+class EvaluatableExpressionAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.EvaluatableExpressionProvider,
+	) { }
+
+	public provideEvaluatableExpression(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		return asPromise(() => this._provider.provideEvaluatableExpression(doc, pos, token)).then(value => {
+			if (value) {
+				return typeConvert.EvaluatableExpression.from(value);
+			}
+			return undefined;
+		});
+	}
+}
+
 class DocumentHighlightAdapter {
 
 	constructor(
@@ -1329,7 +1350,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
-	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter;
+	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter;
 
 class AdapterData {
 	constructor(
@@ -1547,6 +1568,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined> {
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined);
+	}
+
+	// --- debug hover
+
+	registerEvaluatableExpressionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
+		const handle = this._addNewAdapter(new EvaluatableExpressionAdapter(this._documents, provider), extension);
+		this._proxy.$registerEvaluatableExpressionProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> {
+		return this._withAdapter(handle, EvaluatableExpressionAdapter, adapter => adapter.provideEvaluatableExpression(URI.revive(resource), position, token), undefined);
 	}
 
 	// --- occurrences
@@ -1882,5 +1915,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		};
 		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
 		return this._createDisposable(handle);
+	}
+
+	$setWordDefinitions(wordDefinitions: extHostProtocol.ILanguageWordDefinitionDto[]): void {
+		for (const wordDefinition of wordDefinitions) {
+			this._documents.setWordDefinitionFor(wordDefinition.languageId, new RegExp(wordDefinition.regexSource, wordDefinition.regexFlags));
+		}
 	}
 }

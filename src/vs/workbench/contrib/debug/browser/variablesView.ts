@@ -90,6 +90,7 @@ export class VariablesView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
@@ -141,11 +142,6 @@ export class VariablesView extends ViewPane {
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
 				this.tree.rerender(e);
-			}
-		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 	}

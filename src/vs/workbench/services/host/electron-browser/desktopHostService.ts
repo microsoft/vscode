@@ -36,6 +36,16 @@ export class DesktopHostService extends Disposable implements IHostService {
 		return document.hasFocus();
 	}
 
+	async hadLastFocus(): Promise<boolean> {
+		const activeWindowId = await this.electronService.getActiveWindowId();
+
+		if (typeof activeWindowId === 'undefined') {
+			return false;
+		}
+
+		return activeWindowId === this.electronEnvironmentService.windowId;
+	}
+
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {

@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
+import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -16,22 +16,18 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
+
+export interface TextFileCreateEvent extends IWaitUntil {
+	readonly resource: URI;
+}
 
 export interface ITextFileService extends IDisposable {
 
 	_serviceBrand: undefined;
-
-	/**
-	 * An event that is fired before attempting a certain file operation.
-	 */
-	readonly onWillRunOperation: Event<FileOperationWillRunEvent>;
-
-	/**
-	 * An event that is fired after a file operation has been performed.
-	 */
-	readonly onDidRunOperation: Event<FileOperationDidRunEvent>;
 
 	/**
 	 * Access to the manager of text file editor models providing further
@@ -49,17 +45,6 @@ export interface ITextFileService extends IDisposable {
 	 * Helper to determine encoding for resources.
 	 */
 	readonly encoding: IResourceEncodings;
-
-	/**
-	 * The handler that should be called when saving fails. Can be overridden
-	 * to handle save errors in a custom way.
-	 */
-	saveErrorHandler: ISaveErrorHandler;
-
-	/**
-	 * The save participant if any. By default, no save participant is registered.
-	 */
-	saveParticipant: ISaveParticipant | undefined;
 
 	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
@@ -111,40 +96,20 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
+	 * An event that is fired before attempting to create a text file.
+	 */
+	readonly onWillCreateTextFile: Event<TextFileCreateEvent>;
+
+	/**
+	 * An event that is fired after a text file has been created.
+	 */
+	readonly onDidCreateTextFile: Event<TextFileCreateEvent>;
+
+	/**
 	 * Create a file. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
 	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Move a file. If the file is dirty, its contents will be preserved and restored.
-	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
-	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
-	 */
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
-}
-
-export interface FileOperationWillRunEvent extends IWaitUntil {
-	operation: FileOperation;
-	target: URI;
-	source?: URI;
-}
-
-export class FileOperationDidRunEvent {
-
-	constructor(
-		readonly operation: FileOperation,
-		readonly target: URI,
-		readonly source?: URI | undefined
-	) { }
 }
 
 export interface IReadTextFileOptions extends IReadFileOptions {
@@ -223,14 +188,6 @@ export interface ISaveErrorHandler {
 	 * Called whenever a save fails.
 	 */
 	onSaveError(error: Error, model: ITextFileEditorModel): void;
-}
-
-export interface ISaveParticipant {
-
-	/**
-	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
-	 */
-	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
 }
 
 /**
@@ -356,20 +313,39 @@ export interface ITextFileModelLoadEvent {
 	reason: LoadReason;
 }
 
+export interface ITextFileSaveParticipant {
+
+	/**
+	 * Participate in a save of a model. Allows to change the model
+	 * before it is being saved to disk.
+	 */
+	participate(
+		model: IResolvedTextFileEditorModel,
+		context: { reason: SaveReason },
+		progress: IProgress<IProgressStep>,
+		token: CancellationToken
+	): Promise<void>;
+}
+
 export interface ITextFileEditorModelManager {
 
+	readonly onDidCreate: Event<ITextFileEditorModel>;
 	readonly onDidLoad: Event<ITextFileModelLoadEvent>;
 	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
 	readonly onDidSaveError: Event<ITextFileEditorModel>;
 	readonly onDidSave: Event<ITextFileModelSaveEvent>;
 	readonly onDidRevert: Event<ITextFileEditorModel>;
 	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
-	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
+
+	saveErrorHandler: ISaveErrorHandler;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 	getAll(): ITextFileEditorModel[];
 
 	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
+
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
+	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
@@ -413,6 +389,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	hasState(state: ModelState): boolean;
 
 	updatePreferredEncoding(encoding: string | undefined): void;
+
+	updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void;
 
 	save(options?: ITextFileSaveOptions): Promise<boolean>;
 
