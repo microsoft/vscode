@@ -25,7 +25,7 @@ registerAction2(class extends Action2 {
 		let editorService = accessor.get(IEditorService);
 		let notebookService = accessor.get(INotebookService);
 
-		let resource = editorService.activeEditor?.getResource();
+		let resource = editorService.activeEditor?.resource;
 		if (!resource) {
 			return;
 		}
@@ -51,7 +51,7 @@ registerAction2(class extends Action2 {
 		let editorService = accessor.get(IEditorService);
 		let notebookService = accessor.get(INotebookService);
 
-		let resource = editorService.activeEditor?.getResource();
+		let resource = editorService.activeEditor?.resource;
 
 		if (!resource) {
 			return;
@@ -83,7 +83,7 @@ registerAction2(class extends Action2 {
 		let editorService = accessor.get(IEditorService);
 		let notebookService = accessor.get(INotebookService);
 
-		let resource = editorService.activeEditor?.getResource();
+		let resource = editorService.activeEditor?.resource;
 		let editorControl = editorService.activeControl;
 		let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
 
@@ -126,7 +126,7 @@ registerAction2(class extends Action2 {
 		let editorService = accessor.get(IEditorService);
 		let notebookService = accessor.get(INotebookService);
 
-		let resource = editorService.activeEditor?.getResource();
+		let resource = editorService.activeEditor?.resource;
 		let editorControl = editorService.activeControl;
 		let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
 

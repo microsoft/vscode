@@ -182,7 +182,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.instantiationService.createInstance(MarkdownCellRenderer, this),
 		];
 
-		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<CellViewModel>>(
+		this.list = <WorkbenchList<CellViewModel>>this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotebookCellList',
 			this.body,
@@ -333,7 +333,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
 				this.localStore.add(this.list!.onFocusChange((e) => {
 					if (e.elements.length > 0) {
-						this.notebookService.updateNotebookActiveCell(input.viewType!, input.getResource()!, e.elements[0].cell.handle);
+						this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].cell.handle);
 					}
 				}));
 

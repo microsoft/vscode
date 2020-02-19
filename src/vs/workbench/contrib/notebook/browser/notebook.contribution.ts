@@ -58,17 +58,17 @@ export class NotebookContribution implements IWorkbenchContribution {
 		this.editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
 				let editorInput = this.editorService.activeEditor! as NotebookEditorInput;
-				this.notebookService.updateActiveNotebookDocument(editorInput.viewType!, editorInput.getResource()!);
+				this.notebookService.updateActiveNotebookDocument(editorInput.viewType!, editorInput.resource!);
 			}
 		});
 	}
 
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-		const resource = editor.getResource();
+		const resource = editor.resource;
 		let viewType: string | undefined = undefined;
 
 		if (resource) {
-			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource!);
+			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource);
 
 			if (notebookProviders.length > 0) {
 				viewType = notebookProviders[0].id;

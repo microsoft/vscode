@@ -126,19 +126,19 @@ export class NotebookEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	getResource() {
-		return this.editorInput.getResource();
+	get resource() {
+		return this.editorInput.resource;
 	}
 
 	resolve(): Promise<NotebookEditorModel> {
 		if (!this.promise) {
-			this.promise = this.textModelResolverService.createModelReference(this.editorInput.getResource()!)
+			this.promise = this.textModelResolverService.createModelReference(this.editorInput.resource!)
 				.then(async ref => {
 					const textModel = ref.object.textEditorModel;
 
 					let notebook: INotebook | undefined = undefined;
 					if (this.viewType !== undefined) {
-						notebook = await this.notebookService.resolveNotebook(this.viewType, this.editorInput.getResource()!);
+						notebook = await this.notebookService.resolveNotebook(this.viewType, this.editorInput.resource!);
 					}
 
 					this.textModel = new NotebookEditorModel(textModel, notebook);
