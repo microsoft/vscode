@@ -677,8 +677,8 @@ export class CodeApplication extends Disposable {
 		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 
-		// new window if "-n" was used without paths
-		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+		// new window if "-n" or "--remote" was used without paths
+		if ((args['new-window'] || args.remote) && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			return windowsMainService.open({
 				context,
 				cli: args,

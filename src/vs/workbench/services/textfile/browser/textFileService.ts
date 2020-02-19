@@ -204,8 +204,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		else {
 			const model = this.files.get(resource);
 			if (model) {
-
-				// Save with options
 				return await model.save(options) ? resource : undefined;
 			}
 		}

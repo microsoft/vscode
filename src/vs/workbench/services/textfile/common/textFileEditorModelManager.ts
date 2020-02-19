@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, IModelLoadOrCreateOptions, ITextFileModelLoadEvent, ITextFileModelSaveEvent, ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -29,26 +29,33 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onDidCreate = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidCreate = this._onDidCreate.event;
 
-	private readonly _onDidLoad = this._register(new Emitter<ITextFileModelLoadEvent>());
+	private readonly _onDidLoad = this._register(new Emitter<ITextFileLoadEvent>());
 	readonly onDidLoad = this._onDidLoad.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidChangeDirty = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidSaveError = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidSaveError = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
-	private readonly _onDidSave = this._register(new Emitter<ITextFileModelSaveEvent>());
+	private readonly _onDidSave = this._register(new Emitter<ITextFileSaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidRevert = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidRevert = this._onDidRevert.event;
 
-	private readonly _onDidChangeEncoding = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidChangeEncoding = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+
+	private readonly mapResourceToModel = new ResourceMap<TextFileEditorModel>();
+	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
+	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<TextFileEditorModel>>();
+
+	private readonly modelLoadQueue = this._register(new ResourceQueue());
 
 	saveErrorHandler = (() => {
 		const notificationService = this.notificationService;
@@ -60,12 +67,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		};
 	})();
 
-	private readonly mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
-	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
-
-	private readonly modelLoadQueue = this._register(new ResourceQueue());
+	get models(): TextFileEditorModel[] {
+		return this.mapResourceToModel.values();
+	}
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -107,7 +111,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		).forEach(model => this.queueModelLoad(model));
 	}
 
-	private queueModelLoad(model: ITextFileEditorModel): void {
+	private queueModelLoad(model: TextFileEditorModel): void {
 
 		// Load model to update (use a queue to prevent accumulation of loads
 		// when the load actually takes long. At most we only want the queue
@@ -133,9 +137,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		if (source && (e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
 
 			// find all models that related to either source or target (can be many if resource is a folder)
-			const sourceModels: ITextFileEditorModel[] = [];
-			const targetModels: ITextFileEditorModel[] = [];
-			for (const model of this.getAll()) {
+			const sourceModels: TextFileEditorModel[] = [];
+			const targetModels: TextFileEditorModel[] = [];
+			for (const model of this.models) {
 				const resource = model.resource;
 
 				if (isEqualOrParent(resource, e.target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
@@ -234,11 +238,11 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	get(resource: URI): ITextFileEditorModel | undefined {
+	get(resource: URI): TextFileEditorModel | undefined {
 		return this.mapResourceToModel.get(resource);
 	}
 
-	async resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
+	async resolve(resource: URI, options?: ITextFileEditorModelLoadOrCreateOptions): Promise<TextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -246,7 +250,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			return pendingLoad;
 		}
 
-		let modelPromise: Promise<ITextFileEditorModel>;
+		let modelPromise: Promise<TextFileEditorModel>;
 		let model = this.get(resource);
 		let didCreateModel = false;
 
@@ -277,15 +281,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			modelPromise = model.load(options);
 
 			// Install model listeners
-			const listeners = new DisposableStore();
-			listeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model: newModel, reason })));
-			listeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(newModel)));
-			listeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(newModel)));
-			listeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: newModel, reason })));
-			listeners.add(model.onDidRevert(() => this._onDidRevert.fire(newModel)));
-			listeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(newModel)));
+			const modelListeners = new DisposableStore();
+			modelListeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model: newModel, reason })));
+			modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(newModel)));
+			modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(newModel)));
+			modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: newModel, reason })));
+			modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(newModel)));
+			modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(newModel)));
 
-			this.mapResourceToModelListeners.set(resource, listeners);
+			this.mapResourceToModelListeners.set(resource, modelListeners);
 		}
 
 		// Store pending loads to avoid race conditions
@@ -331,11 +335,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	getAll(): ITextFileEditorModel[] {
-		return this.mapResourceToModel.values();
-	}
-
-	add(resource: URI, model: ITextFileEditorModel): void {
+	add(resource: URI, model: TextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel.get(resource);
 		if (knownModel === model) {
 			return; // already cached

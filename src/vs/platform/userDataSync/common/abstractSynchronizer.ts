@@ -17,8 +17,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ParseError, parse } from 'vs/base/common/json';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { localize } from 'vs/nls';
 
-type SyncConflictsClassification = {
+type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
@@ -76,11 +77,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this._onDidChangStatus.fire(status);
 			if (status === SyncStatus.HasConflicts) {
 				// Log to telemetry when there is a sync conflict
-				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsDetected', { source: this.source });
+				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsDetected', { source: this.source });
 			}
 			if (oldStatus === SyncStatus.HasConflicts && status === SyncStatus.Idle) {
 				// Log to telemetry when conflicts are resolved
-				this.telemetryService.publicLog2<{ source: string }, SyncConflictsClassification>('sync/conflictsResolved', { source: this.source });
+				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsResolved', { source: this.source });
 			}
 		}
 	}
@@ -106,6 +107,13 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 		const lastSyncUserData = await this.getLastSyncUserData();
 		const remoteUserData = ref && lastSyncUserData && lastSyncUserData.ref === ref ? lastSyncUserData : await this.getRemoteUserData(lastSyncUserData);
+
+		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
+			// current version is not compatible with cloud version
+			this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/incompatible', { source: this.source });
+			throw new UserDataSyncError(localize('incompatible', "Cannot sync {0} as its version {1} is not compatible with cloud {2}", this.source, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.source);
+		}
+
 		return this.doSync(remoteUserData, lastSyncUserData);
 	}
 

@@ -55,7 +55,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -643,8 +642,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkingCopyFileService private workingCopyFileService: IWorkingCopyFileService,
 		@IHostService private hostService: IHostService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		this.toDispose = [];
 
@@ -945,15 +943,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
 
-					// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-					// of the target file would replace the contents of the added file. since we already
-					// confirmed the overwrite before, this is OK.
-					if (this.workingCopyService.isDirty(targetFile)) {
-						await Promise.all(this.workingCopyService.getWorkingCopies(targetFile).map(workingCopy => workingCopy.revert({ soft: true })));
-					}
-
-					const copyTarget = joinPath(target.resource, basename(sourceFile));
-					const stat = await this.workingCopyFileService.copy(sourceFile, copyTarget, true);
+					const stat = await this.workingCopyFileService.copy(sourceFile, targetFile, true);
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });

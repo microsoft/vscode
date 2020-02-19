@@ -104,14 +104,7 @@ export class ReplaceService implements IReplaceService {
 		const edits: WorkspaceTextEdit[] = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply({ edits }, { progress });
 
-		return Promise.all(edits.map(e => {
-			const model = this.textFileService.files.get(e.resource);
-			if (model) {
-				return model.save();
-			}
-
-			return Promise.resolve(undefined);
-		}));
+		return Promise.all(edits.map(e => this.textFileService.files.get(e.resource)?.save()));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {

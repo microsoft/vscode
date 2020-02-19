@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
@@ -83,7 +83,12 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
-				description: localize('sync.ignoredExtensions', "Configure extensions to be ignored while synchronizing."),
+				'description': localize('sync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+				items: {
+					type: 'string',
+					pattern: EXTENSION_IDENTIFIER_PATTERN,
+					errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+				},
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true
@@ -171,6 +176,7 @@ export enum UserDataSyncErrorCode {
 	// Local Errors
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
+	Incompatible = 'Incompatible',
 
 	Unknown = 'Unknown',
 }
@@ -335,6 +341,7 @@ export interface ISettingsSyncService extends IUserDataSynchroniser {
 //#endregion
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export function toRemoteContentResource(source: SyncSource): URI {

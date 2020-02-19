@@ -740,7 +740,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.toggleSelection',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;
 

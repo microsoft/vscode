@@ -19,7 +19,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ITextFileService, ITextFileModelSaveEvent, ITextFileModelLoadEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileSaveEvent, ITextFileLoadEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -58,7 +58,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewletService viewletService: IViewletService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
 
@@ -131,7 +131,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		this._register(lifecycleService.onShutdown(() => this.dispose()));
 	}
 
-	private onTextFileModelLoaded(e: ITextFileModelLoadEvent): void {
+	private onTextFileModelLoaded(e: ITextFileLoadEvent): void {
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsReadClassification = {
@@ -146,7 +146,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private onTextFileModelSaved(e: ITextFileModelSaveEvent): void {
+	private onTextFileModelSaved(e: ITextFileSaveEvent): void {
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsWrittenClassification = {

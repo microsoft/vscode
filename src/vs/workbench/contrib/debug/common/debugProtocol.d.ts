@@ -1773,6 +1773,16 @@ declare module DebugProtocol {
 			If missing the value 0 is assumed which results in the completion text being inserted.
 		*/
 		length?: number;
+		/** Determines the start of the new selection after the text has been inserted (or replaced).
+			The start position must in the range 0 and length of the completion text.
+			If omitted the selection starts at the end of the completion text.
+		*/
+		selectionStart?: number;
+		/** Determines the length of the new selection after the text has been inserted (or replaced).
+			The selection can not extend beyond the bounds of the completion text.
+			If omitted the length is assumed to be 0.
+		*/
+		selectionLength?: number;
 	}
 
 	/** Some predefined types for the CompletionItem. Please note that not all clients have specific icons for all of them. */

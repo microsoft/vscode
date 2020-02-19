@@ -213,7 +213,7 @@ export class SearchView extends ViewPane {
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
 
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
-		this._register(this.textFileService.untitled.onDidDisposeModel(e => this.onUntitledDidDispose(e)));
+		this._register(this.textFileService.untitled.onDidDispose(model => this.onUntitledDidDispose(model.resource)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
