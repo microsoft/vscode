@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey, ContextKeyRegexExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -547,7 +547,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			} else {
 				await this.userDataSyncService.resetLocal();
 			}
-			await this.signOut();
 			this.disableSync();
 		}
 	}
@@ -571,13 +570,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		} catch (e) {
 			this.notificationService.error(localize('loginFailed', "Logging in failed: {0}", e));
 			throw e;
-		}
-	}
-
-	private async signOut(): Promise<void> {
-		if (this.activeAccount) {
-			await this.authenticationService.logout(this.userDataSyncStore!.authenticationProviderId, this.activeAccount.id);
-			await this.setActiveAccount(undefined);
 		}
 	}
 
@@ -751,17 +743,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			},
 			when: resolveKeybindingsConflictsWhenContext,
 		});
-
-		const signOutMenuItem: IMenuItem = {
-			group: '5_sync',
-			command: {
-				id: 'workbench.userData.actions.signout',
-				title: localize('sign out', "Sync: Sign out")
-			},
-			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn)),
-		};
-		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
 
 		const configureSyncCommandId = 'workbench.userData.actions.configureSync';
 		CommandsRegistry.registerCommand(configureSyncCommandId, () => this.configureSyncOptions());
