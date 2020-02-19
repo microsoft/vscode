@@ -21,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento, ICompositeCodeEditor } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -34,9 +34,9 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorNavigation } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -47,6 +47,64 @@ interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 }
 
+class NotebookCodeEditors implements ICompositeCodeEditor {
+
+	private readonly _onDidChangeActiveEditor = new Emitter<this>();
+	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
+
+	constructor(
+		private _list: WorkbenchList<CellViewModel>,
+		private _renderedEditors: Map<CellViewModel, ICodeEditor | undefined>
+	) { }
+
+	get activeCodeEditor(): IEditor | undefined {
+		const [focused] = this._list.getFocusedElements();
+		return focused instanceof CellViewModel
+			? this._renderedEditors.get(focused)
+			: undefined;
+	}
+
+	activate(input: IResourceInput): ICodeEditor | undefined {
+		const result = this._doActivate(input);
+		this._onDidChangeActiveEditor.fire(this);
+		return result;
+	}
+
+	private _doActivate(input: IResourceInput): ICodeEditor | undefined {
+		const data = parseCellUri(input.resource);
+		if (!data) {
+			return undefined;
+		}
+		// find the CellViewModel which represents the cell with the
+		// given uri, scroll it into view so that the editor is alive,
+		// and then set selection et al..
+		for (let i = 0; i < this._list.length; i++) {
+			const item = this._list.element(i);
+			if (item.cell.uri.toString() === input.resource.toString()) {
+				this._list.reveal(i, 0.2);
+				this._list.setFocus([i]);
+				const editor = this._renderedEditors.get(item);
+				if (!editor) {
+					break;
+				}
+				if (input.options?.selection) {
+					const { selection } = input.options;
+					editor.setSelection({
+						...selection,
+						endLineNumber: selection.endLineNumber || selection.startLineNumber,
+						endColumn: selection.endColumn || selection.startColumn
+					});
+				}
+				if (!input.options?.preserveFocus) {
+					editor.focus();
+				}
+				return editor;
+			}
+		}
+		return undefined;
+	}
+}
+
 export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
@@ -55,6 +113,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private webview: BackLayerWebView | null = null;
 
 	private list: WorkbenchList<CellViewModel> | undefined;
+	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<CellViewModel, ICodeEditor | undefined> = new Map();
 	private model: NotebookEditorModel | undefined;
 	private notebook: INotebook | undefined;
@@ -67,8 +126,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
-
-	readonly inEditorNavigation: IEditorNavigation;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -86,51 +143,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
-
-		this.inEditorNavigation = {
-			getActiveCodeEditor: (): IEditor | undefined => {
-				const focused = this.list?.getFocusedElements()[0];
-				return focused instanceof CellViewModel
-					? this.renderedEditors.get(focused)
-					: undefined;
-			},
-			openCodeEditor: async (input: IResourceInput, source?: IEditor | undefined): Promise<IEditor | undefined> => {
-				const data = parseCellUri(input.resource);
-				if (!data || this.notebook?.uri.toString() !== data.notebook.toString()) {
-					return undefined;
-				}
-				for (let i = 0; i < this.list!.length; i++) {
-					const item = this.list!.element(i);
-
-					// find the CellViewModel which represents the cell with the
-					// given uri, scroll it into view so that the editor is alive,
-					// and then set selection et al..
-					if (item.cell.uri.toString() === input.resource.toString()) {
-						this.list!.reveal(i, 0.2);
-						const editor = this.renderedEditors.get(item);
-						if (!editor) {
-							break;
-						}
-						if (input.options?.selection) {
-							const { selection } = input.options;
-							editor.setSelection({
-								...selection,
-								endLineNumber: selection.endLineNumber || selection.startLineNumber,
-								endColumn: selection.endColumn || selection.startColumn
-							});
-						}
-						if (!input.options?.preserveFocus) {
-							this.list?.setFocus([i]);
-							editor.focus();
-						}
-
-						return editor;
-					}
-				}
-
-				return undefined;
-			}
-		};
 	}
 
 
@@ -217,9 +229,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		);
 
+		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
 		this.list.view.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
+	}
+
+	getControl() {
+		return this.control;
 	}
 
 	onHide() {

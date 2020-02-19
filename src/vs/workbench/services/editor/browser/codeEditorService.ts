@@ -8,7 +8,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextEditorOptions } from 'vs/workbench/common/editor';
+import { TextEditorOptions, ICompositeCodeEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -33,9 +33,9 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			return activeTextEditorWidget.getModifiedEditor();
 		}
 
-		const editor = this.editorService.activeControl?.inEditorNavigation?.getActiveCodeEditor();
-		if (isCodeEditor(editor)) {
-			return editor;
+		const { activeControl } = this.editorService;
+		if (ICompositeCodeEditor.is(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
+			return activeControl.activeCodeEditor;
 		}
 
 		return null;
@@ -64,9 +64,10 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			return targetEditor;
 		}
 
-		// Special case: in editor navigation support
-		if (this.editorService.activeControl?.inEditorNavigation) {
-			const editor = await this.editorService.activeControl?.inEditorNavigation.openCodeEditor(input, source ?? undefined, sideBySide);
+		// CompositeCodeEditor
+		const control = this.editorService.activeControl?.getControl();
+		if (ICompositeCodeEditor.is(control)) {
+			const editor = control.activate(input);
 			if (isCodeEditor(editor)) {
 				return editor;
 			}

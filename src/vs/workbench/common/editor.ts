@@ -22,7 +22,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService, IEditorNavigation } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
@@ -112,11 +112,6 @@ export interface IEditor extends IPanel {
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
-
-	/**
-	 * Support to navigate code editors inside this editor.
-	 */
-	inEditorNavigation?: IEditorNavigation;
 }
 
 export interface ITextEditor extends IEditor {
@@ -165,6 +160,23 @@ export interface ITextSideBySideEditor extends IEditor {
  * Marker interface for the base editor control
  */
 export interface IEditorControl extends ICompositeControl { }
+
+export interface ICompositeCodeEditor {
+	readonly onDidChangeActiveEditor: Event<ICompositeCodeEditor>;
+	readonly activeCodeEditor: ICodeEditor | undefined;
+	// readonly editors: readonly ICodeEditor[] maybe supported with uris
+	activate(input: IResourceInput): ICodeEditor | undefined;
+}
+
+export namespace ICompositeCodeEditor {
+	export function is(thing: any): thing is ICompositeCodeEditor {
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		return typeof (<ICompositeCodeEditor>thing).activate === 'function'
+			&& typeof (<ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
+	}
+}
 
 export interface IFileInputFactory {
 

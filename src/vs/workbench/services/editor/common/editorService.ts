@@ -39,12 +39,6 @@ export interface IOpenEditorOverride {
 	override?: Promise<IEditor | undefined>;
 }
 
-
-export interface IEditorNavigation {
-	getActiveCodeEditor(): ICodeEditor | undefined;
-	openCodeEditor(input: IResourceInput, source?: ICodeEditor, sideBySide?: boolean): Promise<ICodeEditor | undefined>;
-}
-
 export interface IVisibleEditor extends IEditor {
 	input: IEditorInput;
 	group: IEditorGroup;
