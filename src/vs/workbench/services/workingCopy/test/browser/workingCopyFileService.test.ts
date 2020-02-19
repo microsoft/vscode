@@ -165,4 +165,35 @@ suite('WorkingCopyFileService', () => {
 		listener1.dispose();
 		listener2.dispose();
 	}
+
+	test('getDirty', async function () {
+		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+		const model2 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-2.txt'), 'utf8', undefined);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+		let dirty = accessor.workingCopyFileService.getDirty(model1.resource);
+		assert.equal(dirty.length, 0);
+
+		await model1.load();
+		model1.textEditorModel!.setValue('foo');
+
+		dirty = accessor.workingCopyFileService.getDirty(model1.resource);
+		assert.equal(dirty.length, 1);
+		assert.equal(dirty[0], model1);
+
+		dirty = accessor.workingCopyFileService.getDirty(toResource.call(this, '/path'));
+		assert.equal(dirty.length, 1);
+		assert.equal(dirty[0], model1);
+
+		await model2.load();
+		model2.textEditorModel!.setValue('bar');
+
+		dirty = accessor.workingCopyFileService.getDirty(toResource.call(this, '/path'));
+		assert.equal(dirty.length, 2);
+
+		model1.dispose();
+		model2.dispose();
+	});
 });
