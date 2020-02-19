@@ -9,9 +9,7 @@ import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import { runWhenIdle } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -55,7 +53,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private readonly _remoteExtensionsEnvironmentData: Map<string, IRemoteAgentEnvironment>;
 
-	private readonly _extensionHostLogsLocation: URI;
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 
@@ -99,7 +96,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._electronEnvironmentService.windowId}`));
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
 
@@ -363,7 +359,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result: ExtensionHostProcessManager[] = [];
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._electronEnvironmentService.extHostLogsPath);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
 		result.push(extHostProcessManager);
 

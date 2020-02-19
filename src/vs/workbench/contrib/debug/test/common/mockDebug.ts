@@ -327,8 +327,6 @@ export class MockSession implements IDebugSession {
 	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
 		throw new Error('Method not implemented.');
 	}
-
-	shutdown(): void { }
 }
 
 export class MockRawSession {

@@ -87,6 +87,10 @@ import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/b
 import * as CommonWorkbenchTestServices from 'vs/workbench/test/common/workbenchTestServices';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { Direction } from 'vs/base/browser/ui/grid/grid';
+import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
@@ -118,7 +122,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService
+		@IRemotePathService remotePathService: IRemotePathService
 	) {
 		super(
 			fileService,
@@ -133,7 +137,7 @@ export class TestTextFileService extends BrowserTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			notificationService
+			remotePathService
 		);
 	}
 
@@ -168,9 +172,11 @@ export const TestEnvironmentService = new BrowserWorkbenchEnvironmentService(Obj
 export function workbenchInstantiationService(overrides?: { textFileService?: (instantiationService: IInstantiationService) => ITextFileService }): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
+	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	const contextKeyService = <IContextKeyService>instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
+	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
@@ -196,6 +202,7 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IDecorationsService, new TestDecorationsService());
 	instantiationService.stub(IExtensionService, new TestExtensionService());
+	instantiationService.stub(IWorkingCopyFileService, instantiationService.createInstance(WorkingCopyFileService));
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -208,9 +215,21 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 	instantiationService.stub(IViewletService, new TestViewletService());
-	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 
 	return instantiationService;
+}
+
+export class TestProgressService implements IProgressService {
+
+	_serviceBrand: undefined;
+
+	withProgress(
+		options: IProgressOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<any>,
+		onDidCancel?: ((choice?: number | undefined) => void) | undefined
+	): Promise<any> {
+		return task(emptyProgress);
+	}
 }
 
 export class TestAccessibilityService implements IAccessibilityService {
@@ -222,6 +241,7 @@ export class TestAccessibilityService implements IAccessibilityService {
 	isScreenReaderOptimized(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
+	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -358,6 +378,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	registerPart(part: Part): void { }
 	isWindowMaximized() { return false; }
 	updateWindowMaximizedState(maximized: boolean): void { }
+	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
 }
 
 let activeViewlet: Viewlet = {} as any;
@@ -571,7 +592,7 @@ export class TestEditorService implements EditorServiceImpl {
 	getOpened(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): IEditorInput { throw new Error('not implemented'); }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { throw new Error('not implemented'); }
-	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput { throw new Error('not implemented'); }
+	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): EditorInput { throw new Error('not implemented'); }
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
@@ -582,8 +603,8 @@ export class TestFileService implements IFileService {
 
 	_serviceBrand: undefined;
 
-	private readonly _onFileChanges: Emitter<FileChangesEvent>;
-	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
+	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
+	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
 
 	readonly onWillActivateFileSystemProvider = Event.None;
 	readonly onDidChangeFileSystemProviderCapabilities = Event.None;
@@ -592,18 +613,13 @@ export class TestFileService implements IFileService {
 	private content = 'Hello Html';
 	private lastReadFileUri!: URI;
 
-	constructor() {
-		this._onFileChanges = new Emitter<FileChangesEvent>();
-		this._onAfterOperation = new Emitter<FileOperationEvent>();
-	}
-
 	setContent(content: string): void { this.content = content; }
 	getContent(): string { return this.content; }
 	getLastReadFileUri(): URI { return this.lastReadFileUri; }
-	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onFileChanges.fire(event); }
-	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onAfterOperation.fire(event); }
+	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
@@ -859,6 +875,7 @@ export class TestHostService implements IHostService {
 	_serviceBrand: undefined;
 
 	readonly hasFocus: boolean = true;
+	async hadLastFocus(): Promise<boolean> { return true; }
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 
 	async restart(): Promise<void> { }

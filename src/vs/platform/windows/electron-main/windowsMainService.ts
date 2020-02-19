@@ -458,7 +458,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let workspacesToRestore: IWorkspacePathToOpen[] = [];
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
 			let foldersToRestore = this.backupMainService.getFolderBackupPaths();
-			foldersToAdd.push(...foldersToRestore.map(f => ({ folderUri: f, remoteAuhority: getRemoteAuthority(f), isRestored: true })));
+			foldersToOpen.push(...foldersToRestore.map(f => ({ folderUri: f, remoteAuhority: getRemoteAuthority(f) })));
 
 			// collect from workspaces with hot-exit backups and from previous window session
 			workspacesToRestore = [...this.backupMainService.getWorkspaceBackups(), ...this.workspacesMainService.getUntitledWorkspacesSync()];
@@ -1190,7 +1190,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		} catch (error) {
 			const fileUri = URI.file(candidate);
-			this.workspacesHistoryMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
+			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
 
 			// assume this is a file that does not yet exist
 			if (options?.ignoreFileNotFound) {

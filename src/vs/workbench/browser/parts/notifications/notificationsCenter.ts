@@ -58,7 +58,7 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}
 
@@ -167,7 +167,7 @@ export class NotificationsCenter extends Themable {
 		return keybinding ? keybinding.getLabel() : null;
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
+	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (!this._isVisible) {
 			return; // only if visible
 		}

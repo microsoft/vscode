@@ -83,6 +83,7 @@ import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/path/common/remotePathService';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
+import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import 'vs/workbench/services/views/browser/viewDescriptorService';
 
@@ -111,7 +112,10 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 
+registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
@@ -161,6 +165,9 @@ import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
+// Search Editor
+import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
@@ -199,7 +206,7 @@ import 'vs/workbench/contrib/output/browser/outputView';
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminalView';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
@@ -265,6 +272,9 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+
+// Welcome
+import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';

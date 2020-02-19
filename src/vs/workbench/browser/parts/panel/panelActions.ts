@@ -150,9 +150,9 @@ function createPositionPanelActionConfig(id: string, alias: string, label: strin
 }
 
 export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Panel Position Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Panel Position Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Panel Position Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
+	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
+	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
 ];
 
 const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));

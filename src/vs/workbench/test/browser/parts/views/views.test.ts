@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ContributableViewsModel, IViewState } from 'vs/workbench/browser/parts/views/views';
-import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -540,6 +540,89 @@ suite('ViewDescriptorService', () => {
 
 		assert.equal(viewDescriptorService.getViewLocation(viewDescriptors[0].id), ViewContainerLocation.Sidebar, 'View should be located in the sidebar');
 		assert.equal(viewDescriptorService.getViewLocation(viewDescriptors[2].id), ViewContainerLocation.Panel, 'View should be located in the panel');
+	});
+
+	test('move view events', async function () {
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			},
+			{
+				id: 'view3',
+				ctorDescriptor: null!,
+				name: 'Test View 3',
+				canMoveView: true
+			}
+		];
+
+
+		let expectedSequence = '';
+		let actualSequence = '';
+		const disposables = [];
+
+		const containerMoveString = (view: IViewDescriptor, from: ViewContainer, to: ViewContainer) => {
+			return `Moved ${view.id} from ${from.id} to ${to.id}\n`;
+		};
+
+		const locationMoveString = (view: IViewDescriptor, from: ViewContainerLocation, to: ViewContainerLocation) => {
+			return `Moved ${view.id} from ${from === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'} to ${to === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'}\n`;
+		};
+		disposables.push(viewDescriptorService.onDidChangeContainer(({ views, from, to }) => {
+			views.forEach(view => {
+				actualSequence += containerMoveString(view, from, to);
+			});
+		}));
+
+		disposables.push(viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+			views.forEach(view => {
+				actualSequence += locationMoveString(view, from, to);
+			});
+		}));
+
+		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
+		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+
+		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
+		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Panel);
+		expectedSequence += containerMoveString(viewDescriptors[0], sidebarContainer, viewDescriptorService.getViewContainer(viewDescriptors[0].id)!);
+
+		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
+		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Sidebar);
+		expectedSequence += containerMoveString(viewDescriptors[2], panelContainer, viewDescriptorService.getViewContainer(viewDescriptors[2].id)!);
+
+
+		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
+		expectedSequence += containerMoveString(viewDescriptors[0], viewDescriptorService.getViewContainer(viewDescriptors[0].id)!, sidebarContainer);
+		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Sidebar);
+
+		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
+		expectedSequence += containerMoveString(viewDescriptors[2], viewDescriptorService.getViewContainer(viewDescriptors[2].id)!, panelContainer);
+		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Panel);
+
+		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
+		expectedSequence += containerMoveString(viewDescriptors[0], sidebarContainer, panelContainer);
+		viewDescriptorService.moveViewsToContainer([viewDescriptors[0]], panelContainer);
+
+		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
+		expectedSequence += containerMoveString(viewDescriptors[2], panelContainer, sidebarContainer);
+		viewDescriptorService.moveViewsToContainer([viewDescriptors[2]], sidebarContainer);
+
+		expectedSequence += locationMoveString(viewDescriptors[1], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
+		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
+		expectedSequence += containerMoveString(viewDescriptors[1], sidebarContainer, panelContainer);
+		expectedSequence += containerMoveString(viewDescriptors[2], sidebarContainer, panelContainer);
+		viewDescriptorService.moveViewsToContainer([viewDescriptors[1], viewDescriptors[2]], panelContainer);
+
+		assert.equal(actualSequence, expectedSequence, 'Event sequence not matching expected sequence');
 	});
 
 });

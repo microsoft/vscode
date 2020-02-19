@@ -111,8 +111,8 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		['--browser', 'none', '--driver', 'web'],
 		{ env }
 	);
-	server.stderr?.on('data', e => console.log('Server stderr: ' + e));
-	server.stdout?.on('data', e => console.log('Server stdout: ' + e));
+	server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
+	server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	process.on('exit', teardown);
 	process.on('SIGINT', teardown);
 	process.on('SIGTERM', teardown);
@@ -137,18 +137,19 @@ function waitForEndpoint(): Promise<string> {
 	});
 }
 
-export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
+export function connect(engine: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
 		const browser = await playwright[engine].launch({
 			// Run in Edge dev on macOS
 			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
-			headless
+			headless: false
 		});
-		const page = (await browser.defaultContext().pages())[0];
-		await page.setViewport({ width, height });
+		const context = await browser.newContext();
+		const page = await context.newPage();
+		await page.setViewportSize({ width, height });
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}`);
 		const result = {
-			client: { dispose: () => teardown() },
+			client: { dispose: () => browser.close() && teardown() },
 			driver: buildDriver(browser, page)
 		};
 		c(result);

@@ -286,4 +286,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.element.style.pointerEvents = '';
 		}
 	}
+
+	public selectAll() {
+		if (this.element) {
+			this._send('execCommand', 'selectAll');
+		}
+	}
 }

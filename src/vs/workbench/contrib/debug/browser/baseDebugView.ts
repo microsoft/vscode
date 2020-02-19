@@ -104,7 +104,7 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		}
 		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
 		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
-	} else if (variable.value && typeof variable.name === 'string') {
+	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
 		data.label.set(':');
 	}
 

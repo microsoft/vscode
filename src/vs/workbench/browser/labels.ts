@@ -148,8 +148,8 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(resource => {
-			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(resource));
+		this.textFileService.untitled.onDidChangeLabel(model => {
+			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
 		});
 	}
 
@@ -239,7 +239,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
-	readonly onDidRender: Event<void> = this._onDidRender.event;
+	readonly onDidRender = this._onDidRender.event;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 
@@ -361,14 +361,20 @@ class ResourceLabelWidget extends IconLabel {
 			// provided. If they are not provided from the label we got
 			// we assume that the client does not want to display them
 			// and as such do not override.
-			const untitledEditor = this.textFileService.untitled.get(label.resource);
-			if (untitledEditor && !untitledEditor.hasAssociatedFilePath) {
+			const untitledModel = this.textFileService.untitled.get(label.resource);
+			if (untitledModel && !untitledModel.hasAssociatedFilePath) {
 				if (typeof label.name === 'string') {
-					label.name = untitledEditor.getName();
+					label.name = untitledModel.name;
 				}
 
 				if (typeof label.description === 'string') {
-					const untitledDescription = untitledEditor.getDescription();
+					let untitledDescription: string;
+					if (untitledModel.hasAssociatedFilePath) {
+						untitledDescription = this.labelService.getUriLabel(resources.dirname(untitledModel.resource), { relative: true });
+					} else {
+						untitledDescription = untitledModel.resource.path;
+					}
+
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
 					}

@@ -126,8 +126,7 @@ export class Application {
 			extraArgs,
 			remote: this.options.remote,
 			web: this.options.web,
-			browser: this.options.browser,
-			headless: this.options.headless
+			browser: this.options.browser
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);

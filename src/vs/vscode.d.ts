@@ -2136,6 +2136,20 @@ declare module 'vscode' {
 		isPreferred?: boolean;
 
 		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
+		 */
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the code actions UI.
+			 */
+			readonly reason: string;
+		};
+
+		/**
 		 * Creates a new code action.
 		 *
 		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
@@ -2449,6 +2463,53 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	}
+
+	/**
+	 * An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
+	 * The result of this evaluation is shown in a tooltip-like widget.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
+	 * In this case the range is still used to highlight the range in the document.
+	 */
+	export class EvaluatableExpression {
+
+		/*
+		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
+		 */
+		readonly range: Range;
+
+		/*
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+
+		/**
+		 * Creates a new evaluatable expression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * The evaluatable expression provider interface defines the contract between extensions and
+	 * the debug hover.
+	 */
+	export interface EvaluatableExpressionProvider {
+
+		/**
+		 * Provide an evaluatable expression for the given document and position.
+		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
+		 *
+		 * @param document The document in which the debug hover is opened.
+		 * @param position The position in the document where the debug hover is opened.
+		 * @param token A cancellation token.
+		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
 	}
 
 	/**
@@ -4915,6 +4976,21 @@ declare module 'vscode' {
 		 * folder the shell was launched in.
 		 */
 		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
+		/**
+		 * The exit status of the terminal, this will be undefined while the terminal is active.
+		 *
+		 * **Example:** Show a notification with the exit code when the terminal exits with a
+		 * non-zero exit code.
+		 * ```typescript
+		 * window.onDidCloseTerminal(t => {
+		 *   if (t.exitStatus && t.exitStatus.code) {
+		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   }
+		 * });
+		 * ```
+		 */
+		readonly exitStatus: TerminalExitStatus | undefined;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -7733,6 +7809,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents how a terminal exited.
+	 */
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
+	}
+
+	/**
 	 * A location in the editor at which progress information can be shown. It depends on the
 	 * location how progress is visually represented.
 	 */
@@ -8392,7 +8482,7 @@ declare module 'vscode' {
 		 * List of workspace folders or `undefined` when no folder is open.
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
-		export const workspaceFolders: WorkspaceFolder[] | undefined;
+		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
 		 * The name of the workspace. `undefined` when no folder
@@ -8566,7 +8656,7 @@ declare module 'vscode' {
 		/**
 		 * All text documents currently known to the system.
 		 */
-		export const textDocuments: TextDocument[];
+		export const textDocuments: ReadonlyArray<TextDocument>;
 
 		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise
@@ -9036,6 +9126,17 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
+
+		/**
+		 * Register a provider that locates evaluatable expressions in text documents.
+		 *
+		 * If multiple providers are registered for a language an arbitrary provider will be used.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An evaluatable expression provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
 
 		/**
 		 * Register a document highlight provider.
@@ -10054,7 +10155,7 @@ declare module 'vscode' {
 	 * 	return api;
 	 * }
 	 * ```
-	 * When depending on the API of another extension add an `extensionDependency`-entry
+	 * When depending on the API of another extension add an `extensionDependencies`-entry
 	 * to `package.json`, and use the [getExtension](#extensions.getExtension)-function
 	 * and the [exports](#Extension.exports)-property, like below:
 	 *

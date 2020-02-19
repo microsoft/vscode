@@ -129,7 +129,7 @@ abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.workspacesService.removeFromRecentlyOpened([context.item.resource]);
+				await this.workspacesService.removeRecentlyOpened([context.item.resource]);
 				context.removeItem();
 			}
 		});

@@ -76,29 +76,29 @@ let telemetryReporter: TelemetryReporter | undefined;
 
 export function activate(context: ExtensionContext) {
 
-	let toDispose = context.subscriptions;
+	const toDispose = context.subscriptions;
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-	let packageInfo = getPackageInfo(context);
+	const packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
-	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+	const serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
+	const serverModule = context.asAbsolutePath(path.join('server', serverMain));
 
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
-	let serverOptions: ServerOptions = {
+	const serverOptions: ServerOptions = {
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = ['json', 'jsonc'];
+	const documentSelector = ['json', 'jsonc'];
 
-	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem({
+	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem({
 		id: 'status.json.resolveError',
 		name: localize('json.resolveError', "JSON: Schema Resolution Error"),
 		alignment: StatusBarAlignment.Right,
@@ -109,10 +109,10 @@ export function activate(context: ExtensionContext) {
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
-	let fileSchemaErrors = new Map<string, string>();
+	const fileSchemaErrors = new Map<string, string>();
 
 	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
+	const clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
 		documentSelector,
 		initializationOptions: {
@@ -172,17 +172,17 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
+	const client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
 	client.registerProposedFeatures();
 
-	let disposable = client.start();
+	const disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
 		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
-			let uri = Uri.parse(uriPath);
+			const uri = Uri.parse(uriPath);
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
 					schemaDocuments[uri.toString()] = true;
@@ -212,7 +212,7 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
-		let handleContentChange = (uriString: string) => {
+		const handleContentChange = (uriString: string) => {
 			if (schemaDocuments[uriString]) {
 				client.sendNotification(SchemaContentChangeNotification.type, uriString);
 				return true;
@@ -220,7 +220,7 @@ export function activate(context: ExtensionContext) {
 			return false;
 		};
 
-		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
+		const handleActiveEditorChange = (activeEditor?: TextEditor) => {
 			if (!activeEditor) {
 				return;
 			}
@@ -244,7 +244,7 @@ export function activate(context: ExtensionContext) {
 		}));
 		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
 
-		let handleRetryResolveSchemaCommand = () => {
+		const handleRetryResolveSchemaCommand = () => {
 			if (window.activeTextEditor) {
 				schemaResolutionErrorStatusBarItem.text = '$(watch)';
 				const activeDocUri = window.activeTextEditor.document.uri.toString();
@@ -282,7 +282,7 @@ export function activate(context: ExtensionContext) {
 
 	});
 
-	let languageConfiguration: LanguageConfiguration = {
+	const languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
 		indentationRules: {
 			increaseIndentPattern: /({+(?=([^"]*"[^"]*")*[^"}]*$))|(\[+(?=([^"]*"[^"]*")*[^"\]]*$))/,
@@ -300,7 +300,7 @@ export function activate(context: ExtensionContext) {
 		} else if (formatEnabled && !rangeFormatting) {
 			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
 				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
-					let params: DocumentRangeFormattingParams = {
+					const params: DocumentRangeFormattingParams = {
 						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 						range: client.code2ProtocolConverter.asRange(range),
 						options: client.code2ProtocolConverter.asFormattingOptions(options)
@@ -325,11 +325,11 @@ export function deactivate(): Promise<any> {
 }
 
 function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
-	let associations: ISchemaAssociations = {};
+	const associations: ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
-		let packageJSON = extension.packageJSON;
+		const packageJSON = extension.packageJSON;
 		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
-			let jsonValidation = packageJSON.contributes.jsonValidation;
+			const jsonValidation = packageJSON.contributes.jsonValidation;
 			if (Array.isArray(jsonValidation)) {
 				jsonValidation.forEach(jv => {
 					let { fileMatch, url } = jv;
@@ -359,11 +359,11 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 }
 
 function getSettings(): Settings {
-	let httpSettings = workspace.getConfiguration('http');
+	const httpSettings = workspace.getConfiguration('http');
 
-	let resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
+	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
 
-	let settings: Settings = {
+	const settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
@@ -373,10 +373,18 @@ function getSettings(): Settings {
 			resultLimit
 		}
 	};
-	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
-	let collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], rootPath?: string, fileMatchPrefix?: string) => {
-		for (let setting of schemaSettings) {
-			let url = getSchemaId(setting, rootPath);
+	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri, isMultiRoot?: boolean) => {
+
+		let fileMatchPrefix = undefined;
+		if (folderUri && isMultiRoot) {
+			fileMatchPrefix = folderUri.toString();
+			if (fileMatchPrefix[fileMatchPrefix.length - 1] === '/') {
+				fileMatchPrefix = fileMatchPrefix.substr(0, fileMatchPrefix.length - 1);
+			}
+		}
+		for (const setting of schemaSettings) {
+			const url = getSchemaId(setting, folderUri);
 			if (!url) {
 				continue;
 			}
@@ -385,69 +393,78 @@ function getSettings(): Settings {
 				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
 				settings.json!.schemas!.push(schemaSetting);
 			}
-			let fileMatches = setting.fileMatch;
-			let resultingFileMatches = schemaSetting.fileMatch!;
+			const fileMatches = setting.fileMatch;
 			if (Array.isArray(fileMatches)) {
-				if (fileMatchPrefix) {
-					for (let fileMatch of fileMatches) {
-						if (fileMatch[0] === '/') {
-							resultingFileMatches.push(fileMatchPrefix + fileMatch);
-							resultingFileMatches.push(fileMatchPrefix + '/*' + fileMatch);
-						} else {
-							resultingFileMatches.push(fileMatchPrefix + '/' + fileMatch);
-							resultingFileMatches.push(fileMatchPrefix + '/*/' + fileMatch);
-						}
+				const resultingFileMatches = schemaSetting.fileMatch || [];
+				schemaSetting.fileMatch = resultingFileMatches;
+				const addMatch = (pattern: string) => { //  filter duplicates
+					if (resultingFileMatches.indexOf(pattern) === -1) {
+						resultingFileMatches.push(pattern);
 					}
-				} else {
-					resultingFileMatches.push(...fileMatches);
+				};
+				for (const fileMatch of fileMatches) {
+					if (fileMatchPrefix) {
+						if (fileMatch[0] === '/') {
+							addMatch(fileMatchPrefix + fileMatch);
+							addMatch(fileMatchPrefix + '/*' + fileMatch);
+						} else {
+							addMatch(fileMatchPrefix + '/' + fileMatch);
+							addMatch(fileMatchPrefix + '/*/' + fileMatch);
+						}
+					} else {
+						addMatch(fileMatch);
+					}
 				}
-
 			}
-			if (setting.schema) {
+			if (setting.schema && !schemaSetting.schema) {
 				schemaSetting.schema = setting.schema;
 			}
 		}
 	};
 
+	const folders = workspace.workspaceFolders;
+
 	// merge global and folder settings. Qualify all file matches with the folder path.
-	let globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
+	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
 	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings, workspace.rootPath);
+		if (!folders) {
+			collectSchemaSettings(globalSettings);
+		}
 	}
-	let folders = workspace.workspaceFolders;
 	if (folders) {
-		for (let folder of folders) {
-			let folderUri = folder.uri;
+		const isMultiRoot = folders.length > 1;
+		for (const folder of folders) {
+			const folderUri = folder.uri;
 
-			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+			const schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
 
-			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
+			const folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
-				let folderPath = folderUri.toString();
-				if (folderPath[folderPath.length - 1] === '/') {
-					folderPath = folderPath.substr(0, folderPath.length - 1);
-				}
-				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath);
+				collectSchemaSettings(folderSchemas, folderUri, isMultiRoot);
 			}
+			if (Array.isArray(globalSettings)) {
+				collectSchemaSettings(globalSettings, folderUri, isMultiRoot);
+			}
+
 		}
 	}
 	return settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
+function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri) {
 	let url = schema.url;
 	if (!url) {
 		if (schema.schema) {
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
-	} else if (rootPath && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.file(path.normalize(path.join(rootPath, url))).toString();
+	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
+		url = folderUri.with({ path: path.posix.join(folderUri.path, url) }).toString();
 	}
 	return url;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
-	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
+	const extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
 			name: extensionPackage.name,

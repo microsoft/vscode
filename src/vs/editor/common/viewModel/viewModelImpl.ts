@@ -21,9 +21,9 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -172,7 +172,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		if (this.lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
@@ -185,7 +185,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this.decorations.reset();
-			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
 		eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(e));
@@ -291,7 +291,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
@@ -354,7 +354,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					const eventsCollector = this._beginEmit();
 					eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 				} finally {
 					this._endEmit();
 				}
@@ -365,7 +365,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.decorations.onModelDecorationsChanged();
 			try {
 				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(e));
 			} finally {
 				this._endEmit();
 			}
@@ -379,7 +379,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (lineMappingChanged) {
 				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				this.viewLayout.onHeightMaybeChanged();
@@ -595,7 +595,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
+	public getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations {
 		return this.lines.getAllOverviewRulerDecorations(this.editorId, filterValidationDecorations(this.configuration.options), theme);
 	}
 

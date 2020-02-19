@@ -66,11 +66,11 @@ const server = http.createServer((req, res) => {
 			// manifest
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			return res.end(JSON.stringify({
-				"name": "Code Web - OSS",
-				"short_name": "Code Web - OSS",
-				"start_url": "/",
-				"lang": "en-US",
-				"display": "standalone"
+				'name': 'Code Web - OSS',
+				'short_name': 'Code Web - OSS',
+				'start_url': '/',
+				'lang': 'en-US',
+				'display': 'standalone'
 			}));
 		}
 		if (/^\/static\//.test(pathname)) {

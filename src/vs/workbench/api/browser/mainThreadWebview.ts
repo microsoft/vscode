@@ -274,7 +274,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
-				const resource = webviewInput.getResource();
+				const resource = webviewInput.resource;
 
 				const model = await this.retainCustomEditorModel(webviewInput, resource, viewType, capabilities);
 				webviewInput.onDisposeWebview(() => {
@@ -312,7 +312,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
-		const model = await this._customEditorService.models.resolve(webviewInput.getResource(), webviewInput.viewType);
+		const model = await this._customEditorService.models.resolve(webviewInput.resource, webviewInput.viewType);
 
 		const existingEntry = this._customEditorModels.get(model);
 		if (existingEntry) {

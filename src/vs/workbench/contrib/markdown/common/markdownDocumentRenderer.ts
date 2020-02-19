@@ -33,7 +33,7 @@ async function getRenderer(
 	renderer.code = (_code, lang) => {
 		const modeId = modeService.getModeIdForLanguageName(lang);
 		if (modeId) {
-			result.push(extensionService.whenInstalledExtensionsRegistered().then<ITokenizationSupport | null>(() => {
+			result.push(extensionService.whenInstalledExtensionsRegistered().then((): PromiseLike<ITokenizationSupport> | null => {
 				modeService.triggerMode(modeId);
 				return TokenizationRegistry.getPromise(modeId);
 			}));

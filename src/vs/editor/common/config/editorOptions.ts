@@ -320,6 +320,11 @@ export interface IEditorOptions {
 	 */
 	fastScrollSensitivity?: number;
 	/**
+	 * Enable that the editor scrolls only the predominant axis. Prevents horizontal drift when scrolling vertically on a trackpad.
+	 * Defaults to true.
+	 */
+	scrollPredominantAxis?: boolean;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -361,6 +366,10 @@ export interface IEditorOptions {
 	 * Defaults to 10 (ms)
 	 */
 	quickSuggestionsDelay?: number;
+	/**
+	 * Controls the spacing around the editor.
+	 */
+	padding?: IEditorPaddingOptions;
 	/**
 	 * Parameter hint options.
 	 */
@@ -663,6 +672,7 @@ export interface IEnvironmentalOptions {
 	readonly fontInfo: FontInfo;
 	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
+	readonly maxLineNumber: number;
 	readonly lineNumbersDigitCount: number;
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
@@ -1676,6 +1686,14 @@ export interface EditorLayoutInfo {
 	 * The width of the minimap
 	 */
 	readonly minimapWidth: number;
+	readonly minimapHeightIsEditorHeight: boolean;
+	readonly minimapIsSampling: boolean;
+	readonly minimapScale: number;
+	readonly minimapLineHeight: number;
+	readonly minimapCanvasInnerWidth: number;
+	readonly minimapCanvasInnerHeight: number;
+	readonly minimapCanvasOuterWidth: number;
+	readonly minimapCanvasOuterHeight: number;
 
 	/**
 	 * Minimap render type
@@ -1709,6 +1727,7 @@ export interface EditorLayoutInfoComputerEnv {
 	outerWidth: number;
 	outerHeight: number;
 	lineHeight: number;
+	maxLineNumber: number;
 	lineNumbersDigitCount: number;
 	typicalHalfwidthCharacterWidth: number;
 	maxDigitWidth: number;
@@ -1732,11 +1751,26 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
 			lineHeight: env.fontInfo.lineHeight,
+			maxLineNumber: env.maxLineNumber,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
 			pixelRatio: env.pixelRatio
 		});
+	}
+
+	public static computeContainedMinimapLineCount(input: {
+		modelLineCount: number;
+		scrollBeyondLastLine: boolean;
+		height: number;
+		lineHeight: number;
+		pixelRatio: number;
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+		const typicalViewportLineCount = input.height / input.lineHeight;
+		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
+		const desiredRatio = (input.modelLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
+		const minimapLineCount = Math.floor(input.modelLineCount / desiredRatio);
+		return { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
 	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
@@ -1751,12 +1785,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
 		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars) | 0;
+		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		const minimap = options.get(EditorOption.minimap);
 		const minimapEnabled = minimap.enabled;
 		const minimapSide = minimap.side;
 		const minimapRenderCharacters = minimap.renderCharacters;
-		const minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
+		let minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
+		const minimapMode = minimap.mode;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
@@ -1796,19 +1832,65 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
+		const baseCharHeight = minimapRenderCharacters ? 2 : 3;
 		let renderMinimap: RenderMinimap;
 		let minimapLeft: number;
 		let minimapWidth: number;
+		let minimapCanvasInnerWidth: number;
+		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
+		let minimapCanvasOuterWidth: number;
+		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
+		let minimapHeightIsEditorHeight = false;
+		let minimapIsSampling = false;
+		let minimapLineHeight = baseCharHeight * minimapScale;
 		let contentWidth: number;
 		if (!minimapEnabled) {
 			minimapLeft = 0;
 			minimapWidth = 0;
+			minimapCanvasInnerWidth = 0;
+			minimapCanvasOuterWidth = 0;
+			minimapLineHeight = 1;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
 		} else {
-			// The minimapScale is also the pixel width of each character. Adjust
-			// for the pixel ratio of the screen.
-			const minimapCharWidth = minimapScale / pixelRatio;
+			let minimapCharWidth = minimapScale / pixelRatio;
+			let minimapWidthMultiplier: number = 1;
+
+			if (minimapMode === 'cover' || minimapMode === 'contain') {
+				const modelLineCount = env.maxLineNumber;
+				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+					modelLineCount: modelLineCount,
+					scrollBeyondLastLine: scrollBeyondLastLine,
+					height: outerHeight,
+					lineHeight: lineHeight,
+					pixelRatio: pixelRatio
+				});
+				// ratio is intentionally not part of the layout to avoid the layout changing all the time
+				// when doing sampling
+				const ratio = modelLineCount / minimapLineCount;
+
+				if (ratio > 1) {
+					minimapHeightIsEditorHeight = true;
+					minimapIsSampling = true;
+					minimapScale = 1;
+					minimapLineHeight = 1;
+					minimapCharWidth = minimapScale / pixelRatio;
+				} else {
+					const effectiveMinimapHeight = Math.ceil((modelLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					if (minimapMode === 'cover' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+						minimapHeightIsEditorHeight = true;
+						const configuredFontScale = minimapScale;
+						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
+						minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+						if (minimapScale > configuredFontScale) {
+							minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+						}
+						minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
+						minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, modelLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+					}
+				}
+			}
+
 			renderMinimap = minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks;
 
 			// Given:
@@ -1840,6 +1922,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			} else {
 				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
 			}
+
+			minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
+			minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
+			minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 		}
 
 		// (leaving 2px for the cursor to have space after the last character)
@@ -1866,6 +1952,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			renderMinimap: renderMinimap,
 			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
+			minimapHeightIsEditorHeight: minimapHeightIsEditorHeight,
+			minimapIsSampling: minimapIsSampling,
+			minimapScale: minimapScale,
+			minimapLineHeight: minimapLineHeight,
+			minimapCanvasInnerWidth: minimapCanvasInnerWidth,
+			minimapCanvasInnerHeight: minimapCanvasInnerHeight,
+			minimapCanvasOuterWidth: minimapCanvasOuterWidth,
+			minimapCanvasOuterHeight: minimapCanvasOuterHeight,
 
 			viewportColumn: viewportColumn,
 
@@ -1967,6 +2061,11 @@ export interface IEditorMinimapOptions {
 	 */
 	side?: 'right' | 'left';
 	/**
+	 * Control the minimap rendering mode.
+	 * Defaults to 'actual'.
+	 */
+	mode?: 'actual' | 'cover' | 'contain';
+	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
 	 */
@@ -1981,7 +2080,6 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
-
 	/**
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
@@ -1995,6 +2093,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	constructor() {
 		const defaults: EditorMinimapOptions = {
 			enabled: true,
+			mode: 'actual',
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
@@ -2008,6 +2107,17 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.mode': {
+					type: 'string',
+					enum: ['actual', 'cover', 'contain'],
+					enumDescriptions: [
+						nls.localize('minimap.mode.actual', "The minimap will be displayed in its original size, so it might be higher than the editor."),
+						nls.localize('minimap.mode.cover', "The minimap will always have the height of the editor and will stretch or shrink as necessary."),
+						nls.localize('minimap.mode.contain', "The minimap will shrink as necessary to never be higher than the editor."),
+					],
+					default: defaults.mode,
+					description: nls.localize('minimap.mode', "Controls the rendering mode of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
@@ -2037,7 +2147,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
-				},
+				}
 			}
 		);
 	}
@@ -2049,6 +2159,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			mode: EditorStringEnumOption.stringSet<'actual' | 'cover' | 'contain'>(input.mode, this.defaultValue.mode, ['actual', 'cover', 'contain']),
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
@@ -2069,6 +2180,65 @@ function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'):
 	return 'altKey';
 }
 
+//#endregion
+
+//#region padding
+
+/**
+ * Configuration options for editor padding
+ */
+export interface IEditorPaddingOptions {
+	/**
+	 * Spacing between top edge of editor and first line.
+	 */
+	top?: number;
+	/**
+	 * Spacing between bottom edge of editor and last line.
+	 */
+	bottom?: number;
+}
+
+export interface InternalEditorPaddingOptions {
+	readonly top: number;
+	readonly bottom: number;
+}
+
+class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEditorPaddingOptions> {
+
+	constructor() {
+		super(
+			EditorOption.padding, 'padding', { top: 0, bottom: 0 },
+			{
+				'editor.padding.top': {
+					type: 'number',
+					default: 0,
+					minimum: 0,
+					maximum: 1000,
+					description: nls.localize('padding.top', "Controls the amount of space between the top edge of the editor and the first line.")
+				},
+				'editor.padding.bottom': {
+					type: 'number',
+					default: 0,
+					minimum: 0,
+					maximum: 1000,
+					description: nls.localize('padding.bottom', "Controls the amount of space between the bottom edge of the editor and the last line.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): InternalEditorPaddingOptions {
+		if (typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorPaddingOptions;
+
+		return {
+			top: EditorIntOption.clampedInt(input.top, 0, 0, 1000),
+			bottom: EditorIntOption.clampedInt(input.bottom, 0, 0, 1000)
+		};
+	}
+}
 //#endregion
 
 //#region parameterHints
@@ -3175,6 +3345,7 @@ export const enum EditorOption {
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
+	padding,
 	parameterHints,
 	peekWidgetDefaultFocus,
 	definitionLinkOpensInPeek,
@@ -3193,6 +3364,7 @@ export const enum EditorOption {
 	scrollbar,
 	scrollBeyondLastColumn,
 	scrollBeyondLastLine,
+	scrollPredominantAxis,
 	selectionClipboard,
 	selectionHighlight,
 	selectOnLineNumbers,
@@ -3561,6 +3733,7 @@ export const EditorOptions = {
 		EditorOption.overviewRulerLanes, 'overviewRulerLanes',
 		3, 0, 3
 	)),
+	padding: register(new EditorPadding()),
 	parameterHints: register(new EditorParameterHints()),
 	peekWidgetDefaultFocus: register(new EditorStringEnumOption(
 		EditorOption.peekWidgetDefaultFocus, 'peekWidgetDefaultFocus',
@@ -3620,7 +3793,7 @@ export const EditorOptions = {
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
-		'none' as 'none' | 'boundary' | 'selection' | 'all',
+		'selection' as 'selection' | 'none' | 'boundary' | 'all',
 		['none', 'boundary', 'selection', 'all'] as const,
 		{
 			enumDescriptions: [
@@ -3650,6 +3823,10 @@ export const EditorOptions = {
 	scrollBeyondLastLine: register(new EditorBooleanOption(
 		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
 		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
+	)),
+	scrollPredominantAxis: register(new EditorBooleanOption(
+		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,
+		{ description: nls.localize('scrollPredominantAxis', "Scroll only along the predominant axis when scrolling both vertically and horizontally at the same time. Prevents horizontal drift when scrolling vertically on a trackpad.") }
 	)),
 	selectionClipboard: register(new EditorBooleanOption(
 		EditorOption.selectionClipboard, 'selectionClipboard', true,

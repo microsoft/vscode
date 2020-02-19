@@ -114,7 +114,9 @@ export class MenuId {
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
-
+	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
+	static readonly TimelineTitle = new MenuId('TimelineTitle');
+	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -319,10 +321,10 @@ export class SyncActionDescriptor {
 	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
 	}
 
-	private constructor(ctor: IConstructorSignature2<string, string, Action>,
+	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;

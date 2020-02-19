@@ -33,6 +33,7 @@
 .monaco-editor .parameter-hints-widget .monaco-scrollable-element,
 .monaco-editor .parameter-hints-widget .body {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
 	min-height: 100%;
 }

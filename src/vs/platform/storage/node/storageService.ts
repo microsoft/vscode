@@ -15,7 +15,7 @@ import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends Disposable implements IStorageService {
@@ -238,14 +238,11 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	}
 
 	async logStorage(): Promise<void> {
-		const [workspaceStorage, workspaceStoragePath] = assertAllDefined(this.workspaceStorage, this.workspaceStoragePath);
-
-		const result = await Promise.all([
+		return logStorage(
 			this.globalStorage.items,
-			workspaceStorage.items
-		]);
-
-		logStorage(result[0], result[1], this.environmentService.globalStorageHome, workspaceStoragePath);
+			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
+			this.environmentService.globalStorageHome,
+			this.workspaceStoragePath || '');
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {

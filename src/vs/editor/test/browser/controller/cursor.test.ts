@@ -2880,6 +2880,33 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 		model.dispose();
 	});
+
+	test('issue #90973: Undo brings back model alternative version', () => {
+		let model = createTextModel(
+			[
+				''
+			].join('\n'),
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			const beforeVersion = model.getVersionId();
+			const beforeAltVersion = model.getAlternativeVersionId();
+			cursorCommand(cursor, H.Type, { text: 'Hello' }, 'keyboard');
+			cursorCommand(cursor, H.Undo, {});
+			const afterVersion = model.getVersionId();
+			const afterAltVersion = model.getAlternativeVersionId();
+
+			assert.notEqual(beforeVersion, afterVersion);
+			assert.equal(beforeAltVersion, afterAltVersion);
+		});
+
+		model.dispose();
+	});
+
+
 });
 
 suite('Editor Controller - Indentation Rules', () => {

@@ -181,6 +181,8 @@ export interface SelectionEvent {
 	readonly element?: Location;
 }
 
+class ReferencesTree extends WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore> { }
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -195,7 +197,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
 	readonly onDidSelectReference = this._onDidSelectReference.event;
 
-	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
+	private _tree!: ReferencesTree;
 	private _treeContainer!: HTMLElement;
 	private _splitView!: SplitView;
 	private _preview!: ICodeEditor;
@@ -316,8 +318,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
-		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
-			WorkbenchAsyncDataTree,
+		this._tree = this._instantiationService.createInstance(
+			ReferencesTree,
 			'ReferencesWidget',
 			this._treeContainer,
 			new Delegate(),

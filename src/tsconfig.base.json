@@ -8,9 +8,7 @@
 		"noUnusedLocals": true,
 		"noImplicitThis": true,
 		"alwaysStrict": true,
-		"strictBindCallApply": true,
-		"strictNullChecks": true,
-		"strictPropertyInitialization": true,
+		"strict": true,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
 		"paths": {
