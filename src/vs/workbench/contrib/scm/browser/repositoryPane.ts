@@ -735,7 +735,8 @@ export class RepositoryPane extends ViewPane {
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
-			suggest: { showWords: false }
+			suggest: { showWords: false },
+			quickSuggestions: false
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
