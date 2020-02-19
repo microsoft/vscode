@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as glob from 'vs/base/common/glob';
-import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto, NotebookCellsSplice, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, IGenericOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
@@ -109,7 +109,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 	}
 
 	set outputs(newOutputs: any[]) {
-		let diffs = diff<vscode.CellOutput>(this._outputs, newOutputs, (a) => {
+		let diffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
 			return this._outputMapping.has(a);
 		});
 
@@ -177,7 +177,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 			diff.toInsert.forEach(cell => {
 				this._cellDisposableMapping.set(cell.handle, new DisposableStore());
 				this._cellDisposableMapping.get(cell.handle)?.add(cell.onDidChangeOutputs((outputDiffs) => {
-					this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDiffs.map(diff => [diff.start, diff.deleteCount, diff.toInsert]));
+					this.eventuallyUpdateCellOutputs(cell, outputDiffs);
 				}));
 			});
 		});
@@ -227,19 +227,92 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	get isDirty() { return false; }
 
 	eventuallyUpdateCells(diffs: ISplice<ExtHostCell>[]) {
-		this._proxy.$spliceNotebookCells(
-			this.viewType,
-			this.uri,
-			diffs.map(diff =>
-				[diff.start, diff.deleteCount, diff.toInsert.map(cell => ({
+		let renderers = new Set<number>();
+		let diffDtos: NotebookCellsSplice[] = [];
+
+		diffDtos = diffs.map(diff => {
+			let inserts = diff.toInsert;
+
+			let cellDtos = inserts.map(cell => {
+				let outputs = cell.outputs;
+				if (outputs && outputs.length) {
+					outputs = outputs.map(output => {
+						let richestMimeType: string | undefined = undefined;
+
+						if (this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
+							richestMimeType = this.findRichestMimeType(output);
+						}
+
+						let transformedOutput: vscode.CellOutput | undefined = undefined;
+
+						if (richestMimeType) {
+							let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
+							if (handler) {
+								renderers.add(handler.handle);
+								transformedOutput = handler?.render(this, cell, output);
+
+								output = transformedOutput;
+								output.pickedMimeType = richestMimeType;
+							}
+						}
+
+						return output;
+					});
+				}
+
+				return {
 					handle: cell.handle,
 					source: cell.source,
 					language: cell.language,
 					cell_type: cell.cell_type,
-					outputs: cell.outputs
-				}))]
-			)
+					outputs: outputs,
+					isDirty: false
+				};
+			});
+
+			return [diff.start, diff.deleteCount, cellDtos];
+		});
+
+		this._proxy.$spliceNotebookCells(
+			this.viewType,
+			this.uri,
+			diffDtos,
+			Array.from(renderers)
 		);
+	}
+
+	eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<vscode.CellOutput>[]) {
+		let renderers = new Set<number>();
+		let outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
+			let outputs = diff.toInsert;
+
+			outputs = outputs.map(output => {
+				let richestMimeType: string | undefined = undefined;
+
+				if (this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
+					richestMimeType = this.findRichestMimeType(output);
+				}
+
+				let transformedOutput: vscode.CellOutput | undefined = undefined;
+
+				if (richestMimeType) {
+					let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
+					if (handler) {
+						renderers.add(handler.handle);
+						transformedOutput = handler?.render(this, cell, output);
+
+						output = transformedOutput;
+						(<IGenericOutput>output).pickedMimeType = richestMimeType;
+					}
+				}
+
+				return output;
+			});
+
+			return [diff.start, diff.deleteCount, outputs];
+		});
+
+		this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDtos, Array.from(renderers));
 	}
 
 	insertCell(index: number, cell: ExtHostCell) {
@@ -252,7 +325,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		let store = this._cellDisposableMapping.get(cell.handle)!;
 
 		store.add(cell.onDidChangeOutputs((diffs) => {
-			this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, diffs.map(diff => [diff.start, diff.deleteCount, diff.toInsert]));
+			this.eventuallyUpdateCellOutputs(cell, diffs);
 		}));
 
 		this.eventuallyUpdateCells([{ start: index, deleteCount: 0, toInsert: [cell] }]);

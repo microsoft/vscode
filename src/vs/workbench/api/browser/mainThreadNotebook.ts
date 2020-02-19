@@ -278,14 +278,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return handle;
 	}
 
-	async $spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[]): Promise<void> {
+	async $spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
-		controller?.spliceNotebookCells(resource, splices);
+		controller?.spliceNotebookCells(resource, splices, renderers);
 	}
 
-	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {
+	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
-		controller?.spliceNotebookCellOutputs(resource, cellHandle, splices);
+		controller?.spliceNotebookCellOutputs(resource, cellHandle, splices, renderers);
 	}
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
@@ -320,13 +320,15 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return undefined;
 	}
 
-	spliceNotebookCells(resource: UriComponents, splices: NotebookCellsSplice[]): void {
+	spliceNotebookCells(resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
+		mainthreadNotebook?.updateRenderers(renderers);
 		mainthreadNotebook?.spliceNotebookCells(splices);
 	}
 
-	spliceNotebookCellOutputs(resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
+	spliceNotebookCellOutputs(resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
+		mainthreadNotebook?.updateRenderers(renderers);
 		mainthreadNotebook?.spliceNotebookCellOutputs(cellHandle, splices);
 	}
 

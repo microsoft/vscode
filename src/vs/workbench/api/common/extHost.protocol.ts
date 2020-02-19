@@ -661,8 +661,8 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
-	$spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[]): Promise<void>;
-	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
+	$spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): Promise<void>;
+	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
