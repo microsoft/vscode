@@ -59,9 +59,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
 		// Ensure dirty text file and untitled models are always opened as editors
-		this._register(this.textFileService.files.onDidChangeDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
-		this._register(this.textFileService.files.onDidSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
-		this._register(this.textFileService.untitled.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
+		this._register(this.textFileService.files.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
+		this._register(this.textFileService.files.onDidSaveError(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
+		this._register(this.textFileService.untitled.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
 
 		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
