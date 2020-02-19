@@ -376,7 +376,7 @@ export class ExplorerView extends ViewPane {
 						return `new:${stat.resource}`;
 					}
 
-					return stat.resource;
+					return `${stat.root.resource}:${stat.resource}`;
 				}
 			},
 			keyboardNavigationLabelProvider: {
