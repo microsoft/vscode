@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService, StandaloneClipboardService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService } from 'vs/editor/standalone/browser/simpleServices';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -49,6 +49,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -205,7 +206,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 
-		ensure(IClipboardService, () => new StandaloneClipboardService());
+		ensure(IClipboardService, () => new BrowserClipboardService());
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
