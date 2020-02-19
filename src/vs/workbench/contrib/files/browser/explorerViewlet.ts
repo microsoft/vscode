@@ -18,7 +18,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -34,6 +34,7 @@ import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { WorkbenchStateContext, RemoteNameContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -46,6 +47,23 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		@IProgressService progressService: IProgressService
 	) {
 		super();
+
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+
+		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+			content: localize('noWorkspaceHelp', "You have not yet added a folder to the workspace.\n[Add Folder](command:workbench.action.addRootFolder)"),
+			when: WorkbenchStateContext.isEqualTo('workspace')
+		});
+
+		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+			content: localize('remoteNoFolderHelp', "You have not yet opened a folder on the current remote.\n[Open Folder](command:workbench.action.files.openFolder)"),
+			when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated())
+		});
+
+		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+			content: localize('noFolderHelp', "You have not yet opened a folder.\n[Open Folder](command:workbench.action.files.openFolder)"),
+			when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))
+		});
 
 		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
 			this.registerViews();
