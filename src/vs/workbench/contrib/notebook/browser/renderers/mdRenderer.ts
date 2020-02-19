@@ -23,7 +23,6 @@ export class MarkdownRenderer extends Disposable {
 	readonly onDidUpdateRender: Event<void> = this._onDidUpdateRender.event;
 
 	constructor(
-		private readonly viewType: string,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {

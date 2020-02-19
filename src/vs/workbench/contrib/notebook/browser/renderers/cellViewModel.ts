@@ -137,7 +137,7 @@ export class CellViewModel extends Disposable {
 
 	getMarkdownRenderer() {
 		if (!this._mdRenderer) {
-			this._mdRenderer = this._instaService.createInstance(MarkdownRenderer, this.viewType);
+			this._mdRenderer = this._instaService.createInstance(MarkdownRenderer);
 		}
 		return this._mdRenderer;
 	}
