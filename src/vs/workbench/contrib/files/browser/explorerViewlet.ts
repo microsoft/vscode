@@ -56,7 +56,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		});
 
 		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('remoteNoFolderHelp', "You have not yet opened a folder on the current remote.\n[Open Folder](command:workbench.action.files.openFolder)"),
+			content: localize('remoteNoFolderHelp', "Connected to remote.\n[Open Folder](command:workbench.action.files.openFolder)"),
 			when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated())
 		});
 
