@@ -14,11 +14,73 @@ import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
 	defaultOrder: glob.ParsedPattern[];
 	userOrder?: glob.ParsedPattern[];
 }
+
+interface IMutableSplice<T> extends ISplice<T> {
+	deleteCount: number;
+}
+
+function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): ISplice<T>[] {
+	const result: IMutableSplice<T>[] = [];
+
+	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
+		if (deleteCount === 0 && toInsert.length === 0) {
+			return;
+		}
+
+		const latest = result[result.length - 1];
+
+		if (latest && latest.start + latest.deleteCount === start) {
+			latest.deleteCount += deleteCount;
+			latest.toInsert.push(...toInsert);
+		} else {
+			result.push({ start, deleteCount, toInsert });
+		}
+	}
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			pushSplice(beforeIdx, 0, after.slice(afterIdx));
+			break;
+		}
+
+		if (afterIdx === after.length) {
+			pushSplice(beforeIdx, before.length - beforeIdx, []);
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+
+		if (beforeElement === afterElement) {
+			// equal
+			beforeIdx += 1;
+			afterIdx += 1;
+			continue;
+		}
+
+		if (contains(afterElement)) {
+			// `afterElement` exists before, which means some elements before `afterElement` are deleted
+			pushSplice(beforeIdx, 1, []);
+			beforeIdx += 1;
+		} else {
+			// `afterElement` added
+			pushSplice(beforeIdx, 0, [afterElement]);
+			afterIdx += 1;
+		}
+	}
+
+	return result;
+}
+
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -26,10 +88,11 @@ export class ExtHostCell implements vscode.NotebookCell {
 	readonly handle = ExtHostCell._handlePool++;
 	public source: string[];
 	private _outputs: any[];
-	private _onDidChangeOutputs = new Emitter<void>();
-	onDidChangeOutputs: Event<void> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<ISplice<vscode.CellOutput>[]>();
+	onDidChangeOutputs: Event<ISplice<vscode.CellOutput>[]> = this._onDidChangeOutputs.event;
 	private _textDocument: vscode.TextDocument | undefined;
 	private _initalVersion: number = -1;
+	private _outputMapping = new Set<vscode.CellOutput>();
 
 	constructor(
 		private _content: string,
@@ -46,8 +109,22 @@ export class ExtHostCell implements vscode.NotebookCell {
 	}
 
 	set outputs(newOutputs: any[]) {
+		let diffs = diff<vscode.CellOutput>(this._outputs, newOutputs, (a) => {
+			return this._outputMapping.has(a);
+		});
+
+		diffs.forEach(diff => {
+			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
+				this._outputMapping.delete(this._outputs[i]);
+			}
+
+			diff.toInsert.forEach(output => {
+				this._outputMapping.add(output);
+			});
+		});
+
 		this._outputs = newOutputs;
-		this._onDidChangeOutputs.fire();
+		this._onDidChangeOutputs.fire(diffs);
 	}
 
 	getContent(): string {
@@ -73,6 +150,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 	}
 }
 
+
 export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostNotebookDocument._handlePool++;
@@ -86,17 +164,26 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	}
 
 	set cells(newCells: ExtHostCell[]) {
-		this._cells = newCells;
-		this._cells.forEach(cell => {
-			if (!this._cellDisposableMapping.has(cell.handle)) {
-				this._cellDisposableMapping.set(cell.handle, new DisposableStore());
+		let diffs = diff<ExtHostCell>(this._cells, newCells, (a) => {
+			return this._cellDisposableMapping.has(a.handle);
+		});
+
+		diffs.forEach(diff => {
+			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
+				this._cellDisposableMapping.get(this._cells[i].handle)?.clear();
+				this._cellDisposableMapping.delete(this._cells[i].handle);
 			}
 
-			let store = this._cellDisposableMapping.get(cell.handle)!;
-			store.add(cell.onDidChangeOutputs(() => {
-				this.triggerCellUpdates([cell]);
-			}));
+			diff.toInsert.forEach(cell => {
+				this._cellDisposableMapping.set(cell.handle, new DisposableStore());
+				this._cellDisposableMapping.get(cell.handle)?.add(cell.onDidChangeOutputs((outputDiffs) => {
+					this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDiffs.map(diff => [diff.start, diff.deleteCount, diff.toInsert]));
+				}));
+			});
 		});
+
+		this._cells = newCells;
+		this.eventuallyUpdateCells(diffs);
 	}
 
 	private _languages: string[] = [];
@@ -139,8 +226,20 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 	get isDirty() { return false; }
 
-	async $updateCells(): Promise<void> {
-		return await this.triggerCellUpdates(this.cells);
+	eventuallyUpdateCells(diffs: ISplice<ExtHostCell>[]) {
+		this._proxy.$spliceNotebookCells(
+			this.viewType,
+			this.uri,
+			diffs.map(diff =>
+				[diff.start, diff.deleteCount, diff.toInsert.map(cell => ({
+					handle: cell.handle,
+					source: cell.source,
+					language: cell.language,
+					cell_type: cell.cell_type,
+					outputs: cell.outputs
+				}))]
+			)
+		);
 	}
 
 	insertCell(index: number, cell: ExtHostCell) {
@@ -152,9 +251,11 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 		let store = this._cellDisposableMapping.get(cell.handle)!;
 
-		store.add(cell.onDidChangeOutputs(() => {
-			this.triggerCellUpdates([cell]);
+		store.add(cell.onDidChangeOutputs((diffs) => {
+			this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, diffs.map(diff => [diff.start, diff.deleteCount, diff.toInsert]));
 		}));
+
+		this.eventuallyUpdateCells([{ start: index, deleteCount: 0, toInsert: [cell] }]);
 	}
 
 	deleteCell(index: number): boolean {
@@ -168,51 +269,6 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 		this.cells.splice(index, 1);
 		return true;
-	}
-
-	private async triggerCellUpdates(cells: ExtHostCell[]) {
-		// @TODO peng, diffing
-
-		let renderers = new Set<number>();
-		let cellDtos = this.cells.map(cell => {
-			let outputs = cell.outputs;
-			if (outputs && outputs.length) {
-				outputs = outputs.map(output => {
-					let richestMimeType: string | undefined = undefined;
-
-					if (this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
-						richestMimeType = this.findRichestMimeType(output);
-					}
-
-					let transformedOutput: vscode.CellOutput | undefined = undefined;
-
-					if (richestMimeType) {
-						let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
-						if (handler) {
-							renderers.add(handler.handle);
-							transformedOutput = handler?.render(this, cell, output);
-
-							output = transformedOutput;
-							output.pickedMimeType = richestMimeType;
-						}
-					}
-
-					return output;
-				});
-			}
-
-			return {
-				handle: cell.handle,
-				source: cell.source,
-				language: cell.language,
-				cell_type: cell.cell_type,
-				outputs: outputs,
-				isDirty: false
-			};
-		}
-		);
-
-		return await this._proxy.$updateNotebookCells(this.viewType, this.uri, cellDtos, Array.from(renderers));
 	}
 
 	findRichestMimeType(output: vscode.CellOutput) {
@@ -476,7 +532,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			this._editors.set(URI.revive(uri).toString(), editor);
 			await provider.provider.resolveNotebook(editor);
-			await editor.document.$updateCells();
+			// await editor.document.$updateCells();
 			return editor.document.handle;
 		}
 
@@ -514,8 +570,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				source: rawCell.source,
 				language: rawCell.language,
 				cell_type: rawCell.cell_type,
-				outputs: rawCell.outputs,
-				isDirty: false
+				outputs: rawCell.outputs
 			};
 		}
 

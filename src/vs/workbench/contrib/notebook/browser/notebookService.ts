@@ -32,7 +32,6 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
-	updateNotebook(uri: URI, notebook: INotebook): void;
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
 	createRawCell(uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext } from '../common/extHost.protocol';
+import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, NotebookCellsSplice, NotebookCellOutputsSplice } from '../common/extHost.protocol';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -60,6 +60,14 @@ export class MainThreadCell implements ICell {
 		});
 	}
 
+	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
+		splices.reverse().forEach(splice => {
+			this.outputs.splice(splice[0], splice[1], ...splice[2]);
+		});
+
+		this._onDidChangeOutputs.fire();
+	}
+
 	save() {
 		this._isDirty = false;
 	}
@@ -110,39 +118,6 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 		});
 	}
 
-	updateCell(cell: ICell) {
-		let mcell = this._mapping.get(cell.handle);
-
-		if (mcell) {
-			mcell.outputs = cell.outputs;
-		}
-	}
-
-	updateCells(newCells: ICell[]) {
-		// todo, handle cell insertion and deletion
-
-		if (this.cells.length === 0) {
-			newCells.forEach(cell => {
-				let mainCell = new MainThreadCell(this, cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs);
-				this._mapping.set(cell.handle, mainCell);
-				this.cells.push(mainCell);
-				let dirtyStateListener = mainCell.onDidChangeDirtyState((cellState) => {
-					this.isDirty = this.isDirty || cellState;
-				});
-				this._cellListeners.set(cell.handle, dirtyStateListener);
-			});
-		} else {
-			newCells.forEach(newCell => {
-				let cell = this._mapping.get(newCell.handle);
-				if (cell) {
-					cell.outputs = newCell.outputs;
-				}
-			});
-		}
-
-		this._onDidChangeCells.fire();
-	}
-
 	updateActiveCell(handle: number) {
 		this.activeCell = this._mapping.get(handle);
 	}
@@ -188,6 +163,31 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 		}
 
 		return ret;
+	}
+
+	spliceNotebookCells(splices: NotebookCellsSplice[]): void {
+		splices.reverse().forEach(splice => {
+			let cellDtos = splice[2];
+			let newCells = cellDtos.map(cell => {
+				let mainCell = new MainThreadCell(this, cell.handle, cell.source, cell.language, cell.cell_type, cell.outputs || []);
+				this._mapping.set(cell.handle, mainCell);
+				let dirtyStateListener = mainCell.onDidChangeDirtyState((cellState) => {
+					this.isDirty = this.isDirty || cellState;
+				});
+				this._cellListeners.set(cell.handle, dirtyStateListener);
+				return mainCell;
+			});
+
+			this.cells.splice(splice[0], splice[1], ...newCells);
+		});
+
+		// @TODO, support incremental insertion/deletion instead of simple list relayout.
+		this._onDidChangeCells.fire();
+	}
+
+	spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
+		let cell = this._mapping.get(cellHandle);
+		cell?.spliceNotebookCellOutputs(splices);
 	}
 
 	dispose() {
@@ -265,14 +265,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
-	async $updateNotebookCells(viewType: string, resource: UriComponents, cells: ICell[], renderers: number[]): Promise<void> {
-		let controller = this._notebookProviders.get(viewType);
-
-		if (controller) {
-			controller.updateNotebookCells(resource, cells, renderers);
-		}
-	}
-
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
@@ -284,6 +276,16 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
 		let handle = await this._proxy.$resolveNotebook(viewType, uri);
 		return handle;
+	}
+
+	async $spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[]): Promise<void> {
+		let controller = this._notebookProviders.get(viewType);
+		controller?.spliceNotebookCells(resource, splices);
+	}
+
+	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {
+		let controller = this._notebookProviders.get(viewType);
+		controller?.spliceNotebookCellOutputs(resource, cellHandle, splices);
 	}
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
@@ -318,6 +320,16 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return undefined;
 	}
 
+	spliceNotebookCells(resource: UriComponents, splices: NotebookCellsSplice[]): void {
+		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
+		mainthreadNotebook?.spliceNotebookCells(splices);
+	}
+
+	spliceNotebookCellOutputs(resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
+		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
+		mainthreadNotebook?.spliceNotebookCellOutputs(cellHandle, splices);
+	}
+
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		this._mainThreadNotebook.executeNotebook(viewType, uri);
 	}
@@ -328,20 +340,9 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		this._mapping.set(URI.revive(resource).toString(), document);
 	}
 
-	updateNotebook(resource: UriComponents, notebook: INotebook): void {
-		let document = this._mapping.get(URI.from(resource).toString());
-		document?.updateCells(notebook.cells);
-	}
-
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.updateLanguages(languages);
-	}
-
-	updateNotebookCells(resource: UriComponents, cells: ICell[], renderers: number[]): void {
-		let document = this._mapping.get(URI.from(resource).toString());
-		document?.updateRenderers(renderers);
-		document?.updateCells(cells);
 	}
 
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
@@ -37,7 +38,9 @@ export class BrowserResizeObserver extends Disposable implements IResizeObserver
 					if (this.width !== entry.contentRect.width || this.height !== entry.contentRect.height) {
 						this.width = entry.contentRect.width;
 						this.height = entry.contentRect.height;
-						changeCallback();
+						DOM.scheduleAtNextAnimationFrame(() => {
+							changeCallback();
+						});
 					}
 				}
 			}

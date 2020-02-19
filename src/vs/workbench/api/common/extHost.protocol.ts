@@ -640,8 +640,19 @@ export interface ICellDto {
 	language: string;
 	cell_type: 'markdown' | 'code';
 	outputs: IOutput[];
-	isDirty: boolean;
 }
+
+export type NotebookCellsSplice = [
+	number /* start */,
+	number /* delete count */,
+	ICellDto[]
+];
+
+export type NotebookCellOutputsSplice = [
+	number /* start */,
+	number /* delete count */,
+	IOutput[]
+];
 
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
@@ -649,8 +660,9 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
-	$updateNotebookCells(viewType: string, resource: UriComponents, cells: ICellDto[], renderers: number[]): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
+	$spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[]): Promise<void>;
+	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
