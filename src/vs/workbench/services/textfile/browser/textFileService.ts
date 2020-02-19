@@ -206,9 +206,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (model) {
 
 				// Save with options
-				await model.save(options);
-
-				return !model.isDirty() ? resource : undefined;
+				return await model.save(options) ? resource : undefined;
 			}
 		}
 
@@ -382,9 +380,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// save model
-		await targetModel.save(options);
-
-		return true;
+		return await targetModel.save(options);
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {

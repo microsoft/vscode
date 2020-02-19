@@ -364,18 +364,14 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						}
 
 						const model = this.textFileService.files.get(resource);
-						if (!model) {
-							return undefined;
-						}
-
-						if (model.isDirty()) {
+						if (!model || model.isDirty() || !model.isResolved()) {
 							return undefined;
 						}
 
 						return model;
 					})),
 				model => model.resource.toString()
-			).forEach(model => model.load());
+			).forEach(model => this.textFileService.files.resolve(model.resource, { reload: { async: true } }));
 		}
 	}
 
