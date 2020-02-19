@@ -11,6 +11,7 @@ import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderer
 import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export class CellViewModel extends Disposable {
 
@@ -23,6 +24,10 @@ export class CellViewModel extends Disposable {
 	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
 	protected readonly _onDidChangeOutputs = new Emitter<void>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
+	private _outputCollection: number[] = [];
+	protected _outputsTop: PrefixSumComputer | null = null;
+
+
 	get cellType() {
 		return this.cell.cell_type;
 	}
@@ -62,6 +67,8 @@ export class CellViewModel extends Disposable {
 		super();
 		if (this.cell.onDidChangeOutputs) {
 			this._register(this.cell.onDidChangeOutputs(() => {
+				this._outputCollection = new Array(this.cell.outputs.length);
+				this._outputsTop = null;
 				this._onDidChangeOutputs.fire();
 			}));
 		}
@@ -70,19 +77,24 @@ export class CellViewModel extends Disposable {
 		if (this._dynamicHeight !== null) {
 			return false;
 		}
+
 		if (this.cellType === 'code') {
-			if (this.outputs && this.outputs.length > 0) {
-				// for (let i = 0; i < this.outputs.length; i++) {
-				// 	if (this.outputs[i].output_type === 'display_data' || this.outputs[i].output_type === 'execute_result') {
-				// 		return false;
-				// 	}
-				// }
-				return true;
-			}
-			else {
-				return false;
-			}
+			// if (this.outputs && this.outputs.length > 0) {
+			// 	// if it contains output, it will be marked as dynamic height
+			// 	// thus when it's being rendered, the list view will `probeHeight`
+			// 	// inside which, we will check domNode's height directly instead of doing another `renderElement` with height undefined.
+			// 	return true;
+			// }
+			// else {
+			// 	return false;
+			// }
+
+			// we don't want code cell to be dynamic, because when it's dynamic, there is always a chance that List View needs to run `renderElement(height: undefined)`
+			// to check its actual size, however that's what we want to avoid as we might end up with rendering outputs twice (creating duplicated outputs in webview)
+			// let's see how resizing and relayout works
+			return false;
 		}
+
 		return true;
 	}
 
@@ -140,5 +152,36 @@ export class CellViewModel extends Disposable {
 			this._mdRenderer = this._instaService.createInstance(MarkdownRenderer);
 		}
 		return this._mdRenderer;
+	}
+
+	updateOutputHeight(index: number, height: number) {
+		if (index >= this._outputCollection.length) {
+			throw new Error('Output index out of range!');
+		}
+
+		this._outputCollection[index] = height;
+		this._ensureOutputsTop();
+		this._outputsTop!.changeValue(index, height);
+	}
+
+	getOutputOffset(index: number): number {
+		if (index >= this._outputCollection.length) {
+			throw new Error('Output index out of range!');
+		}
+
+		this._ensureOutputsTop();
+
+		return this._outputsTop!.getAccumulatedValue(index);
+	}
+
+	protected _ensureOutputsTop(): void {
+		if (!this._outputsTop) {
+			const values = new Uint32Array(this._outputCollection.length);
+			for (let i = 0; i < this._outputCollection.length; i++) {
+				values[i] = this._outputCollection[i];
+			}
+
+			this._outputsTop = new PrefixSumComputer(values);
+		}
 	}
 }

@@ -16,7 +16,6 @@ export class CodeCell extends Disposable {
 		notebookEditor: INotebookEditor,
 		viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
-		height: number | undefined
 	) {
 		super();
 
@@ -107,7 +106,7 @@ export class CodeCell extends Disposable {
 					}
 				}
 
-				if (height !== undefined && hasDynamicHeight) {
+				if (hasDynamicHeight) {
 					let clientHeight = templateData.outputContainer!.clientHeight;
 					let listDimension = notebookEditor.getListDimension();
 					let dimension = listDimension ? {
@@ -135,6 +134,8 @@ export class CodeCell extends Disposable {
 		}));
 
 		if (viewCell.outputs.length > 0) {
+			// there are outputs, we need to calcualte their sizes and trigger relayout
+
 			let hasDynamicHeight = true;
 			for (let i = 0; i < viewCell.outputs.length; i++) {
 				let outputItemDiv = document.createElement('div');
@@ -149,7 +150,7 @@ export class CodeCell extends Disposable {
 				}
 			}
 
-			if (height !== undefined && hasDynamicHeight) {
+			if (hasDynamicHeight) {
 				let clientHeight = templateData.outputContainer!.clientHeight;
 				let listDimension = notebookEditor.getListDimension();
 				let dimension = listDimension ? {
@@ -170,6 +171,11 @@ export class CodeCell extends Disposable {
 				elementSizeObserver.startObserving();
 				this._register(elementSizeObserver);
 			}
+
+			const outputHeight = templateData.outputContainer?.clientHeight || 0;
+			notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + outputHeight);
+		} else {
+			// noop
 		}
 	}
 }

@@ -63,7 +63,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private localStore: DisposableStore = new DisposableStore();
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private fontInfo: BareFontInfo | undefined;
-	private relayoutDisposable: IDisposable | null = null;
+	// private relayoutDisposable: IDisposable | null = null;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
@@ -389,13 +389,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		};
 
 		if (this.list?.view.isRendering) {
-			if (this.relayoutDisposable) {
-				this.relayoutDisposable.dispose();
-				this.relayoutDisposable = null;
-			}
-			this.relayoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			// if (this.relayoutDisposable) {
+			// 	this.relayoutDisposable.dispose();
+			// 	this.relayoutDisposable = null;
+			// }
+			DOM.scheduleAtNextAnimationFrame(() => {
 				relayout(cell, height);
-				this.relayoutDisposable = null;
+				// this.relayoutDisposable = null;
 			});
 		} else {
 			relayout(cell, height);
@@ -410,14 +410,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		});
 
 		if (this.list?.view.isRendering) {
-			if (this.relayoutDisposable) {
-				this.relayoutDisposable.dispose();
-				this.relayoutDisposable = null;
-			}
+			// if (this.relayoutDisposable) {
+			// 	this.relayoutDisposable.dispose();
+			// 	this.relayoutDisposable = null;
+			// }
 
-			this.relayoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			DOM.scheduleAtNextAnimationFrame(() => {
 				update();
-				this.relayoutDisposable = null;
+				// this.relayoutDisposable = null;
 			});
 		} else {
 			update();
@@ -588,5 +588,5 @@ registerThemingParticipant((theme, collector) => {
 
 	// Cell Margin
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { padding: 8px ${CELL_MARGIN}px 8px ${CELL_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 8px ${CELL_MARGIN}px; }`);
 });

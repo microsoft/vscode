@@ -42,6 +42,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor .output p {
 	white-space: initial;
 	overflow-x: auto;
+	margin: 0px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output .error_message {
