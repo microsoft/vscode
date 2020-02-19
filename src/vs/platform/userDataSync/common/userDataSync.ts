@@ -176,6 +176,7 @@ export enum UserDataSyncErrorCode {
 	// Local Errors
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
+	Incompatible = 'Incompatible',
 
 	Unknown = 'Unknown',
 }
