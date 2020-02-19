@@ -337,10 +337,11 @@ export interface ITextFileEditorModelManager {
 	readonly onDidRevert: Event<ITextFileEditorModel>;
 	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
 
+	readonly models: ITextFileEditorModel[];
+
 	saveErrorHandler: ISaveErrorHandler;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
-	getAll(): ITextFileEditorModel[];
 
 	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 

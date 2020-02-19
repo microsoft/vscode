@@ -50,6 +50,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidChangeEncoding = this._register(new Emitter<ITextFileEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
+	private readonly mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
+	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
+	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
+
+	private readonly modelLoadQueue = this._register(new ResourceQueue());
+
 	saveErrorHandler = (() => {
 		const notificationService = this.notificationService;
 
@@ -60,12 +67,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		};
 	})();
 
-	private readonly mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
-	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
-
-	private readonly modelLoadQueue = this._register(new ResourceQueue());
+	get models(): ITextFileEditorModel[] {
+		return this.mapResourceToModel.values();
+	}
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -135,7 +139,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			// find all models that related to either source or target (can be many if resource is a folder)
 			const sourceModels: ITextFileEditorModel[] = [];
 			const targetModels: ITextFileEditorModel[] = [];
-			for (const model of this.getAll()) {
+			for (const model of this.models) {
 				const resource = model.resource;
 
 				if (isEqualOrParent(resource, e.target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
@@ -329,10 +333,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			throw error;
 		}
-	}
-
-	getAll(): ITextFileEditorModel[] {
-		return this.mapResourceToModel.values();
 	}
 
 	add(resource: URI, model: ITextFileEditorModel): void {
