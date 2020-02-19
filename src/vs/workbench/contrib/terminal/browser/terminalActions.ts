@@ -690,7 +690,6 @@ export class RunActiveFileInTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
-		await instance.processReady;
 
 		const editor = this.codeEditorService.getActiveCodeEditor();
 		if (!editor || !editor.hasModel()) {
@@ -702,7 +701,8 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		const path = await this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
+		const shellLaunchConfig = await instance.shellLaunchConfig;
+		const path = await this.terminalService.preparePathForTerminalAsync(uri.fsPath, shellLaunchConfig.executable, instance.title, instance.shellType);
 		instance.sendText(path, true);
 		return this.terminalService.showPanel();
 	}

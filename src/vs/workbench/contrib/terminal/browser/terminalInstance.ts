@@ -245,7 +245,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
-	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
+	// TODO only resolve when _shellLaunchConfig has been initialized
+	public get shellLaunchConfig(): Promise<IShellLaunchConfig> { return Promise.resolve(this._shellLaunchConfig); }
 	public get shellType(): TerminalShellType { return this._shellType; }
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
