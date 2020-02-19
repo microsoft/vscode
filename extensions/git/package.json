@@ -1853,6 +1853,10 @@
         "view": "workbench.scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
         "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0"
+      },
+      {
+        "view": "workbench.explorer.emptyView",
+        "contents": "%view.workbench.cloneRepository%"
       }
     ]
   },
