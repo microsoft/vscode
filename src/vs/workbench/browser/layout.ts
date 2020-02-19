@@ -41,6 +41,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
+import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -693,7 +694,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposables.clear();
 
-		const setLineNumbers = (lineNumbers?: any) => {
+		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
 			const setEditorLineNumbers = (editor: IEditor) => {
 				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {

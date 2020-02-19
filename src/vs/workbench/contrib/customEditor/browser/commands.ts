@@ -56,7 +56,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			group = editorGroupService.getGroup(editorContext.groupId);
 		} else if (!resource) {
 			if (editorService.activeEditor) {
-				resource = editorService.activeEditor.getResource();
+				resource = editorService.activeEditor.resource;
 				group = editorGroupService.activeGroup;
 			}
 		}
@@ -184,7 +184,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 		const activeGroup = activeControl.group;
 		const activeEditor = activeControl.input;
-		const targetResource = activeEditor.getResource();
+		const targetResource = activeEditor.resource;
 
 		if (!targetResource) {
 			return;

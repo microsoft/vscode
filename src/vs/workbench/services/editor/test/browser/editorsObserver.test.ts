@@ -56,7 +56,6 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 	isDirty(): boolean { return this.dirty; }
 	setDirty(): void { this.dirty = true; }

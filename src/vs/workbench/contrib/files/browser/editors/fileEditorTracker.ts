@@ -101,7 +101,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (editor instanceof FileEditorInput) {
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					const resource = editor.getResource();
+					const resource = editor.resource;
 					if (isEqualOrParent(resource, oldResource)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
@@ -160,7 +160,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 		for (const editor of editors) {
 			if (editor?.input && editor.group === group) {
-				const editorResource = editor.input.getResource();
+				const editorResource = editor.input.resource;
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
 					if (isCodeEditor(control)) {
@@ -196,7 +196,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
 		const nonDirtyFileEditors = this.getNonDirtyFileEditors();
 		nonDirtyFileEditors.forEach(async editor => {
-			const resource = editor.getResource();
+			const resource = editor.resource;
 
 			// Handle deletes in opened editors depending on:
 			// - the user has not disabled the setting closeOnFileDelete
@@ -364,18 +364,14 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						}
 
 						const model = this.textFileService.files.get(resource);
-						if (!model) {
-							return undefined;
-						}
-
-						if (model.isDirty()) {
+						if (!model || model.isDirty() || !model.isResolved()) {
 							return undefined;
 						}
 
 						return model;
 					})),
 				model => model.resource.toString()
-			).forEach(model => model.load());
+			).forEach(model => this.textFileService.files.resolve(model.resource, { reload: { async: true } }));
 		}
 	}
 

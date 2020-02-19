@@ -207,7 +207,7 @@ steps:
           "toolVersion": "1.0"
         }
       ]
-    SessionTimeout: 120
+    SessionTimeout: 60
   displayName: Notarization
 
 - script: |

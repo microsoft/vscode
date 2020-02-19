@@ -27,6 +27,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ActionRunner } from 'vs/base/common/actions';
 
 export class EmptyView extends ViewPane {
 
@@ -71,14 +72,12 @@ export class EmptyView extends ViewPane {
 		this.button = new Button(messageContainer);
 		attachButtonStyler(this.button, this.themeService);
 
+		const actionRunner = new ActionRunner();
 		this._register(this.button.onDidClick(() => {
-			if (!this.actionRunner) {
-				return;
-			}
 			const action = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE
 				? this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)
 				: this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
-			this.actionRunner.run(action).then(() => {
+			actionRunner.run(action).then(() => {
 				action.dispose();
 			}, err => {
 				action.dispose();

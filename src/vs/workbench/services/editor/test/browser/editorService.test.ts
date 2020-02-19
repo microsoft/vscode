@@ -67,7 +67,6 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 	setFailToOpen(): void {
 		this.fails = true;
@@ -299,7 +298,7 @@ suite('EditorService', () => {
 		let input = service.createInput({ resource: toResource.call(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof FileEditorInput);
 		let contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getResource().fsPath, toResource.call(this, '/index.html').fsPath);
+		assert.strictEqual(contentInput.resource.fsPath, toResource.call(this, '/index.html').fsPath);
 
 		// Untyped Input (file, encoding)
 		input = service.createInput({ resource: toResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } });

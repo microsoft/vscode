@@ -130,7 +130,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
 
-		let resource = untitledTextEditorInput.getResource();
+		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
 			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
 		}

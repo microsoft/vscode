@@ -840,10 +840,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
-		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource()!);
+		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.resource!);
 		return Promise.all([
-			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource()!, options, token),
-			this.updateInput(this.editablePreferencesEditor!, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource()!, options, token)
+			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.resource!, options, token),
+			this.updateInput(this.editablePreferencesEditor!, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.resource!, options, token)
 		])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
 				if (token.isCancellationRequested) {

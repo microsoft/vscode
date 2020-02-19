@@ -63,7 +63,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	}
 
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-		const resource = editor.getResource();
+		const resource = editor.resource;
 		if (
 			!resource ||
 			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json

@@ -115,6 +115,11 @@ export interface IGlobalEditorOptions {
 	 */
 	wordBasedSuggestions?: boolean;
 	/**
+	 * Controls whether the semanticHighlighting is shown for the languages that support it.
+	 * Defaults to true.
+	 */
+	'semanticHighlighting.enabled'?: boolean;
+	/**
 	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */

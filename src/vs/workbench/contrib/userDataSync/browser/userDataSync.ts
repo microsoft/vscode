@@ -122,6 +122,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.onDidChangeEnablement(this.userDataSyncEnablementService.isEnabled());
 			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflictsSources)));
+			this._register(this.userDataAuthTokenService.onTokenFailed(_ => this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId)));
 			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.onDidChangeEnablement(enabled)));
 			this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => this.onDidRegisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this.onDidUnregisterAuthenticationProvider(e)));
@@ -568,7 +569,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			await this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
 		} catch (e) {
-			this.notificationService.error(e);
+			this.notificationService.error(localize('loginFailed', "Logging in failed: {0}", e));
 			throw e;
 		}
 	}
@@ -584,12 +585,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const previewResource = source === SyncSource.Settings ? this.workbenchEnvironmentService.settingsSyncPreviewResource
 			: source === SyncSource.Keybindings ? this.workbenchEnvironmentService.keybindingsSyncPreviewResource
 				: null;
-		return previewResource ? this.editorService.editors.filter(input => input instanceof DiffEditorInput && isEqual(previewResource, input.master.getResource()))[0] : undefined;
+		return previewResource ? this.editorService.editors.filter(input => input instanceof DiffEditorInput && isEqual(previewResource, input.master.resource))[0] : undefined;
 	}
 
 	private getAllConflictsEditorInputs(): IEditorInput[] {
 		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.master.getResource() : input.getResource();
+			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
 			return isEqual(resource, this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(resource, this.workbenchEnvironmentService.keybindingsSyncPreviewResource);
 		});
 	}

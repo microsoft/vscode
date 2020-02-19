@@ -203,7 +203,7 @@ export class ExplorerService implements IExplorerService {
 	refresh(): void {
 		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire({ recursive: true });
-		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
+		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.resource : undefined;
 		const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 		if (resource && autoReveal) {

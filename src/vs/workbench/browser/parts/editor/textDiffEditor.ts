@@ -321,8 +321,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
-			original = modelOrInput.originalInput.getResource();
-			modified = modelOrInput.modifiedInput.getResource();
+			original = modelOrInput.originalInput.resource;
+			modified = modelOrInput.modifiedInput.resource;
 		} else {
 			original = modelOrInput.original.uri;
 			modified = modelOrInput.modified.uri;

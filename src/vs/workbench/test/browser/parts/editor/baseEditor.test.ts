@@ -64,6 +64,9 @@ class MyInputFactory implements IEditorInputFactory {
 }
 
 class MyInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	getPreferredEditorId(ids: string[]) {
 		return ids[1];
 	}
@@ -78,6 +81,9 @@ class MyInput extends EditorInput {
 }
 
 class MyOtherInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	getTypeId(): string {
 		return '';
 	}
@@ -256,7 +262,7 @@ suite('Workbench base editor', () => {
 		}
 
 		class TestEditorInput extends EditorInput {
-			constructor(private resource: URI, private id = 'testEditorInputForMementoTest') {
+			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
@@ -264,10 +270,6 @@ suite('Workbench base editor', () => {
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
-			}
-
-			getResource(): URI {
-				return this.resource;
 			}
 		}
 

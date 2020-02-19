@@ -63,7 +63,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		});
 
 		this.editorService.overrideOpenEditor((editor, options, group) => {
-			const resource = editor.getResource();
+			const resource = editor.resource;
 			if (!resource ||
 				!(endsWith(resource.path, '.code-search') || resource.scheme === SearchEditorConstants.SearchEditorScheme) ||
 				!(editor instanceof FileEditorInput || (resource.scheme === SearchEditorConstants.SearchEditorScheme))) {
