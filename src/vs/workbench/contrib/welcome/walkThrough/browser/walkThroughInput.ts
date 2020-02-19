@@ -53,10 +53,10 @@ export class WalkThroughInput extends EditorInput {
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
 
-	readonly resource = this.options.resource;
+	get resource() { return this.options.resource; }
 
 	constructor(
-		private options: WalkThroughInputOptions,
+		private readonly options: WalkThroughInputOptions,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();

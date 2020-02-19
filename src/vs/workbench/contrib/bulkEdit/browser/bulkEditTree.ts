@@ -25,6 +25,7 @@ import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 import { compare } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 // --- VIEW MODEL
 
@@ -419,6 +420,12 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 			// css
 			const className = ThemeIcon.asClassName(metadata.iconPath);
 			template.icon.className = className ? `theme-icon ${className}` : '';
+
+		} else if (URI.isUri(metadata.iconPath)) {
+			// background-image
+			template.icon.className = 'uri-icon';
+			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.toString(true)}")`);
 
 		} else if (metadata.iconPath) {
 			// background-image

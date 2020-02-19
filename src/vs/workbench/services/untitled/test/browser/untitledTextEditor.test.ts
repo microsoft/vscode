@@ -108,10 +108,10 @@ suite('Untitled text editors', () => {
 
 	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
 		return new Promise(c => {
-			const listener = service.onDidChangeDirty(async resource => {
+			const listener = service.onDidChangeDirty(async model => {
 				listener.dispose();
 
-				c(resource);
+				c(model.resource);
 			});
 		});
 	}
@@ -328,9 +328,9 @@ suite('Untitled text editors', () => {
 
 		let counter = 0;
 
-		service.onDidChangeEncoding(r => {
+		service.onDidChangeEncoding(model => {
 			counter++;
-			assert.equal(r.toString(), input.resource.toString());
+			assert.equal(model.resource.toString(), input.resource.toString());
 		});
 
 		// encoding
@@ -347,9 +347,9 @@ suite('Untitled text editors', () => {
 
 		let counter = 0;
 
-		service.onDidChangeLabel(r => {
+		service.onDidChangeLabel(model => {
 			counter++;
-			assert.equal(r.toString(), input.resource.toString());
+			assert.equal(model.resource.toString(), input.resource.toString());
 		});
 
 		// label
@@ -366,9 +366,9 @@ suite('Untitled text editors', () => {
 
 		let counter = 0;
 
-		service.onDidDisposeModel(r => {
+		service.onDidDispose(model => {
 			counter++;
-			assert.equal(r.toString(), input.resource.toString());
+			assert.equal(model.resource.toString(), input.resource.toString());
 		});
 
 		const model = await input.resolve();

@@ -10,7 +10,7 @@ import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } fro
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -22,7 +22,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
+	addEditOperation(range: IRange, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Add a new edit operation (a replace operation).
@@ -30,7 +30,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addTrackedEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
+	addTrackedEditOperation(range: IRange, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -51,7 +51,7 @@ export interface ICursorStateComputerData {
 	/**
 	 * Get the inverse edit operations of the added edit operations.
 	 */
-	getInverseEditOperations(): IIdentifiedSingleEditOperation[];
+	getInverseEditOperations(): IValidEditOperation[];
 	/**
 	 * Get a previously tracked selection.
 	 * @param id The unique identifier returned by `trackSelection`.

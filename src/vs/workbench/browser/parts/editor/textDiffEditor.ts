@@ -30,7 +30,6 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -49,8 +48,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
@@ -68,7 +66,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this.clipboardService);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, Handler, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -50,7 +50,7 @@ export function testCommand(
 export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
 	let operations: IIdentifiedSingleEditOperation[] = [];
 	let editOperationBuilder: IEditOperationBuilder = {
-		addEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
+		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
 				text: text,
@@ -58,7 +58,7 @@ export function getEditOperation(model: ITextModel, command: ICommand): IIdentif
 			});
 		},
 
-		addTrackedEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
+		addTrackedEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
 				text: text,
@@ -67,7 +67,7 @@ export function getEditOperation(model: ITextModel, command: ICommand): IIdentif
 		},
 
 
-		trackSelection: (selection: Selection) => {
+		trackSelection: (selection: ISelection) => {
 			return '';
 		}
 	};

@@ -148,8 +148,8 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(resource => {
-			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(resource));
+		this.textFileService.untitled.onDidChangeLabel(model => {
+			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
 		});
 	}
 
