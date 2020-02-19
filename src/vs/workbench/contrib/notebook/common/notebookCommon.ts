@@ -129,7 +129,7 @@ export interface INotebook {
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<number>;
-	onDidChangeCells?: Event<void>;
+	onDidChangeCells?: Event<NotebookCellsSplice[]>;
 	onDidChangeDirtyState: Event<boolean>;
 	onWillDispose(listener: () => void): IDisposable;
 	save(): Promise<boolean>;
@@ -152,3 +152,9 @@ export interface IOutputTransformContribution {
 
 export const CELL_MARGIN = 24;
 
+
+export type NotebookCellsSplice = [
+	number /* start */,
+	number /* delete count */,
+	ICell[]
+];

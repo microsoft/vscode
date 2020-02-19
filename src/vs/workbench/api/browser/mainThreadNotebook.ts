@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, NotebookCellsSplice, NotebookCellOutputsSplice } from '../common/extHost.protocol';
+import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, NotebookCellOutputsSplice } from '../common/extHost.protocol';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MainThreadCell implements ICell {
@@ -76,8 +76,8 @@ export class MainThreadCell implements ICell {
 export class MainThreadNotebookDocument extends Disposable implements INotebook {
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
-	private readonly _onDidChangeCells = new Emitter<void>();
-	get onDidChangeCells(): Event<void> { return this._onDidChangeCells.event; }
+	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
+	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 	private _onDidChangeDirtyState = new Emitter<boolean>();
 	onDidChangeDirtyState: Event<boolean> = this._onDidChangeDirtyState.event;
 	private _mapping: Map<number, MainThreadCell> = new Map();
@@ -181,8 +181,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 			this.cells.splice(splice[0], splice[1], ...newCells);
 		});
 
-		// @TODO, support incremental insertion/deletion instead of simple list relayout.
-		this._onDidChangeCells.fire();
+		this._onDidChangeCells.fire(splices);
 	}
 
 	spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {

@@ -29,7 +29,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/out
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { CELL_MARGIN, INotebook } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, INotebook, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -287,8 +287,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				}
 
 				this.model = model;
-				this.localStore.add(this.model.onDidChangeCells(() => {
-					this.updateViewCells();
+				this.localStore.add(this.model.onDidChangeCells((e) => {
+					this.updateViewCells(e);
 				}));
 
 				let viewState = this.loadTextEditorViewState(input);
@@ -402,7 +402,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	updateViewCells() {
+	updateViewCells(splices: NotebookCellsSplice[]) {
+		let update = () => splices.reverse().forEach((diff) => {
+			this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
+				return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, cell, false);
+			}));
+		});
+
 		if (this.list?.view.isRendering) {
 			if (this.relayoutDisposable) {
 				this.relayoutDisposable.dispose();
@@ -410,11 +416,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 
 			this.relayoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
-				this.list?.rerender();
+				update();
 				this.relayoutDisposable = null;
 			});
 		} else {
-			this.list?.rerender();
+			update();
 		}
 	}
 

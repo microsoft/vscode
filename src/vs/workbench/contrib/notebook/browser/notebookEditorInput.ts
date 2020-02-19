@@ -8,7 +8,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebook, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebook, ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -16,8 +16,8 @@ export class NotebookEditorModel extends EditorModel {
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidChangeCells = new Emitter<void>();
-	get onDidChangeCells(): Event<void> { return this._onDidChangeCells.event; }
+	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
+	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -32,8 +32,8 @@ export class NotebookEditorModel extends EditorModel {
 					this._onDidChangeDirty.fire();
 				}
 			}));
-			this._register(_notebook.onDidChangeCells(() => {
-				this._onDidChangeCells.fire();
+			this._register(_notebook.onDidChangeCells((e) => {
+				this._onDidChangeCells.fire(e);
 			}));
 		}
 	}
