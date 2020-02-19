@@ -36,7 +36,8 @@ function remoteOpts() {
 		// Temporarily set remote arch to x86, because the remote portion builds
 		// against node, which is not consistently supported on Windows on Arm
 		// (yet).
-		opts.npm_config_arch = "ia32"
+		opts.env = JSON.parse(JSON.stringify(process.env))
+		opts.env["npm_config_arch"] = "ia32"
 	}
 	return opts;
 }
