@@ -214,6 +214,6 @@ function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfig
 		case 'minimal': return 'minimal';
 		case 'index': return 'index';
 		case 'js': return 'js';
-		default: return undefined;
+		default: return 'auto';
 	}
 }
