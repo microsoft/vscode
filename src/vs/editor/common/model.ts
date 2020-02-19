@@ -358,6 +358,27 @@ export interface IIdentifiedSingleEditOperation {
 	_isTracked?: boolean;
 }
 
+export interface IValidEditOperation {
+	/**
+	 * An identifier associated with this single edit operation.
+	 * @internal
+	 */
+	identifier: ISingleEditOperationIdentifier | null;
+	/**
+	 * The range to replace. This can be empty to emulate a simple insert.
+	 */
+	range: Range;
+	/**
+	 * The text to replace with. This can be null to emulate a simple delete.
+	 */
+	text: string | null;
+	/**
+	 * This indicates that this operation has "insert" semantics.
+	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+	 */
+	forceMoveMarkers: boolean;
+}
+
 /**
  * A callback that can compute the cursor state after applying a series of edit operations.
  */
@@ -365,7 +386,7 @@ export interface ICursorStateComputer {
 	/**
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
-	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null;
+	(inverseEditOperations: IValidEditOperation[]): Selection[] | null;
 }
 
 export class TextModelResolvedOptions {
@@ -1063,7 +1084,7 @@ export interface ITextModel {
 	 * @param operations The edit operations.
 	 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
 	 */
-	applyEdits(operations: IIdentifiedSingleEditOperation[]): IIdentifiedSingleEditOperation[];
+	applyEdits(operations: IIdentifiedSingleEditOperation[]): IValidEditOperation[];
 
 	/**
 	 * Change the end of line sequence without recording in the undo stack.
@@ -1209,6 +1230,20 @@ export const enum ModelConstants {
 /**
  * @internal
  */
+export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperation {
+	constructor(
+		public readonly identifier: ISingleEditOperationIdentifier | null,
+		public readonly range: Range,
+		public readonly text: string | null,
+		public readonly forceMoveMarkers: boolean,
+		public readonly isAutoWhitespaceEdit: boolean,
+		public readonly _isTracked: boolean,
+	) { }
+}
+
+/**
+ * @internal
+ */
 export interface ITextBuffer {
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
@@ -1234,7 +1269,7 @@ export interface ITextBuffer {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
 	setEOL(newEOL: '\r\n' | '\n'): void;
-	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
 }
 
@@ -1244,7 +1279,7 @@ export interface ITextBuffer {
 export class ApplyEditsResult {
 
 	constructor(
-		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
+		public readonly reverseEdits: IValidEditOperation[],
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[] | null
 	) { }
