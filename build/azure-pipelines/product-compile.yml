@@ -88,6 +88,15 @@ steps:
 
 - script: |
     set -e
+    OSS_GITHUB_ID="a5d3c261b032765a78de"
+    OSS_GITHUB_SECRET="$(oss-github-client-secret)"
+    INSIDERS_GITHUB_ID="31f02627809389d9f111"
+    INSIDERS_GITHUB_SECRET="$(insiders-github-client-secret)"
+  displayName: Set authentication variables
+  condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+
+- script: |
+    set -e
     yarn gulp hygiene
     yarn monaco-compile-check
     yarn valid-layers-check
