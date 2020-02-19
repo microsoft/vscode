@@ -48,6 +48,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -203,6 +205,8 @@ export class DynamicStandaloneServices extends Disposable {
 		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(domElement));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+
+		ensure(IClipboardService, () => new BrowserClipboardService());
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
