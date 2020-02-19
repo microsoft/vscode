@@ -34,6 +34,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 
 import { timeout } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICompositeCodeEditor } from 'vs/workbench/common/editor';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -461,7 +462,13 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		lastCommandPaletteInput = searchValue;
 
 		// Editor Actions
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (!activeTextEditorWidget) {
+			const control = this.editorService.activeControl?.getControl();
+			if (ICompositeCodeEditor.is(control)) {
+				activeTextEditorWidget = control.activeCodeEditor;
+			}
+		}
 		let editorActions: IEditorAction[] = [];
 		if (activeTextEditorWidget && isFunction(activeTextEditorWidget.getSupportedActions)) {
 			editorActions = activeTextEditorWidget.getSupportedActions();
