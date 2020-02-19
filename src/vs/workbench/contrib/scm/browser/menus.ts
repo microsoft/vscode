@@ -114,10 +114,6 @@ export class SCMMenus implements IDisposable {
 		return this.getActions(MenuId.SCMResourceContext, resource).secondary;
 	}
 
-	getResourceInlineActions(resource: ISCMResource): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resource).primary;
-	}
-
 	getResourceFolderContextActions(group: ISCMResourceGroup): IAction[] {
 		return this.getActions(MenuId.SCMResourceFolderContext, group).secondary;
 	}
