@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
-import { ICompositeBarDndHandler } from 'vs/workbench/browser/parts/compositeBar';
+import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/workbench/browser/parts/compositeBar';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export interface ICompositeActivity {
@@ -469,7 +469,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
-		private dndHandler: ICompositeBarDndHandler,
+		private dndHandler: ICompositeDragAndDrop,
 		private compositeBar: ICompositeBar,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -574,9 +574,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 							this.updateFromDragging(container, false);
 							this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-							if (this.dndHandler.canDrop(draggedCompositeId, 'composite', this.activity.id)) {
-								this.dndHandler.onDrop(draggedCompositeId, 'composite', this.activity.id);
-							}
+							this.dndHandler.drop(new CompositeDragAndDropData('composite', draggedCompositeId), this.activity.id, e);
 						}
 					}
 				}
@@ -586,9 +584,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 					if (Array.isArray(data)) {
 						const draggedViewId = data[0].id;
 
-						if (this.dndHandler.canDrop(draggedViewId, 'view', this.activity.id)) {
-							this.dndHandler.onDrop(draggedViewId, 'view', this.activity.id);
-						}
+						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
 					}
 				}
 			}

@@ -19,7 +19,7 @@ import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workb
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar, ICompositeBarItem } from 'vs/workbench/browser/parts/compositeBar';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -128,53 +128,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getContextMenuActionsForComposite: () => [],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.layoutService.setSideBarHidden(true),
-			dndHandler: {
-				canDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
-					if (idType === 'view' && !destinationCompositeId) {
-						return false;
-					}
-
-					return true;
-				},
-				onDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
-					if (idType === 'composite') {
-						const currentContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id)!;
-						const currentLocation = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).getViewContainerLocation(currentContainer);
-						if (destinationCompositeId) {
-							if (currentLocation !== ViewContainerLocation.Sidebar) {
-								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
-								if (destinationContainer) {
-									this.viewDescriptorService.moveViewsToContainer(this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView), destinationContainer);
-									this.viewletService.openViewlet(destinationCompositeId, true);
-								}
-							} else {
-								this.compositeBar.move(id, destinationCompositeId);
-							}
-						}
-					} else {
-						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(id);
-						if (viewDescriptor && viewDescriptor.canMoveView) {
-							if (destinationCompositeId) {
-								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
-								if (destinationContainer) {
-									this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
-									this.viewletService.openViewlet(destinationCompositeId, true);
-								}
-							} else {
-								this.viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Sidebar);
-								const newCompositeId = this.viewDescriptorService.getViewContainer(id)!.id;
-								const visibleItems = this.compositeBar.getCompositeBarItems().filter(item => item.visible);
-								const targetItem = visibleItems.length ? visibleItems[visibleItems.length - 1] : undefined;
-								if (targetItem && targetItem.id !== newCompositeId) {
-									this.compositeBar.move(newCompositeId, targetItem.id);
-								}
-
-								this.viewletService.openViewlet(newCompositeId, true);
-							}
-						}
-					}
-				}
-			},
+			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
+				(id: string, focus?: boolean) => this.viewletService.openViewlet(id, focus),
+				(from: string, to: string) => this.compositeBar.move(from, to),
+				() => this.getPinnedViewletIds()
+			),
 			compositeSize: 50,
 			colors: (theme: ITheme) => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT

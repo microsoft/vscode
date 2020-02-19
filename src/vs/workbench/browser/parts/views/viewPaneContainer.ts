@@ -456,7 +456,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
 
-	private viewTransfer: LocalSelectionTransfer<DraggedViewIdentifier>;
+	private static viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
 
 	private visible: boolean = false;
 
@@ -531,7 +531,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.options.dnd = new DefaultPaneDndController();
 		}
 
-		this.viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
@@ -907,13 +906,13 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 
 			// Register as dragged to local transfer
-			this.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
+			ViewPaneContainer.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
 		}));
 
 
 		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_END, (e: DragEvent) => {
-			if (this.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
-				this.viewTransfer.clearData(DraggedViewIdentifier.prototype);
+			if (ViewPaneContainer.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
+				ViewPaneContainer.viewTransfer.clearData(DraggedViewIdentifier.prototype);
 			}
 		}));
 	}

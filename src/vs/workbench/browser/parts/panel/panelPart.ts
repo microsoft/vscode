@@ -22,7 +22,7 @@ import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, Togg
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar, ICompositeBarItem } from 'vs/workbench/browser/parts/compositeBar';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -142,48 +142,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
-			dndHandler: {
-				canDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
-					return true;
-				},
-				onDrop: (id: string, idType: 'view' | 'composite', destinationCompositeId?: string) => {
-					if (idType === 'composite') {
-						const currentContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id)!;
-						const currentLocation = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).getViewContainerLocation(currentContainer);
-						if (destinationCompositeId) {
-							if (currentLocation !== ViewContainerLocation.Panel) {
-								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
-								if (destinationContainer) {
-									this.viewDescriptorService.moveViewsToContainer(this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView), destinationContainer);
-									this.openComposite(destinationCompositeId, true);
-								}
-							} else {
-								this.compositeBar.move(id, destinationCompositeId);
-							}
-						}
-					} else {
-						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(id);
-						if (viewDescriptor && viewDescriptor.canMoveView) {
-							if (destinationCompositeId) {
-								const destinationContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(destinationCompositeId);
-								if (destinationContainer) {
-									this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
-								}
-							} else {
-								this.viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
-								const newCompositeId = this.viewDescriptorService.getViewContainer(id)!.id;
-								const visibleItems = this.compositeBar.getCompositeBarItems().filter(item => item.visible);
-								const targetItem = visibleItems.length ? visibleItems[visibleItems.length - 1] : undefined;
-								if (targetItem && targetItem.id !== newCompositeId) {
-									this.compositeBar.move(newCompositeId, targetItem.id);
-								}
-
-								this.openComposite(newCompositeId, true);
-							}
-						}
-					}
-				}
-			},
+			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
+				(id: string, focus?: boolean) => this.openPanel(id, focus),
+				(from: string, to: string) => this.compositeBar.move(from, to),
+				() => this.getPinnedPanels().map(p => p.id)
+			),
 			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: (theme: ITheme) => ({
