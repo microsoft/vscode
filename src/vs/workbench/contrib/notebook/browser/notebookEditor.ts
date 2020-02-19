@@ -49,13 +49,21 @@ interface INotebookEditorViewState {
 
 class NotebookCodeEditors implements ICompositeCodeEditor {
 
+	private readonly _disposables = new DisposableStore();
 	private readonly _onDidChangeActiveEditor = new Emitter<this>();
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	constructor(
 		private _list: WorkbenchList<CellViewModel>,
 		private _renderedEditors: Map<CellViewModel, ICodeEditor | undefined>
-	) { }
+	) {
+		_list.onFocusChange(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
+	}
+
+	dispose(): void {
+		this._onDidChangeActiveEditor.dispose();
+		this._disposables.dispose();
+	}
 
 	get activeCodeEditor(): IEditor | undefined {
 		const [focused] = this._list.getFocusedElements();
@@ -65,12 +73,6 @@ class NotebookCodeEditors implements ICompositeCodeEditor {
 	}
 
 	activate(input: IResourceInput): ICodeEditor | undefined {
-		const result = this._doActivate(input);
-		this._onDidChangeActiveEditor.fire(this);
-		return result;
-	}
-
-	private _doActivate(input: IResourceInput): ICodeEditor | undefined {
 		const data = parseCellUri(input.resource);
 		if (!data) {
 			return undefined;
