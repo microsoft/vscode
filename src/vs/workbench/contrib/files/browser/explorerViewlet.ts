@@ -48,6 +48,19 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	) {
 		super();
 
+		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
+			this.registerViews();
+
+			this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
+			this.updateOpenEditorsVisibility();
+
+			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
+			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
+			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+		});
+	}
+
+	private registerViews(): void {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 
 		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
@@ -65,20 +78,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))
 		});
 
-		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
-			this.registerViews();
-
-			this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
-			this.updateOpenEditorsVisibility();
-
-			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
-			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
-			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
-		});
-	}
-
-	private registerViews(): void {
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
