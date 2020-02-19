@@ -220,9 +220,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
-				const menu = this.menus.createResourceMenu(resourceOrFolder.element.resourceGroup, resourceOrFolder.element);
-				elementDisposables.add(menu);
-				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu.menu, template.actionBar));
+				elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resourceOrFolder.element.resourceGroup, resourceOrFolder.element), template.actionBar));
 				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
 			} else {
@@ -231,9 +229,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 				removeClass(template.element, 'faded');
 			}
 		} else {
-			const menu = this.menus.createResourceMenu(resourceOrFolder.resourceGroup, resourceOrFolder);
-			elementDisposables.add(menu);
-			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu.menu, template.actionBar));
+			elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resourceOrFolder.resourceGroup, resourceOrFolder), template.actionBar));
 			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
 			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
 		}
