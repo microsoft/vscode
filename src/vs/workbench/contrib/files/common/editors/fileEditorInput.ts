@@ -56,12 +56,19 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	) {
 		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
+		this.model = this.textFileService.files.get(resource);
+
 		if (preferredEncoding) {
 			this.setPreferredEncoding(preferredEncoding);
 		}
 
 		if (preferredMode) {
 			this.setPreferredMode(preferredMode);
+		}
+
+		// If a file model already exists, make sure to wire it in
+		if (this.model) {
+			this.registerModelListeners(this.model);
 		}
 	}
 
