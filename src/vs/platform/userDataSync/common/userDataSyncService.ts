@@ -188,7 +188,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async resetLocal(): Promise<void> {
-		await this.checkEnablement();
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		for (const synchroniser of this.synchronisers) {
 			try {
