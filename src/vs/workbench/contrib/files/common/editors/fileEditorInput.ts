@@ -105,10 +105,10 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		this.modelListeners.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
 
 		// remove model association once it gets disposed
-		Event.once(model.onDispose)(() => {
+		this.modelListeners.add(Event.once(model.onDispose)(() => {
 			this.modelListeners.clear();
 			this.model = undefined;
-		});
+		}));
 	}
 
 	getEncoding(): string | undefined {

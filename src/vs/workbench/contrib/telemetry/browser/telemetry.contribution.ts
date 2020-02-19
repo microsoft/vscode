@@ -58,7 +58,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewletService viewletService: IViewletService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
 
