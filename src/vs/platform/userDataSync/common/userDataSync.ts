@@ -335,6 +335,7 @@ export interface ISettingsSyncService extends IUserDataSynchroniser {
 //#endregion
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export function toRemoteContentResource(source: SyncSource): URI {

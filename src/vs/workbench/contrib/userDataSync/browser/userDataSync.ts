@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, toRemoteContentResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, toRemoteContentResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -52,7 +52,6 @@ const enum AuthStatus {
 	SignedOut = 'SignedOut',
 	Unavailable = 'Unavailable'
 }
-const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthStatus.Initializing);
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
