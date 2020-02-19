@@ -578,11 +578,11 @@ function parseSettings(content: string): INode[] {
 					const node = nodes.pop();
 					if (node) {
 						nodes.push({
-							startOffset: node!.startOffset,
-							endOffset: node!.endOffset,
-							value: node!.value,
+							startOffset: node.startOffset,
+							endOffset: node.endOffset,
+							value: node.value,
 							setting: {
-								key: node!.setting!.key,
+								key: node.setting!.key,
 								hasCommaSeparator: true
 							}
 						});
