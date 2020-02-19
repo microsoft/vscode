@@ -652,6 +652,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			},
 			when: turnOnSyncWhenContext,
 		});
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			group: '5_sync',
+			command: {
+				id: turnOnSyncCommandId,
+				title: localize('global activity turn on sync', "Turn on Sync...")
+			},
+			when: turnOnSyncWhenContext,
+		});
 
 		const signInCommandId = 'workbench.userData.actions.signin';
 		const signInWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT, CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedOut));
@@ -694,6 +702,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			command: {
 				id: stopSyncCommandId,
 				title: localize('stop sync', "Sync: Turn off Sync")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
+		});
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			group: '5_sync',
+			command: {
+				id: stopSyncCommandId,
+				title: localize('global activity stop sync', "Turn off Sync")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
 		});
@@ -767,15 +783,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
 		});
 
-		const resetLocalCommandId = 'workbench.userData.actions.resetLocal';
-		CommandsRegistry.registerCommand(resetLocalCommandId, () => this.userDataSyncService.resetLocal());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: resetLocalCommandId,
-				title: localize('reset local', "Developer: Reset Local (Sync)")
-			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
-		});
 	}
 }
 
