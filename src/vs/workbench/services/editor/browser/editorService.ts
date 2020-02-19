@@ -19,7 +19,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -65,6 +65,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
+
+	private readonly activeEditorListener = this._register(new MutableDisposable());
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -115,6 +117,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private doHandleActiveEditorChangeEvent(): void {
+
+		// check for CompositeCodeEditor and forward its events
+		this.activeEditorListener.clear();
+		const control = this.activeControl?.getControl();
+		if (ICompositeCodeEditor.is(control)) {
+			this.activeEditorListener.value = control.onDidChangeActiveEditor(() => this._onDidActiveEditorChange.fire());
+		}
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
@@ -176,6 +185,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const activeControlWidget = activeControl.getControl();
 			if (isCodeEditor(activeControlWidget) || isDiffEditor(activeControlWidget)) {
 				return activeControlWidget;
+			}
+			if (ICompositeCodeEditor.is(activeControlWidget) && isCodeEditor(activeControlWidget.activeCodeEditor)) {
+				return activeControlWidget.activeCodeEditor;
 			}
 		}
 
