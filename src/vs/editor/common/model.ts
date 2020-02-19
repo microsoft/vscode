@@ -335,7 +335,7 @@ export interface IIdentifiedSingleEditOperation {
 	/**
 	 * The range to replace. This can be empty to emulate a simple insert.
 	 */
-	range: Range;
+	range: IRange;
 	/**
 	 * The text to replace with. This can be null to emulate a simple delete.
 	 */
