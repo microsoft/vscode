@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, ModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileEditorModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { createFileInput, TestFileService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -100,7 +100,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.textEditorModel!.setValue('bar');
 		assert.ok(getLastModifiedTime(model) <= Date.now());
-		assert.ok(model.hasState(ModelState.DIRTY));
+		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
 
 		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
@@ -116,11 +116,11 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		const pendingSave = model.save();
-		assert.ok(model.hasState(ModelState.PENDING_SAVE));
+		assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
 
 		await pendingSave;
 
-		assert.ok(model.hasState(ModelState.SAVED));
+		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
 		assert.ok(!model.isDirty());
 		assert.ok(savedEvent);
 		assert.ok(workingCopyEvent);
@@ -169,11 +169,11 @@ suite('Files - TextFileEditorModel', () => {
 		accessor.fileService.writeShouldThrowError = new Error('failed to write');
 		try {
 			const pendingSave = model.save();
-			assert.ok(model.hasState(ModelState.PENDING_SAVE));
+			assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
 
 			await pendingSave;
 
-			assert.ok(model.hasState(ModelState.ERROR));
+			assert.ok(model.hasState(TextFileEditorModelState.ERROR));
 			assert.ok(model.isDirty());
 			assert.ok(saveErrorEvent);
 
@@ -199,11 +199,11 @@ suite('Files - TextFileEditorModel', () => {
 		accessor.fileService.writeShouldThrowError = new FileOperationError('save conflict', FileOperationResult.FILE_MODIFIED_SINCE);
 		try {
 			const pendingSave = model.save();
-			assert.ok(model.hasState(ModelState.PENDING_SAVE));
+			assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
 
 			await pendingSave;
 
-			assert.ok(model.hasState(ModelState.CONFLICT));
+			assert.ok(model.hasState(TextFileEditorModelState.CONFLICT));
 			assert.ok(model.isDirty());
 			assert.ok(saveErrorEvent);
 
@@ -273,7 +273,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Load does not trigger save', async function () {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
-		assert.ok(model.hasState(ModelState.SAVED));
+		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
 
 		model.onDidSave(e => assert.fail());
 		model.onDidChangeDirty(e => assert.fail());
@@ -290,7 +290,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 		model.textEditorModel!.setValue('foo');
 		assert.ok(model.isDirty());
-		assert.ok(model.hasState(ModelState.DIRTY));
+		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
 
 		await model.load();
 		assert.ok(model.isDirty());

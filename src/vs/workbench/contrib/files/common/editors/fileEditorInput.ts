@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, ModelState, LoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileEditorModelState, TextFileLoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -174,7 +174,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	private decorateLabel(label: string): string {
-		const orphaned = this.model?.hasState(ModelState.ORPHAN);
+		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
 		const readonly = this.isReadonly();
 
 		if (orphaned && readonly) {
@@ -205,7 +205,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	isSaving(): boolean {
-		if (this.model?.hasState(ModelState.SAVED) || this.model?.hasState(ModelState.CONFLICT) || this.model?.hasState(ModelState.ERROR)) {
+		if (this.model?.hasState(TextFileEditorModelState.SAVED) || this.model?.hasState(TextFileEditorModelState.CONFLICT) || this.model?.hasState(TextFileEditorModelState.ERROR)) {
 			return false; // require the model to be dirty and not in conflict or error state
 		}
 
@@ -241,7 +241,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
-				reason: LoadReason.EDITOR
+				reason: TextFileLoadReason.EDITOR
 			});
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary

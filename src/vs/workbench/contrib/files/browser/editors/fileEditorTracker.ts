@@ -7,7 +7,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
-import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -285,7 +285,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			}
 
 			const model = this.textFileService.files.get(resource);
-			if (model?.hasState(ModelState.PENDING_SAVE)) {
+			if (model?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
 				return false; // resource must not be pending to save
 			}
 
