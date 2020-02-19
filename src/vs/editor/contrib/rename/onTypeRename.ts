@@ -5,7 +5,7 @@
 
 import 'vs/css!./onTypeRename';
 import * as nls from 'vs/nls';
-import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import * as arrays from 'vs/base/common/arrays';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -18,7 +18,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { OnTypeRenameProviderRegistry } from 'vs/editor/common/modes';
 import { first, createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -26,6 +26,8 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
+
+export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
 class OnTypeRenameContribution extends Disposable implements IEditorContribution {
 
@@ -43,6 +45,8 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 	private readonly _editor: ICodeEditor;
 	private _enabled: boolean;
 
+	private readonly _visibleContextKey: IContextKey<boolean>;
+
 	private _currentRequest: CancelablePromise<IRange[] | null | undefined> | null;
 	private _currentDecorations: string[]; // The one at index 0 is the reference one
 	private _ignoreChangeEvent: boolean;
@@ -50,10 +54,12 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 	constructor(
 		editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 		this._editor = editor;
 		this._enabled = this._editor.getOption(EditorOption.autoRename);
+		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 		this._currentRequest = null;
 		this._currentDecorations = [];
 		this._ignoreChangeEvent = false;
@@ -73,7 +79,9 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		}));
 
 		this._register(this._editor.onDidChangeCursorPosition((e) => {
-			this._run(e.position);
+			if (!this._visibleContextKey.get()) {
+				this._run(e.position);
+			}
 		}));
 
 		this._register(OnTypeRenameProviderRegistry.onDidChange(() => {
@@ -111,7 +119,8 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		const currentRanges = this._currentDecorations.map(decId => model.getDecorationRange(decId)!);
 
 		const referenceRange = currentRanges[0];
-		if (referenceRange.isEmpty() || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
+		// if (referenceRange.isEmpty() || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
+		if (referenceRange.startLineNumber !== referenceRange.endLineNumber) {
 			return this._stopAll();
 		}
 
@@ -154,6 +163,10 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 			}
 		}
 
+		edits.forEach(e => {
+			console.log(`${e.range.toString()} - ${e.text}`);
+		});
+
 		if (edits.length === 0) {
 			return;
 		}
@@ -173,7 +186,8 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		this._stopAll();
 	}
 
-	private _stopAll(): void {
+	_stopAll(): void {
+		this._visibleContextKey.set(false);
 		this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, []);
 	}
 
@@ -222,6 +236,7 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 			}
 
 			const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
+			this._visibleContextKey.set(true);
 			this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
 		}, err => {
 			onUnexpectedError(err);
@@ -232,7 +247,6 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 
 export class OnTypeRenameAction extends EditorAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.onTypeRename',
@@ -243,10 +257,6 @@ export class OnTypeRenameAction extends EditorAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,
 				weight: KeybindingWeight.EditorContrib
-			},
-			contextMenuOpts: {
-				group: '1_modification',
-				order: 1.1
 			}
 		});
 	}
@@ -279,6 +289,20 @@ export class OnTypeRenameAction extends EditorAction {
 		return Promise.resolve();
 	}
 }
+
+const OnTypeRenameCommand = EditorCommand.bindToContribution<OnTypeRenameContribution>(OnTypeRenameContribution.get);
+registerEditorCommand(new OnTypeRenameCommand({
+	id: 'cancelRenameInput',
+	precondition: CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE,
+	handler: x => x._stopAll(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib + 99,
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+}));
+
 
 export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<IRange[] | null | undefined> {
 
