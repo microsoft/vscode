@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, toRemoteContentResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
+import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserDataSyncStore, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, toRemoteContentResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -45,6 +45,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -101,7 +102,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
+		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -121,7 +122,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.onDidChangeEnablement(this.userDataSyncEnablementService.isEnabled());
 			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflictsSources)));
-			this._register(this.userDataAuthTokenService.onTokenFailed(_ => this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId)));
+			this._register(this.authTokenService.onTokenFailed(_ => this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId)));
 			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.onDidChangeEnablement(enabled)));
 			this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => this.onDidRegisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this.onDidUnregisterAuthenticationProvider(e)));
@@ -194,14 +195,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (account) {
 			try {
 				const token = await account.accessToken();
-				this.userDataAuthTokenService.setToken(token);
+				this.authTokenService.setToken(token);
 				this.authenticationState.set(AuthStatus.SignedIn);
 			} catch (e) {
-				this.userDataAuthTokenService.setToken(undefined);
+				this.authTokenService.setToken(undefined);
 				this.authenticationState.set(AuthStatus.Unavailable);
 			}
 		} else {
-			this.userDataAuthTokenService.setToken(undefined);
+			this.authTokenService.setToken(undefined);
 			this.authenticationState.set(AuthStatus.SignedOut);
 		}
 
@@ -508,7 +509,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			[
 				localize('merge', "Merge"),
 				localize('cancel', "Cancel"),
-				localize('replace', "Replace (Overwrite Local)"),
+				localize('replace', "Replace Local"),
 			],
 			{
 				cancelId: 1,

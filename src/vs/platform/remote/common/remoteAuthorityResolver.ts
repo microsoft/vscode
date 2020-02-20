@@ -35,6 +35,7 @@ export enum RemoteAuthorityResolverErrorCode {
 	Unknown = 'Unknown',
 	NotAvailable = 'NotAvailable',
 	TemporarilyNotAvailable = 'TemporarilyNotAvailable',
+	NoResolverFound = 'NoResolverFound'
 }
 
 export class RemoteAuthorityResolverError extends Error {
@@ -50,10 +51,11 @@ export class RemoteAuthorityResolverError extends Error {
 	}
 
 	public static isTemporarilyNotAvailable(err: any): boolean {
-		if (err instanceof RemoteAuthorityResolverError) {
-			return err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
-		}
-		return false;
+		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
+	}
+
+	public static isNoResolverFound(err: any): boolean {
+		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NoResolverFound;
 	}
 
 	public readonly _message: string | undefined;

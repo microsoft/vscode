@@ -59,6 +59,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setForceOpenAsBinary(): void { }
 	isDirty(): boolean { return this.dirty; }
 	setDirty(): void { this.dirty = true; }
+	isResolved(): boolean { return false; }
 }
 
 class EditorsObserverTestEditorInput extends TestEditorInput {

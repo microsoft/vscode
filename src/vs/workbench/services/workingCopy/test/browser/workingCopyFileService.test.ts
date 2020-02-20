@@ -51,17 +51,18 @@ suite('WorkingCopyFileService', () => {
 		let eventCounter = 0;
 		let correlationId: number | undefined = undefined;
 
-		const listener0 = accessor.workingCopyFileService.onBeforeWorkingCopyFileOperation(e => {
-			assert.equal(e.target.toString(), model.resource.toString());
-			assert.equal(e.operation, FileOperation.DELETE);
-			eventCounter++;
-			correlationId = e.correlationId;
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async (target, source, operation) => {
+				assert.equal(target.toString(), model.resource.toString());
+				assert.equal(operation, FileOperation.DELETE);
+				eventCounter++;
+			}
 		});
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
 			assert.equal(e.target.toString(), model.resource.toString());
 			assert.equal(e.operation, FileOperation.DELETE);
-			assert.equal(e.correlationId, correlationId);
+			correlationId = e.correlationId;
 			eventCounter++;
 		});
 
@@ -77,7 +78,7 @@ suite('WorkingCopyFileService', () => {
 
 		assert.equal(eventCounter, 3);
 
-		listener0.dispose();
+		participant.dispose();
 		listener1.dispose();
 		listener2.dispose();
 	});
@@ -117,12 +118,13 @@ suite('WorkingCopyFileService', () => {
 		let eventCounter = 0;
 		let correlationId: number | undefined = undefined;
 
-		const listener0 = accessor.workingCopyFileService.onBeforeWorkingCopyFileOperation(e => {
-			assert.equal(e.target.toString(), targetModel.resource.toString());
-			assert.equal(e.source?.toString(), sourceModel.resource.toString());
-			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
-			eventCounter++;
-			correlationId = e.correlationId;
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async (target, source, operation) => {
+				assert.equal(target.toString(), targetModel.resource.toString());
+				assert.equal(source?.toString(), sourceModel.resource.toString());
+				assert.equal(operation, move ? FileOperation.MOVE : FileOperation.COPY);
+				eventCounter++;
+			}
 		});
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
@@ -130,7 +132,7 @@ suite('WorkingCopyFileService', () => {
 			assert.equal(e.source?.toString(), sourceModel.resource.toString());
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
 			eventCounter++;
-			assert.equal(e.correlationId, correlationId);
+			correlationId = e.correlationId;
 		});
 
 		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
@@ -161,7 +163,7 @@ suite('WorkingCopyFileService', () => {
 		sourceModel.dispose();
 		targetModel.dispose();
 
-		listener0.dispose();
+		participant.dispose();
 		listener1.dispose();
 		listener2.dispose();
 	}

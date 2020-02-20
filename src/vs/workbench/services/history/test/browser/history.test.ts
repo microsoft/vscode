@@ -57,6 +57,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
 	setForceOpenAsBinary(): void { }
+	isResolved(): boolean { return false; }
 }
 
 class HistoryTestEditorInput extends TestEditorInput {

@@ -42,6 +42,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -56,6 +57,15 @@ export interface IViewPaneOptions extends IPaneOptions {
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
+
+export class DraggedViewIdentifier {
+	constructor(private _viewId: string) { }
+
+	get id(): string {
+		return this._viewId;
+	}
+}
+
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -443,6 +453,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private lastFocusedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
+
+	private static viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
 
 	private visible: boolean = false;
 
@@ -874,6 +886,22 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+			}
+
+			// Register as dragged to local transfer
+			ViewPaneContainer.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
+		}));
+
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_END, (e: DragEvent) => {
+			if (ViewPaneContainer.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
+				ViewPaneContainer.viewTransfer.clearData(DraggedViewIdentifier.prototype);
+			}
+		}));
 	}
 
 	removePanes(panes: ViewPane[]): void {
