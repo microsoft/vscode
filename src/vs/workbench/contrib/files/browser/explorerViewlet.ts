@@ -35,6 +35,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { WorkbenchStateContext, RemoteNameContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
+import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -64,17 +66,18 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 
 		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('noWorkspaceHelp', "You have not yet added a folder to the workspace.\n[Add Folder](command:workbench.action.addRootFolder)"),
+			content: localize('noWorkspaceHelp', "You have not yet added a folder to the workspace.\n[Add Folder](command:{0})", AddRootFolderAction.ID),
 			when: WorkbenchStateContext.isEqualTo('workspace')
 		});
 
+		const commandId = isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID;
 		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('remoteNoFolderHelp', "Connected to remote.\n[Open Folder](command:workbench.action.files.openFolder)"),
+			content: localize('remoteNoFolderHelp', "Connected to remote.\n[Open Folder](command:{0})", commandId),
 			when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated())
 		});
 
 		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('noFolderHelp', "You have not yet opened a folder.\n[Open Folder](command:workbench.action.files.openFolder)"),
+			content: localize('noFolderHelp', "You have not yet opened a folder.\n[Open Folder](command:{0})", commandId),
 			when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))
 		});
 

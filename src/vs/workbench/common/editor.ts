@@ -780,6 +780,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Forces this file input to open as binary instead of text.
 	 */
 	setForceOpenAsBinary(): void;
+
+	/**
+	 * Figure out if the input has been resolved or not.
+	 */
+	isResolved(): boolean;
 }
 
 /**
@@ -1209,6 +1214,8 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 			if (this.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
 				editor.revealRangeNearTop(range, scrollType);
+			} else if (this.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {
+				editor.revealRangeNearTopIfOutsideViewport(range, scrollType);
 			} else if (this.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
 				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 			} else {

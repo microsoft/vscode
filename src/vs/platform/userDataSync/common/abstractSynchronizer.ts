@@ -19,6 +19,8 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 
+const BACK_UP_MAX_AGE = 1000 * 60 * 60 * 24 * 30; /* 30 days */
+
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
@@ -68,6 +70,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
 		this.lastSyncResource = joinPath(this.syncFolder, `.lastSync${source}.json`);
 		this.cleanUpDelayer = new ThrottledDelayer(50);
+		this.cleanUpBackup();
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -195,9 +198,24 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private async cleanUpBackup(): Promise<void> {
 		const stat = await this.fileService.resolve(this.syncFolder);
 		if (stat.children) {
-			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
-			const toDelete = all.slice(0, Math.max(0, all.length - 9));
-			await Promise.all(toDelete.map(stat => this.fileService.del(stat.resource)));
+			const toDelete = stat.children.filter(stat => {
+				if (stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)) {
+					const ctime = stat.ctime || new Date(
+						parseInt(stat.name.substring(0, 4)),
+						parseInt(stat.name.substring(4, 6)) - 1,
+						parseInt(stat.name.substring(6, 8)),
+						parseInt(stat.name.substring(9, 11)),
+						parseInt(stat.name.substring(11, 13)),
+						parseInt(stat.name.substring(13, 15))
+					).getTime();
+					return Date.now() - ctime > BACK_UP_MAX_AGE;
+				}
+				return false;
+			});
+			await Promise.all(toDelete.map(stat => {
+				this.logService.info('Deleting from backup', stat.resource.path);
+				this.fileService.del(stat.resource);
+			}));
 		}
 	}
 

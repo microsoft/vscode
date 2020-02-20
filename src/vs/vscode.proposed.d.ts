@@ -1408,49 +1408,6 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region https://github.com/microsoft/vscode/issues/77728
-
-	/**
-	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
-	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
-	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
-	 */
-	export interface WorkspaceEditMetadata {
-
-		/**
-		 * A flag which indicates that user confirmation is needed.
-		 */
-		needsConfirmation: boolean;
-
-		/**
-		 * A human-readable string which is rendered prominent.
-		 */
-		label: string;
-
-		/**
-		 * A human-readable string which is rendered less prominent on the same line.
-		 */
-		description?: string;
-
-		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
-		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface WorkspaceEdit {
-
-		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditMetadata): void;
-		delete(uri: Uri, range: Range, metadata?: WorkspaceEditMetadata): void;
-		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditMetadata): void;
-
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-	}
-
-	//#endregion
-
 	//#region Diagnostic links https://github.com/microsoft/vscode/issues/11847
 
 	export interface Diagnostic {

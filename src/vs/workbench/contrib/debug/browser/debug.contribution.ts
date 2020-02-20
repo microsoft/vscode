@@ -250,6 +250,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
 			default: true
 		},
+		'debug.console.historySuggestions': {
+			type: 'boolean',
+			description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
+			default: true
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),

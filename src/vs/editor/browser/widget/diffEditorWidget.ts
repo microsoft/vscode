@@ -825,6 +825,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.revealRangeNearTop(range, scrollType);
 	}
 
+	public revealRangeNearTopIfOutsideViewport(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this.modifiedEditor.revealRangeNearTopIfOutsideViewport(range, scrollType);
+	}
+
 	public revealRangeAtTop(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
 		this.modifiedEditor.revealRangeAtTop(range, scrollType);
 	}

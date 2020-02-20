@@ -1,8 +1,8 @@
 {
 	"name": "vscode-account",
 	"publisher": "vscode",
-	"displayName": "Account",
-	"description": "",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.0.1",
 	"engines": {
 		"vscode": "^1.42.0"
@@ -15,6 +15,20 @@
 		"*"
 	],
 	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "microsoft.signin",
+				"title": "%signIn%",
+				"category": "%displayName%"
+			},
+			{
+				"command": "microsoft.signout",
+				"title": "%signOut%",
+				"category": "%displayName%"
+			}
+		]
+	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "gulp compile-extension:vscode-account",

@@ -11,6 +11,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
+import { domContentLoaded } from 'vs/base/browser/dom';
 
 export class SuggestRangeHighlighter {
 
@@ -101,10 +102,12 @@ const shiftKey = new class ShiftKey extends Emitter<boolean> {
 
 	constructor() {
 		super();
-		this._subscriptions.add(domEvent(document.body, 'keydown')(e => this.isPressed = e.shiftKey));
-		this._subscriptions.add(domEvent(document.body, 'keyup')(() => this.isPressed = false));
-		this._subscriptions.add(domEvent(document.body, 'mouseleave')(() => this.isPressed = false));
-		this._subscriptions.add(domEvent(document.body, 'blur')(() => this.isPressed = false));
+		domContentLoaded().then(() => {
+			this._subscriptions.add(domEvent(document.body, 'keydown')(e => this.isPressed = e.shiftKey));
+			this._subscriptions.add(domEvent(document.body, 'keyup')(() => this.isPressed = false));
+			this._subscriptions.add(domEvent(document.body, 'mouseleave')(() => this.isPressed = false));
+			this._subscriptions.add(domEvent(document.body, 'blur')(() => this.isPressed = false));
+		});
 	}
 
 	get isPressed(): boolean {

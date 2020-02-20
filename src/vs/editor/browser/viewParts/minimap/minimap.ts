@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -91,6 +91,8 @@ class MinimapOptions {
 	 */
 	public readonly canvasOuterHeight: number;
 
+	public readonly isSampling: boolean;
+	public readonly editorHeight: number;
 	public readonly fontScale: number;
 	public readonly minimapLineHeight: number;
 	public readonly minimapCharWidth: number;
@@ -122,6 +124,8 @@ class MinimapOptions {
 		this.canvasOuterWidth = layoutInfo.minimapCanvasOuterWidth;
 		this.canvasOuterHeight = layoutInfo.minimapCanvasOuterHeight;
 
+		this.isSampling = layoutInfo.minimapIsSampling;
+		this.editorHeight = layoutInfo.height;
 		this.fontScale = layoutInfo.minimapScale;
 		this.minimapLineHeight = layoutInfo.minimapLineHeight;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
@@ -154,6 +158,8 @@ class MinimapOptions {
 			&& this.canvasInnerHeight === other.canvasInnerHeight
 			&& this.canvasOuterWidth === other.canvasOuterWidth
 			&& this.canvasOuterHeight === other.canvasOuterHeight
+			&& this.isSampling === other.isSampling
+			&& this.editorHeight === other.editorHeight
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
@@ -527,26 +533,24 @@ type SamplingStateEvent = SamplingStateLinesInsertedEvent | SamplingStateLinesDe
 
 class MinimapSamplingState {
 
-	public static compute(options: IComputedEditorOptions, modelLineCount: number, oldSamplingState: MinimapSamplingState | null): [MinimapSamplingState | null, SamplingStateEvent[]] {
-		const minimapOpts = options.get(EditorOption.minimap);
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		if (!minimapOpts.enabled || !layoutInfo.minimapIsSampling) {
+	public static compute(options: MinimapOptions, viewLineCount: number, oldSamplingState: MinimapSamplingState | null): [MinimapSamplingState | null, SamplingStateEvent[]] {
+		if (options.renderMinimap === RenderMinimap.None || !options.isSampling) {
 			return [null, []];
 		}
 
 		// ratio is intentionally not part of the layout to avoid the layout changing all the time
 		// so we need to recompute it again...
-		const pixelRatio = options.get(EditorOption.pixelRatio);
-		const lineHeight = options.get(EditorOption.lineHeight);
-		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
+		const pixelRatio = options.pixelRatio;
+		const lineHeight = options.lineHeight;
+		const scrollBeyondLastLine = options.scrollBeyondLastLine;
 		const { minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
-			modelLineCount: modelLineCount,
+			viewLineCount: viewLineCount,
 			scrollBeyondLastLine: scrollBeyondLastLine,
-			height: layoutInfo.height,
+			height: options.editorHeight,
 			lineHeight: lineHeight,
 			pixelRatio: pixelRatio
 		});
-		const ratio = modelLineCount / minimapLineCount;
+		const ratio = viewLineCount / minimapLineCount;
 		const halfRatio = ratio / 2;
 
 		if (!oldSamplingState || oldSamplingState.minimapLines.length === 0) {
@@ -556,7 +560,7 @@ class MinimapSamplingState {
 				for (let i = 0, lastIndex = minimapLineCount - 1; i < lastIndex; i++) {
 					result[i] = Math.round(i * ratio + halfRatio);
 				}
-				result[minimapLineCount - 1] = modelLineCount;
+				result[minimapLineCount - 1] = viewLineCount;
 			}
 			return [new MinimapSamplingState(ratio, result), []];
 		}
@@ -566,15 +570,15 @@ class MinimapSamplingState {
 		let result: number[] = [];
 		let oldIndex = 0;
 		let oldDeltaLineCount = 0;
-		let minModelLineNumber = 1;
+		let minViewLineNumber = 1;
 		const MAX_EVENT_COUNT = 10; // generate at most 10 events, if there are more than 10 changes, just flush all previous data
 		let events: SamplingStateEvent[] = [];
 		let lastEvent: SamplingStateEvent | null = null;
 		for (let i = 0; i < minimapLineCount; i++) {
-			const fromModelLineNumber = Math.max(minModelLineNumber, Math.round(i * ratio));
-			const toModelLineNumber = Math.max(fromModelLineNumber, Math.round((i + 1) * ratio));
+			const fromViewLineNumber = Math.max(minViewLineNumber, Math.round(i * ratio));
+			const toViewLineNumber = Math.max(fromViewLineNumber, Math.round((i + 1) * ratio));
 
-			while (oldIndex < oldLength && oldMinimapLines[oldIndex] < fromModelLineNumber) {
+			while (oldIndex < oldLength && oldMinimapLines[oldIndex] < fromViewLineNumber) {
 				if (events.length < MAX_EVENT_COUNT) {
 					const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
 					if (lastEvent && lastEvent.type === 'deleted' && lastEvent._oldIndex === oldIndex - 1) {
@@ -588,18 +592,18 @@ class MinimapSamplingState {
 				oldIndex++;
 			}
 
-			let selectedModelLineNumber: number;
-			if (oldIndex < oldLength && oldMinimapLines[oldIndex] <= toModelLineNumber) {
+			let selectedViewLineNumber: number;
+			if (oldIndex < oldLength && oldMinimapLines[oldIndex] <= toViewLineNumber) {
 				// reuse the old sampled line
-				selectedModelLineNumber = oldMinimapLines[oldIndex];
+				selectedViewLineNumber = oldMinimapLines[oldIndex];
 				oldIndex++;
 			} else {
 				if (i === 0) {
-					selectedModelLineNumber = 1;
+					selectedViewLineNumber = 1;
 				} else if (i + 1 === minimapLineCount) {
-					selectedModelLineNumber = modelLineCount;
+					selectedViewLineNumber = viewLineCount;
 				} else {
-					selectedModelLineNumber = Math.round(i * ratio + halfRatio);
+					selectedViewLineNumber = Math.round(i * ratio + halfRatio);
 				}
 				if (events.length < MAX_EVENT_COUNT) {
 					const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
@@ -613,8 +617,8 @@ class MinimapSamplingState {
 				}
 			}
 
-			result[i] = selectedModelLineNumber;
-			minModelLineNumber = selectedModelLineNumber;
+			result[i] = selectedViewLineNumber;
+			minViewLineNumber = selectedViewLineNumber;
 		}
 
 		if (events.length < MAX_EVENT_COUNT) {
@@ -743,7 +747,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._minimapSelections = null;
 
 		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker);
-		const [samplingState,] = MinimapSamplingState.compute(this._context.configuration.options, this._context.model.getLineCount(), null);
+		const [samplingState,] = MinimapSamplingState.compute(this.options, this._context.model.getLineCount(), null);
 		this._samplingState = samplingState;
 		this._shouldCheckSampling = false;
 
@@ -787,6 +791,9 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return false;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		if (this._samplingState) {
+			this._shouldCheckSampling = true;
+		}
 		return this._actual.onFlushed();
 	}
 	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
@@ -898,7 +905,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._minimapSelections = null;
 
 		const wasSampling = Boolean(this._samplingState);
-		const [samplingState, events] = MinimapSamplingState.compute(this._context.configuration.options, this._context.model.getLineCount(), this._samplingState);
+		const [samplingState, events] = MinimapSamplingState.compute(this.options, this._context.model.getLineCount(), this._samplingState);
 		this._samplingState = samplingState;
 
 		if (wasSampling && this._samplingState) {

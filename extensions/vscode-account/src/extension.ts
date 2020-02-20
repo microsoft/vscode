@@ -6,13 +6,15 @@
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
 
-export async function activate(_: vscode.ExtensionContext) {
+export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
+
+export async function activate(context: vscode.ExtensionContext) {
 
 	const loginService = new AzureActiveDirectoryService();
 
 	await loginService.initialize();
 
-	vscode.authentication.registerAuthenticationProvider({
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
 		id: 'MSA',
 		displayName: 'Microsoft',
 		onDidChangeSessions: onDidChangeSessions.event,
@@ -28,7 +30,37 @@ export async function activate(_: vscode.ExtensionContext) {
 		logout: async (id: string) => {
 			return loginService.logout(id);
 		}
-	});
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('microsoft.signin', () => {
+		return loginService.login(DEFAULT_SCOPES);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('microsoft.signout', async () => {
+		const sessions = loginService.sessions;
+		if (sessions.length === 0) {
+			return;
+		}
+
+		if (sessions.length === 1) {
+			await loginService.logout(loginService.sessions[0].id);
+			onDidChangeSessions.fire();
+			return;
+		}
+
+		const selectedSession = await vscode.window.showQuickPick(sessions.map(session => {
+			return {
+				id: session.id,
+				label: session.accountName
+			};
+		}));
+
+		if (selectedSession) {
+			await loginService.logout(selectedSession.id);
+			onDidChangeSessions.fire();
+			return;
+		}
+	}));
 
 	return;
 }
