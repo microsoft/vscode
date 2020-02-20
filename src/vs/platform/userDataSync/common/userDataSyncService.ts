@@ -82,7 +82,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
-		this.updateLastSyncTime(Date.now());
 	}
 
 	async push(): Promise<void> {
@@ -94,7 +93,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
-		this.updateLastSyncTime(Date.now());
 	}
 
 	async sync(): Promise<void> {
@@ -140,7 +138,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
-			this.updateLastSyncTime(Date.now());
 
 		} finally {
 			this.updateStatus();
@@ -166,7 +163,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async accept(source: SyncSource, content: string): Promise<void> {
 		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(source);
-		return synchroniser.accept(content);
+		await synchroniser.accept(content);
 	}
 
 	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
@@ -238,9 +235,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private setStatus(status: SyncStatus): void {
+		const oldStatus = this._status;
 		if (this._status !== status) {
 			this._status = status;
 			this._onDidChangeStatus.fire(status);
+			if (oldStatus !== SyncStatus.Uninitialized && this.status === SyncStatus.Idle) {
+				this.updateLastSyncTime(new Date().getTime());
+			}
 		}
 	}
 
