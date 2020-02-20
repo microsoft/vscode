@@ -88,7 +88,8 @@ export function registerConfiguration(): IDisposable {
 				$ref: ignoredExtensionsSchemaId,
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
-				uniqueItems: true
+				uniqueItems: true,
+				disallowSyncIgnore: true
 			},
 			'sync.ignoredSettings': {
 				'type': 'array',
