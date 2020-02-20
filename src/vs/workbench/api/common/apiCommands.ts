@@ -174,10 +174,20 @@ export class RemoveFromRecentlyOpenedAPICommand {
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
 
+export interface OpenIssueReporterArgs {
+	readonly extensionId: string;
+	readonly issueTitle?: string;
+	readonly issueBody?: string;
+}
+
 export class OpenIssueReporter {
 	public static readonly ID = 'vscode.openIssueReporter';
-	public static execute(executor: ICommandsExecutor, extensionId: string): Promise<void> {
-		return executor.executeCommand('workbench.action.openIssueReporter', [extensionId]);
+
+	public static execute(executor: ICommandsExecutor, args: string | OpenIssueReporterArgs): Promise<void> {
+		const commandArgs = typeof args === 'string'
+			? { extensionId: args }
+			: args;
+		return executor.executeCommand('workbench.action.openIssueReporter', commandArgs);
 	}
 }
 
