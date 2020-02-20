@@ -222,7 +222,7 @@ export class CodeCell extends Disposable {
 					let height = elementSizeObserver.getHeight();
 
 					if (clientHeight === height) {
-						console.log(this.viewCell.outputs);
+						// console.log(this.viewCell.outputs);
 						return;
 					}
 
