@@ -18,6 +18,10 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
+	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
+	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
+	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
+
 	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined);
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined);
 	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
