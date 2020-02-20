@@ -117,7 +117,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.WorkbenchContrib
 			}
 		});
 	}
