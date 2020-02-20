@@ -96,11 +96,6 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * An event that is fired before attempting to create a text file.
-	 */
-	readonly onWillCreateTextFile: Event<TextFileCreateEvent>;
-
-	/**
 	 * An event that is fired after a text file has been created.
 	 */
 	readonly onDidCreateTextFile: Event<TextFileCreateEvent>;

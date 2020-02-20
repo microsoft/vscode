@@ -122,7 +122,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IRemotePathService remotePathService: IRemotePathService
+		@IRemotePathService remotePathService: IRemotePathService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		super(
 			fileService,
@@ -137,7 +138,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			remotePathService
+			remotePathService,
+			workingCopyFileService
 		);
 	}
 
