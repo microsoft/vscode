@@ -78,8 +78,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			if (remoteUserData.syncData !== null) {
 				const localExtensions = await this.getLocalExtensions();
 				const remoteExtensions = this.parseExtensions(remoteUserData.syncData);
-				const { added, updated, remote } = merge(localExtensions, remoteExtensions, [], [], this.getIgnoredExtensions());
-				await this.apply({ added, removed: [], updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData });
+				const { added, updated, remote, removed } = merge(localExtensions, remoteExtensions, localExtensions, [], this.getIgnoredExtensions());
+				await this.apply({ added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData });
 			}
 
 			// No remote exists to pull
