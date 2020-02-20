@@ -150,6 +150,7 @@ tokenModifiers[TokenModifier.async] = 'async';
 tokenModifiers[TokenModifier.declaration] = 'declaration';
 tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
+tokenModifiers[TokenModifier.local] = 'local';
 
 // make sure token types and modifiers are complete
 if (tokenTypes.filter(t => !!t).length !== TokenType._) {
