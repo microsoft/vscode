@@ -12,7 +12,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 
@@ -37,6 +37,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content: string;
 	id: string;
+	outputId: string;
 	top: number;
 }
 
@@ -71,8 +72,8 @@ let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement;
-	mapping: Map<string, { cell: CellViewModel, offset: number, top: number }> = new Map();
-	outputMapping: Map<string, boolean> = new Map();
+	insetMapping: Map<IOutput, { outputId: string, cell: CellViewModel, cacheOffset: number | undefined }> = new Map();
+	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
 
 	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookEditor: INotebookEditor, public environmentSerice: IEnvironmentService) {
@@ -166,29 +167,33 @@ export class BackLayerWebView extends Disposable {
 			case 'html':
 				{
 					let cellOutputContainer = document.getElementById(id);
+					let outputId = event.data.outputId;
 					if (!cellOutputContainer) {
 						let newElement = document.createElement('div');
-						newElement.style.position = 'absolute';
-						newElement.style.top = event.data.top + 'px';
+
 						newElement.id = id;
 						document.getElementById('container').appendChild(newElement);
 						cellOutputContainer = newElement;
 					}
 
 					let outputNode = document.createElement('div');
+					outputNode.style.position = 'absolute';
+					outputNode.style.top = event.data.top + 'px';
+
+					outputNode.id = outputId;
 					let content = event.data.content;
 					outputNode.innerHTML = content;
 					cellOutputContainer.appendChild(outputNode);
 
 					// eval
 					domEval(outputNode);
-					resizeObserve(cellOutputContainer, id);
+					resizeObserve(outputNode, outputId);
 
 					vscode.postMessage({
 						type: 'dimension',
-						id: id,
+						id: outputId,
 						data: {
-							height: cellOutputContainer.clientHeight
+							height: outputNode.clientHeight
 						}
 					});
 				}
@@ -247,15 +252,23 @@ export class BackLayerWebView extends Disposable {
 
 		this._register(this.webview.onMessage((data: IMessage) => {
 			if (data.type === 'dimension') {
-				let cell = this.mapping.get(data.id)?.cell;
+				let output = this.reversedInsetMapping.get(data.id);
+
+				if (!output) {
+					return;
+				}
+
+				let cell = this.insetMapping.get(output)!.cell;
 				let height = data.data.height;
 				let outputHeight = height === 0 ? 0 : height + 16;
+
 				if (cell) {
-					const lineNum = cell.lineCount;
-					const lineHeight = this.notebookEditor.getFontInfo()?.lineHeight ?? 18;
-					const totalHeight = lineNum * lineHeight;
-					cell.dynamicHeight = totalHeight + 32 /* code cell padding */ + outputHeight;
-					this.notebookEditor.layoutNotebookCell(cell, totalHeight + 32 /* code cell padding */ + outputHeight);
+					let editorHeight = cell.editorHeight;
+					let outputIndex = cell.outputs.indexOf(output);
+					cell.updateOutputHeight(outputIndex, outputHeight);
+					let totalOutputHeight = cell.getOutputTotalHeight();
+					cell.dynamicHeight = editorHeight + 32 /* code cell padding */ + totalOutputHeight;
+					this.notebookEditor.layoutNotebookCell(cell, cell.dynamicHeight);
 				}
 			} else if (data.type === 'scroll-ack') {
 				// const date = new Date();
@@ -276,45 +289,64 @@ export class BackLayerWebView extends Disposable {
 		return webview;
 	}
 
-	shouldRenderInset(id: string, widgetTop: number) {
-		let item = this.mapping.get(id);
+	shouldUpdateInset(cell: CellViewModel, output: IOutput, cellTop: number) {
+		let outputCache = this.insetMapping.get(output)!;
+		let outputIndex = cell.outputs.indexOf(output);
 
-		if (item && widgetTop + item.offset !== item.top) {
-			return widgetTop + item.offset;
+		let outputOffsetInOutputContainer = cell.getOutputOffset(outputIndex);
+		let outputOffset = cellTop + cell.editorHeight + 16 /* editor padding */ + 8 + outputOffsetInOutputContainer;
+
+		if (outputOffset === outputCache.cacheOffset) {
+			return false;
 		}
 
-		return undefined;
+		return true;
 	}
 
-	updateViewScrollTop(top: number, items: { top: number, id: string }[]) {
-		items.forEach(item => {
-			if (this.mapping.has(item.id)) {
-				this.mapping.get(item.id)!.top = item.top;
-			}
+	updateViewScrollTop(top: number, items: { cell: CellViewModel, output: IOutput, cellTop: number }[]) {
+		let widgets: IContentWidgetTopRequest[] = items.map(item => {
+			let outputCache = this.insetMapping.get(item.output)!;
+			let id = outputCache.outputId;
+			let outputIndex = item.cell.outputs.indexOf(item.output);
+
+			let outputOffsetInOutputContainer = item.cell.getOutputOffset(outputIndex);
+			let outputOffset = item.cellTop + item.cell.editorHeight + 16 /* editor padding */ + 8 + outputOffsetInOutputContainer;
+			outputCache.cacheOffset = outputOffset;
+
+			// console.log('trigger output offset change', outputOffset);
+
+			return {
+				id: id,
+				top: outputOffset
+			};
 		});
 
 		let message: IViewScrollTopRequestMessage = {
 			top,
 			type: 'view-scroll',
 			version: version++,
-			widgets: items
+			widgets: widgets
 		};
 
 		this.webview.sendMessage(message);
 	}
 
-	createInset(cell: CellViewModel, offset: number, shadowContent: string, initialTop: number, preloads: Set<number>) {
+	createInset(cell: CellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
 		this.updateRendererPreloads(preloads);
+		let initialTop = cellTop + offset;
+		let outputId = UUID.generateUuid();
 
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
 			id: cell.id,
+			outputId: outputId,
 			top: initialTop
 		};
 
 		this.webview.sendMessage(message);
-		this.mapping.set(cell.id, { cell: cell, offset, top: initialTop });
+		this.insetMapping.set(output, { outputId: outputId, cell: cell, cacheOffset: initialTop });
+		this.reversedInsetMapping.set(outputId, output);
 	}
 
 	clearInsets() {
@@ -322,8 +354,8 @@ export class BackLayerWebView extends Disposable {
 			type: 'clear'
 		});
 
-		this.mapping = new Map();
-		this.outputMapping = new Map();
+		this.insetMapping = new Map();
+		this.reversedInsetMapping = new Map();
 	}
 
 	updateRendererPreloads(preloads: Set<number>) {

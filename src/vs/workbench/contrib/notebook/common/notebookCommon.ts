@@ -100,7 +100,7 @@ export interface ICell {
 	language: string;
 	cell_type: 'markdown' | 'code';
 	outputs: IOutput[];
-	onDidChangeOutputs?: Event<void>;
+	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	isDirty: boolean;
 }
 
@@ -157,4 +157,10 @@ export type NotebookCellsSplice = [
 	number /* start */,
 	number /* delete count */,
 	ICell[]
+];
+
+export type NotebookCellOutputsSplice = [
+	number /* start */,
+	number /* delete count */,
+	IOutput[]
 ];

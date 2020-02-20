@@ -9,6 +9,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
+import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookEditor {
 	viewType: string | undefined;
@@ -19,7 +20,7 @@ export interface INotebookEditor {
 	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void;
 	getActiveCell(): CellViewModel | undefined;
 	layoutNotebookCell(cell: CellViewModel, height: number): void;
-	createInset(cell: CellViewModel, index: number, shadowContent: string, offset: number): void;
+	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getFontInfo(): BareFontInfo | undefined;
 	getListDimension(): DOM.Dimension | null;

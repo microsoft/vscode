@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, NotebookCellOutputsSplice } from '../common/extHost.protocol';
+import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext } from '../common/extHost.protocol';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MainThreadCell implements ICell {
-	private _onDidChangeOutputs = new Emitter<void>();
-	onDidChangeOutputs: Event<void> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
+	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
 
 	private _onDidChangeDirtyState = new Emitter<boolean>();
 	onDidChangeDirtyState: Event<boolean> = this._onDidChangeDirtyState.event;
@@ -23,11 +23,6 @@ export class MainThreadCell implements ICell {
 
 	get outputs(): IOutput[] {
 		return this._outputs;
-	}
-
-	set outputs(newOutputs: IOutput[]) {
-		this._outputs = newOutputs;
-		this._onDidChangeOutputs.fire();
 	}
 
 	private _isDirty: boolean = false;
@@ -65,7 +60,7 @@ export class MainThreadCell implements ICell {
 			this.outputs.splice(splice[0], splice[1], ...splice[2]);
 		});
 
-		this._onDidChangeOutputs.fire();
+		this._onDidChangeOutputs.fire(splices);
 	}
 
 	save() {

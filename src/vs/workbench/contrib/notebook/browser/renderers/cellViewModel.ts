@@ -8,7 +8,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Emitter } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellOutputsSplice, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -22,7 +22,7 @@ export class CellViewModel extends Disposable {
 	readonly onDidDispose = this._onDidDispose.event;
 	protected readonly _onDidChangeEditingState = new Emitter<void>();
 	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
-	protected readonly _onDidChangeOutputs = new Emitter<void>();
+	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
 	protected _outputsTop: PrefixSumComputer | null = null;
@@ -53,6 +53,16 @@ export class CellViewModel extends Disposable {
 		return this._dynamicHeight;
 	}
 
+
+	private _editorHeight = 0;
+	set editorHeight(height: number) {
+		this._editorHeight = height;
+	}
+
+	get editorHeight(): number {
+		return this._editorHeight;
+	}
+
 	private _textModel?: ITextModel;
 	readonly id: string = UUID.generateUuid();
 
@@ -66,12 +76,14 @@ export class CellViewModel extends Disposable {
 	) {
 		super();
 		if (this.cell.onDidChangeOutputs) {
-			this._register(this.cell.onDidChangeOutputs(() => {
+			this._register(this.cell.onDidChangeOutputs((splices) => {
 				this._outputCollection = new Array(this.cell.outputs.length);
 				this._outputsTop = null;
-				this._onDidChangeOutputs.fire();
+				this._onDidChangeOutputs.fire(splices);
 			}));
 		}
+
+		this._outputCollection = new Array(this.cell.outputs.length);
 	}
 	hasDynamicHeight() {
 		if (this._dynamicHeight !== null) {
@@ -171,7 +183,41 @@ export class CellViewModel extends Disposable {
 
 		this._ensureOutputsTop();
 
-		return this._outputsTop!.getAccumulatedValue(index);
+		return this._outputsTop!.getAccumulatedValue(index - 1);
+	}
+
+	getOutputHeight(output: IOutput): number | undefined {
+		let index = this.cell.outputs.indexOf(output);
+
+		if (index < 0) {
+			return undefined;
+		}
+
+		if (index < this._outputCollection.length) {
+			return this._outputCollection[index];
+		}
+
+		return undefined;
+	}
+
+	getOutputTotalHeight(): number {
+		this._ensureOutputsTop();
+
+		return this._outputsTop!.getTotalValue();
+	}
+
+	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {
+		this._ensureOutputsTop();
+
+		this._outputsTop!.removeValues(start, deleteCnt);
+		if (heights.length) {
+			const values = new Uint32Array(heights.length);
+			for (let i = 0; i < heights.length; i++) {
+				values[i] = heights[i];
+			}
+
+			this._outputsTop!.insertValues(start, values);
+		}
 	}
 
 	protected _ensureOutputsTop(): void {

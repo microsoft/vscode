@@ -29,7 +29,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/out
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { CELL_MARGIN, INotebook, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, INotebook, NotebookCellsSplice, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -322,24 +322,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				const updateScrollPosition = () => {
 					let scrollTop = this.list?.scrollTop || 0;
 					this.webview!.element.style.top = `${scrollTop}px`;
-					let updateItems: { top: number, id: string }[] = [];
+					let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
 
-					// const date = new Date();
-					this.webview?.mapping.forEach((item) => {
-						let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
-						let top = this.list?.getAbsoluteTop(index) || 0;
-						let newTop = this.webview!.shouldRenderInset(item.cell.id, top);
+					if (this.webview?.insetMapping) {
+						this.webview?.insetMapping.forEach((value, key) => {
+							let cell = value.cell;
+							let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+							let cellTop = this.list?.getAbsoluteTop(index) || 0;
+							if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
+								updateItems.push({
+									cell: cell,
+									output: key,
+									cellTop: cellTop
+								});
+							}
+						});
 
-						if (newTop !== undefined) {
-							updateItems.push({
-								top: newTop,
-								id: item.cell.id
-							});
-						}
-					});
-
-					if (updateItems.length > 0) {
-						// console.log('----- did scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 						this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 					}
 				};
@@ -348,7 +346,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 					this.webview?.updateViewScrollTop(-e.scrollTop, []);
 				}));
-				this.localStore.add(this.list!.onDidScroll(() => updateScrollPosition()));
+				this.localStore.add(this.list!.onDidScroll(() => {
+					updateScrollPosition();
+				}));
 				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
 				this.localStore.add(this.list!.onFocusChange((e) => {
 					if (e.elements.length > 0) {
@@ -531,29 +531,24 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: CellViewModel, outputIndex: number, shadowContent: string, offset: number) {
+	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}
 
 		let preloads = this.notebook!.renderers;
 
-		if (!this.webview!.mapping.has(cell.id)) {
+		if (!this.webview!.insetMapping.has(output)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getAbsoluteTop(index) || 0;
-			this.webview!.createInset(cell, offset, shadowContent, top + offset, preloads);
-			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
-		} else if (!this.webview!.outputMapping.has(cell.id + `-${outputIndex}`)) {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getAbsoluteTop(index) || 0;
-			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
-			this.webview!.createInset(cell, offset, shadowContent, top + offset, preloads);
+			let cellTop = this.list?.getAbsoluteTop(index) || 0;
+
+			this.webview!.createInset(cell, output, cellTop, offset, shadowContent, preloads);
 		} else {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			let top = this.list?.getAbsoluteTop(index) || 0;
+			let cellTop = this.list?.getAbsoluteTop(index) || 0;
 			let scrollTop = this.list?.scrollTop || 0;
 
-			this.webview!.updateViewScrollTop(-scrollTop, [{ id: cell.id, top: top + offset }]);
+			this.webview!.updateViewScrollTop(-scrollTop, [{ cell: cell, output: output, cellTop: cellTop }]);
 		}
 	}
 
