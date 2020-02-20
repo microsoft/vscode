@@ -283,6 +283,9 @@ export interface IUserDataSyncService {
 
 	readonly onDidChangeLocal: Event<void>;
 
+	readonly lastSyncTime: number | undefined;
+	readonly onDidChangeLastSyncTime: Event<number>;
+
 	pull(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;

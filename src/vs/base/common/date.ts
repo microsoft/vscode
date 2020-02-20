@@ -13,7 +13,7 @@ const month = day * 30;
 const year = day * 365;
 
 // TODO[ECA]: Localize strings
-export function fromNow(date: number | Date) {
+export function fromNow(date: number | Date, appendAgoLabel?: boolean): string {
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}
@@ -48,7 +48,7 @@ export function fromNow(date: number | Date) {
 		unit = 'yr';
 	}
 
-	return `${value} ${unit}${value === 1 ? '' : 's'}`;
+	return `${value} ${unit}${value === 1 ? '' : 's'}${appendAgoLabel ? ' ago' : ''}`;
 
 }
 

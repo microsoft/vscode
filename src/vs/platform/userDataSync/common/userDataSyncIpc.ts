@@ -19,13 +19,14 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
 			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
+			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflictsSources]);
+			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflictsSources, this.service.lastSyncTime]);
 			case 'sync': return this.service.sync();
 			case 'accept': return this.service.accept(args[0], args[1]);
 			case 'pull': return this.service.pull();
