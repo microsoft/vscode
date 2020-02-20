@@ -11,6 +11,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export class NotebookCellList<T> extends WorkbenchList<T> {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -62,4 +63,13 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 
 		return this.view.elementTop(index);
 	}
+
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	updateDynamicHeight(index: number, element: T, size: number): void {
+		this.view.updateDynamicHeight(index, element, size);
+	}
+
 }
