@@ -46,6 +46,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { fromNow } from 'vs/base/common/date';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -119,6 +120,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -138,7 +140,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => this.onDidRegisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this.onDidUnregisterAuthenticationProvider(e)));
 			this._register(this.authenticationService.onDidChangeSessions(e => this.onDidChangeSessions(e)));
-			this._register(userDataAutoSyncService.onError(({ code, source }) => this.onAutoSyncError(code, source)));
+			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
 				if (!isWeb) {
@@ -369,20 +371,40 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private onAutoSyncError(code: UserDataSyncErrorCode, source?: SyncSource): void {
-		switch (code) {
+	private onAutoSyncError(error: UserDataSyncError): void {
+		switch (error.code) {
 			case UserDataSyncErrorCode.TooLarge:
-				if (source === SyncSource.Keybindings || source === SyncSource.Settings) {
-					const sourceArea = getSyncAreaLabel(source);
+				if (error.source === SyncSource.Keybindings || error.source === SyncSource.Settings) {
+					const sourceArea = getSyncAreaLabel(error.source);
 					this.notificationService.notify({
 						severity: Severity.Error,
 						message: localize('too large', "Disabled synchronizing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
 						actions: {
 							primary: [new Action('open sync file', localize('open file', "Show {0} file", sourceArea), undefined, true,
-								() => source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+								() => error.source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
 						}
 					});
 				}
+				return;
+			case UserDataSyncErrorCode.LocalInvalidContent:
+				if (error.source === SyncSource.Keybindings || error.source === SyncSource.Settings) {
+					const sourceArea = getSyncAreaLabel(error.source);
+					this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('error invalid content', "Unable to sync {0} as there are errors/warnings in the file. Please open the file and fix them to continue syncing.", sourceArea),
+						actions: {
+							primary: [new Action('open sync file', localize('open file', "Show {0} file", sourceArea), undefined, true,
+								() => error.source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+						}
+					});
+				}
+				return;
+			case UserDataSyncErrorCode.Incompatible:
+				this.disableSync();
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('error incompatible', "Disabled synchronizing because local data is incompatible with the data in the cloud. Please update {0} to continue syncing.", this.productService.nameLong),
+				});
 				return;
 		}
 	}

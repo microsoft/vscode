@@ -6,7 +6,7 @@
 import { timeout, Delayer } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, SyncSource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
@@ -17,8 +17,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private successiveFailures: number = 0;
 	private readonly syncDelayer: Delayer<void>;
 
-	private readonly _onError: Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }> = this._register(new Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }>());
-	readonly onError: Event<{ code: UserDataSyncErrorCode, source?: SyncSource }> = this._onError.event;
+	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
+	readonly onError: Event<UserDataSyncError> = this._onError.event;
 
 	constructor(
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -62,7 +62,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				await this.userDataSyncService.sync();
 				this.resetFailures();
 			} catch (e) {
-				if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.TurnedOff) {
+				const error = UserDataSyncError.toUserDataSyncError(e);
+				if (error.code === UserDataSyncErrorCode.TurnedOff) {
 					this.logService.info('Auto Sync: Sync is turned off in the cloud.');
 					this.logService.info('Auto Sync: Resetting the local sync state.');
 					await this.userDataSyncService.resetLocal();
@@ -73,16 +74,16 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 						return this.sync(loop, auto);
 					}
 				}
-				if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.SessionExpired) {
+				if (error.code === UserDataSyncErrorCode.SessionExpired) {
 					this.logService.info('Auto Sync: Cloud has new session');
 					this.logService.info('Auto Sync: Resetting the local sync state.');
 					await this.userDataSyncService.resetLocal();
 					this.logService.info('Auto Sync: Completed resetting the local sync state.');
 					return this.sync(loop, auto);
 				}
-				this.logService.error(e);
+				this.logService.error(error);
 				this.successiveFailures++;
-				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
+				this._onError.fire(error);
 			}
 			if (loop) {
 				await timeout(1000 * 60 * 5);

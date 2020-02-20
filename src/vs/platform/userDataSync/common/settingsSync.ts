@@ -260,9 +260,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 		if (content !== null) {
 
-			if (this.hasErrors(content)) {
-				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
-			}
+			this.validateContent(content);
 
 			if (hasLocalChanged) {
 				this.logService.trace('Settings: Updating local settings...');
@@ -317,21 +315,14 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 		if (remoteSettingsSyncContent) {
 			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
-
-			// No action when there are errors
-			if (this.hasErrors(localContent)) {
-				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
-			}
-
-			else {
-				this.logService.trace('Settings: Merging remote settings with local settings...');
-				const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formattingOptions);
-				content = result.localContent || result.remoteContent;
-				hasLocalChanged = result.localContent !== null;
-				hasRemoteChanged = result.remoteContent !== null;
-				hasConflicts = result.hasConflicts;
-				conflictSettings = result.conflictsSettings;
-			}
+			this.validateContent(localContent);
+			this.logService.trace('Settings: Merging remote settings with local settings...');
+			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formattingOptions);
+			content = result.localContent || result.remoteContent;
+			hasLocalChanged = result.localContent !== null;
+			hasRemoteChanged = result.remoteContent !== null;
+			hasConflicts = result.hasConflicts;
+			conflictSettings = result.conflictsSettings;
 		}
 
 		// First time syncing to remote
@@ -363,5 +354,11 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.logService.error(e);
 		}
 		return null;
+	}
+
+	private validateContent(content: string): void {
+		if (this.hasErrors(content)) {
+			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
+		}
 	}
 }

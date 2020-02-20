@@ -302,7 +302,7 @@ export interface IUserDataSyncService {
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
-	readonly onError: Event<{ code: UserDataSyncErrorCode, source?: SyncSource }>;
+	readonly onError: Event<UserDataSyncError>;
 	triggerAutoSync(): Promise<void>;
 }
 
