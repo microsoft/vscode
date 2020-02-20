@@ -542,7 +542,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
 		const descriptor = editor.getTelemetryDescriptor();
 
-		const resource = editor.getResource();
+		const resource = editor.resource;
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
 			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
@@ -1580,7 +1580,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumHeight(): number { return this.editorControl.maximumHeight; }
 
 	private _onDidChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidChange: Event<{ width: number; height: number; } | undefined> = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	layout(width: number, height: number): void {
 		this.dimension = new Dimension(width, height);

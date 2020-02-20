@@ -847,15 +847,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		if (this._configHelper.config.experimentalRefreshOnResume) {
-			if (this._xterm.getOption('rendererType') !== 'dom') {
-				this._xterm.setOption('rendererType', 'dom');
-				// Do this asynchronously to clear our the texture atlas as all terminals will not
-				// be using canvas
-				const xterm = this._xterm;
-				setTimeout(() => xterm.setOption('rendererType', 'canvas'), 0);
-			}
-		}
 		this._xterm.refresh(0, this._xterm.rows - 1);
 	}
 

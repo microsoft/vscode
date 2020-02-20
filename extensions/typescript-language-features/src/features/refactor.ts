@@ -5,16 +5,17 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import * as fileSchemes from '../utils/fileSchemes';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
-import * as fileSchemes from '../utils/fileSchemes';
 
 const localize = nls.loadMessageBundle();
 
@@ -209,6 +210,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			vscode.CodeActionKind.Refactor,
 			...allKnownCodeActionKinds.map(x => x.kind),
 		],
+		documentation: [
+			{
+				kind: vscode.CodeActionKind.Refactor,
+				command: {
+					command: LearnMoreAboutRefactoringsCommand.id,
+					title: localize('refactor.documentation.title', "Learn more about JS/TS refactorings")
+				}
+			}
+		]
 	};
 
 	public async provideCodeActions(

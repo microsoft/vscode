@@ -12,6 +12,9 @@ export function getRemoteAuthority(uri: URI): string | undefined {
 	return uri.scheme === REMOTE_HOST_SCHEME ? uri.authority : undefined;
 }
 
+export function getRemoteName(authority: string): string;
+export function getRemoteName(authority: undefined): undefined;
+export function getRemoteName(authority: string | undefined): string | undefined;
 export function getRemoteName(authority: string | undefined): string | undefined {
 	if (!authority) {
 		return undefined;

@@ -34,7 +34,6 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -436,6 +435,7 @@ export class LoadedScriptsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-loaded-scripts');
 		dom.addClass(container, 'show-file-icons');
 
@@ -472,7 +472,7 @@ export class LoadedScriptsView extends ViewPane {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 				overrideStyles: {
-					listBackground: SIDE_BAR_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			}
 		);

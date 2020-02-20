@@ -15,14 +15,14 @@ function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
 }
 
 class TestFileWatcher {
-	private readonly _onFileChanges: Emitter<FileChangesEvent>;
+	private readonly _onDidFilesChange: Emitter<FileChangesEvent>;
 
 	constructor() {
-		this._onFileChanges = new Emitter<FileChangesEvent>();
+		this._onDidFilesChange = new Emitter<FileChangesEvent>();
 	}
 
-	get onFileChanges(): Event<FileChangesEvent> {
-		return this._onFileChanges.event;
+	get onDidFilesChange(): Event<FileChangesEvent> {
+		return this._onDidFilesChange.event;
 	}
 
 	report(changes: IDiskFileChange[]): void {
@@ -36,7 +36,7 @@ class TestFileWatcher {
 
 		// Emit through event emitter
 		if (normalizedEvents.length > 0) {
-			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
+			this._onDidFilesChange.fire(toFileChangesEvent(normalizedEvents));
 		}
 	}
 }
@@ -62,7 +62,7 @@ suite('Normalizer', () => {
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
 		];
 
-		watch.onFileChanges(e => {
+		watch.onDidFilesChange(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 3);
 			assert.ok(e.contains(added, FileChangeType.ADDED));
@@ -101,7 +101,7 @@ suite('Normalizer', () => {
 				{ path: updatedFile.fsPath, type: FileChangeType.UPDATED }
 			];
 
-			watch.onFileChanges(e => {
+			watch.onDidFilesChange(e => {
 				assert.ok(e);
 				assert.equal(e.changes.length, 5);
 
@@ -131,7 +131,7 @@ suite('Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onFileChanges(e => {
+		watch.onDidFilesChange(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 1);
 
@@ -156,7 +156,7 @@ suite('Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onFileChanges(e => {
+		watch.onDidFilesChange(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 2);
 
@@ -182,7 +182,7 @@ suite('Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onFileChanges(e => {
+		watch.onDidFilesChange(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 2);
 
@@ -211,7 +211,7 @@ suite('Normalizer', () => {
 			{ path: updated.fsPath, type: FileChangeType.DELETED }
 		];
 
-		watch.onFileChanges(e => {
+		watch.onDidFilesChange(e => {
 			assert.ok(e);
 			assert.equal(e.changes.length, 2);
 

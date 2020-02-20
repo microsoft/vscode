@@ -5,18 +5,61 @@
 
 import * as dayjs from 'dayjs';
 import * as advancedFormat from 'dayjs/plugin/advancedFormat';
-import * as relativeTime from 'dayjs/plugin/relativeTime';
-import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, TimelineItem, TimelineProvider, Uri, workspace, TimelineChangeEvent } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineCursor, TimelineItem, TimelineProvider, Uri, workspace } from 'vscode';
 import { Model } from './model';
 import { Repository } from './repository';
 import { debounce } from './decorators';
 import { Status } from './api/git';
 
 dayjs.extend(advancedFormat);
-dayjs.extend(relativeTime);
 
 // TODO[ECA]: Localize all the strings
 // TODO[ECA]: Localize or use a setting for date format
+
+export class GitTimelineItem extends TimelineItem {
+	static is(item: TimelineItem): item is GitTimelineItem {
+		return item instanceof GitTimelineItem;
+	}
+
+	readonly ref: string;
+	readonly previousRef: string;
+	readonly message: string;
+
+	constructor(
+		ref: string,
+		previousRef: string,
+		message: string,
+		timestamp: number,
+		id: string,
+		contextValue: string
+	) {
+		const index = message.indexOf('\n');
+		const label = index !== -1 ? `${message.substring(0, index)} \u2026` : message;
+
+		super(label, timestamp);
+
+		this.ref = ref;
+		this.previousRef = previousRef;
+		this.message = message;
+		this.id = id;
+		this.contextValue = contextValue;
+	}
+
+	get shortRef() {
+		return this.shortenRef(this.ref);
+	}
+
+	get shortPreviousRef() {
+		return this.shortenRef(this.previousRef);
+	}
+
+	private shortenRef(ref: string): string {
+		if (ref === '' || ref === '~' || ref === 'HEAD') {
+			return ref;
+		}
+		return ref.endsWith('^') ? `${ref.substr(0, 8)}^` : ref.substr(0, 8);
+	}
+}
 
 export class GitTimelineProvider implements TimelineProvider {
 	private _onDidChange = new EventEmitter<TimelineChangeEvent>();
@@ -44,7 +87,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		this._disposable.dispose();
 	}
 
-	async provideTimeline(uri: Uri, _token: CancellationToken): Promise<TimelineItem[]> {
+	async provideTimeline(uri: Uri, _cursor: TimelineCursor, _token: CancellationToken): Promise<Timeline> {
 		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
 
 		const repo = this._model.getRepository(uri);
@@ -53,7 +96,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			this._repoStatusDate = undefined;
 			this._repo = undefined;
 
-			return [];
+			return { items: [] };
 		}
 
 		if (this._repo?.root !== repo.root) {
@@ -72,25 +115,17 @@ export class GitTimelineProvider implements TimelineProvider {
 		const commits = await repo.logFile(uri);
 
 		let dateFormatter: dayjs.Dayjs;
-		const items = commits.map<TimelineItem>(c => {
-			let message = c.message;
-
-			const index = message.indexOf('\n');
-			if (index !== -1) {
-				message = `${message.substring(0, index)} \u2026`;
-			}
-
+		const items = commits.map<GitTimelineItem>(c => {
 			dateFormatter = dayjs(c.authorDate);
 
-			const item = new TimelineItem(message, c.authorDate?.getTime() ?? 0);
-			item.id = c.hash;
+			const item = new GitTimelineItem(c.hash, `${c.hash}^`, c.message, c.authorDate?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
-			item.description = `${dateFormatter.fromNow()}  \u2022  ${c.authorName}`;
-			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.fromNow()} (${dateFormatter.format('MMMM Do, YYYY h:mma')})\n\n${c.message}`;
+			item.description = c.authorName;
+			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n\n${c.message}`;
 			item.command = {
-				title: 'Open Diff',
-				command: 'git.openDiff',
-				arguments: [uri, `${c.hash}^`, c.hash]
+				title: 'Open Comparison',
+				command: 'git.timeline.openDiff',
+				arguments: [uri, this.id, item]
 			};
 
 			return item;
@@ -123,16 +158,15 @@ export class GitTimelineProvider implements TimelineProvider {
 					break;
 			}
 
-			const item = new TimelineItem('Staged Changes', date.getTime());
-			item.id = 'index';
+			const item = new GitTimelineItem('~', 'HEAD', 'Staged Changes', date.getTime(), 'index', 'git:file:index');
 			// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 			item.iconPath = new (ThemeIcon as any)('git-commit');
-			item.description = `${dateFormatter.fromNow()}  \u2022  You`;
-			item.detail = `You  \u2014 Index\n${dateFormatter.fromNow()} (${dateFormatter.format('MMMM Do, YYYY h:mma')})\n${status}`;
+			item.description = 'You';
+			item.detail = `You  \u2014 Index\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n${status}`;
 			item.command = {
 				title: 'Open Comparison',
-				command: 'git.openDiff',
-				arguments: [uri, 'HEAD', '~']
+				command: 'git.timeline.openDiff',
+				arguments: [uri, this.id, item]
 			};
 
 			items.push(item);
@@ -166,22 +200,21 @@ export class GitTimelineProvider implements TimelineProvider {
 					break;
 			}
 
-			const item = new TimelineItem('Uncommited Changes', date.getTime());
-			item.id = 'working';
+			const item = new GitTimelineItem('', index ? '~' : 'HEAD', 'Uncommited Changes', date.getTime(), 'working', 'git:file:working');
 			// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 			item.iconPath = new (ThemeIcon as any)('git-commit');
-			item.description = `${dateFormatter.fromNow()}  \u2022  You`;
-			item.detail = `You  \u2014 Working Tree\n${dateFormatter.fromNow()} (${dateFormatter.format('MMMM Do, YYYY h:mma')})\n${status}`;
+			item.description = 'You';
+			item.detail = `You  \u2014 Working Tree\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n${status}`;
 			item.command = {
 				title: 'Open Comparison',
-				command: 'git.openDiff',
-				arguments: [uri, index ? '~' : 'HEAD', '']
+				command: 'git.timeline.openDiff',
+				arguments: [uri, this.id, item]
 			};
 
 			items.push(item);
 		}
 
-		return items;
+		return { items: items };
 	}
 
 	private onRepositoriesChanged(_repo: Repository) {
@@ -208,6 +241,6 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	@debounce(500)
 	private fireChanged() {
-		this._onDidChange.fire();
+		this._onDidChange.fire({});
 	}
 }

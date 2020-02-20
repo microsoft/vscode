@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -49,7 +49,7 @@ import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 
 const defaultSelector = { scheme: 'far' };
-const model: ITextModel = EditorModel.createFromString(
+const model: ITextModel = TextModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',

@@ -876,9 +876,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Debug:
-
-	// deprecated
+	//#region deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**
@@ -1410,49 +1408,6 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region https://github.com/microsoft/vscode/issues/77728
-
-	/**
-	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
-	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
-	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
-	 */
-	export interface WorkspaceEditMetadata {
-
-		/**
-		 * A flag which indicates that user confirmation is needed.
-		 */
-		needsConfirmation: boolean;
-
-		/**
-		 * A human-readable string which is rendered prominent.
-		 */
-		label: string;
-
-		/**
-		 * A human-readable string which is rendered less prominent in the same line.
-		 */
-		description?: string;
-
-		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
-		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface WorkspaceEdit {
-
-		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditMetadata): void;
-		delete(uri: Uri, range: Range, metadata?: WorkspaceEditMetadata): void;
-		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditMetadata): void;
-
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-	}
-
-	//#endregion
-
 	//#region Diagnostic links https://github.com/microsoft/vscode/issues/11847
 
 	export interface Diagnostic {
@@ -1553,6 +1508,40 @@ declare module 'vscode' {
 		uri?: Uri;
 	}
 
+	export interface TimelineCursor {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items to be returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag to specify whether the timeline items requested are before or after (default) the provided cursor.
+		 */
+		before?: boolean;
+
+		/**
+		 * The maximum number of timeline items that should be returned.
+		 */
+		limit?: number;
+	}
+
+	export interface Timeline {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items returned. Must be serializable.
+		 */
+		cursor?: any;
+
+		/**
+		 * A flag which indicates whether there are any more items that weren't returned.
+		 */
+		more?: boolean;
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		items: TimelineItem[];
+	}
+
 	export interface TimelineProvider {
 		/**
 		 * An optional event to signal that the timeline for a source has changed.
@@ -1575,10 +1564,11 @@ declare module 'vscode' {
 		 *
 		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
 		 * @param token A cancellation token.
-		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
+		 * @param cursor TBD
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, token: CancellationToken): ProviderResult<TimelineItem[]>;
+		provideTimeline(uri: Uri, cursor: TimelineCursor, token: CancellationToken): ProviderResult<Timeline>;
 	}
 
 	export namespace workspace {
@@ -1619,6 +1609,54 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/86788
+
+	export interface CodeActionProviderMetadata {
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * The documentation is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. Note that in this case, we always pick the most specific
+		 *  documentation. For example, if documentation for both `Refactor` and `RefactorExtract` is provided, and we
+		 *  request code actions for `RefactorExtract`, we prefer the more specific documentation for `RefactorExtract`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 */
+		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command }>;
+	}
+
+	//#endregion
+
+	//#region Dialog title: https://github.com/microsoft/vscode/issues/82871
+
+	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
+	 */
+	export interface OpenDialogOptions {
+		/**
+		 * Dialog title
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * Dialog title
+		 */
+		title?: string;
 	}
 
 	//#endregion

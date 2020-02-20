@@ -33,6 +33,7 @@ import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variables
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class DebugSession implements IDebugSession {
 
@@ -74,7 +75,8 @@ export class DebugSession implements IDebugSession {
 		@IProductService private readonly productService: IProductService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this.id = generateUuid();
 		this._options = options || {};
@@ -83,7 +85,15 @@ export class DebugSession implements IDebugSession {
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
-		this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+
+		const toDispose: IDisposable[] = [];
+		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
+		if (lifecycleService) {
+			toDispose.push(lifecycleService.onShutdown(() => {
+				this.shutdown();
+				dispose(toDispose);
+			}));
+		}
 	}
 
 	getId(): string {
@@ -213,6 +223,7 @@ export class DebugSession implements IDebugSession {
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
+			this.shutdown();
 			throw err;
 		}
 	}
@@ -227,8 +238,12 @@ export class DebugSession implements IDebugSession {
 
 		// __sessionID only used for EH debugging (but we add it always for now...)
 		config.__sessionId = this.getId();
-		await this.raw.launchOrAttach(config);
-
+		try {
+			await this.raw.launchOrAttach(config);
+		} catch (err) {
+			this.shutdown();
+			throw err;
+		}
 	}
 
 	/**
@@ -817,6 +832,17 @@ export class DebugSession implements IDebugSession {
 				column: event.body.column ? event.body.column : 1,
 				source: this.getSource(event.body.source)
 			} : undefined;
+
+			if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
+				const expanded = event.body.group === 'start';
+				this.repl.startGroup(event.body.output || '', expanded, source);
+				return;
+			}
+			if (event.body.group === 'end') {
+				this.repl.endGroup();
+				// Do not return, the end event can have additional output in it
+			}
+
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
 				outpuPromises.push(container.getChildren().then(async children => {
@@ -892,17 +918,19 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
 			this.initialized = true;
 			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
+			this.shutdown();
 			this._onDidEndAdapter.fire(event);
 		}));
 	}
 
-	shutdown(): void {
+	// Disconnects and clears state. Session can be initialized again for a new connection.
+	private shutdown(): void {
 		dispose(this.rawListeners);
 		if (this.raw) {
 			this.raw.disconnect();
 			this.raw.dispose();
+			this.raw = undefined;
 		}
-		this.raw = undefined;
 		this.fetchThreadsScheduler = undefined;
 		this.model.clearThreads(this.getId(), true);
 		this._onDidChangeState.fire();

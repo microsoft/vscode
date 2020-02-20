@@ -55,6 +55,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -129,14 +130,26 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
 
-		let resource = untitledTextEditorInput.getResource();
+		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
 			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
 		}
 
+		// Mode: only remember mode if it is either specific (not text)
+		// or if the mode was explicitly set by the user. We want to preserve
+		// this information across restarts and not set the mode unless
+		// this is the case.
+		let modeId: string | undefined;
+		const modeIdCandidate = untitledTextEditorInput.getMode();
+		if (modeIdCandidate !== PLAINTEXT_MODE_ID) {
+			modeId = modeIdCandidate;
+		} else if (untitledTextEditorInput.model.hasModeSetExplicitly) {
+			modeId = modeIdCandidate;
+		}
+
 		const serialized: ISerializedUntitledTextEditorInput = {
 			resourceJSON: resource.toJSON(),
-			modeId: untitledTextEditorInput.getMode(),
+			modeId,
 			encoding: untitledTextEditorInput.getEncoding()
 		};
 

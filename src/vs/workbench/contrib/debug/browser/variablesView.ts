@@ -30,7 +30,6 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -91,6 +90,7 @@ export class VariablesView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
@@ -102,7 +102,7 @@ export class VariablesView extends ViewPane {
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -110,10 +110,6 @@ export class VariablesView extends ViewPane {
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		if (this.toolbar) {
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
-			this.toolbar.setActions([collapseAction])();
-		}
 		this.tree.updateChildren();
 
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
@@ -148,6 +144,10 @@ export class VariablesView extends ViewPane {
 				this.tree.rerender(e);
 			}
 		}));
+	}
+
+	getActions(): IAction[] {
+		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {

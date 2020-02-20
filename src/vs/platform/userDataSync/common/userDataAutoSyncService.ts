@@ -6,7 +6,8 @@
 import { timeout, Delayer } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAuthTokenService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, SyncSource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, SyncSource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
@@ -23,12 +24,12 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
+		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 	) {
 		super();
 		this.updateEnablement(false, true);
 		this.syncDelayer = this._register(new Delayer<void>(0));
-		this._register(Event.any<any>(userDataAuthTokenService.onDidChangeToken)(() => this.updateEnablement(true, true)));
+		this._register(Event.any<any>(authTokenService.onDidChangeToken)(() => this.updateEnablement(true, true)));
 		this._register(Event.any<any>(userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true, true)));
 		this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => this.updateEnablement(true, false)));
 		this._register(this.userDataSyncEnablementService.onDidChangeResourceEnablement(() => this.triggerAutoSync()));
@@ -72,6 +73,13 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 						return this.sync(loop, auto);
 					}
 				}
+				if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.SessionExpired) {
+					this.logService.info('Auto Sync: Cloud has new session');
+					this.logService.info('Auto Sync: Resetting the local sync state.');
+					await this.userDataSyncService.resetLocal();
+					this.logService.info('Auto Sync: Completed resetting the local sync state.');
+					return this.sync(loop, auto);
+				}
 				this.logService.error(e);
 				this.successiveFailures++;
 				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
@@ -88,7 +96,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private async isAutoSyncEnabled(): Promise<boolean> {
 		return this.userDataSyncEnablementService.isEnabled()
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
-			&& !!(await this.userDataAuthTokenService.getToken());
+			&& !!(await this.authTokenService.getToken());
 	}
 
 	private resetFailures(): void {
@@ -98,7 +106,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	async triggerAutoSync(): Promise<void> {
 		if (this.enabled) {
 			return this.syncDelayer.trigger(() => {
-				this.logService.info('Auto Sync: Triggerred.');
+				this.logService.info('Auto Sync: Triggered.');
 				return this.sync(false, true);
 			}, this.successiveFailures
 				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */

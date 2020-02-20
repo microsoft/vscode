@@ -148,8 +148,8 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(resource => {
-			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(resource));
+		this.textFileService.untitled.onDidChangeLabel(model => {
+			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
 		});
 	}
 
@@ -239,7 +239,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
-	readonly onDidRender: Event<void> = this._onDidRender.event;
+	readonly onDidRender = this._onDidRender.event;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 

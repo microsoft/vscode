@@ -414,15 +414,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public onVersionStatusClicked(): Thenable<void> {
-		return this.showVersionPicker(false);
+		return this.showVersionPicker();
 	}
 
-	private showVersionPicker(firstRun: boolean): Thenable<void> {
-		return this.versionPicker.show(firstRun).then(change => {
-			if (firstRun || !change.newVersion || !change.oldVersion || change.oldVersion.path === change.newVersion.path) {
-				return;
+	private showVersionPicker(): Thenable<void> {
+		return this.versionPicker.show().then(change => {
+			if (change.newVersion && change.oldVersion && change.oldVersion.eq(change.newVersion)) {
+				this.restartTsServer();
 			}
-			this.restartTsServer();
 		});
 	}
 
@@ -634,7 +633,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public getWorkspaceRootForResource(resource: vscode.Uri): string | undefined {
-		const roots = vscode.workspace.workspaceFolders;
+		const roots = vscode.workspace.workspaceFolders ? Array.from(vscode.workspace.workspaceFolders) : undefined;
 		if (!roots || !roots.length) {
 			return undefined;
 		}

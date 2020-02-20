@@ -7,7 +7,6 @@ import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -113,30 +112,12 @@ export class OpenResultsInEditorAction extends Action {
 	}
 }
 
-
-export class ReRunSearchEditorSearchAction extends Action {
-
-	static readonly ID = 'searchEditor.rerunSerach';
-	static readonly LABEL = localize('search.rerunSearch', "Rerun Search in Editor");
-
-	constructor(id: string, label: string,
-		@IEditorService private readonly editorService: IEditorService) {
-		super(id, label);
-	}
-
-	async run() {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			await (this.editorService.activeControl as SearchEditor).runSearch(false, true);
-		}
-	}
-}
-
 const openNewSearchEditor =
 	async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const activeEditor = editorService.activeTextEditorWidget;
 		let activeModel: ICodeEditor | undefined;
@@ -163,7 +144,11 @@ const openNewSearchEditor =
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
-		await editorService.openEditor(input, { pinned: true });
+		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
+
+		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
+			editor.runSearch(true, true);
+		}
 	};
 
 export const createEditorFromSearchResult =
@@ -187,6 +172,5 @@ export const createEditorFromSearchResult =
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
 		await editorService.openEditor(input, { pinned: true });
-		input.setHighlights(matchRanges.map(range =>
-			({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		input.setMatchRanges(matchRanges);
 	};

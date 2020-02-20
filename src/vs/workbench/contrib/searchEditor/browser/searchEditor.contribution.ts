@@ -26,7 +26,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenResultsInEditorAction, OpenSearchEditorAction, ReRunSearchEditorSearchAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -63,7 +63,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		});
 
 		this.editorService.overrideOpenEditor((editor, options, group) => {
-			const resource = editor.getResource();
+			const resource = editor.resource;
 			if (!resource ||
 				!(endsWith(resource.path, '.code-search') || resource.scheme === SearchEditorConstants.SearchEditorScheme) ||
 				!(editor instanceof FileEditorInput || (resource.scheme === SearchEditorConstants.SearchEditorScheme))) {
@@ -106,17 +106,17 @@ class SearchEditorInputFactory implements IEditorInputFactory {
 
 		const config = input.getConfigSync();
 		const dirty = input.isDirty();
-		const highlights = input.highlights;
+		const matchRanges = input.getMatchRanges();
 
-		return JSON.stringify({ resource, dirty, config, name: input.getName(), highlights });
+		return JSON.stringify({ resource, dirty, config, name: input.getName(), matchRanges });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { resource, dirty, config, highlights } = JSON.parse(serializedEditorInput);
+		const { resource, dirty, config, matchRanges } = JSON.parse(serializedEditorInput);
 		if (config && (config.query !== undefined)) {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, uri: URI.parse(resource) });
 			input.setDirty(dirty);
-			input.setHighlights(highlights);
+			input.setMatchRanges(matchRanges);
 			return input;
 		}
 		return undefined;
@@ -163,11 +163,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 //#region Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 const category = localize('search', "Search Editor");
-
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(ReRunSearchEditorSearchAction, ReRunSearchEditorSearchAction.ID, ReRunSearchEditorSearchAction.LABEL),
-	'Search Editor: Rerun search', category, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)
-);
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,

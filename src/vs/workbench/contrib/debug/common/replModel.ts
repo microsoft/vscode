@@ -120,6 +120,60 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 	}
 }
 
+export class ReplGroup implements IReplElement {
+
+	private children: IReplElement[] = [];
+	private id: string;
+	private ended = false;
+	static COUNTER = 0;
+
+	constructor(
+		public name: string,
+		public autoExpand: boolean,
+		public sourceData?: IReplElementSource
+	) {
+		this.id = `replGroup:${ReplGroup.COUNTER++}`;
+	}
+
+	get hasChildren() {
+		return true;
+	}
+
+	getId(): string {
+		return this.id;
+	}
+
+	toString(): string {
+		return this.name;
+	}
+
+	addChild(child: IReplElement): void {
+		const lastElement = this.children.length ? this.children[this.children.length - 1] : undefined;
+		if (lastElement instanceof ReplGroup && !lastElement.hasEnded) {
+			lastElement.addChild(child);
+		} else {
+			this.children.push(child);
+		}
+	}
+
+	getChildren(): IReplElement[] {
+		return this.children;
+	}
+
+	end(): void {
+		const lastElement = this.children.length ? this.children[this.children.length - 1] : undefined;
+		if (lastElement instanceof ReplGroup && !lastElement.hasEnded) {
+			lastElement.end();
+		} else {
+			this.ended = true;
+		}
+	}
+
+	get hasEnded(): boolean {
+		return this.ended;
+	}
+}
+
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 	private readonly _onDidChangeElements = new Emitter<void>();
@@ -162,11 +216,29 @@ export class ReplModel {
 		}
 	}
 
-	private addReplElement(newElement: IReplElement): void {
-		this.replElements.push(newElement);
-		if (this.replElements.length > MAX_REPL_LENGTH) {
-			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
+	startGroup(name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
+		const group = new ReplGroup(name, autoExpand, sourceData);
+		this.addReplElement(group);
+	}
+
+	endGroup(): void {
+		const lastElement = this.replElements[this.replElements.length - 1];
+		if (lastElement instanceof ReplGroup) {
+			lastElement.end();
 		}
+	}
+
+	private addReplElement(newElement: IReplElement): void {
+		const lastElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
+		if (lastElement instanceof ReplGroup && !lastElement.hasEnded) {
+			lastElement.addChild(newElement);
+		} else {
+			this.replElements.push(newElement);
+			if (this.replElements.length > MAX_REPL_LENGTH) {
+				this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
+			}
+		}
+
 		this._onDidChangeElements.fire();
 	}
 

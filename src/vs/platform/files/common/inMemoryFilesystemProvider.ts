@@ -66,9 +66,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		const entry = this._lookupAsDirectory(resource, false);
 		let result: [string, FileType][] = [];
-		for (const [name, child] of entry.entries) {
-			result.push([name, child.type]);
-		}
+		entry.entries.forEach((child, name) => result.push([name, child.type]));
 		return result;
 	}
 

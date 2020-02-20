@@ -270,7 +270,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart });
+				return this.send('terminate', { restart }, undefined, 500);
 			}
 			return this.disconnect(restart);
 		}
@@ -601,7 +601,7 @@ export class RawDebugSession implements IDisposable {
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
 		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
-				errorDispatch(new Error('no debug adapter found'));
+				errorDispatch(new Error(nls.localize('noDebugAdapter', "No debug adapter found. Can not send '{0}'.", command)));
 				return;
 			}
 			let cancelationListener: IDisposable;

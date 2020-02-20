@@ -352,7 +352,7 @@ export class UserSettings extends Disposable {
 		super();
 		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), this.scopes);
 		this._register(this.fileService.watch(dirname(this.userSettingsResource)));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.userSettingsResource))(() => this._onDidChange.fire()));
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userSettingsResource))(() => this._onDidChange.fire()));
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
