@@ -95,6 +95,10 @@ export class StatefullMarkdownCell extends Disposable {
 
 							notebookEditor.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
 						}));
+
+						if (viewCell.isEditing) {
+							this.editor!.focus();
+						}
 					});
 
 					this.localDisposables.add(this.editor.onDidContentSizeChange(e => {
