@@ -50,7 +50,6 @@
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 	};
 
-	// TODO: @rebornix, make it an option
 	const defaultCssRules = `
 	body {
 		background-color: var(--vscode-editor-background);

@@ -1546,6 +1546,7 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
+
 export interface CodeLens {
 	range: IRange;
 	id?: string;
