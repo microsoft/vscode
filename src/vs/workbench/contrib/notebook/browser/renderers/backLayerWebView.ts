@@ -98,6 +98,9 @@ export class BackLayerWebView extends Disposable {
 						margin: 8px 0;
 						background-color: var(--vscode-list-inactiveSelectionBackground);
 					}
+					body {
+						padding: 0px;
+					}
 				</style>
 			</head>
 			<body style="overflow: hidden;">

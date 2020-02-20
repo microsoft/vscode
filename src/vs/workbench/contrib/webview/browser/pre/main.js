@@ -59,8 +59,7 @@
 		font-weight: var(--vscode-font-weight);
 		font-size: var(--vscode-font-size);
 		margin: 0;
-		height: 100%;
-		width: 100%;
+		padding: 0 20px;
 	}
 
 	img {
