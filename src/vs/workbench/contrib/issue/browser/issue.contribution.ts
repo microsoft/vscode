@@ -12,14 +12,13 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IWebIssueService, WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import { OpenIssueReporterArgs } from 'vs/workbench/contrib/issue/common/commands';
+import { OpenIssueReporterArgs, OpenIssueReporterActionId } from 'vs/workbench/contrib/issue/common/commands';
 
 class RegisterIssueContribution implements IWorkbenchContribution {
 
 	constructor(@IProductService readonly productService: IProductService) {
 		if (productService.reportIssueUrl) {
 			const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
-			const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 			const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 			CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string] | OpenIssueReporterArgs) {
