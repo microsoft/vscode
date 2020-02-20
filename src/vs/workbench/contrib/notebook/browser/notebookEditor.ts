@@ -552,6 +552,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
+	removeInset(output: IOutput) {
+		if (!this.webview) {
+			return;
+		}
+
+		this.webview!.removeInset(output);
+	}
+
 	getOutputRenderer(): OutputRenderer {
 		return this.outputRenderer;
 	}

@@ -112,6 +112,10 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(viewCell.onDidChangeOutputs((splices) => {
+			if (!splices.length) {
+				return;
+			}
+
 			if (this.viewCell.outputs.length) {
 				this.templateData.outputContainer!.style.display = 'block';
 			} else {
@@ -132,6 +136,7 @@ export class CodeCell extends Disposable {
 					removedKeys.push(key);
 					// remove element from DOM
 					this.templateData?.outputContainer?.removeChild(value);
+					this.notebookEditor.removeInset(key);
 				}
 			});
 

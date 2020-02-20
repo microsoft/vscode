@@ -21,6 +21,7 @@ export interface INotebookEditor {
 	getActiveCell(): CellViewModel | undefined;
 	layoutNotebookCell(cell: CellViewModel, height: number): void;
 	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void;
+	removeInset(output: IOutput): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getFontInfo(): BareFontInfo | undefined;
 	getListDimension(): DOM.Dimension | null;

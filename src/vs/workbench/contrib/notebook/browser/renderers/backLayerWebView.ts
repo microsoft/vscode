@@ -226,6 +226,11 @@ export class BackLayerWebView extends Disposable {
 
 				observers = [];
 				break;
+			case 'clearOutput':
+				let output = document.getElementById(id);
+				output.parentNode.removeChild(output);
+				// @TODO remove observer
+				break;
 			case 'preload':
 				let resources = event.data.resources;
 				let preloadsContainer = document.getElementById('__vscode_preloads');
@@ -347,6 +352,22 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage(message);
 		this.insetMapping.set(output, { outputId: outputId, cell: cell, cacheOffset: initialTop });
 		this.reversedInsetMapping.set(outputId, output);
+	}
+
+	removeInset(output: IOutput) {
+		let outputCache = this.insetMapping.get(output);
+		if (!outputCache) {
+			return;
+		}
+
+		let id = outputCache.outputId;
+
+		this.webview.sendMessage({
+			type: 'clearOutput',
+			id: id
+		});
+		this.insetMapping.delete(output);
+		this.reversedInsetMapping.delete(id);
 	}
 
 	clearInsets() {
