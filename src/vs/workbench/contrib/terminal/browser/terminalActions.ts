@@ -690,6 +690,8 @@ export class RunActiveFileInTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
+		await instance.processReady;
+
 		const editor = this.codeEditorService.getActiveCodeEditor();
 		if (!editor || !editor.hasModel()) {
 			return Promise.resolve(undefined);

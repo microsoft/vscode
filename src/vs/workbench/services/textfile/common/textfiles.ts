@@ -96,11 +96,6 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * An event that is fired before attempting to create a text file.
-	 */
-	readonly onWillCreateTextFile: Event<TextFileCreateEvent>;
-
-	/**
 	 * An event that is fired after a text file has been created.
 	 */
 	readonly onDidCreateTextFile: Event<TextFileCreateEvent>;
@@ -161,12 +156,17 @@ export const enum TextFileOperationResult {
 }
 
 export class TextFileOperationError extends FileOperationError {
-	constructor(message: string, public textFileOperationResult: TextFileOperationResult, public options?: IReadTextFileOptions & IWriteTextFileOptions) {
-		super(message, FileOperationResult.FILE_OTHER_ERROR);
-	}
 
 	static isTextFileOperationError(obj: unknown): obj is TextFileOperationError {
 		return obj instanceof Error && !isUndefinedOrNull((obj as TextFileOperationError).textFileOperationResult);
+	}
+
+	constructor(
+		message: string,
+		public textFileOperationResult: TextFileOperationResult,
+		public options?: IReadTextFileOptions & IWriteTextFileOptions
+	) {
+		super(message, FileOperationResult.FILE_OTHER_ERROR);
 	}
 }
 
@@ -193,7 +193,7 @@ export interface ISaveErrorHandler {
 /**
  * States the text file editor model can be in.
  */
-export const enum ModelState {
+export const enum TextFileEditorModelState {
 
 	/**
 	 * A model is saved.
@@ -228,17 +228,7 @@ export const enum ModelState {
 	ERROR
 }
 
-export interface ITextFileOperationResult {
-	results: IResult[];
-}
-
-export interface IResult {
-	source: URI;
-	target?: URI;
-	error?: boolean;
-}
-
-export const enum LoadReason {
+export const enum TextFileLoadReason {
 	EDITOR = 1,
 	REFERENCE = 2,
 	OTHER = 3
@@ -268,12 +258,12 @@ export interface ITextFileStreamContent extends IBaseTextFileContent {
 	value: ITextBufferFactory;
 }
 
-export interface IModelLoadOrCreateOptions {
+export interface ITextFileEditorModelLoadOrCreateOptions {
 
 	/**
 	 * Context why the model is being loaded or created.
 	 */
-	reason?: LoadReason;
+	reason?: TextFileLoadReason;
 
 	/**
 	 * The language mode to use for the model text content.
@@ -303,14 +293,14 @@ export interface IModelLoadOrCreateOptions {
 	allowBinary?: boolean;
 }
 
-export interface ITextFileModelSaveEvent {
+export interface ITextFileSaveEvent {
 	model: ITextFileEditorModel;
 	reason: SaveReason;
 }
 
-export interface ITextFileModelLoadEvent {
+export interface ITextFileLoadEvent {
 	model: ITextFileEditorModel;
-	reason: LoadReason;
+	reason: TextFileLoadReason;
 }
 
 export interface ITextFileSaveParticipant {
@@ -330,35 +320,69 @@ export interface ITextFileSaveParticipant {
 export interface ITextFileEditorModelManager {
 
 	readonly onDidCreate: Event<ITextFileEditorModel>;
-	readonly onDidLoad: Event<ITextFileModelLoadEvent>;
+	readonly onDidLoad: Event<ITextFileLoadEvent>;
 	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
-	readonly onDidSaveError: Event<ITextFileEditorModel>;
-	readonly onDidSave: Event<ITextFileModelSaveEvent>;
-	readonly onDidRevert: Event<ITextFileEditorModel>;
 	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
+	readonly onDidSaveError: Event<ITextFileEditorModel>;
+	readonly onDidSave: Event<ITextFileSaveEvent>;
+	readonly onDidRevert: Event<ITextFileEditorModel>;
+
+	readonly models: ITextFileEditorModel[];
 
 	saveErrorHandler: ISaveErrorHandler;
 
+	/**
+	 * Returns the text file editor model for the provided resource
+	 * or undefined if none.
+	 */
 	get(resource: URI): ITextFileEditorModel | undefined;
-	getAll(): ITextFileEditorModel[];
 
-	resolve(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
+	/**
+	 * Allows to load a text file model from disk.
+	 */
+	resolve(resource: URI, options?: ITextFileEditorModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
+	/**
+	 * Adds a participant for saving text file models.
+	 */
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
+
 	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
 
 export interface ITextFileSaveOptions extends ISaveOptions {
+
+	/**
+	 * Makes the file writable if it is readonly.
+	 */
 	overwriteReadonly?: boolean;
+
+	/**
+	 * Overwrite the encoding of the file on disk as configured.
+	 */
 	overwriteEncoding?: boolean;
+
+	/**
+	 * Save the file with elevated privileges.
+	 *
+	 * Note: This may not be supported in all environments.
+	 */
 	writeElevated?: boolean;
+
+	/**
+	 * Allows to write to a file even if it has been modified on disk.
+	 */
 	ignoreModifiedSince?: boolean;
+
+	/**
+	 * If set, will bubble up the error to the caller instead of handling it.
+	 */
 	ignoreErrorHandler?: boolean;
 }
 
-export interface ILoadOptions {
+export interface ITextFileLoadOptions {
 
 	/**
 	 * Go to disk bypassing any cache of the model if any.
@@ -373,39 +397,29 @@ export interface ILoadOptions {
 	/**
 	 * Context why the model is being loaded.
 	 */
-	reason?: LoadReason;
+	reason?: TextFileLoadReason;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
 
 	readonly onDidChangeContent: Event<void>;
-	readonly onDidLoad: Event<LoadReason>;
 	readonly onDidSaveError: Event<void>;
-	readonly onDidSave: Event<SaveReason>;
-	readonly onDidRevert: Event<void>;
-	readonly onDidChangeEncoding: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
 
-	hasState(state: ModelState): boolean;
+	hasState(state: TextFileEditorModelState): boolean;
 
 	updatePreferredEncoding(encoding: string | undefined): void;
 
-	updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void;
-
 	save(options?: ITextFileSaveOptions): Promise<boolean>;
-
-	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
-
 	revert(options?: IRevertOptions): Promise<boolean>;
 
-	isDirty(): this is IResolvedTextFileEditorModel;
+	load(options?: ITextFileLoadOptions): Promise<ITextFileEditorModel>;
 
-	setDirty(dirty: boolean): void;
+	isDirty(): this is IResolvedTextFileEditorModel;
 
 	getMode(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
-
 	isDisposed(): boolean;
 }
 

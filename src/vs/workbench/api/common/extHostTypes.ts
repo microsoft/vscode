@@ -576,14 +576,14 @@ export interface IFileOperation {
 	from?: URI;
 	to?: URI;
 	options?: IFileOperationOptions;
-	metadata?: vscode.WorkspaceEditMetadata;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileTextEdit {
 	_type: 2;
 	uri: URI;
 	edit: TextEdit;
-	metadata?: vscode.WorkspaceEditMetadata;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 @es5ClassCompat
@@ -591,27 +591,27 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 1, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
 	}
 
-	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditMetadata): void {
+	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
-	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditMetadata): void {
+	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this.replace(resource, new Range(position, position), newText, metadata);
 	}
 
-	delete(resource: URI, range: Range, metadata?: vscode.WorkspaceEditMetadata): void {
+	delete(resource: URI, range: Range, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this.replace(resource, range, '', metadata);
 	}
 

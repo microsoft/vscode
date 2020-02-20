@@ -566,24 +566,29 @@ export class CommandCenter {
 	}
 
 	@command('git.init')
-	async init(): Promise<void> {
+	async init(skipFolderPrompt = false): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
 		let askToOpen = true;
 
 		if (workspace.workspaceFolders) {
-			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
-			const pick = { label: localize('choose', "Choose Folder...") };
-			const items: { label: string, folder?: WorkspaceFolder }[] = [
-				...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
-				pick
-			];
-			const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
-
-			if (!item) {
-				return;
-			} else if (item.folder) {
-				repositoryPath = item.folder.uri.fsPath;
+			if (skipFolderPrompt && workspace.workspaceFolders.length === 1) {
+				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
 				askToOpen = false;
+			} else {
+				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
+				const pick = { label: localize('choose', "Choose Folder...") };
+				const items: { label: string, folder?: WorkspaceFolder }[] = [
+					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
+					pick
+				];
+				const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
+
+				if (!item) {
+					return;
+				} else if (item.folder) {
+					repositoryPath = item.folder.uri.fsPath;
+					askToOpen = false;
+				}
 			}
 		}
 

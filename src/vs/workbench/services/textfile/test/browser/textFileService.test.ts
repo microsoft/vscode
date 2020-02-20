@@ -135,12 +135,14 @@ suite('Files - TextFileService', () => {
 
 		let eventCounter = 0;
 
-		accessor.textFileService.onWillCreateTextFile(e => {
-			assert.equal(e.resource.toString(), model.resource.toString());
-			eventCounter++;
+		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async target => {
+				assert.equal(target.toString(), model.resource.toString());
+				eventCounter++;
+			}
 		});
 
-		accessor.textFileService.onDidCreateTextFile(e => {
+		const disposable2 = accessor.textFileService.onDidCreateTextFile(e => {
 			assert.equal(e.resource.toString(), model.resource.toString());
 			eventCounter++;
 		});
@@ -149,5 +151,8 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 
 		assert.equal(eventCounter, 2);
+
+		disposable1.dispose();
+		disposable2.dispose();
 	});
 });

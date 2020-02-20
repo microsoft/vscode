@@ -165,7 +165,7 @@ export interface IFileInputFactory {
 
 	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
-	isFileInput(obj: any): obj is IFileEditorInput;
+	isFileInput(obj: unknown): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {

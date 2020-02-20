@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -39,6 +41,22 @@ export interface WorkingCopyFileEvent extends IWaitUntil {
 	readonly source?: URI;
 }
 
+export interface IWorkingCopyFileOperationParticipant {
+
+	/**
+	 * Participate in a file operation of a working copy. Allows to
+	 * change the working copy before it is being saved to disk.
+	 */
+	participate(
+		target: URI,
+		source: URI | undefined,
+		operation: FileOperation,
+		progress: IProgress<IProgressStep>,
+		timeout: number,
+		token: CancellationToken
+	): Promise<void>;
+}
+
 /**
  * A service that allows to perform file operations with working copy support.
  * Any operation that would leave a stale dirty working copy behind will make
@@ -54,19 +72,11 @@ export interface IWorkingCopyFileService {
 	//#region Events
 
 	/**
-	 * An event that is fired before attempting a certain working copy IO operation.
-	 *
-	 * Participants can join this event with a long running operation to make changes
-	 * to the working copy before the operation starts.
-	 */
-	readonly onBeforeWorkingCopyFileOperation: Event<WorkingCopyFileEvent>;
-
-	/**
 	 * An event that is fired when a certain working copy IO operation is about to run.
 	 *
 	 * Participants can join this event with a long running operation to keep some state
 	 * before the operation is started, but working copies should not be changed at this
-	 * point in time.
+	 * point in time. For that purpose, use the `IWorkingCopyFileOperationParticipant` API.
 	 */
 	readonly onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent>;
 
@@ -86,6 +96,19 @@ export interface IWorkingCopyFileService {
 	readonly onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent>;
 
 	//#endregion
+
+
+	//#region File operation participants
+
+	/**
+	 * Adds a participant for file operations on working copies.
+	 */
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable;
+
+	/**
+	 * Execute all known file operation participants.
+	 */
+	runFileOperationParticipants(target: URI, source: URI | undefined, operation: FileOperation): Promise<void>
 
 
 	//#region File operations
@@ -118,6 +141,18 @@ export interface IWorkingCopyFileService {
 	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	//#endregion
+
+
+	//#region Path related
+
+	/**
+	 * Will return all working copies that are dirty matching the provided resource.
+	 * If the resource is a folder and the scheme supports file operations, a working
+	 * copy that is dirty and is a child of that folder will also be returned.
+	 */
+	getDirty(resource: URI): IWorkingCopy[];
+
+	//#endregion
 }
 
 export class WorkingCopyFileService extends Disposable implements IWorkingCopyFileService {
@@ -125,9 +160,6 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	_serviceBrand: undefined;
 
 	//#region Events
-
-	private readonly _onBeforeWorkingCopyFileOperation = this._register(new AsyncEmitter<WorkingCopyFileEvent>());
-	readonly onBeforeWorkingCopyFileOperation = this._onBeforeWorkingCopyFileOperation.event;
 
 	private readonly _onWillRunWorkingCopyFileOperation = this._register(new AsyncEmitter<WorkingCopyFileEvent>());
 	readonly onWillRunWorkingCopyFileOperation = this._onWillRunWorkingCopyFileOperation.event;
@@ -143,8 +175,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	private correlationIds = 0;
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+		@IFileService private readonly fileService: IFileService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -158,16 +191,18 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	}
 
 	private async moveOrCopy(source: URI, target: URI, move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source };
 
-		// before events
-		await this._onBeforeWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		// file operation participant
+		await this.runFileOperationParticipants(target, source, move ? FileOperation.MOVE : FileOperation.COPY);
+
+		// before event
+		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source };
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		// handle dirty working copies depending on the operation:
 		// - move: revert both source and target (if any)
 		// - copy: revert target (if any)
-		const dirtyWorkingCopies = (move ? [...this.getDirtyWorkingCopies(source), ...this.getDirtyWorkingCopies(target)] : this.getDirtyWorkingCopies(target));
+		const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
 		await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 
 		// now we can rename the source to target via file operation
@@ -193,16 +228,18 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, target: resource };
+
+		// file operation participant
+		await this.runFileOperationParticipants(resource, undefined, FileOperation.DELETE);
 
 		// before events
-		await this._onBeforeWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, target: resource };
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		// Check for any existing dirty working copies for the resource
 		// and do a soft revert before deleting to be able to close
 		// any opened editor with these working copies
-		const dirtyWorkingCopies = this.getDirtyWorkingCopies(resource);
+		const dirtyWorkingCopies = this.getDirty(resource);
 		await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 
 		// Now actually delete from disk
@@ -220,7 +257,25 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 	}
 
-	private getDirtyWorkingCopies(resource: URI): IWorkingCopy[] {
+
+	//#region File operation participants
+
+	private readonly fileOperationParticipants = this._register(this.instantiationService.createInstance(WorkingCopyFileOperationParticipant));
+
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
+		return this.fileOperationParticipants.addFileOperationParticipant(participant);
+	}
+
+	runFileOperationParticipants(target: URI, source: URI | undefined, operation: FileOperation): Promise<void> {
+		return this.fileOperationParticipants.participate(target, source, operation);
+	}
+
+	//#endregion
+
+
+	//#region Path related
+
+	getDirty(resource: URI): IWorkingCopy[] {
 		return this.workingCopyService.dirtyWorkingCopies.filter(dirty => {
 			if (this.fileService.canHandleResource(resource)) {
 				// only check for parents if the resource can be handled
@@ -232,6 +287,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 			return isEqual(dirty.resource, resource);
 		});
 	}
+
+	//#endregion
 }
 
 registerSingleton(IWorkingCopyFileService, WorkingCopyFileService, true);

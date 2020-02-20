@@ -10,7 +10,7 @@ import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -135,7 +135,7 @@ export class TextFileEditor extends BaseTextEditor {
 				return this.openAsBinary(input, options);
 			}
 
-			const textFileModel = <ITextFileEditorModel>resolvedModel;
+			const textFileModel = resolvedModel;
 
 			// Editor
 			const textEditor = assertIsDefined(this.getControl());

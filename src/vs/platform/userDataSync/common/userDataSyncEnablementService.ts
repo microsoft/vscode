@@ -7,6 +7,11 @@ import { IUserDataSyncEnablementService, ResourceKey, ALL_RESOURCE_KEYS } from '
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+type SyncEnablementClassification = {
+	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 const enablementKey = 'sync.enable';
 function getEnablementKey(resourceKey: ResourceKey) { return `${enablementKey}.${resourceKey}`; }
@@ -22,7 +27,8 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	readonly onDidChangeResourceEnablement: Event<[ResourceKey, boolean]> = this._onDidChangeResourceEnablement.event;
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
@@ -34,6 +40,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 
 	setEnablement(enabled: boolean): void {
 		if (this.isEnabled() !== enabled) {
+			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(enablementKey, { enabled });
 			this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL);
 		}
 	}
@@ -44,7 +51,9 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 
 	setResourceEnablement(resourceKey: ResourceKey, enabled: boolean): void {
 		if (this.isResourceEnabled(resourceKey) !== enabled) {
-			this.storageService.store(getEnablementKey(resourceKey), enabled, StorageScope.GLOBAL);
+			const resourceEnablementKey = getEnablementKey(resourceKey);
+			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
+			this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL);
 		}
 	}
 

@@ -13,31 +13,6 @@
 	height: 100%;
 }
 
-.debug-pane .debug-start-view {
-	padding: 0 20px 0 20px;
-}
-
-.debug-pane .debug-start-view .monaco-button,
-.debug-pane .debug-start-view .section {
-	margin-top: 20px;
-}
-
-.debug-pane .debug-start-view .top-section {
-	margin-top: 10px;
-}
-
-.debug-pane .debug-start-view .monaco-button {
-	max-width: 260px;
-	margin-left: auto;
-	margin-right: auto;
-	display: block;
-}
-
-.debug-pane .debug-start-view .click {
-	cursor: pointer;
-	color: #007ACC;
-}
-
 .monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;

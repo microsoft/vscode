@@ -26,7 +26,7 @@ import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService 
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -448,10 +448,6 @@ export class SimpleConfigurationService implements IConfigurationService {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration {
-		return this._configuration;
-	}
-
 	getValue<T>(): T;
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
@@ -459,20 +455,43 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getValue(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration().getValue(section, overrides, undefined);
+		return this._configuration.getValue(section, overrides, undefined);
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
-		this.configuration().updateValue(key, value);
+	public updateValues(values: [string, any][]): Promise<void> {
+		const previous = { data: this._configuration.toData() };
+
+		let changedKeys: string[] = [];
+
+		for (const entry of values) {
+			const [key, value] = entry;
+			if (this.getValue(key) === value) {
+				continue;
+			}
+			this._configuration.updateValue(key, value);
+			changedKeys.push(key);
+		}
+
+		if (changedKeys.length > 0) {
+			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
+			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
+			configurationChangeEvent.sourceConfig = null;
+			this._onDidChangeConfiguration.fire(configurationChangeEvent);
+		}
+
 		return Promise.resolve();
 	}
 
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+		return this.updateValues([[key, value]]);
+	}
+
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): IConfigurationValue<C> {
-		return this.configuration().inspect<C>(key, options, undefined);
+		return this._configuration.inspect<C>(key, options, undefined);
 	}
 
 	public keys() {
-		return this.configuration().keys(undefined);
+		return this._configuration.keys(undefined);
 	}
 
 	public reloadConfiguration(): Promise<void> {
@@ -622,14 +641,18 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 	if (!(configurationService instanceof SimpleConfigurationService)) {
 		return;
 	}
+	let toUpdate: [string, any][] = [];
 	Object.keys(source).forEach((key) => {
 		if (isEditorConfigurationKey(key)) {
-			configurationService.updateValue(`editor.${key}`, source[key]);
+			toUpdate.push([`editor.${key}`, source[key]]);
 		}
 		if (isDiffEditor && isDiffEditorConfigurationKey(key)) {
-			configurationService.updateValue(`diffEditor.${key}`, source[key]);
+			toUpdate.push([`diffEditor.${key}`, source[key]]);
 		}
 	});
+	if (toUpdate.length > 0) {
+		configurationService.updateValues(toUpdate);
+	}
 }
 
 export class SimpleBulkEditService implements IBulkEditService {
