@@ -319,7 +319,7 @@ suite('Debug - Breakpoints', () => {
 	test('decorations', () => {
 		const modelUri = uri.file('/myfolder/my file first.js');
 		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
-		const textModel = new TextModel(
+		const textModel = TextModel.createFromString(
 			['this is line one', 'this is line two', '    this is line three it has whitespace at start', 'this is line four', 'this is line five'].join('\n'),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier

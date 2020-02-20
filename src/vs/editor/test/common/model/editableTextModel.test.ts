@@ -12,7 +12,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 function createEditableTextModelFromString(text: string): TextModel {
-	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	return TextModel.createFromString(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 }
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
