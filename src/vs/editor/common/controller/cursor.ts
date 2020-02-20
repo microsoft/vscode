@@ -16,7 +16,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
@@ -186,6 +186,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	public context: CursorContext;
 	private _cursors: CursorCollection;
 
+	private _hasFocus: boolean;
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
 	private _selectionsWhenCompositionStarted: Selection[] | null;
@@ -202,6 +203,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 		this._cursors = new CursorCollection(this.context);
 
+		this._hasFocus = false;
 		this._isHandling = false;
 		this._isDoingComposition = false;
 		this._selectionsWhenCompositionStarted = null;
@@ -215,8 +217,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 				return;
 			}
 
-			let hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
-			this._onModelContentChanged(hadFlushEvent);
+			this._onModelContentChanged(e);
 		}));
 
 		this._register(viewModel.addEventListener((events: viewEvents.ViewEvent[]) => {
@@ -262,6 +263,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._cursors.dispose();
 		this._autoClosedActions = dispose(this._autoClosedActions);
 		super.dispose();
+	}
+
+	public setHasFocus(hasFocus: boolean): void {
+		this._hasFocus = hasFocus;
 	}
 
 	private _validateAutoClosedActions(): void {
@@ -392,8 +397,9 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this.reveal('restoreState', true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
 	}
 
-	private _onModelContentChanged(hadFlushEvent: boolean): void {
+	private _onModelContentChanged(e: ModelRawContentChangedEvent): void {
 
+		const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
 		this._prevEditOperationType = EditOperationType.Other;
 
 		if (hadFlushEvent) {
@@ -403,8 +409,13 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._validateAutoClosedActions();
 			this._emitStateChangedIfNecessary('model', CursorChangeReason.ContentFlush, null);
 		} else {
-			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-			this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+			if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
+				const cursorState = CursorState.fromModelSelections(e.resultingSelection);
+				this.setStates('modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState);
+			} else {
+				const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
+				this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+			}
 		}
 	}
 
@@ -704,11 +715,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const oldState = new CursorModelState(this._model, this);
 		let cursorChangeReason = CursorChangeReason.NotSet;
 
-		if (handlerId !== H.Undo && handlerId !== H.Redo) {
-			// TODO@Alex: if the undo/redo stack contains non-null selections
-			// it would also be OK to stop tracking selections here
-			this._cursors.stopTrackingSelections();
-		}
+		this._cursors.stopTrackingSelections();
 
 		// ensure valid state on all cursors
 		this._cursors.ensureValidState();
@@ -734,16 +741,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 					this._cut();
 					break;
 
-				case H.Undo:
-					cursorChangeReason = CursorChangeReason.Undo;
-					this._interpretCommandResult(this._model.undo());
-					break;
-
-				case H.Redo:
-					cursorChangeReason = CursorChangeReason.Redo;
-					this._interpretCommandResult(this._model.redo());
-					break;
-
 				case H.ExecuteCommand:
 					this._externalExecuteCommand(<editorCommon.ICommand>payload);
 					break;
@@ -762,9 +759,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 
-		if (handlerId !== H.Undo && handlerId !== H.Redo) {
-			this._cursors.startTrackingSelections();
-		}
+		this._cursors.startTrackingSelections();
 
 		this._validateAutoClosedActions();
 

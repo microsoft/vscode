@@ -7,11 +7,12 @@ import { IUndoRedoService, IUndoRedoElement } from 'vs/platform/undoRedo/common/
 import { URI } from 'vs/base/common/uri';
 import { getComparisonKey as uriGetComparisonKey } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class StackElement {
 	public readonly actual: IUndoRedoElement;
 	public readonly label: string;
-	public readonly resources: URI[];
+	public readonly resources: readonly URI[];
 	public readonly strResources: string[];
 
 	constructor(actual: IUndoRedoElement) {
@@ -179,7 +180,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return false;
 	}
 
-	redo(resource: URI): void {
+	public redo(resource: URI): void {
 		const strResource = uriGetComparisonKey(resource);
 		if (!this._editStacks.has(strResource)) {
 			return;
@@ -239,3 +240,5 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 }
+
+registerSingleton(IUndoRedoService, UndoRedoService);
