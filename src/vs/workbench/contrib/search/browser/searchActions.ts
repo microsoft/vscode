@@ -283,7 +283,7 @@ export class RefreshAction extends Action {
 	run(): Promise<void> {
 		const searchView = getSearchView(this.viewsService);
 		if (searchView) {
-			searchView.onQueryChanged(false);
+			searchView.triggerQueryChange({ preserveFocus: false });
 		}
 
 		return Promise.resolve();
