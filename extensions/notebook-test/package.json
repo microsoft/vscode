@@ -19,7 +19,8 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onNotebookEditor:jupyter",
+    "onNotebookEditor:jupytertest"
   ],
   "contributes": {
     "commands": [

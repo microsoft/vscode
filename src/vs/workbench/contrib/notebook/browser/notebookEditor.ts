@@ -288,7 +288,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				return input.resolve();
 			})
 			.then(async model => {
-				if (this.model !== undefined && this.model.textModel === model.textModel && this.webview !== null) {
+				if (this.model !== undefined && this.model === model && this.webview !== null) {
 					return;
 				}
 

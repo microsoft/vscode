@@ -11,6 +11,7 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -30,6 +31,7 @@ export interface IMainNotebookController {
 
 export interface INotebookService {
 	_serviceBrand: undefined;
+	canResolve(viewType: string): Promise<void>;
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
@@ -97,8 +99,11 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _models: { [modelId: string]: ModelData; };
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
+	private _resolvePool = new Map<string, () => void>();
 
-	constructor() {
+	constructor(
+		@IExtensionService private readonly extensionService: IExtensionService
+	) {
 		super();
 
 		this._models = {};
@@ -119,8 +124,27 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	}
 
+	async canResolve(viewType: string): Promise<void> {
+		if (this._notebookProviders.has(viewType)) {
+			return;
+		}
+
+		this.extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
+
+		let resolve: () => void;
+		const promise = new Promise<void>(r => { resolve = r; });
+		this._resolvePool.set(viewType, resolve!);
+		return promise;
+	}
+
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
+
+		let resolve = this._resolvePool.get(viewType);
+		if (resolve) {
+			resolve();
+			this._resolvePool.delete(viewType);
+		}
 	}
 
 	unregisterNotebookProvider(viewType: string): void {

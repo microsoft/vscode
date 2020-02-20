@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorInput, EditorModel, IEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { INotebook, ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -21,8 +19,7 @@ export class NotebookEditorModel extends EditorModel {
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 
 	constructor(
-		public readonly textModel: ITextModel,
-		private _notebook: INotebook | undefined
+		private _notebook: INotebook
 	) {
 		super();
 
@@ -44,14 +41,7 @@ export class NotebookEditorModel extends EditorModel {
 	}
 
 	getNotebook(): INotebook {
-		if (this._notebook) {
-			return this._notebook;
-		}
-
-		// TODO, remove file based notebook from core
-		let content = this.textModel.getValue();
-		this._notebook = JSON.parse(content);
-		return this._notebook!;
+		return this._notebook;
 	}
 
 	insertCell(cell: ICell, index: number) {
@@ -100,8 +90,7 @@ export class NotebookEditorInput extends EditorInput {
 		public resource: URI,
 		public name: string,
 		public readonly viewType: string | undefined,
-		@INotebookService private readonly notebookService: INotebookService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+		@INotebookService private readonly notebookService: INotebookService
 	) {
 		super();
 	}
@@ -128,21 +117,15 @@ export class NotebookEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	resolve(): Promise<NotebookEditorModel> {
+	async resolve(): Promise<NotebookEditorModel> {
 		if (!this.promise) {
-			this.promise = this.textModelResolverService.createModelReference(this.resource)
-				.then(async ref => {
-					const textModel = ref.object.textEditorModel;
+			await this.notebookService.canResolve(this.viewType!);
 
-					let notebook: INotebook | undefined = undefined;
-					if (this.viewType !== undefined) {
-						notebook = await this.notebookService.resolveNotebook(this.viewType, this.resource);
-					}
-
-					this.textModel = new NotebookEditorModel(textModel, notebook);
-					this.textModel.onDidChangeDirty(() => this._onDidChangeDirty.fire());
-					return this.textModel;
-				});
+			this.promise = this.notebookService.resolveNotebook(this.viewType!, this.resource).then(notebook => {
+				this.textModel = new NotebookEditorModel(notebook!);
+				this.textModel.onDidChangeDirty(() => this._onDidChangeDirty.fire());
+				return this.textModel;
+			});
 		}
 
 		return this.promise;
