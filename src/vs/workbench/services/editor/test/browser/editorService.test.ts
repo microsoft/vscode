@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IEditorInput, IMoveResult } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestStorageService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -22,7 +23,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -34,6 +35,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
+
+class ServicesAccessor {
+	constructor(
+		@IFileService public fileService: TestFileService
+	) { }
+}
 
 class TestEditorControl extends BaseEditor {
 
@@ -96,6 +103,8 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 		super.dispose();
 		this.gotDisposed = true;
 	}
+	movedEditor: IMoveResult | undefined = undefined;
+	move(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 class FileServiceProvider extends Disposable {
@@ -119,7 +128,7 @@ suite('EditorService', () => {
 		disposables = [];
 	});
 
-	function createEditorService(): [EditorPart, EditorService, IInstantiationService] {
+	function createEditorService(): [EditorPart, EditorService, IInstantiationService, ServicesAccessor] {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = instantiationService.createInstance(EditorPart);
@@ -131,7 +140,7 @@ suite('EditorService', () => {
 		const editorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
 
-		return [part, editorService, instantiationService];
+		return [part, editorService, instantiationService, instantiationService.createInstance(ServicesAccessor)];
 	}
 
 	test('basics', async () => {
@@ -809,4 +818,82 @@ suite('EditorService', () => {
 
 		part.dispose();
 	});
+
+	test('file delete closes editor', async function () {
+		return testFileDeleteEditorClose(false);
+	});
+
+	test('file delete leaves dirty editors open', function () {
+		return testFileDeleteEditorClose(true);
+	});
+
+	async function testFileDeleteEditorClose(dirty: boolean): Promise<void> {
+		const [part, service, testInstantiationService, accessor] = createEditorService();
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		input1.dirty = dirty;
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
+		input2.dirty = dirty;
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true });
+		await service.openEditor(input2, { pinned: true });
+
+		assert.equal(rootGroup.activeEditor, input2);
+
+		const activeEditorChangePromise = awaitActiveEditorChange(service);
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(input2.resource, FileOperation.DELETE));
+		if (!dirty) {
+			await activeEditorChangePromise;
+		}
+
+		if (dirty) {
+			assert.equal(rootGroup.activeEditor, input2);
+		} else {
+			assert.equal(rootGroup.activeEditor, input1);
+		}
+
+		part.dispose();
+	}
+
+	test('file move asks input to move', async function () {
+		const [part, service, testInstantiationService, accessor] = createEditorService();
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		const movedInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
+		input1.movedEditor = { editor: movedInput };
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true });
+
+		const activeEditorChangePromise = awaitActiveEditorChange(service);
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(input1.resource, FileOperation.MOVE, {
+			resource: movedInput.resource,
+			ctime: 0,
+			etag: '',
+			isDirectory: false,
+			isFile: true,
+			mtime: 0,
+			name: 'resource2-openside',
+			size: 0,
+			isSymbolicLink: false
+		}));
+		await activeEditorChangePromise;
+
+		assert.equal(rootGroup.activeEditor, movedInput);
+
+		part.dispose();
+	});
+
+	function awaitActiveEditorChange(editorService: IEditorService): Promise<void> {
+		return new Promise(c => {
+			Event.once(editorService.onDidActiveEditorChange)(c);
+		});
+	}
 });
