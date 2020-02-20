@@ -16,15 +16,17 @@ import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 interface ISyncPreviewResult {
+	readonly localExtensions: ISyncExtension[];
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: ILastSyncUserData | null;
 	readonly added: ISyncExtension[];
 	readonly removed: IExtensionIdentifier[];
 	readonly updated: ISyncExtension[];
 	readonly remote: ISyncExtension[] | null;
-	readonly remoteUserData: IRemoteUserData;
 	readonly skippedExtensions: ISyncExtension[];
-	readonly lastSyncUserData: ILastSyncUserData | null;
 }
 
 interface ILastSyncUserData extends IRemoteUserData {
@@ -77,7 +79,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				const localExtensions = await this.getLocalExtensions();
 				const remoteExtensions = this.parseExtensions(remoteUserData.syncData);
 				const { added, updated, remote } = merge(localExtensions, remoteExtensions, [], [], this.getIgnoredExtensions());
-				await this.apply({ added, removed: [], updated, remote, remoteUserData, skippedExtensions: [], lastSyncUserData });
+				await this.apply({ added, removed: [], updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData });
 			}
 
 			// No remote exists to pull
@@ -107,7 +109,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const { added, removed, updated, remote } = merge(localExtensions, null, null, [], this.getIgnoredExtensions());
 			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			await this.apply({ added, removed, updated, remote, remoteUserData, skippedExtensions: [], lastSyncUserData }, true);
+			await this.apply({ added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData }, true);
 
 			this.logService.info('Extensions: Finished pushing extensions.');
 		} finally {
@@ -179,14 +181,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, this.getIgnoredExtensions());
 
-		return { added, removed, updated, remote, skippedExtensions, remoteUserData, lastSyncUserData };
+		return { added, removed, updated, remote, skippedExtensions, remoteUserData, localExtensions, lastSyncUserData };
 	}
 
 	private getIgnoredExtensions() {
 		return this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
 	}
 
-	private async apply({ added, removed, updated, remote, remoteUserData, skippedExtensions, lastSyncUserData }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
+	private async apply({ added, removed, updated, remote, remoteUserData, skippedExtensions, lastSyncUserData, localExtensions }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
 
 		const hasChanges = added.length || removed.length || updated.length || remote;
 
@@ -195,6 +197,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 
 		if (added.length || removed.length || updated.length) {
+			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localExtensions)));
 			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
 		}
 
