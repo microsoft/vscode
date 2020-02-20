@@ -109,6 +109,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			this._webviewEvents.add(webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }));
 			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
+			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
