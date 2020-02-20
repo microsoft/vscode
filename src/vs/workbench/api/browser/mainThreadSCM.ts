@@ -202,8 +202,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 					const icon = icons[0];
 					const iconDark = icons[1] || icon;
 					const decorations = {
-						icon: icon ? URI.parse(icon) : undefined,
-						iconDark: iconDark ? URI.parse(iconDark) : undefined,
+						icon: icon ? URI.revive(icon) : undefined,
+						iconDark: iconDark ? URI.revive(iconDark) : undefined,
 						tooltip,
 						strikeThrough,
 						faded

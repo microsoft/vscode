@@ -13,7 +13,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { CompletionItem } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -24,18 +23,16 @@ import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainer } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.debug';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
 export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
 export const LOADED_SCRIPTS_VIEW_ID = 'workbench.debug.loadedScriptsView';
 export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
-export const REPL_ID = 'workbench.panel.repl';
+export const DEBUG_PANEL_ID = 'workbench.panel.repl';
+export const REPL_VIEW_ID = 'workbench.panel.repl.view';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
 export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined);
@@ -58,6 +55,7 @@ export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('foc
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
+export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -202,9 +200,6 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
 	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
 
-	// Disconnects and clears state. Session can be initialized again for a new connection.
-	shutdown(): void;
-
 	// DAP request
 
 	initialize(dbgr: IDebugger): Promise<void>;
@@ -237,7 +232,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<CompletionItem[]>;
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
@@ -445,7 +440,7 @@ export interface IBreakpointsChangeEvent {
 	added?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
 	removed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
 	changed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
-	sessionOnly?: boolean;
+	sessionOnly: boolean;
 }
 
 // Debug configuration interfaces
@@ -466,9 +461,10 @@ export interface IDebugConfiguration {
 		fontFamily: string;
 		lineHeight: number;
 		wordWrap: boolean;
+		closeOnEnd: boolean;
 	};
 	focusWindowOnBreak: boolean;
-	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
+	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
 }
@@ -487,13 +483,19 @@ export interface IEnvConfig {
 	noDebug?: boolean;
 }
 
+export interface IConfigPresentation {
+	hidden?: boolean;
+	group?: string;
+	order?: number;
+}
+
 export interface IConfig extends IEnvConfig {
 
 	// fundamental attributes
 	type: string;
 	request: string;
 	name: string;
-
+	presentation?: IConfigPresentation;
 	// platform specifics
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
@@ -510,6 +512,7 @@ export interface ICompound {
 	name: string;
 	preLaunchTask?: string | TaskIdentifier;
 	configurations: (string | { name: string, folder: string })[];
+	presentation?: IConfigPresentation;
 }
 
 export interface IDebugAdapter extends IDisposable {
@@ -594,6 +597,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 export interface IDebugConfigurationProvider {
 	readonly type: string;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
+	resolveDebugConfigurationWithSubstitutedVariables?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	provideDebugConfigurations?(folderUri: uri | undefined, token: CancellationToken): Promise<IConfig[]>;
 	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
 }
@@ -630,6 +634,8 @@ export interface IConfigurationManager {
 	getLaunches(): ReadonlyArray<ILaunch>;
 
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
+
+	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.

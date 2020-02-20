@@ -12,9 +12,9 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
@@ -143,13 +143,56 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
-	private withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: (choice?: number) => void): P {
-		const toDispose = new DisposableStore();
+	private withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<IProgressStep>) => P, onDidCancel?: (choice?: number) => void): P {
 
-		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
-			if (!message) {
-				return undefined; // we need a message at least
+		const progressStateModel = new class extends Disposable {
+
+			private readonly _onDidReport = this._register(new Emitter<IProgressStep>());
+			readonly onDidReport = this._onDidReport.event;
+
+			private readonly _onDispose = this._register(new Emitter<void>());
+			readonly onDispose = this._onDispose.event;
+
+			private _step: IProgressStep | undefined = undefined;
+			get step() { return this._step; }
+
+			private _done = false;
+			get done() { return this._done; }
+
+			readonly promise: P;
+
+			constructor() {
+				super();
+
+				this.promise = callback(this);
+
+				this.promise.finally(() => {
+					this.dispose();
+				});
 			}
+
+			report(step: IProgressStep): void {
+				this._step = step;
+
+				this._onDidReport.fire(step);
+			}
+
+			cancel(choice?: number): void {
+				onDidCancel?.(choice);
+
+				this.dispose();
+			}
+
+			dispose(): void {
+				this._done = true;
+				this._onDispose.fire();
+
+				super.dispose();
+			}
+		};
+
+		const createNotification = (message: string, increment?: number): INotificationHandle => {
+			const notificationDisposables = new DisposableStore();
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
 			const secondaryActions = options.secondaryActions ? Array.from(options.secondaryActions) : [];
@@ -161,16 +204,11 @@ export class ProgressService extends Disposable implements IProgressService {
 							super(`progress.button.${button}`, button, undefined, true);
 						}
 
-						run(): Promise<any> {
-							if (typeof onDidCancel === 'function') {
-								onDidCancel(index);
-							}
-
-							return Promise.resolve(undefined);
+						async run(): Promise<any> {
+							progressStateModel.cancel(index);
 						}
 					};
-
-					toDispose.add(buttonAction);
+					notificationDisposables.add(buttonAction);
 
 					primaryActions.push(buttonAction);
 				});
@@ -182,32 +220,26 @@ export class ProgressService extends Disposable implements IProgressService {
 						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
 					}
 
-					run(): Promise<any> {
-						if (typeof onDidCancel === 'function') {
-							onDidCancel();
-						}
-
-						return Promise.resolve(undefined);
+					async run(): Promise<any> {
+						progressStateModel.cancel();
 					}
 				};
-				toDispose.add(cancelAction);
+				notificationDisposables.add(cancelAction);
 
 				primaryActions.push(cancelAction);
 			}
 
-			const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 			const handle = this.notificationService.notify({
 				severity: Severity.Info,
 				message,
 				source: options.source,
-				actions
+				actions: { primary: primaryActions, secondary: secondaryActions }
 			});
 
 			updateProgress(handle, increment);
 
-			Event.once(handle.onDidClose)(() => {
-				toDispose.dispose();
-			});
+			// Clear upon dispose
+			Event.once(handle.onDidClose)(() => notificationDisposables.dispose());
 
 			return handle;
 		};
@@ -221,46 +253,54 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		};
 
-		let handle: INotificationHandle | undefined;
-		const updateNotification = (message?: string, increment?: number): void => {
-			if (!handle) {
-				handle = createNotification(message, increment);
-			} else {
-				if (typeof message === 'string') {
-					let newMessage: string;
-					if (typeof options.title === 'string') {
-						newMessage = `${options.title}: ${message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
-					} else {
-						newMessage = message;
-					}
+		let notificationHandle: INotificationHandle | undefined;
+		let notificationTimeout: any | undefined;
+		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
-					handle.updateMessage(newMessage);
+		const updateNotification = (step?: IProgressStep): void => {
+
+			// full message (inital or update)
+			if (step?.message && options.title) {
+				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
+			} else {
+				titleAndMessage = options.title || step?.message;
+			}
+
+			if (!notificationHandle && titleAndMessage) {
+
+				// create notification now or after a delay
+				if (typeof options.delay === 'number' && options.delay > 0) {
+					if (typeof notificationTimeout !== 'number') {
+						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, step?.increment), options.delay);
+					}
+				} else {
+					notificationHandle = createNotification(titleAndMessage, step?.increment);
+				}
+			}
+
+			if (notificationHandle) {
+				if (titleAndMessage) {
+					notificationHandle.updateMessage(titleAndMessage);
 				}
 
-				if (typeof increment === 'number') {
-					updateProgress(handle, increment);
+				if (typeof step?.increment === 'number') {
+					updateProgress(notificationHandle, step.increment);
 				}
 			}
 		};
 
 		// Show initially
-		updateNotification(options.title);
-
-		// Update based on progress
-		const promise = callback({
-			report: progress => {
-				updateNotification(progress.message, progress.increment);
-			}
-		});
+		updateNotification(progressStateModel.step);
+		const listener = progressStateModel.onDidReport(step => updateNotification(step));
+		Event.once(progressStateModel.onDispose)(() => listener.dispose());
 
 		// Show progress for at least 800ms and then hide once done or canceled
-		Promise.all([timeout(800), promise]).finally(() => {
-			if (handle) {
-				handle.close();
-			}
+		Promise.all([timeout(800), progressStateModel.promise]).finally(() => {
+			clearTimeout(notificationTimeout);
+			notificationHandle?.close();
 		});
 
-		return promise;
+		return progressStateModel.promise;
 	}
 
 	private withViewletProgress<P extends Promise<R>, R = unknown>(viewletId: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {

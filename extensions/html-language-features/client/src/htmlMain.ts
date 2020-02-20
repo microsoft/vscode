@@ -8,8 +8,15 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest, ProvideCompletionItemsSignature } from 'vscode-languageclient';
+import {
+	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace,
+	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens
+} from 'vscode';
+import {
+	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange
+} from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -21,6 +28,18 @@ namespace TagCloseRequest {
 }
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+}
+
+// experimental: semantic tokens
+interface SemanticTokenParams {
+	textDocument: TextDocumentIdentifier;
+	ranges?: LspRange[];
+}
+namespace SemanticTokenRequest {
+	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+}
+namespace SemanticTokenLegendRequest {
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 interface IPackageInfo {
@@ -77,9 +96,8 @@ export function activate(context: ExtensionContext) {
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
-					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range2 = { inserting: new Range(range.start, position), replacing: range };
-						item.range = undefined;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
@@ -132,6 +150,32 @@ export function activate(context: ExtensionContext) {
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+
+		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
+			if (legend) {
+				const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
+					provideDocumentSemanticTokens(doc) {
+						const params: SemanticTokenParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+						};
+						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+							return data && new SemanticTokens(new Uint32Array(data));
+						});
+					},
+					provideDocumentRangeSemanticTokens(doc, range) {
+						const params: SemanticTokenParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+							ranges: [client.code2ProtocolConverter.asRange(range)]
+						};
+						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+							return data && new SemanticTokens(new Uint32Array(data));
+						});
+					}
+				};
+				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
+			}
+		});
+
 	});
 
 	function updateFormatterRegistration() {

@@ -790,21 +790,29 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A reference to a named icon. Currently only [File](#ThemeIcon.File) and [Folder](#ThemeIcon.Folder) are supported.
+	 * A reference to a named icon. Currently, [File](#ThemeIcon.File), [Folder](#ThemeIcon.Folder),
+	 * and [codicons](https://microsoft.github.io/vscode-codicons/dist/codicon.html) are supported.
 	 * Using a theme icon is preferred over a custom icon as it gives theme authors the possibility to change the icons.
+	 *
+	 * *Note* that theme icons can also be rendered inside labels and descriptions. Places that support theme icons spell this out
+	 * and they use the `$(<name>)`-syntax, for instance `quickPick.label = "Hello World $(globe)"`.
 	 */
 	export class ThemeIcon {
 		/**
-		 * Reference to a icon representing a file. The icon is taken from the current file icon theme or a placeholder icon.
+		 * Reference to an icon representing a file. The icon is taken from the current file icon theme or a placeholder icon is used.
 		 */
 		static readonly File: ThemeIcon;
 
 		/**
-		 * Reference to a icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon.
+		 * Reference to an icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon is used.
 		 */
 		static readonly Folder: ThemeIcon;
 
-		private constructor(id: string);
+		/**
+		 * Creates a reference to a theme icon.
+		 * @param id id of the icon. The avaiable icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 */
+		constructor(id: string);
 	}
 
 	/**
@@ -1188,7 +1196,6 @@ declare module 'vscode' {
 	 * A complex edit that will be applied in one transaction on a TextEditor.
 	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
 	 * they can be applied on a [document](#TextDocument) associated with a [text editor](#TextEditor).
-	 *
 	 */
 	export interface TextEditorEdit {
 		/**
@@ -1574,17 +1581,20 @@ declare module 'vscode' {
 	export interface QuickPickItem {
 
 		/**
-		 * A human readable string which is rendered prominent.
+		 * A human-readable string which is rendered prominent. Supports rendering of [theme icons](#ThemeIcon) via
+		 * the `$(<name>)`-syntax.
 		 */
 		label: string;
 
 		/**
-		 * A human readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
+		 * [theme icons](#ThemeIcon) via the `$(<name>)`-syntax.
 		 */
 		description?: string;
 
 		/**
-		 * A human readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
+		 * [theme icons](#ThemeIcon) via the `$(<name>)`-syntax.
 		 */
 		detail?: string;
 
@@ -1617,7 +1627,7 @@ declare module 'vscode' {
 		matchOnDetail?: boolean;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 
@@ -1643,7 +1653,7 @@ declare module 'vscode' {
 	export interface WorkspaceFolderPickOptions {
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 
@@ -1688,7 +1698,7 @@ declare module 'vscode' {
 		canSelectMany?: boolean;
 
 		/**
-		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * A set of file filters that are used by the dialog. Each entry is a human-readable label,
 		 * like "TypeScript", and an array of extensions, e.g.
 		 * ```ts
 		 * {
@@ -1715,7 +1725,7 @@ declare module 'vscode' {
 		saveLabel?: string;
 
 		/**
-		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * A set of file filters that are used by the dialog. Each entry is a human-readable label,
 		 * like "TypeScript", and an array of extensions, e.g.
 		 * ```ts
 		 * {
@@ -1791,7 +1801,7 @@ declare module 'vscode' {
 		prompt?: string;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what to type.
+		 * An optional string to show as placeholder in the input box to guide the user what to type.
 		 */
 		placeHolder?: string;
 
@@ -1810,7 +1820,7 @@ declare module 'vscode' {
 		 * to the user.
 		 *
 		 * @param value The current value of the input box.
-		 * @return A human readable string which is presented as diagnostic message.
+		 * @return A human-readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
 		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
@@ -2126,6 +2136,20 @@ declare module 'vscode' {
 		isPreferred?: boolean;
 
 		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
+		 */
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the code actions UI.
+			 */
+			readonly reason: string;
+		};
+
+		/**
 		 * Creates a new code action.
 		 *
 		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
@@ -2159,14 +2183,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers
+	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers.
 	 */
 	export interface CodeActionProviderMetadata {
 		/**
-		 * [CodeActionKinds](#CodeActionKind) that this provider may return.
+		 * List of [CodeActionKinds](#CodeActionKind) that a [CodeActionProvider](#CodeActionProvider) may return.
 		 *
-		 * The list of kinds may be generic, such as `CodeActionKind.Refactor`, or the provider
-		 * may list our every specific kind they provide, such as `CodeActionKind.Refactor.Extract.append('function`)`
+		 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+		 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
+		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
 		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
 	}
@@ -2313,7 +2339,7 @@ declare module 'vscode' {
 
 	/**
 	 * The declaration of a symbol representation as one or many [locations](#Location)
-	 * or [location links][#LocationLink].
+	 * or [location links](#LocationLink).
 	 */
 	export type Declaration = Location | Location[] | LocationLink[];
 
@@ -2336,16 +2362,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The MarkdownString represents human readable text that supports formatting via the
+	 * The MarkdownString represents human-readable text that supports formatting via the
 	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
+	 *
+	 * When created with `supportThemeIcons` then rendering of [theme icons](#ThemeIcon) via
+	 * the `$(<name>)`-syntax is supported.
 	 */
 	export class MarkdownString {
-
-		/**
-		 * Escapes any [ThemeIcons](#ThemeIcon), e.g. `$(zap)`, in the string.
-		 * @param value A string.
-		 */
-		static escapeThemeIcons(value: string): string;
 
 		/**
 		 * The markdown string.
@@ -2362,9 +2385,9 @@ declare module 'vscode' {
 		 * Creates a new markdown string with the given value.
 		 *
 		 * @param value Optional, initial value.
-		 * @param options Optional, options to specify whether [ThemeIcons](#ThemeIcon) are supported within the [`MarkdownString`](#MarkdownString).
+		 * @param supportThemeIcons Optional, Specifies whether [ThemeIcons](#ThemeIcon) are supported within the [`MarkdownString`](#MarkdownString).
 		 */
-		constructor(value?: string, options?: { supportThemeIcons?: boolean });
+		constructor(value?: string, supportThemeIcons?: boolean);
 
 		/**
 		 * Appends and escapes the given string to this markdown string.
@@ -2373,7 +2396,7 @@ declare module 'vscode' {
 		appendText(value: string): MarkdownString;
 
 		/**
-		 * Appends the given string 'as is' to this markdown string.
+		 * Appends the given string 'as is' to this markdown string. When [`supportThemeIcons`](#MarkdownString.supportThemeIcons) is `true`, [ThemeIcons](#ThemeIcon) in the `value` will be iconified.
 		 * @param value Markdown string.
 		 */
 		appendMarkdown(value: string): MarkdownString;
@@ -2387,7 +2410,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * ~~MarkedString can be used to render human readable text. It is either a markdown string
+	 * ~~MarkedString can be used to render human-readable text. It is either a markdown string
 	 * or a code-block that provides a language and a code snippet. Note that
 	 * markdown strings will be sanitized - that means html will be escaped.~~
 	 *
@@ -2440,6 +2463,53 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	}
+
+	/**
+	 * An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
+	 * The result of this evaluation is shown in a tooltip-like widget.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
+	 * In this case the range is still used to highlight the range in the document.
+	 */
+	export class EvaluatableExpression {
+
+		/*
+		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
+		 */
+		readonly range: Range;
+
+		/*
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+
+		/**
+		 * Creates a new evaluatable expression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * The evaluatable expression provider interface defines the contract between extensions and
+	 * the debug hover.
+	 */
+	export interface EvaluatableExpressionProvider {
+
+		/**
+		 * Provide an evaluatable expression for the given document and position.
+		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
+		 *
+		 * @param document The document in which the debug hover is opened.
+		 * @param position The position in the document where the debug hover is opened.
+		 * @param token A cancellation token.
+		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
 	}
 
 	/**
@@ -2684,7 +2754,7 @@ declare module 'vscode' {
 	 */
 	export interface DocumentSymbolProviderMetadata {
 		/**
-		 * A human readable string that is shown when multiple outlines trees show for one document.
+		 * A human-readable string that is shown when multiple outlines trees show for one document.
 		 */
 		label?: string;
 	}
@@ -3415,15 +3485,17 @@ declare module 'vscode' {
 		insertText?: string | SnippetString;
 
 		/**
-		 * A range of text that should be replaced by this completion item.
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
 		 *
-		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position.
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
 		 *
-		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range?: Range;
+		range?: Range | { inserting: Range; replacing: Range; };
 
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
@@ -3983,7 +4055,7 @@ declare module 'vscode' {
 
 		/**
 		 * The range at which this item is called. This is the range relative to the caller, e.g the item
-		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
+		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyProvider.provideCallHierarchyOutgoingCalls)
 		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
 		 */
 		fromRanges: Range[];
@@ -4015,7 +4087,7 @@ declare module 'vscode' {
 		 * @returns A call hierarchy item or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem | CallHierarchyItem[]>;
 
 		/**
 		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this describes directed
@@ -4240,16 +4312,52 @@ declare module 'vscode' {
 	/**
 	 * Represents the configuration. It is a merged view of
 	 *
-	 * - Default configuration
-	 * - Global configuration
-	 * - Workspace configuration (if available)
-	 * - Workspace folder configuration of the requested resource (if available)
+	 * - *Default Settings*
+	 * - *Global (User) Settings*
+	 * - *Workspace settings*
+	 * - *Workspace Folder settings* - From one of the [Workspace Folders](#workspace.workspaceFolders) under which requested resource belongs to.
+	 * - *Language settings* - Settings defined under requested language.
 	 *
-	 * *Global configuration* comes from User Settings and overrides Defaults.
+	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
 	 *
-	 * *Workspace configuration* comes from Workspace Settings and overrides Global configuration.
+	 * ```
+	 * `defaultValue`
+	 * `globalValue` (if defined)
+	 * `workspaceValue` (if defined)
+	 * `workspaceFolderValue` (if defined)
+	 * `defaultLanguageValue` (if defined)
+	 * `globalLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * `workspaceFolderLanguageValue` (if defined)
+	 * ```
+	 * **Note:** Only `object` value types are merged and all other value types are overridden.
 	 *
-	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders) and overrides Workspace configuration.
+	 * Example 1: Overriding
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * value = 'off'
+	 * ```
+	 *
+	 * Example 2: Language Values
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * globalLanguageValue = 'on'
+	 * value = 'on'
+	 * ```
+	 *
+	 * Example 3: Object Values
+	 *
+	 * ```ts
+	 * defaultValue = { "a": 1, "b": 2 };
+	 * globalValue = { "b": 3, "c": 4 };
+	 * value = { "a": 1, "b": 3, "c": 4 };
+	 * ```
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
@@ -4257,7 +4365,7 @@ declare module 'vscode' {
 	 *
 	 * ```ts
 	 * // launch.json configuration
-	 * const config = workspace.getConfiguration('launch', vscode.window.activeTextEditor.document.uri);
+	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
 	 *
 	 * // retrieve values
 	 * const values = config.get('configurations');
@@ -4295,13 +4403,10 @@ declare module 'vscode' {
 		/**
 		 * Retrieve all information about a configuration setting. A configuration value
 		 * often consists of a *default* value, a global or installation-wide value,
-		 * a workspace-specific value and a folder-specific value.
+		 * a workspace-specific value, folder-specific value
+		 * and language-specific values (if [WorkspaceConfiguration](#WorkspaceConfiguration) is scoped to a language).
 		 *
-		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overridden by `globalValue`,
-		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
-		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
-		 * for more information.
+		 * Also provides all language ids under which the given configuration setting is defined.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
 		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
@@ -4309,43 +4414,53 @@ declare module 'vscode' {
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @return Information about a configuration setting or `undefined`.
 		 */
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined;
+		inspect<T>(section: string): {
+			key: string;
+
+			defaultValue?: T;
+			globalValue?: T;
+			workspaceValue?: T,
+			workspaceFolderValue?: T,
+
+			defaultLanguageValue?: T;
+			globalLanguageValue?: T;
+			workspaceLanguageValue?: T;
+			workspaceFolderLanguageValue?: T;
+
+			languageIds?: string[];
+
+		} | undefined;
 
 		/**
 		 * Update a configuration value. The updated configuration values are persisted.
 		 *
 		 * A value can be changed in
 		 *
-		 * - [Global configuration](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
-		 * - [Workspace configuration](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
-		 * - [Workspace folder configuration](#ConfigurationTarget.WorkspaceFolder): Changes the value for the
-		 * [Workspace folder](#workspace.workspaceFolders) to which the current [configuration](#WorkspaceConfiguration) is scoped to.
+		 * - [Global settings](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
+		 * - [Workspace settings](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
+		 * - [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder): Changes the value for settings from one of the [Workspace Folders](#workspace.workspaceFolders) under which the requested resource belongs to.
+		 * - Language settings: Changes the value for the requested languageId.
 		 *
-		 * *Note 1:* Setting a global value in the presence of a more specific workspace value
-		 * has no observable effect in that workspace, but in others. Setting a workspace value
-		 * in the presence of a more specific folder value has no observable effect for the resources
-		 * under respective [folder](#workspace.workspaceFolders), but in others. Refer to
-		 * [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings) for more information.
-		 *
-		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
-		 *
-		 * Will throw error when
-		 * - Writing a configuration which is not registered.
-		 * - Writing a configuration to workspace or folder target when no workspace is opened
-		 * - Writing a configuration to folder target when there is no folder settings
-		 * - Writing to folder target without passing a resource when getting the configuration (`workspace.getConfiguration(section, resource)`)
-		 * - Writing a window configuration to folder target
+		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
 		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
-		 *	- If `true` configuration target is `ConfigurationTarget.Global`.
-		 *	- If `false` configuration target is `ConfigurationTarget.Workspace`.
-		 *	- If `undefined` or `null` configuration target is
-		 *	`ConfigurationTarget.WorkspaceFolder` when configuration is resource specific
-		 *	`ConfigurationTarget.Workspace` otherwise.
+		 *	- If `true` updates [Global settings](#ConfigurationTarget.Global).
+		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
+		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
+		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
+		 * @param overrideInLanguage Whether to update the value in the scope of requested languageId or not.
+		 *	- If `true` updates the value under the requested languageId.
+		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
+		 * @throws error while updating
+		 *	- configuration which is not registered.
+		 *	- window configuration to workspace folder
+		 *	- configuration to workspace or workspace folder when no workspace is opened.
+		 *	- configuration to workspace folder when there is no workspace folder settings.
+		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -4854,6 +4969,28 @@ declare module 'vscode' {
 		 * The process ID of the shell process.
 		 */
 		readonly processId: Thenable<number | undefined>;
+
+		/**
+		 * The object used to initialize the terminal, this is useful for example to detecting the
+		 * shell type of when the terminal was not launched by this extension or for detecting what
+		 * folder the shell was launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
+		/**
+		 * The exit status of the terminal, this will be undefined while the terminal is active.
+		 *
+		 * **Example:** Show a notification with the exit code when the terminal exits with a
+		 * non-zero exit code.
+		 * ```typescript
+		 * window.onDidCloseTerminal(t => {
+		 *   if (t.exitStatus && t.exitStatus.code) {
+		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   }
+		 * });
+		 * ```
+		 */
+		readonly exitStatus: TerminalExitStatus | undefined;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -5507,8 +5644,8 @@ declare module 'vscode' {
 		isBackground: boolean;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * shell task, e.g. 'gulp' or 'npm'.
+		 * A human-readable string describing the source of this shell task, e.g. 'gulp'
+		 * or 'npm'. Supports rendering of [theme icons](#ThemeIcon) via the `$(<name>)`-syntax.
 		 */
 		source: string;
 
@@ -5717,7 +5854,7 @@ declare module 'vscode' {
 
 	/**
 	 * Enumeration of file types. The types `File` and `Directory` can also be
-	 * a symbolic links, in that use `FileType.File | FileType.SymbolicLink` and
+	 * a symbolic links, in that case use `FileType.File | FileType.SymbolicLink` and
 	 * `FileType.Directory | FileType.SymbolicLink`.
 	 */
 	export enum FileType {
@@ -5746,6 +5883,8 @@ declare module 'vscode' {
 		/**
 		 * The type of the file, e.g. is a regular file, a directory, or symbolic link
 		 * to a file.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FileType.File | FileType.SymbolicLink`.
 		 */
 		type: FileType;
 		/**
@@ -7375,7 +7514,7 @@ declare module 'vscode' {
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
 
 		/**
-		 * A human readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent.
 		 * When `true`, it is derived from [resourceUri](#TreeItem.resourceUri) and when `falsy`, it is not shown.
 		 */
 		description?: string | boolean;
@@ -7550,7 +7689,7 @@ declare module 'vscode' {
 		onDidWrite: Event<string>;
 
 		/**
-		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
+		 * An event that when fired allows overriding the [dimensions](#Pseudoterminal.setDimensions) of the
 		 * terminal. Note that when set, the overridden dimensions will only take effect when they
 		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
 		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
@@ -7667,6 +7806,20 @@ declare module 'vscode' {
 		 * The number of rows in the terminal.
 		 */
 		readonly rows: number;
+	}
+
+	/**
+	 * Represents how a terminal exited.
+	 */
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
 	}
 
 	/**
@@ -7987,19 +8140,19 @@ declare module 'vscode' {
 		/**
 		 * The range that got replaced.
 		 */
-		range: Range;
+		readonly range: Range;
 		/**
 		 * The offset of the range that got replaced.
 		 */
-		rangeOffset: number;
+		readonly rangeOffset: number;
 		/**
 		 * The length of the range that got replaced.
 		 */
-		rangeLength: number;
+		readonly rangeLength: number;
 		/**
 		 * The new text for the range.
 		 */
-		text: string;
+		readonly text: string;
 	}
 
 	/**
@@ -8329,7 +8482,7 @@ declare module 'vscode' {
 		 * List of workspace folders or `undefined` when no folder is open.
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
-		export const workspaceFolders: WorkspaceFolder[] | undefined;
+		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
 		 * The name of the workspace. `undefined` when no folder
@@ -8503,7 +8656,7 @@ declare module 'vscode' {
 		/**
 		 * All text documents currently known to the system.
 		 */
-		export const textDocuments: TextDocument[];
+		export const textDocuments: ReadonlyArray<TextDocument>;
 
 		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise
@@ -8683,13 +8836,13 @@ declare module 'vscode' {
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
 		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
-		 * When a resource is provided, configuration scoped to that resource is returned.
+		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
 		 *
 		 * @param section A dot-separated identifier.
-		 * @param resource A resource for which the configuration is asked for
+		 * @param scope A scope for which the configuration is asked for.
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string, resource?: Uri | null): WorkspaceConfiguration;
+		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
@@ -8722,18 +8875,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The configuration scope which can be a
+	 * a 'resource' or a languageId or both or
+	 * a '[TextDocument](#TextDocument)' or
+	 * a '[WorkspaceFolder](#WorkspaceFolder)'
+	 */
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
+
+	/**
 	 * An event describing the change in Configuration
 	 */
 	export interface ConfigurationChangeEvent {
 
 		/**
-		 * Returns `true` if the given section for the given resource (if provided) is affected.
+		 * Returns `true` if the given section is affected in the provided scope.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
-		 * @param resource A resource Uri.
-		 * @return `true` if the given section for the given resource (if provided) is affected.
+		 * @param scope A scope in which to check.
+		 * @return `true` if the given section is affected in the provided scope.
 		 */
-		affectsConfiguration(section: string, resource?: Uri): boolean;
+		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
 	}
 
 	/**
@@ -8967,6 +9128,17 @@ declare module 'vscode' {
 		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
 
 		/**
+		 * Register a provider that locates evaluatable expressions in text documents.
+		 *
+		 * If multiple providers are registered for a language an arbitrary provider will be used.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An evaluatable expression provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+
+		/**
 		 * Register a document highlight provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
@@ -9178,7 +9350,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * A string to show as place holder in the input box to guide the user.
+		 * A string to show as placeholder in the input box to guide the user.
 		 */
 		placeholder: string;
 	}
@@ -9510,6 +9682,21 @@ declare module 'vscode' {
 		 * @return The resolved debug configuration or undefined or null.
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
+
+		/**
+		 * This hook is directly called after 'resolveDebugConfiguration' but with all variables substituted.
+		 * It can be used to resolve or verify a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the 'resolveDebugConfigurationWithSubstitutedVariables' calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 * Returning the value 'undefined' prevents the debug session from starting.
+		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration or undefined or null.
+		 */
+		resolveDebugConfigurationWithSubstitutedVariables?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
 
 	/**
@@ -9584,7 +9771,45 @@ declare module 'vscode' {
 		constructor(port: number, host?: string);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
+	/**
+	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
+	 */
+	export interface DebugAdapter extends Disposable {
+
+		/**
+		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to VS Code.
+		 * Messages can be requests, responses, or events.
+		 */
+		readonly onDidSendMessage: Event<DebugProtocolMessage>;
+
+		/**
+		 * Handle a Debug Adapter Protocol message.
+		 * Messages can be requests, responses, or events.
+		 * Results or errors are returned via onSendMessage events.
+		 * @param message A Debug Adapter Protocol message
+		 */
+		handleMessage(message: DebugProtocolMessage): void;
+	}
+
+	/**
+	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolMessage {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+	}
+
+	/**
+	 * A debug adapter descriptor for an inline implementation.
+	 */
+	export class DebugAdapterInlineImplementation {
+
+		/**
+		 * Create a descriptor for an inline implementation of a debug adapter.
+		 */
+		constructor(implementation: DebugAdapter);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterInlineImplementation;
 
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -9930,7 +10155,7 @@ declare module 'vscode' {
 	 * 	return api;
 	 * }
 	 * ```
-	 * When depending on the API of another extension add an `extensionDependency`-entry
+	 * When depending on the API of another extension add an `extensionDependencies`-entry
 	 * to `package.json`, and use the [getExtension](#extensions.getExtension)-function
 	 * and the [exports](#Extension.exports)-property, like below:
 	 *
@@ -9952,7 +10177,7 @@ declare module 'vscode' {
 		export function getExtension(extensionId: string): Extension<any> | undefined;
 
 		/**
-		 * Get an extension its full identifier in the form of: `publisher.name`.
+		 * Get an extension by its full identifier in the form of: `publisher.name`.
 		 *
 		 * @param extensionId An extension identifier.
 		 * @return An extension or `undefined`.

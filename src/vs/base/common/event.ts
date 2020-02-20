@@ -85,6 +85,8 @@ export namespace Event {
 	 * Given a collection of events, returns a single event which emits
 	 * whenever any of the provided events emit.
 	 */
+	export function any<T>(...events: Event<T>[]): Event<T>;
+	export function any(...events: Event<any>[]): Event<void>;
 	export function any<T>(...events: Event<T>[]): Event<T> {
 		return (listener, thisArgs = null, disposables?) => combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 	}
@@ -148,6 +150,7 @@ export namespace Event {
 
 					if (leading && !handle) {
 						emitter.fire(output);
+						output = undefined;
 					}
 
 					clearTimeout(handle);
@@ -270,6 +273,7 @@ export namespace Event {
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
 		forEach(fn: (i: T) => void): IChainableEvent<T>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
@@ -290,6 +294,8 @@ export namespace Event {
 			return new ChainableEvent(forEach(this.event, fn));
 		}
 
+		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
 			return new ChainableEvent(filter(this.event, fn));
 		}

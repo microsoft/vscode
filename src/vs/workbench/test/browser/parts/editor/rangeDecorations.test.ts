@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
@@ -40,7 +40,7 @@ suite('Editor - Range decorations', () => {
 		model = aModel(URI.file('some_file'));
 		codeEditor = createTestCodeEditor({ model: model });
 
-		instantiationService.stub(IEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel()!.uri; } });
+		instantiationService.stub(IEditorService, 'activeEditor', { get resource() { return codeEditor.getModel()!.uri; } });
 		instantiationService.stub(IEditorService, 'activeTextEditorWidget', codeEditor);
 
 		testObject = instantiationService.createInstance(RangeHighlightDecorations);

@@ -153,7 +153,7 @@ export class LanguageConfigurationChangeEvent {
 
 export class LanguageConfigurationRegistryImpl {
 
-	private readonly _entries = new Map<LanguageId, RichEditSupport>();
+	private readonly _entries = new Map<LanguageId, RichEditSupport | undefined>();
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
@@ -272,6 +272,16 @@ export class LanguageConfigurationRegistryImpl {
 			return ensureValidWordDefinition(null);
 		}
 		return ensureValidWordDefinition(value.wordDefinition || null);
+	}
+
+	public getWordDefinitions(): [LanguageId, RegExp][] {
+		let result: [LanguageId, RegExp][] = [];
+		this._entries.forEach((value, language) => {
+			if (value) {
+				result.push([language, value.wordDefinition]);
+			}
+		});
+		return result;
 	}
 
 	public getFoldingRules(languageId: LanguageId): FoldingRules {

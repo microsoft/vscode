@@ -116,7 +116,7 @@ namespace snippetExt {
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
 	return combinedDisposable(
 		service.watch(resource),
-		service.onFileChanges(e => {
+		service.onDidFilesChange(e => {
 			for (const change of e.changes) {
 				if (resources.isEqualOrParent(change.resource, resource)) {
 					callback(change.type, change.resource);
@@ -277,7 +277,7 @@ class SnippetsService implements ISnippetsService {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
 					// watch
-					bucket.add(this._fileService.onFileChanges(e => {
+					bucket.add(this._fileService.onDidFilesChange(e => {
 						if (e.contains(snippetFolder, FileChangeType.ADDED)) {
 							this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 						}

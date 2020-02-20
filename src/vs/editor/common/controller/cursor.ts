@@ -12,10 +12,10 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/controller/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer } from 'vs/editor/common/model';
+import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
@@ -545,7 +545,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		// Let the view get the event first.
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections));
+			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections, selections));
 		} finally {
 			this._endEmit();
 		}
@@ -727,7 +727,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				case H.Paste:
 					cursorChangeReason = CursorChangeReason.Paste;
-					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText);
+					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText || []);
 					break;
 
 				case H.Cut:
@@ -903,8 +903,8 @@ class CommandExecutor {
 		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
 			filteredOperations[0]._isTracked = true;
 		}
-		let selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] => {
-			let groupedInverseEditOperations: IIdentifiedSingleEditOperation[][] = [];
+		let selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IValidEditOperation[]): Selection[] => {
+			let groupedInverseEditOperations: IValidEditOperation[][] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
@@ -915,7 +915,7 @@ class CommandExecutor {
 				}
 				groupedInverseEditOperations[op.identifier.major].push(op);
 			}
-			const minorBasedSorter = (a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation) => {
+			const minorBasedSorter = (a: IValidEditOperation, b: IValidEditOperation) => {
 				return a.identifier!.minor - b.identifier!.minor;
 			};
 			let cursorSelections: Selection[] = [];
@@ -1000,8 +1000,8 @@ class CommandExecutor {
 		let operations: IIdentifiedSingleEditOperation[] = [];
 		let operationMinor = 0;
 
-		const addEditOperation = (selection: Range, text: string | null) => {
-			if (selection.isEmpty() && text === '') {
+		const addEditOperation = (range: IRange, text: string | null, forceMoveMarkers: boolean = false) => {
+			if (Range.isEmpty(range) && text === '') {
 				// This command wants to add a no-op => no thank you
 				return;
 			}
@@ -1010,20 +1010,21 @@ class CommandExecutor {
 					major: majorIdentifier,
 					minor: operationMinor++
 				},
-				range: selection,
+				range: range,
 				text: text,
-				forceMoveMarkers: false,
+				forceMoveMarkers: forceMoveMarkers,
 				isAutoWhitespaceEdit: command.insertsAutoWhitespace
 			});
 		};
 
 		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: Range, text: string | null) => {
+		const addTrackedEditOperation = (selection: IRange, text: string | null, forceMoveMarkers?: boolean) => {
 			hadTrackedEditOperation = true;
-			addEditOperation(selection, text);
+			addEditOperation(selection, text, forceMoveMarkers);
 		};
 
-		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
+		const trackSelection = (_selection: ISelection, trackPreviousOnEmpty?: boolean) => {
+			const selection = Selection.liftSelection(_selection);
 			let stickiness: TrackedRangeStickiness;
 			if (selection.isEmpty()) {
 				if (typeof trackPreviousOnEmpty === 'boolean') {
@@ -1093,7 +1094,7 @@ class CommandExecutor {
 			const previousOp = operations[i - 1];
 			const currentOp = operations[i];
 
-			if (previousOp.range.getStartPosition().isBefore(currentOp.range.getEndPosition())) {
+			if (Range.getStartPosition(previousOp.range).isBefore(Range.getEndPosition(currentOp.range))) {
 
 				let loserMajor: number;
 

@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { DocumentFormattingEditProvider, DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProvider, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry, TextEdit } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -178,11 +178,9 @@ export async function formatDocumentRangeWithProvider(
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits);
+		FormattingEdit.execute(editorOrModel, edits, true);
 		alertFormattingEdits(edits);
-		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
 		// use model to apply edits
@@ -266,13 +264,11 @@ export async function formatDocumentWithProvider(
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits);
+		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
 
 		if (mode !== FormattingMode.Silent) {
 			alertFormattingEdits(edits);
-			editorOrModel.pushUndoStop();
-			editorOrModel.focus();
-			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 		}
 
 	} else {

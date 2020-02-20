@@ -30,10 +30,6 @@
 	cursor: pointer;
 }
 
-.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
-	padding-right: 0px;
-}
-
 .repl .repl-tree .output.expression.value-and-source {
 	display: flex;
 }

@@ -16,7 +16,7 @@ suite('Viewlets', () => {
 			super('id', null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
 		}
 
-		public layout(dimension: any): void {
+		layout(dimension: any): void {
 			throw new Error('Method not implemented.');
 		}
 	}

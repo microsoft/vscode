@@ -16,7 +16,6 @@
 			"request": "attach",
 			"name": "Attach to Extension Host",
 			"port": 5870,
-			"restart": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -35,7 +34,10 @@
 			"port": 5876,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"hidden": true,
+			}
 		},
 		{
 			"type": "node",
@@ -53,7 +55,10 @@
 			"port": 5875,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"hidden": true,
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -67,7 +72,29 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Git Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"/tmp/my4g9l",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/git",
+				"--extensionTestsPath=${workspaceFolder}/extensions/git/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/git/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -82,7 +109,11 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 3
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -96,7 +127,11 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 4
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -110,7 +145,11 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 5
+			}
 		},
 		{
 			"type": "chrome",
@@ -140,9 +179,14 @@
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
-				"--no-cached-data"
+				"--no-cached-data",
 			],
-			"webRoot": "${workspaceFolder}"
+			"webRoot": "${workspaceFolder}",
+			// Settings for js-debug:
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 		},
 		{
 			"type": "node",
@@ -157,7 +201,11 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "2_launch",
+				"order": 1
+			}
 		},
 		{
 			"type": "node",
@@ -167,13 +215,21 @@
 			"runtimeArgs": [
 				"web"
 			],
+			"presentation": {
+				"group": "2_launch",
+				"order": 2
+			}
 		},
 		{
 			"type": "chrome",
 			"request": "launch",
 			"name": "Launch VS Code (Web, Chrome)",
 			"url": "http://localhost:8080",
-			"preLaunchTask": "Run web"
+			"preLaunchTask": "Run web",
+			"presentation": {
+				"group": "2_launch",
+				"order": 3
+			}
 		},
 		{
 			"type": "node",
@@ -184,7 +240,26 @@
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
 				"${workspaceFolder}/extensions/git/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "HTML Unit Tests",
+			"program": "${workspaceFolder}/extensions/html-language-features/server/test/index.js",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/html-language-features/server/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -198,7 +273,11 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 7
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -212,13 +291,17 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/typescript-language-features/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 8
+			}
 		},
 		{
 			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests",
-			"program": "${workspaceFolder}/test/electron/index.js",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
 			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
@@ -236,6 +319,9 @@
 			],
 			"env": {
 				"MOCHA_COLORS": "true"
+			},
+			"presentation": {
+				"hidden": true
 			}
 		},
 		{
@@ -276,28 +362,44 @@
 				"Launch VS Code",
 				"Attach to Main Process",
 				"Attach to Extension Host"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 1
+			}
 		},
 		{
 			"name": "Search and Renderer processes",
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Search Process"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 4
+			}
 		},
 		{
 			"name": "Renderer and Extension Host processes",
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Extension Host"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 3
+			}
 		},
 		{
 			"name": "Debug Unit Tests",
 			"configurations": [
 				"Attach to VS Code",
 				"Run Unit Tests"
-			]
-		},
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 2
+			}
+		}
 	]
 }

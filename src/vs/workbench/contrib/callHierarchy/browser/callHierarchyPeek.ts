@@ -82,13 +82,15 @@ class LayoutInfo {
 	) { }
 }
 
+class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>{ }
+
 export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>;
+	private _tree!: CallHierarchyTree;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
@@ -204,8 +206,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
-		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>>(
-			WorkbenchAsyncDataTree,
+		this._tree = this._instantiationService.createInstance(
+			CallHierarchyTree,
 			'CallHierarchyPeek',
 			treeContainer,
 			new callHTree.VirtualDelegate(),
@@ -383,7 +385,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
-			if (!viewState) {
+			if (!viewState || this._tree.getFocus().length === 0) {
 				this._tree.setFocus([root.children[0].element]);
 			}
 			this._tree.domFocus();

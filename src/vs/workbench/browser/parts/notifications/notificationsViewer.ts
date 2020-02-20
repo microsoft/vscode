@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper, $ } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -23,6 +23,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { startsWith } from 'vs/base/common/strings';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -136,39 +137,25 @@ class NotificationMessageRenderer {
 	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
 		const messageContainer = document.createElement('span');
 
-		// Message has no links
-		if (message.links.length === 0) {
-			messageContainer.textContent = message.value;
-		}
+		for (const node of message.linkedText.nodes) {
+			if (typeof node === 'string') {
+				messageContainer.appendChild(document.createTextNode(node));
+			} else {
+				let title = node.title;
 
-		// Message has links
-		else {
-			let index = 0;
-			for (const link of message.links) {
-
-				const textBefore = message.value.substring(index, link.offset);
-				if (textBefore) {
-					messageContainer.appendChild(document.createTextNode(textBefore));
+				if (!title && startsWith(node.href, 'command:')) {
+					title = localize('executeCommand', "Click to execute command '{0}'", node.href.substr('command:'.length));
+				} else if (!title) {
+					title = node.href;
 				}
 
-				const anchor = document.createElement('a');
-				anchor.textContent = link.name;
-				anchor.title = link.title;
-				anchor.href = link.href;
+				const anchor = $('a', { href: node.href, title: title, }, node.label);
 
 				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(link.href)));
+					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(node.href)));
 				}
 
 				messageContainer.appendChild(anchor);
-
-				index = link.offset + link.length;
-			}
-
-			// Add text after links if any
-			const textAfter = message.value.substring(index);
-			if (textAfter) {
-				messageContainer.appendChild(document.createTextNode(textAfter));
 			}
 		}
 
@@ -345,7 +332,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.renderProgress(notification);
 
 		// Label Change Events
-		this.inputDisposables.add(notification.onDidLabelChange(event => {
+		this.inputDisposables.add(notification.onDidChangeLabel(event => {
 			switch (event.kind) {
 				case NotificationViewItemLabelKind.SEVERITY:
 					this.renderSeverity(notification);

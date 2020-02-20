@@ -11,7 +11,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEditorService, TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IQuickInputService, IQuickPickItem, QuickPickInput, IPickOptions, Omit, IInputOptions, IQuickInputButton, IQuickPick, IInputBox, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
@@ -20,7 +21,6 @@ import * as Types from 'vs/base/common/types';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const mockLineNumber = 10;
@@ -531,7 +531,7 @@ class MockQuickInputService implements IQuickInputService {
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Types.isArray(picks)) {
-			return Promise.resolve(<T>{ label: 'selectedPick', description: 'pick description' });
+			return Promise.resolve(<any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' });
 		} else {
 			return Promise.resolve(undefined);
 		}
@@ -618,7 +618,7 @@ class MockInputsConfigurationService extends TestConfigurationService {
 
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
-	constructor(env: platform.IProcessEnvironment) {
-		super({ userEnv: env } as IWindowConfiguration, process.execPath, 0);
+	constructor(userEnv: platform.IProcessEnvironment) {
+		super({ ...TestWindowConfiguration, userEnv }, TestWindowConfiguration.execPath, TestWindowConfiguration.windowId);
 	}
 }

@@ -13,6 +13,12 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -28,10 +34,17 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	static readonly ID = 'workbench.editorinputs.defaultpreferences';
-	constructor(defaultSettingsResource: URI,
-		@ITextModelService textModelResolverService: ITextModelService
+	constructor(
+		defaultSettingsResource: URI,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService, textFileService, editorService, editorGroupService, fileService, labelService, filesConfigurationService);
 	}
 
 	getTypeId(): string {
@@ -62,6 +75,8 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	searchOptions: IKeybindingsEditorSearchOptions | null = null;
 
+	readonly resource = undefined;
+
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
@@ -88,7 +103,8 @@ export class SettingsEditor2Input extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
-	private resource: URI = URI.from({
+
+	readonly resource: URI = URI.from({
 		scheme: 'vscode-settings',
 		path: `settingseditor`
 	});
@@ -115,9 +131,5 @@ export class SettingsEditor2Input extends EditorInput {
 
 	resolve(): Promise<Settings2EditorModel> {
 		return Promise.resolve(this._settingsModel);
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 }

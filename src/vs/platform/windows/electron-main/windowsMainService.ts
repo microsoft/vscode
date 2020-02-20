@@ -13,14 +13,14 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, systemPreferences, MessageBoxOptions, Display } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/platform/windows/node/window';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
@@ -29,7 +29,7 @@ import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -160,14 +160,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly windowsState: IWindowsState;
 	private lastClosedWindowState?: IWindowState;
 
+	private shuttingDown = false;
+
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
-	readonly onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
+	readonly onWindowReady = this._onWindowReady.event;
 
 	private readonly _onWindowClose = this._register(new Emitter<number>());
-	readonly onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+	readonly onWindowClose = this._onWindowClose.event;
 
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
-	readonly onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
+	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
 
 	constructor(
 		private readonly machineId: string,
@@ -224,17 +226,23 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// React to HC color scheme changes (Windows)
 		if (isWindows) {
-			const onHighContrastChange = () => {
-				if (systemPreferences.isInvertedColorScheme() || systemPreferences.isHighContrastColorScheme()) {
+			nativeTheme.on('updated', () => {
+				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
 					this.sendToAll('vscode:enterHighContrast');
 				} else {
 					this.sendToAll('vscode:leaveHighContrast');
 				}
-			};
-
-			systemPreferences.on('inverted-color-scheme-changed', () => onHighContrastChange());
-			systemPreferences.on('high-contrast-color-scheme-changed', () => onHighContrastChange());
+			});
 		}
+
+		// When a window looses focus, save all windows state. This allows to
+		// prevent loss of window-state data when OS is restarted without properly
+		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
+		app.on('browser-window-blur', () => {
+			if (!this.shuttingDown) {
+				this.saveWindowsState();
+			}
+		});
 
 		// Handle various lifecycle events around windows
 		this.lifecycleMainService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
@@ -292,6 +300,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
 	//
 	private onBeforeShutdown(): void {
+		this.shuttingDown = true;
+
+		this.saveWindowsState();
+	}
+
+	private saveWindowsState(): void {
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
@@ -327,8 +341,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Persist
 		const state = getWindowsStateStoreData(currentWindowsState);
-		this.logService.trace('onBeforeShutdown', state);
 		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, state);
+
+		if (this.shuttingDown) {
+			this.logService.trace('onBeforeShutdown', state);
+		}
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
@@ -441,7 +458,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let workspacesToRestore: IWorkspacePathToOpen[] = [];
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
 			let foldersToRestore = this.backupMainService.getFolderBackupPaths();
-			foldersToAdd.push(...foldersToRestore.map(f => ({ folderUri: f, remoteAuhority: getRemoteAuthority(f), isRestored: true })));
+			foldersToOpen.push(...foldersToRestore.map(f => ({ folderUri: f, remoteAuhority: getRemoteAuthority(f) })));
 
 			// collect from workspaces with hot-exit backups and from previous window session
 			workspacesToRestore = [...this.backupMainService.getWorkspaceBackups(), ...this.workspacesMainService.getUntitledWorkspacesSync()];
@@ -999,10 +1016,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			restoreWindows = windowConfig?.restoreWindows || 'one';
+			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
-				restoreWindows = 'one';
+				restoreWindows = 'all'; // by default restore all windows
 			}
 		}
 
@@ -1042,9 +1059,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		uri = normalizePath(uri);
 
 		// remove trailing slash
-		if (hasTrailingPathSeparator(uri)) {
-			uri = removeTrailingPathSeparator(uri);
-		}
+		uri = removeTrailingPathSeparator(uri);
 
 		// File
 		if (isFileToOpen(toOpen)) {
@@ -1175,7 +1190,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		} catch (error) {
 			const fileUri = URI.file(candidate);
-			this.workspacesHistoryMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
+			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
 
 			// assume this is a file that does not yet exist
 			if (options?.ignoreFileNotFound) {

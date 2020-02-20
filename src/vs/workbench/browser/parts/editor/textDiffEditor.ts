@@ -26,11 +26,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -49,8 +48,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
@@ -68,7 +66,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this.clipboardService);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -175,14 +173,15 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			// because we are triggering another openEditor() call
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
-			const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE };
+			const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE, pinned: this.group?.isPinned(input) };
 			if (options) {
 				options.overwrite(preservingOptions);
 			} else {
 				options = EditorOptions.create(preservingOptions);
 			}
 
-			this.editorService.openEditor(binaryDiffInput, options, this.group);
+			// Replace this editor with the binary one
+			this.editorService.replaceEditors([{ editor: input, replacement: binaryDiffInput, options }], this.group || ACTIVE_GROUP);
 
 			return true;
 		}
@@ -216,9 +215,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 		const inputName = this.input?.getName();
 		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly compare editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly compare editor");
 		} else {
-			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
+			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0} compare editor", inputName) : nls.localize('editableEditorAriaLabel', "Compare editor");
 		}
 
 		return ariaLabel;
@@ -320,8 +319,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
-			original = modelOrInput.originalInput.getResource();
-			modified = modelOrInput.modifiedInput.getResource();
+			original = modelOrInput.originalInput.resource;
+			modified = modelOrInput.modifiedInput.resource;
 		} else {
 			original = modelOrInput.original.uri;
 			modified = modelOrInput.modified.uri;

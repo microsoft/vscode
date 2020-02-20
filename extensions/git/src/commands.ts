@@ -6,16 +6,18 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, GitErrorCodes, Ref, RefType, Status } from './api/git';
-import { CommitOptions, ForcePushMode, Git, Stash } from './git';
+import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions } from './api/git';
+import { ForcePushMode, Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
+import { Log, LogLevel } from './log';
+import { GitTimelineItem } from './timelineProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -250,6 +252,36 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
+	}
+
+	@command('git.setLogLevel')
+	async setLogLevel(): Promise<void> {
+		const createItem = (logLevel: LogLevel) => ({
+			label: LogLevel[logLevel],
+			logLevel,
+			description: Log.logLevel === logLevel ? localize('current', "Current") : undefined
+		});
+
+		const items = [
+			createItem(LogLevel.Trace),
+			createItem(LogLevel.Debug),
+			createItem(LogLevel.Info),
+			createItem(LogLevel.Warning),
+			createItem(LogLevel.Error),
+			createItem(LogLevel.Critical),
+			createItem(LogLevel.Off)
+		];
+
+		const choice = await window.showQuickPick(items, {
+			placeHolder: localize('select log level', "Select log level")
+		});
+
+		if (!choice) {
+			return;
+		}
+
+		Log.logLevel = choice.logLevel;
+		this.outputChannel.appendLine(localize('changed', "Log level changed to: {0}", LogLevel[Log.logLevel]));
 	}
 
 	@command('git.refresh', { repository: true })
@@ -534,24 +566,29 @@ export class CommandCenter {
 	}
 
 	@command('git.init')
-	async init(): Promise<void> {
+	async init(skipFolderPrompt = false): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
 		let askToOpen = true;
 
 		if (workspace.workspaceFolders) {
-			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
-			const pick = { label: localize('choose', "Choose Folder...") };
-			const items: { label: string, folder?: WorkspaceFolder }[] = [
-				...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
-				pick
-			];
-			const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
-
-			if (!item) {
-				return;
-			} else if (item.folder) {
-				repositoryPath = item.folder.uri.fsPath;
+			if (skipFolderPrompt && workspace.workspaceFolders.length === 1) {
+				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
 				askToOpen = false;
+			} else {
+				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
+				const pick = { label: localize('choose', "Choose Folder...") };
+				const items: { label: string, folder?: WorkspaceFolder }[] = [
+					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
+					pick
+				];
+				const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
+
+				if (!item) {
+					return;
+				} else if (item.folder) {
+					repositoryPath = item.folder.uri.fsPath;
+					askToOpen = false;
+				}
 			}
 		}
 
@@ -1292,6 +1329,9 @@ export class CommandCenter {
 		}
 
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
 		if (promptToSaveFilesBeforeCommit !== 'never') {
 			let documents = workspace.textDocuments
@@ -1312,16 +1352,12 @@ export class CommandCenter {
 
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
-					await repository.add([]);
+					await repository.add(documents.map(d => d.uri));
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
 				}
 			}
 		}
-
-		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
-		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
@@ -1580,7 +1616,7 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async promptForBranchName(defaultName?: string): Promise<string> {
+	private async promptForBranchName(defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
@@ -1590,7 +1626,8 @@ export class CommandCenter {
 
 		const rawBranchName = defaultName || await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
+			prompt: localize('provide branch name', "Please provide a new branch name"),
+			value: initialValue,
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
 				const validateName = new RegExp(branchValidationRegex);
@@ -1668,7 +1705,8 @@ export class CommandCenter {
 
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
-		const branchName = await this.promptForBranchName();
+		const currentBranchName = repository.HEAD && repository.HEAD.name;
+		const branchName = await this.promptForBranchName(undefined, currentBranchName);
 
 		if (!branchName) {
 			return;
@@ -2298,6 +2336,47 @@ export class CommandCenter {
 		const result = await window.showQuickPick(picks, { placeHolder });
 		return result && result.stash;
 	}
+
+	@command('git.timeline.openDiff', { repository: false })
+	async timelineOpenDiff(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		// eslint-disable-next-line eqeqeq
+		if (uri == null || !GitTimelineItem.is(item)) {
+			return undefined;
+		}
+
+		const basename = path.basename(uri.fsPath);
+
+		let title;
+		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
+			title = `${basename} (Working Tree)`;
+		}
+		else if (item.previousRef === 'HEAD' && item.ref === '~') {
+			title = `${basename} (Index)`;
+		} else {
+			title = `${basename} (${item.shortPreviousRef}) \u27f7 ${basename} (${item.shortRef})`;
+		}
+
+		return commands.executeCommand('vscode.diff', toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
+	}
+
+	@command('git.timeline.copyCommitId', { repository: false })
+	async timelineCopyCommitId(item: TimelineItem, _uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		env.clipboard.writeText(item.ref);
+	}
+
+	@command('git.timeline.copyCommitMessage', { repository: false })
+	async timelineCopyCommitMessage(item: TimelineItem, _uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		env.clipboard.writeText(item.message);
+	}
+
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {

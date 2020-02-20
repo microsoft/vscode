@@ -11,7 +11,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 
 export class TestQuickOpenService implements IQuickOpenService {
-	public _serviceBrand: undefined;
+
+	_serviceBrand: undefined;
 
 	private callback?: (prefix?: string) => void;
 
@@ -44,8 +45,8 @@ export class TestQuickOpenService implements IQuickOpenService {
 		return null!;
 	}
 
-	public dispose() { }
-	public navigate(): void { }
+	dispose() { }
+	navigate(): void { }
 }
 
 suite('QuickOpen', () => {

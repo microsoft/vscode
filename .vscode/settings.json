@@ -22,6 +22,8 @@
 		"i18n/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true
 	},
 	"lcov.path": [
@@ -37,6 +39,11 @@
 			}
 		}
 	],
+	"eslint.options": {
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
+	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",

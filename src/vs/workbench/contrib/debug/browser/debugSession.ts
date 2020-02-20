@@ -9,7 +9,6 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
-import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
@@ -26,7 +25,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
@@ -34,6 +32,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class DebugSession implements IDebugSession {
 
@@ -74,7 +74,9 @@ export class DebugSession implements IDebugSession {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this.id = generateUuid();
 		this._options = options || {};
@@ -83,7 +85,15 @@ export class DebugSession implements IDebugSession {
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
-		this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+
+		const toDispose: IDisposable[] = [];
+		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
+		if (lifecycleService) {
+			toDispose.push(lifecycleService.onShutdown(() => {
+				this.shutdown();
+				dispose(toDispose);
+			}));
+		}
 	}
 
 	getId(): string {
@@ -190,7 +200,7 @@ export class DebugSession implements IDebugSession {
 		try {
 			const customTelemetryService = await dbgr.getCustomTelemetryService();
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService);
+			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
 
 			await this.raw.start();
 			this.registerListeners();
@@ -213,6 +223,7 @@ export class DebugSession implements IDebugSession {
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
+			this.shutdown();
 			throw err;
 		}
 	}
@@ -227,8 +238,12 @@ export class DebugSession implements IDebugSession {
 
 		// __sessionID only used for EH debugging (but we add it always for now...)
 		config.__sessionId = this.getId();
-		await this.raw.launchOrAttach(config);
-
+		try {
+			await this.raw.launchOrAttach(config);
+		} catch (err) {
+			this.shutdown();
+			throw err;
+		}
 	}
 
 	/**
@@ -565,35 +580,17 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<CompletionItem[]> {
+	async completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (!this.raw) {
 			return Promise.reject(new Error('no debug adapter'));
 		}
 
-		const response = await this.raw.completions({
+		return this.raw.completions({
 			frameId,
 			text,
 			column: position.column,
 			line: position.lineNumber,
 		}, token);
-
-		const result: CompletionItem[] = [];
-		if (response && response.body && response.body.targets) {
-			response.body.targets.forEach(item => {
-				if (item && item.label) {
-					result.push({
-						label: item.label,
-						insertText: item.text || item.label,
-						kind: completionKindFromString(item.type || 'property'),
-						filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
-						range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position),
-						sortText: item.sortText
-					});
-				}
-			});
-		}
-
-		return result;
 	}
 
 	//---- threads
@@ -910,17 +907,20 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
 			this.initialized = true;
 			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
+			this.shutdown();
 			this._onDidEndAdapter.fire(event);
 		}));
 	}
 
-	shutdown(): void {
+	// Disconnects and clears state. Session can be initialized again for a new connection.
+	private shutdown(): void {
 		dispose(this.rawListeners);
 		if (this.raw) {
 			this.raw.disconnect();
 			this.raw.dispose();
+			this.raw = undefined;
 		}
-		this.raw = undefined;
+		this.fetchThreadsScheduler = undefined;
 		this.model.clearThreads(this.getId(), true);
 		this._onDidChangeState.fire();
 	}

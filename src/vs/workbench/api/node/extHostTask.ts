@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { win32 } from 'vs/base/node/processes';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as tasks from '../common/shared/tasks';
 import * as Objects from 'vs/base/common/objects';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
@@ -24,6 +24,7 @@ import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerDat
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 export class ExtHostTask extends ExtHostTaskBase {
 	private _variableResolver: ExtHostVariableResolverService | undefined;
@@ -35,9 +36,10 @@ export class ExtHostTask extends ExtHostTaskBase {
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
-		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService);
+		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this.registerTaskSystem(Schemas.vscodeRemote, {
 				scheme: Schemas.vscodeRemote,
@@ -73,6 +75,8 @@ export class ExtHostTask extends ExtHostTaskBase {
 		const taskDTOs: tasks.TaskDTO[] = [];
 		if (value) {
 			for (let task of value) {
+				this.checkDeprecation(task, handler);
+
 				if (!task.definition || !validTypes[task.definition.type]) {
 					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
@@ -175,7 +179,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	}
 
 	public $getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return this._terminalService.$requestDefaultShellAndArgs(true);
+		return this._terminalService.$getDefaultShellAndArgs(true);
 	}
 
 	public async $jsonTasksSupported(): Promise<boolean> {

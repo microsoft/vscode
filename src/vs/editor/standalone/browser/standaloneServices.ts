@@ -45,9 +45,11 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -192,7 +194,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
-		ensure(IAccessibilityService, () => new BrowserAccessibilityService(contextKeyService, configurationService));
+		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
 
 		ensure(IListService, () => new ListService(themeService));
 
@@ -203,6 +205,8 @@ export class DynamicStandaloneServices extends Disposable {
 		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(domElement));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+
+		ensure(IClipboardService, () => new BrowserClipboardService());
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);

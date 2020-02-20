@@ -57,7 +57,7 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		// Explorer
-		if (list instanceof AsyncDataTree) {
+		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
 			const context = explorerService.getContext(true);
 			if (context.length) {

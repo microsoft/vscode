@@ -73,7 +73,7 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		const list = this.list = this._register(this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<INotificationViewItem>>(
+		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotificationsList',
 			this.listContainer,
@@ -181,7 +181,7 @@ export class NotificationsList extends Themable {
 		}
 
 		// Restore DOM focus if we had focus before
-		if (listHasDOMFocus) {
+		if (this.isVisible && listHasDOMFocus) {
 			list.domFocus();
 		}
 	}
@@ -221,7 +221,7 @@ export class NotificationsList extends Themable {
 	protected updateStyles(): void {
 		if (this.listContainer) {
 			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
-			this.listContainer.style.color = foreground ? foreground : null;
+			this.listContainer.style.color = foreground ? foreground : '';
 
 			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
 			this.listContainer.style.background = background ? background : '';

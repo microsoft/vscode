@@ -27,9 +27,8 @@ class JsDocCompletionItem extends vscode.CompletionItem {
 		const prefix = line.slice(0, position.character).match(/\/\**\s*$/);
 		const suffix = line.slice(position.character).match(/^\s*\**\//);
 		const start = position.translate(0, prefix ? -prefix[0].length : 0);
-		this.range = new vscode.Range(
-			start,
-			position.translate(0, suffix ? suffix[0].length : 0));
+		const range = new vscode.Range(start, position.translate(0, suffix ? suffix[0].length : 0));
+		this.range = { inserting: range, replacing: range };
 	}
 }
 

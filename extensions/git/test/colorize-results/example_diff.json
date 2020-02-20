@@ -147,9 +147,9 @@
 		"t": "source.diff markup.inserted.diff punctuation.definition.inserted.diff",
 		"r": {
 			"dark_plus": "markup.inserted: #B5CEA8",
-			"light_plus": "markup.inserted: #09885A",
+			"light_plus": "markup.inserted: #098658",
 			"dark_vs": "markup.inserted: #B5CEA8",
-			"light_vs": "markup.inserted: #09885A",
+			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8"
 		}
 	},
@@ -158,9 +158,9 @@
 		"t": "source.diff markup.inserted.diff",
 		"r": {
 			"dark_plus": "markup.inserted: #B5CEA8",
-			"light_plus": "markup.inserted: #09885A",
+			"light_plus": "markup.inserted: #098658",
 			"dark_vs": "markup.inserted: #B5CEA8",
-			"light_vs": "markup.inserted: #09885A",
+			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8"
 		}
 	}

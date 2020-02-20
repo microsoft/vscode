@@ -18,15 +18,15 @@ import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/edito
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
+import { TextEdit, WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -80,13 +80,21 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	public dispose(): void {
 		this._onDispose.fire();
 	}
+
+	public isResolved(): boolean {
+		return true;
+	}
+
+	public getMode(): string | undefined {
+		return this.model.getModeId();
+	}
 }
 
 export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
-function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
+function withTypedEditor<T>(widget: IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
 	if (isCodeEditor(widget)) {
 		// Single Editor
 		return codeEditorCallback(<ICodeEditor>widget);
@@ -100,13 +108,13 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
 	private readonly modelService: IModelService | undefined;
-	private editor?: editorCommon.IEditor;
+	private editor?: IEditor;
 
 	constructor(modelService: IModelService | undefined) {
 		this.modelService = modelService;
 	}
 
-	public setEditor(editor: editorCommon.IEditor): void {
+	public setEditor(editor: IEditor): void {
 		this.editor = editor;
 	}
 
@@ -312,30 +320,29 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | undefined): IDisposable {
 		const keybinding = createKeybinding(_keybinding, OS);
-		if (!keybinding) {
-			throw new Error(`Invalid keybinding`);
-		}
 
 		const toDispose = new DisposableStore();
 
-		this._dynamicKeybindings.push({
-			keybinding: keybinding,
-			command: commandId,
-			when: when,
-			weight1: 1000,
-			weight2: 0
-		});
+		if (keybinding) {
+			this._dynamicKeybindings.push({
+				keybinding: keybinding,
+				command: commandId,
+				when: when,
+				weight1: 1000,
+				weight2: 0
+			});
 
-		toDispose.add(toDisposable(() => {
-			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-				let kb = this._dynamicKeybindings[i];
-				if (kb.command === commandId) {
-					this._dynamicKeybindings.splice(i, 1);
-					this.updateResolver({ source: KeybindingSource.Default });
-					return;
+			toDispose.add(toDisposable(() => {
+				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+					let kb = this._dynamicKeybindings[i];
+					if (kb.command === commandId) {
+						this._dynamicKeybindings.splice(i, 1);
+						this.updateResolver({ source: KeybindingSource.Default });
+						return;
+					}
 				}
-			}
-		}));
+			}));
+		}
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
@@ -441,10 +448,6 @@ export class SimpleConfigurationService implements IConfigurationService {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration {
-		return this._configuration;
-	}
-
 	getValue<T>(): T;
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
@@ -452,20 +455,43 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getValue(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration().getValue(section, overrides, undefined);
+		return this._configuration.getValue(section, overrides, undefined);
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
-		this.configuration().updateValue(key, value);
+	public updateValues(values: [string, any][]): Promise<void> {
+		const previous = { data: this._configuration.toData() };
+
+		let changedKeys: string[] = [];
+
+		for (const entry of values) {
+			const [key, value] = entry;
+			if (this.getValue(key) === value) {
+				continue;
+			}
+			this._configuration.updateValue(key, value);
+			changedKeys.push(key);
+		}
+
+		if (changedKeys.length > 0) {
+			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
+			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
+			configurationChangeEvent.sourceConfig = null;
+			this._onDidChangeConfiguration.fire(configurationChangeEvent);
+		}
+
 		return Promise.resolve();
 	}
 
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+		return this.updateValues([[key, value]]);
+	}
+
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): IConfigurationValue<C> {
-		return this.configuration().inspect<C>(key, options, undefined);
+		return this._configuration.inspect<C>(key, options, undefined);
 	}
 
 	public keys() {
-		return this.configuration().keys(undefined);
+		return this._configuration.keys(undefined);
 	}
 
 	public reloadConfiguration(): Promise<void> {
@@ -615,14 +641,18 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 	if (!(configurationService instanceof SimpleConfigurationService)) {
 		return;
 	}
+	let toUpdate: [string, any][] = [];
 	Object.keys(source).forEach((key) => {
 		if (isEditorConfigurationKey(key)) {
-			configurationService.updateValue(`editor.${key}`, source[key]);
+			toUpdate.push([`editor.${key}`, source[key]]);
 		}
 		if (isDiffEditor && isDiffEditorConfigurationKey(key)) {
-			configurationService.updateValue(`diffEditor.${key}`, source[key]);
+			toUpdate.push([`diffEditor.${key}`, source[key]]);
 		}
 	});
+	if (toUpdate.length > 0) {
+		configurationService.updateValues(toUpdate);
+	}
 }
 
 export class SimpleBulkEditService implements IBulkEditService {
@@ -632,13 +662,21 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
+	hasPreviewHandler(): false {
+		return false;
+	}
+
+	setPreviewHandler(): IDisposable {
+		return Disposable.None;
+	}
+
 	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
 		if (workspaceEdit.edits) {
 			for (let edit of workspaceEdit.edits) {
-				if (!isResourceTextEdit(edit)) {
+				if (!WorkspaceTextEdit.is(edit)) {
 					return Promise.reject(new Error('bad edit - only text edits are supported'));
 				}
 				let model = this._modelService.getModel(edit.resource);
@@ -648,8 +686,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 				let array = edits.get(model);
 				if (!array) {
 					array = [];
+					edits.set(model, array);
 				}
-				edits.set(model, array.concat(edit.edits));
+				array.push(edit.edit);
 			}
 		}
 

@@ -29,14 +29,14 @@ steps:
 - powershell: |
     yarn electron
 - script: |
-    yarn gulp hygiene --skip-tslint
+    yarn gulp hygiene
   displayName: Run Hygiene Checks
-- script: |
-    yarn gulp tslint
-  displayName: Run TSLint Checks
 - powershell: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
+- script: |
+    yarn valid-layers-check
+  displayName: Run Valid Layers Checks
 - powershell: |
     yarn compile
   displayName: Compile Sources
@@ -45,10 +45,13 @@ steps:
   displayName: Download Built-in Extensions
 - powershell: |
     .\scripts\test.bat --tfs "Unit Tests"
-  displayName: Run Unit Tests
+  displayName: Run Unit Tests (Electron)
+- powershell: |
+    yarn test-browser --browser chromium
+  displayName: Run Unit Tests (Browser)
 - powershell: |
     .\scripts\test-integration.bat --tfs "Integration Tests"
-  displayName: Run Integration Tests
+  displayName: Run Integration Tests (Electron)
 - task: PublishTestResults@2
   displayName: Publish Tests Results
   inputs:

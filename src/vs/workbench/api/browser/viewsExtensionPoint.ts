@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor, ViewContainerLocation } from 'vs/workbench/common/views';
 import { CustomTreeViewPane, CustomTreeView } from 'vs/workbench/browser/parts/views/customView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
@@ -22,21 +22,14 @@ import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction, Viewlet } from 'vs/workbench/browser/viewlet';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -89,7 +82,7 @@ const viewDescriptor: IJSONSchema = {
 	type: 'object',
 	properties: {
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -107,7 +100,7 @@ const remoteViewDescriptor: IJSONSchema = {
 	type: 'object',
 	properties: {
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -242,7 +235,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		for (const viewContainer of viewContainersRegistry.all) {
 			if (viewContainer.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(viewContainer.extensionId))) {
 				// move only those views that do not belong to the removed extension
-				const views = this.viewsRegistry.getViews(viewContainer).filter((view: ICustomViewDescriptor) => !removedExtensions.has(ExtensionIdentifier.toKey(view.extensionId)));
+				const views = this.viewsRegistry.getViews(viewContainer).filter(view => !removedExtensions.has(ExtensionIdentifier.toKey((view as ICustomViewDescriptor).extensionId)));
 				if (views.length) {
 					this.viewsRegistry.moveViews(views, this.getDefaultViewContainer());
 				}
@@ -297,7 +290,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				const viewsToMove: IViewDescriptor[] = [];
 				for (const existingViewContainer of existingViewContainers) {
 					if (viewContainer !== existingViewContainer) {
-						viewsToMove.push(...this.viewsRegistry.getViews(existingViewContainer).filter((view: ICustomViewDescriptor) => view.originalContainerId === descriptor.id));
+						viewsToMove.push(...this.viewsRegistry.getViews(existingViewContainer).filter(view => (view as ICustomViewDescriptor).originalContainerId === descriptor.id));
 					}
 				}
 				if (viewsToMove.length) {
@@ -313,52 +306,17 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer(id, true, extensionId);
-
-			class CustomViewPaneContainer extends ViewPaneContainer {
-				constructor(
-					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-					@ITelemetryService telemetryService: ITelemetryService,
-					@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-					@IStorageService protected storageService: IStorageService,
-					@IConfigurationService configurationService: IConfigurationService,
-					@IInstantiationService protected instantiationService: IInstantiationService,
-					@IThemeService themeService: IThemeService,
-					@IContextMenuService contextMenuService: IContextMenuService,
-					@IExtensionService extensionService: IExtensionService,
-				) {
-					super(id, `${id}.state`, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
-				}
-			}
-
-			// Register a viewlet
-			class CustomViewlet extends Viewlet {
-				constructor(
-					@IConfigurationService configurationService: IConfigurationService,
-					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-					@ITelemetryService telemetryService: ITelemetryService,
-					@IWorkspaceContextService contextService: IWorkspaceContextService,
-					@IStorageService storageService: IStorageService,
-					@IEditorService editorService: IEditorService,
-					@IInstantiationService instantiationService: IInstantiationService,
-					@IThemeService themeService: IThemeService,
-					@IContextMenuService contextMenuService: IContextMenuService,
-					@IExtensionService extensionService: IExtensionService
-				) {
-					super(id, instantiationService.createInstance(CustomViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-				}
-			}
-
-			const viewletDescriptor = ViewletDescriptor.create(
-				CustomViewlet,
+			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
-				title,
-				undefined,
+				name: title, extensionId,
+				ctorDescriptor: new SyncDescriptor(
+					ViewPaneContainer,
+					[id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]
+				),
+				hideIfEmpty: true,
 				order,
-				icon
-			);
-
-			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+				icon,
+			}, ViewContainerLocation.Sidebar);
 
 			// Register Action to Open Viewlet
 			class OpenCustomViewletAction extends ShowViewletAction {
@@ -417,33 +375,33 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const registeredViews = this.viewsRegistry.getViews(container);
 				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
 					if (viewIds.indexOf(item.id) !== -1) {
-						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the view container `{1}`", item.id, container.id));
+						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
 						return null;
 					}
-					if (registeredViews.some(v => v.id === item.id)) {
-						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the view container `{1}`", item.id, container.id));
+					if (this.viewsRegistry.getView(item.id) !== null) {
+						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
 						return null;
 					}
 
 					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
 						? index + 1
-						: container.orderDelegate
-							? container.orderDelegate.getOrder(item.group)
+						: container.viewOrderDelegate
+							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
-						ctorDescriptor: { ctor: CustomTreeViewPane },
+						ctorDescriptor: new SyncDescriptor(CustomTreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
+						canMoveView: true,
+						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
 						collapsed: this.showCollapsed(container),
-						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name, container),
 						order: order,
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key,
@@ -466,7 +424,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: Set<string> = extensions.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of this.viewContainersRegistry.all) {
-			const removedViews = this.viewsRegistry.getViews(viewContainer).filter((v: ICustomViewDescriptor) => v.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(v.extensionId)));
+			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has(ExtensionIdentifier.toKey((v as ICustomViewDescriptor).extensionId)));
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
 			}

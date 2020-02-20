@@ -7,12 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { sequence } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, IResourceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { SaveReason } from 'vs/workbench/common/editor';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -141,19 +141,17 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			});
 
 		}).then(values => {
-
-			const resourceEdit: IResourceTextEditDto = {
-				resource: document.uri,
-				edits: []
-			};
-
+			const dto: IWorkspaceEditDto = { edits: [] };
 			for (const value of values) {
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
-						resourceEdit.edits.push({
-							range: range && Range.from(range),
-							text: newText,
-							eol: newEol && EndOfLine.from(newEol)
+						dto.edits.push({
+							resource: document.uri,
+							edit: {
+								range: range && Range.from(range),
+								text: newText,
+								eol: newEol && EndOfLine.from(newEol)
+							}
 						});
 					}
 				}
@@ -161,12 +159,12 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 			// apply edits if any and if document
 			// didn't change somehow in the meantime
-			if (resourceEdit.edits.length === 0) {
+			if (dto.edits.length === 0) {
 				return undefined;
 			}
 
 			if (version === document.version) {
-				return this._mainThreadEditors.$tryApplyWorkspaceEdit({ edits: [resourceEdit] });
+				return this._mainThreadEditors.$tryApplyWorkspaceEdit(dto);
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));

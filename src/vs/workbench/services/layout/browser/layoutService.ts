@@ -9,6 +9,7 @@ import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension } from 'vs/base/browser/dom';
+import { Direction } from 'vs/base/browser/ui/grid/grid';
 
 export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
 
@@ -25,6 +26,26 @@ export const enum Position {
 	LEFT,
 	RIGHT,
 	BOTTOM
+}
+
+export function positionToString(position: Position): string {
+	switch (position) {
+		case Position.LEFT: return 'left';
+		case Position.RIGHT: return 'right';
+		case Position.BOTTOM: return 'bottom';
+	}
+
+	return 'bottom';
+}
+
+const positionsByString: { [key: string]: Position } = {
+	[positionToString(Position.LEFT)]: Position.LEFT,
+	[positionToString(Position.RIGHT)]: Position.RIGHT,
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+};
+
+export function positionFromString(str: string): Position {
+	return positionsByString[str];
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
@@ -204,4 +225,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Updates the maximized state of the window.
 	 */
 	updateWindowMaximizedState(maximized: boolean): void;
+
+	/**
+	 * Returns the next visible view part in a given direction
+	 */
+	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }

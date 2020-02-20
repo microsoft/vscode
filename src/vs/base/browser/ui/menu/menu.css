@@ -54,7 +54,7 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon {
-	font-size: 16px;
+	font-size: 16px !important;
 	display: flex;
 	align-items: center;
 }

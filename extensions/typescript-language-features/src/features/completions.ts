@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
@@ -16,7 +16,7 @@ import { ConfigurationDependentRegistration } from '../utils/dependentRegistrati
 import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
@@ -66,17 +66,19 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		if (tsEntry.replacementSpan) {
-			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+			let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 			// Make sure we only replace a single line at most
-			if (!this.range.isSingleLine) {
-				this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
+			if (!replaceRange.isSingleLine) {
+				replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, line.length);
 			}
+			this.range = {
+				inserting: new vscode.Range(replaceRange.start, position),
+				replacing: replaceRange,
+			};
 		}
 
 		this.insertText = tsEntry.insertText;
-		// Set filterText for intelliCode and bracket accessors , but not for `this.` completions since it results in
-		// them being overly prioritized. #74164
-		this.filterText = tsEntry.insertText && !/^this\./.test(tsEntry.insertText) ? tsEntry.insertText : undefined;
+		this.filterText = this.getFilterText(line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
@@ -119,28 +121,67 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.resolveRange(line);
 	}
 
+	private getFilterText(line: string, insertText: string | undefined): string | undefined {
+		// Handle private field completions
+		if (this.tsEntry.name.startsWith('#')) {
+			const wordRange = this.document.getWordRangeAtPosition(this.position);
+			const wordStart = wordRange ? line.charAt(wordRange.start.character) : undefined;
+			if (insertText) {
+				if (insertText.startsWith('this.#')) {
+					return wordStart === '#' ? insertText : insertText.replace(/^this\.#/, '');
+				} else {
+					return insertText;
+				}
+			} else {
+				return wordStart === '#' ? undefined : this.tsEntry.name.replace(/^#/, '');
+			}
+			return undefined;
+		}
+
+		// For `this.` completions, generally don't set the filter text since we don't want them to be overly prioritized. #74164
+		if (insertText?.startsWith('this.')) {
+			return undefined;
+		}
+		// Handle the case:
+		// ```
+		// const xyz = { 'ab c': 1 };
+		// xyz.ab|
+		// ```
+		// In which case we want to insert a bracket accessor but should use `.abc` as the filter text instead of
+		// the bracketed insert text.
+		else if (insertText?.startsWith('[')) {
+			return insertText.replace(/^\[['"](.+)[['"]\]$/, '.$1');
+		}
+
+		// In all other cases, fallback to using the insertText
+		return insertText;
+	}
+
 	private resolveRange(line: string): void {
 		if (this.range) {
 			return;
 		}
 
-
 		const wordRange = this.document.getWordRangeAtPosition(this.position);
-		if (wordRange) {
-			// TODO: Reverted next line due to https://github.com/Microsoft/vscode/issues/66187
-			// this.range = wordRange;
-		}
+		let replaceRange = wordRange;
 
 		// Try getting longer, prefix based range for completions that span words
 		const text = line.slice(Math.max(0, this.position.character - this.label.length), this.position.character).toLowerCase();
 		const entryName = this.label.toLowerCase();
 		for (let i = entryName.length; i >= 0; --i) {
 			if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
-				this.range = new vscode.Range(
+				replaceRange = new vscode.Range(
 					new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
 					this.position);
 				break;
 			}
+		}
+
+		if (replaceRange) {
+			this.range = {
+				inserting: new vscode.Range(replaceRange.start, this.position),
+				replacing: replaceRange
+			};
 		}
 	}
 
@@ -161,6 +202,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
 			case PConst.Kind.function:
+			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.constructSignature:
@@ -330,7 +372,7 @@ namespace CompletionConfiguration {
 
 class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -404,15 +446,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
 				this.telemetryReporter.logTelemetry('completions.execute', {
-					duration: duration + '',
-					type: response ? response.type : 'unknown',
-					count: (response && response.type === 'response' && response.body ? response.body.entries.length : 0) + ''
+					duration: duration,
+					type: response?.type ?? 'unknown',
+					count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
+					updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
 				});
 			}
 
@@ -456,14 +500,23 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
-		if (context.triggerCharacter === '@'
-			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
-		) {
-			return undefined;
+		switch (context.triggerCharacter) {
+			case '@': // Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
+
+			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
+				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
+
+			case '.':
+			case '"':
+			case '\'':
+			case '`':
+			case '/':
+			case '<':
+				return context.triggerCharacter;
 		}
 
-		return context.triggerCharacter as Proto.CompletionsTriggerCharacter;
+		return undefined;
 	}
 
 	public async resolveCompletionItem(
@@ -509,7 +562,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 		item.additionalTextEdits = codeAction.additionalTextEdits;
 
-		if (detail && item.useCodeSnippet) {
+		if (item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
 			if (shouldCompleteFunction) {
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
@@ -591,7 +644,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	): boolean {
 		if (this.client.apiVersion.lt(API.v320)) {
 			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
-			// Only enable dot completions when previous character not a dot preceeded by whitespace.
+			// Only enable dot completions when previous character not a dot preceded by whitespace.
 			// Prevents incorrectly completing while typing spread operators.
 			if (position.character > 1) {
 				const preText = document.getText(new vscode.Range(

@@ -309,15 +309,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return true;
 	}
 
-	private _onRequestAvailableShells(request: IAvailableShellsRequest): void {
+	private async _onRequestAvailableShells(req: IAvailableShellsRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestAvailableShells().then(e => request(e));
+			req.callback(await this._proxy.$getAvailableShells());
 		}
 	}
 
-	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest): void {
+	private async _onRequestDefaultShellAndArgs(req: IDefaultShellAndArgsRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestDefaultShellAndArgs(request.useAutomationShell).then(e => request.callback(e.shell, e.args));
+			const res = await this._proxy.$getDefaultShellAndArgs(req.useAutomationShell);
+			req.callback(res.shell, res.args);
 		}
 	}
 
@@ -343,7 +344,7 @@ class TerminalDataEventTracker extends Disposable {
 	) {
 		super();
 
-		this._register(this._bufferer = new TerminalDataBufferer());
+		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
 		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
 		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
@@ -352,6 +353,6 @@ class TerminalDataEventTracker extends Disposable {
 
 	private _registerInstance(instance: ITerminalInstance): void {
 		// Buffer data events to reduce the amount of messages going to the extension host
-		this._register(this._bufferer.startBuffering(instance.id, instance.onData, this._callback));
+		this._register(this._bufferer.startBuffering(instance.id, instance.onData));
 	}
 }

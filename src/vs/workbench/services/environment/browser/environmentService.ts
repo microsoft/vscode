@@ -108,7 +108,7 @@ interface IBrowserWorkbenchEnvironmentConstructionOptions extends IWorkbenchCons
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
-	extensionDevelopmentLocationURI: URI[];
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 }
 
@@ -134,10 +134,16 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
-	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.keybindings.json'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, '.sync'); }
+
+	@memoize
+	get settingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'settings.json'); }
+
+	@memoize
+	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'keybindings.json'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
@@ -171,7 +177,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
 	}
 
-	get extensionDevelopmentLocationURI(): URI[] {
+	get extensionDevelopmentLocationURI(): URI[] | undefined {
 		if (!this._extensionHostDebugEnvironment) {
 			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
@@ -235,8 +241,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	nodeCachedDataDir?: string;
 
-	argvResource!: URI;
-
 	disableCrashReporter!: boolean;
 
 	driverHandle?: string;
@@ -285,7 +289,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				break: false
 			},
 			isExtensionDevelopment: false,
-			extensionDevelopmentLocationURI: []
+			extensionDevelopmentLocationURI: undefined
 		};
 
 		// Fill in selected extra environmental properties

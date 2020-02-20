@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, IResourceEncodings, IResourceEncoding, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IResourceEncodings, IResourceEncoding, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 
 export class BrowserTextFileService extends AbstractTextFileService {
 
@@ -17,49 +16,21 @@ export class BrowserTextFileService extends AbstractTextFileService {
 		}
 	};
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean {
-		// Web: we cannot perform long running in the shutdown phase
-		// As such we need to check sync if there are any dirty files
-		// that have not been backed up yet and then prevent the shutdown
-		// if that is the case.
-		return this.doBeforeShutdownSync();
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		// Lifecycle
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 	}
 
-	private doBeforeShutdownSync(): boolean {
-		if (this.models.getAll().some(model => model.hasState(ModelState.PENDING_SAVE) || model.hasState(ModelState.PENDING_AUTO_SAVE))) {
+	protected onBeforeShutdown(reason: ShutdownReason): boolean {
+		if (this.files.models.some(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))) {
+			console.warn('Unload prevented: pending file saves');
+
 			return true; // files are pending to be saved: veto
 		}
 
-		const dirtyResources = this.getDirty();
-		if (!dirtyResources.length) {
-			return false; // no dirty: no veto
-		}
-
-		if (!this.filesConfigurationService.isHotExitEnabled) {
-			return true; // dirty without backup: veto
-		}
-
-		for (const dirtyResource of dirtyResources) {
-			let hasBackup = false;
-
-			if (this.fileService.canHandleResource(dirtyResource)) {
-				const model = this.models.get(dirtyResource);
-				hasBackup = !!(model?.hasBackup());
-			} else if (dirtyResource.scheme === Schemas.untitled) {
-				hasBackup = this.untitledTextEditorService.hasBackup(dirtyResource);
-			}
-
-			if (!hasBackup) {
-				console.warn('Unload prevented: pending backups');
-				return true; // dirty without backup: veto
-			}
-		}
-
-		return false; // dirty with backups: no veto
-	}
-
-	protected async getWindowCount(): Promise<number> {
-		return 1; // Browser only ever is 1 window
+		return false;
 	}
 }
 

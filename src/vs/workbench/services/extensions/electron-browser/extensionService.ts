@@ -9,12 +9,10 @@ import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import { runWhenIdle } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -39,6 +37,10 @@ import { IStaticExtensionsService } from 'vs/workbench/services/extensions/commo
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -51,7 +53,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private readonly _remoteExtensionsEnvironmentData: Map<string, IRemoteAgentEnvironment>;
 
-	private readonly _extensionHostLogsLocation: URI;
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 
@@ -60,7 +61,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
@@ -95,7 +96,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._electronEnvironmentService.windowId}`));
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
 
@@ -359,7 +359,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result: ExtensionHostProcessManager[] = [];
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._electronEnvironmentService.extHostLogsPath);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
 		result.push(extHostProcessManager);
 
@@ -473,7 +473,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			// set the resolved authority
 			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
-			this._remoteExplorerService.addDetected(resolvedAuthority.tunnelInformation?.detectedTunnels);
+			this._remoteExplorerService.setTunnelInformation(resolvedAuthority.tunnelInformation);
 
 			// monitor for breakage
 			const connection = this._remoteAgentService.getConnection();
@@ -600,3 +600,24 @@ function _removeSet(arr: IExtensionDescription[], toRemove: IExtensionDescriptio
 }
 
 registerSingleton(IExtensionService, ExtensionService);
+
+class RestartExtensionHostAction extends Action {
+
+	public static readonly ID = 'workbench.action.restartExtensionHost';
+	public static readonly LABEL = nls.localize('restartExtensionHost', "Developer: Restart Extension Host");
+
+	constructor(
+		id: string,
+		label: string,
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) {
+		super(id, label);
+	}
+
+	public async run() {
+		this._extensionService.restartExtensionHost();
+	}
+}
+
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(RestartExtensionHostAction, RestartExtensionHostAction.ID, RestartExtensionHostAction.LABEL), 'Developer: Restart Extension Host');

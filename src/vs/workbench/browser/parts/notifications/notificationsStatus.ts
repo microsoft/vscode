@@ -34,11 +34,11 @@ export class NotificationsStatus extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
-		this._register(this.model.onDidStatusMessageChange(e => this.onDidStatusMessageChange(e)));
+		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
+		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
+	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (this.isNotificationsCenterVisible) {
 			return; // no change if notification center is visible
 		}
@@ -101,7 +101,7 @@ export class NotificationsStatus extends Disposable {
 		}
 	}
 
-	private onDidStatusMessageChange(e: IStatusMessageChangeEvent): void {
+	private onDidChangeStatusMessage(e: IStatusMessageChangeEvent): void {
 		const statusItem = e.item;
 
 		switch (e.kind) {

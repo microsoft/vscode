@@ -19,14 +19,15 @@
     "jsonc-parser": "^2.1.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
+    "typescript-vscode-sh-plugin": "^0.6.6",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
-    "@types/semver": "^5.5.0",
     "@types/rimraf": "2.0.2",
-    "vscode": "^1.1.10"
+    "@types/semver": "^5.5.0",
+    "vscode": "^1.1.36"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
@@ -45,6 +46,7 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
+    "onCommand:_typescript.learnMoreAboutRefactorings",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -719,6 +721,71 @@
           "default": 3072,
           "description": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
+        },
+        "typescript.tsserver.experimental.enableProjectDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
+          "scope": "window"
+        },
+        "typescript.tsserver.watchOptions": {
+          "type": "object",
+          "description": "%configuration.tsserver.watchOptions%",
+          "scope": "window",
+          "properties": {
+            "watchFile": {
+              "type": "string",
+              "description": "%configuration.tsserver.watchOptions.watchFile%",
+              "enum": [
+                "fixedPollingInterval",
+                "priorityPollingInterval",
+                "dynamicPriorityPolling",
+                "useFsEvents",
+                "useFsEventsOnParentDirectory"
+              ],
+              "enumDescriptions": [
+                "%configuration.tsserver.watchOptions.watchFile.fixedPollingInterval%",
+                "%configuration.tsserver.watchOptions.watchFile.priorityPollingInterval%",
+                "%configuration.tsserver.watchOptions.watchFile.dynamicPriorityPolling%",
+                "%configuration.tsserver.watchOptions.watchFile.useFsEvents%",
+                "%configuration.tsserver.watchOptions.watchFile.useFsEventsOnParentDirectory%"
+              ],
+              "default": "useFsEvents"
+            },
+            "watchDirectory": {
+              "type": "string",
+              "description": "%configuration.tsserver.watchOptions.watchDirectory%",
+              "enum": [
+                "fixedPollingInterval",
+                "dynamicPriorityPolling",
+                "useFsEvents"
+              ],
+              "enumDescriptions": [
+                "%configuration.tsserver.watchOptions.watchDirectory.fixedPollingInterval%",
+                "%configuration.tsserver.watchOptions.watchDirectory.dynamicPriorityPolling%",
+                "%configuration.tsserver.watchOptions.watchDirectory.useFsEvents%"
+              ],
+              "default": "useFsEvents"
+            },
+            "fallbackPolling": {
+              "type": "string",
+              "description": "%configuration.tsserver.watchOptions.fallbackPolling%",
+              "enum": [
+                "fixedPollingInterval",
+                "priorityPollingInterval",
+                "dynamicPriorityPolling"
+              ],
+              "enumDescriptions": [
+                "configuration.tsserver.watchOptions.fallbackPolling.fixedPollingInterval",
+                "configuration.tsserver.watchOptions.fallbackPolling.priorityPollingInterval",
+                "configuration.tsserver.watchOptions.fallbackPolling.dynamicPriorityPolling"
+              ]
+            },
+            "synchronousWatchDirectory": {
+              "type": "boolean",
+              "description": "%configuration.tsserver.watchOptions.synchronousWatchDirectory%"
+            }
+          }
         }
       }
     },
@@ -871,10 +938,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}:\\d{1,2}:\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}:\\d{1,2}:\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
       }
@@ -942,6 +1009,12 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
+      }
+    ],
+    "typescriptServerPlugins": [
+      {
+        "name": "typescript-vscode-sh-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   }

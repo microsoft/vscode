@@ -22,9 +22,11 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
 import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
+import { IExtHostApiDeprecationService, ExtHostApiDeprecationService, } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 // register singleton services
 registerSingleton(ILogService, ExtHostLogService);
+registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostDecorations, ExtHostDecorations);
@@ -41,7 +43,7 @@ function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
 	return <any>class {
 		constructor() {
 			return new Proxy({}, {
-				get(target: any, prop: string | number) {
+				get(target: any, prop: PropertyKey) {
 					if (target[prop]) {
 						return target[prop];
 					}

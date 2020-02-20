@@ -13,12 +13,9 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
-import { Extensions as ViewContainerExtensions, ViewContainer, IViewContainersRegistry } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { IViewPaneContainer } from 'vs/workbench/common/views';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
@@ -127,7 +124,7 @@ export class ExtensionContainers extends Disposable {
 		this.containers.forEach(c => c.extension = extension);
 	}
 
-	private update(extension: IExtension): void {
+	private update(extension: IExtension | undefined): void {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
@@ -143,3 +140,5 @@ export class ExtensionContainers extends Disposable {
 		}
 	}
 }
+
+export const TOGGLE_IGNORE_EXTENSION_ACTION_ID = 'workbench.extensions.action.toggleIgnoreExtension';

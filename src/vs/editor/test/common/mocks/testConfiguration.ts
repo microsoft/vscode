@@ -41,6 +41,8 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			typicalFullwidthCharacterWidth: 20,
 			canUseHalfwidthRightwardsArrow: true,
 			spaceWidth: 10,
+			middotWidth: 10,
+			wsmiddotWidth: 10,
 			maxDigitWidth: 10,
 		}, true);
 	}

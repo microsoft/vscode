@@ -28,7 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -48,6 +48,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+
+// Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
+const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -91,7 +97,7 @@ export class ExtensionsListView extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -103,9 +109,12 @@ export class ExtensionsListView extends ViewPane {
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService protected readonly productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 		this.server = options.server;
 	}
 
@@ -118,6 +127,8 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const extensionsList = append(container, $('.extensions-list'));
 		const messageContainer = append(container, $('.message-container'));
 		const messageSeverityIcon = append(messageContainer, $(''));
@@ -225,15 +236,26 @@ export class ExtensionsListView extends ViewPane {
 			const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
 			manageExtensionAction.extension = e.element;
-			const groups = manageExtensionAction.getActionGroups(runningExtensions, colorThemes, fileIconThemes);
-			let actions: IAction[] = [];
-			for (const menuActions of groups) {
-				actions = [...actions, ...menuActions, new Separator()];
-			}
 			if (manageExtensionAction.enabled) {
+				const groups = manageExtensionAction.getActionGroups(runningExtensions, colorThemes, fileIconThemes);
+				let actions: IAction[] = [];
+				for (const menuActions of groups) {
+					actions = [...actions, ...menuActions, new Separator()];
+				}
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e.anchor,
 					getActions: () => actions.slice(0, actions.length - 1)
+				});
+			} else if (e.element) {
+				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped(), this.instantiationService, e.element);
+				groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = e.element!));
+				let actions: IAction[] = [];
+				for (const menuActions of groups) {
+					actions = [...actions, ...menuActions, new Separator()];
+				}
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => e.anchor,
+					getActions: () => actions
 				});
 			}
 		}
@@ -311,7 +333,7 @@ export class ExtensionsListView extends ViewPane {
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.grammars)
 						&& e.local.manifest.contributes.grammars.length
-						&& e.local.identifier.id !== 'vscode.git';
+						&& FORCE_FEATURE_EXTENSIONS.indexOf(e.local.identifier.id) === -1;
 				});
 				return this.getPagedModel(this.sortExtensions(basics, options));
 			}
@@ -320,7 +342,7 @@ export class ExtensionsListView extends ViewPane {
 					return e.local
 						&& e.local.manifest
 						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'vscode.git')
+						&& (!Array.isArray(e.local.manifest.contributes.grammars) || FORCE_FEATURE_EXTENSIONS.indexOf(e.local.identifier.id) !== -1)
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return this.getPagedModel(this.sortExtensions(others, options));
@@ -850,8 +872,8 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@INotificationService notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
 		@IExtensionTipsService tipsService: IExtensionTipsService,
@@ -863,10 +885,13 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
 	) {
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService, viewDescriptorService, menuService, openerService);
 		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 

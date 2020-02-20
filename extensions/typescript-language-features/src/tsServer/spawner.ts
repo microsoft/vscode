@@ -7,7 +7,7 @@ import * as child_process from 'child_process';
 import * as path from 'path';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import API from '../utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
@@ -15,12 +15,17 @@ import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate } from './server';
+import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate, GetErrRoutingTsServer } from './server';
 
-type ServerKind = 'main' | 'syntax' | 'semantic';
+const enum ServerKind {
+	Main = 'main',
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+	Diagnostics = 'diagnostics'
+}
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -38,13 +43,24 @@ export class TypeScriptServerSpawner {
 		pluginManager: PluginManager,
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
+		let primaryServer: ITypeScriptServer;
 		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
-			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
-			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
-			return new SyntaxRoutingTsServer(syntaxServer, semanticServer, delegate);
+			primaryServer = new SyntaxRoutingTsServer({
+				syntax: this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager),
+				semantic: this.spawnTsServer(ServerKind.Semantic, version, configuration, pluginManager)
+			}, delegate);
+		} else {
+			primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
 		}
 
-		return this.spawnTsServer('main', version, configuration, pluginManager);
+		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
+			return new GetErrRoutingTsServer({
+				getErr: this.spawnTsServer(ServerKind.Diagnostics, version, configuration, pluginManager),
+				primary: primaryServer,
+			}, delegate);
+		}
+
+		return primaryServer;
 	}
 
 	private shouldUseSeparateSyntaxServer(
@@ -52,6 +68,12 @@ export class TypeScriptServerSpawner {
 		configuration: TypeScriptServiceConfiguration,
 	): boolean {
 		return configuration.useSeparateSyntaxServer && !!version.apiVersion && version.apiVersion.gte(API.v340);
+	}
+
+	private shouldUseSeparateDiagnosticsServer(
+		configuration: TypeScriptServiceConfiguration,
+	): boolean {
+		return configuration.enableProjectDiagnostics;
 	}
 
 	private spawnTsServer(
@@ -107,7 +129,7 @@ export class TypeScriptServerSpawner {
 		const args: string[] = [];
 		let tsServerLogFile: string | undefined;
 
-		if (kind === 'syntax') {
+		if (kind === ServerKind.Syntax) {
 			args.push('--syntaxOnly');
 		}
 
@@ -117,11 +139,11 @@ export class TypeScriptServerSpawner {
 			args.push('--useSingleInferredProject');
 		}
 
-		if (configuration.disableAutomaticTypeAcquisition || kind === 'syntax') {
+		if (configuration.disableAutomaticTypeAcquisition || kind === ServerKind.Syntax || kind === ServerKind.Diagnostics) {
 			args.push('--disableAutomaticTypingAcquisition');
 		}
 
-		if (kind !== 'syntax') {
+		if (kind === ServerKind.Semantic || kind === ServerKind.Main) {
 			args.push('--enableTelemetry');
 		}
 

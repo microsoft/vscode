@@ -26,6 +26,11 @@ export interface IHostService {
 	readonly hasFocus: boolean;
 
 	/**
+	 * Find out if the window had the last focus.
+	 */
+	hadLastFocus(): Promise<boolean>;
+
+	/**
 	 * Attempt to bring the window to the foreground and focus it.
 	 */
 	focus(): Promise<void>;

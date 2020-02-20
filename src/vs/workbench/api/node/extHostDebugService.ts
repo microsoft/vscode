@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
+import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -23,7 +24,6 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
@@ -96,10 +96,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
-					env: args.env
 				};
 				delete args.cwd;
-				delete args.env;
 				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 			}
 
@@ -108,7 +106,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			terminal.show();
 
 			const shellProcessId = await this._integratedTerminalInstance.processId;
-			const command = prepareCommand(args, shell, configProvider);
+			const command = prepareCommand(args, shell);
 			terminal.sendText(command, true);
 
 			return shellProcessId;
@@ -121,7 +119,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as IProcessEnvironment);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment);
 	}
 
 }

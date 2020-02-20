@@ -76,10 +76,13 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
+	readonly affectsMinimap: boolean;
+	readonly affectsOverviewRuler: boolean;
 }
 
 /**
  * An event describing that some ranges of lines have been tokenized (their tokens have changed).
+ * @internal
  */
 export interface IModelTokensChangedEvent {
 	readonly tokenizationSupportChanged: boolean;

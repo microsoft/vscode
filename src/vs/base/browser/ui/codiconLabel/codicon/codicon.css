@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?7ed98366b9684aff02478216decd2fe9") format("truetype");
+	src: url("./codicon.ttf?279add2ec8b3d516ca20a123230cbf9f") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -119,6 +119,7 @@
 .codicon-github:before { content: "\ea84" }
 .codicon-terminal:before { content: "\ea85" }
 .codicon-console:before { content: "\ea85" }
+.codicon-repl:before { content: "\ea85" }
 .codicon-zap:before { content: "\ea86" }
 .codicon-symbol-event:before { content: "\ea86" }
 .codicon-error:before { content: "\ea87" }
@@ -302,6 +303,7 @@
 .codicon-paintcan:before { content: "\eb2a" }
 .codicon-pin:before { content: "\eb2b" }
 .codicon-play:before { content: "\eb2c" }
+.codicon-run:before { content: "\eb2c" }
 .codicon-plug:before { content: "\eb2d" }
 .codicon-preserve-case:before { content: "\eb2e" }
 .codicon-preview:before { content: "\eb2f" }
@@ -408,4 +410,10 @@
 .codicon-call-incoming:before { content: "\eb92" }
 .codicon-call-outgoing:before { content: "\eb93" }
 .codicon-menu:before { content: "\eb94" }
-.codicon-debug-alt:before { content: "\f101" }
+.codicon-expand-all:before { content: "\eb95" }
+.codicon-feedback:before { content: "\eb96" }
+.codicon-group-by-ref-type:before { content: "\eb97" }
+.codicon-ungroup-by-ref-type:before { content: "\eb98" }
+.codicon-bell-dot:before { content: "\f101" }
+.codicon-debug-alt-2:before { content: "\f102" }
+.codicon-debug-alt:before { content: "\f103" }

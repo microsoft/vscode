@@ -20,6 +20,7 @@ import { INewScrollPosition, Scrollable, ScrollbarVisibility } from 'vs/base/com
 const MOUSE_DRAG_RESET_DISTANCE = 140;
 
 export interface ISimplifiedMouseEvent {
+	buttons: number;
 	posx: number;
 	posy: number;
 }
@@ -60,6 +61,7 @@ export abstract class AbstractScrollbar extends Widget {
 		this._scrollable = opts.scrollable;
 		this._scrollbarState = opts.scrollbarState;
 		this._visibilityController = this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
+		this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		this._shouldRender = true;
 		this.domNode = createFastDomNode(document.createElement('div'));
@@ -215,13 +217,15 @@ export abstract class AbstractScrollbar extends Widget {
 		}
 	}
 
-	private _sliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
+	private _sliderMouseDown(e: IMouseEvent, onDragFinished: () => void): void {
 		const initialMousePosition = this._sliderMousePosition(e);
 		const initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
 		const initialScrollbarState = this._scrollbarState.clone();
 		this.slider.toggleClassName('active', true);
 
 		this._mouseMoveMonitor.startMonitoring(
+			e.target,
+			e.buttons,
 			standardMouseMoveMerger,
 			(mouseMoveData: IStandardMouseMoveEventData) => {
 				const mouseOrthogonalPosition = this._sliderOrthogonalMousePosition(mouseMoveData);

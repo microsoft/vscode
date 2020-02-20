@@ -17,7 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
@@ -181,6 +181,8 @@ export interface SelectionEvent {
 	readonly element?: Location;
 }
 
+class ReferencesTree extends WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore> { }
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -195,7 +197,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
 	readonly onDidSelectReference = this._onDidSelectReference.event;
 
-	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
+	private _tree!: ReferencesTree;
 	private _treeContainer!: HTMLElement;
 	private _splitView!: SplitView;
 	private _preview!: ICodeEditor;
@@ -247,7 +249,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	}
 
 	show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, editorCommon.ScrollType.Smooth);
+		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
@@ -316,8 +318,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
-		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
-			WorkbenchAsyncDataTree,
+		this._tree = this._instantiationService.createInstance(
+			ReferencesTree,
 			'ReferencesWidget',
 			this._treeContainer,
 			new Delegate(),
@@ -526,7 +528,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		// show in editor
 		const model = ref.object;
 		if (model) {
-			const scrollType = this._preview.getModel() === model.textEditorModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate;
+			const scrollType = this._preview.getModel() === model.textEditorModel ? ScrollType.Smooth : ScrollType.Immediate;
 			const sel = Range.lift(reference.range).collapseToStart();
 			this._previewModelReference = ref;
 			this._preview.setModel(model.textEditorModel);

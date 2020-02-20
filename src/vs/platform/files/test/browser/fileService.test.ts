@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
@@ -17,12 +17,18 @@ suite('File Service', () => {
 	test('provider registration', async () => {
 		const service = new FileService(new NullLogService());
 		const resource = URI.parse('test://foo/bar');
+		const provider = new NullFileSystemProvider();
 
 		assert.equal(service.canHandleResource(resource), false);
 
 		const registrations: IFileSystemProviderRegistrationEvent[] = [];
 		service.onDidChangeFileSystemProviderRegistrations(e => {
 			registrations.push(e);
+		});
+
+		const capabilityChanges: IFileSystemProviderCapabilitiesChangeEvent[] = [];
+		service.onDidChangeFileSystemProviderCapabilities(e => {
+			capabilityChanges.push(e);
 		});
 
 		let registrationDisposable: IDisposable | undefined = undefined;
@@ -32,7 +38,7 @@ suite('File Service', () => {
 
 			if (e.scheme === 'test' && callCount === 1) {
 				e.join(new Promise(resolve => {
-					registrationDisposable = service.registerProvider('test', new NullFileSystemProvider());
+					registrationDisposable = service.registerProvider('test', provider);
 
 					resolve();
 				}));
@@ -47,6 +53,13 @@ suite('File Service', () => {
 		assert.equal(registrations[0].scheme, 'test');
 		assert.equal(registrations[0].added, true);
 		assert.ok(registrationDisposable);
+
+		assert.equal(capabilityChanges.length, 0);
+
+		provider.setCapabilities(FileSystemProviderCapabilities.FileFolderCopy);
+		assert.equal(capabilityChanges.length, 1);
+		provider.setCapabilities(FileSystemProviderCapabilities.Readonly);
+		assert.equal(capabilityChanges.length, 2);
 
 		await service.activateProvider('test');
 		assert.equal(callCount, 2); // activation is called again

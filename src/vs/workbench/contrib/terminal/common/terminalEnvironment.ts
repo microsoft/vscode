@@ -74,10 +74,10 @@ function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnv
 	}
 }
 
-function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | undefined): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
-		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
+		if (typeof value === 'string') {
 			try {
 				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 			} catch (e) {
@@ -186,7 +186,7 @@ export function getCwd(
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 		const resolved = _resolveCwd(unresolved, lastActiveWorkspace, configurationResolverService);
-		return resolved || unresolved;
+		return _sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;
@@ -310,7 +310,10 @@ export function getDefaultShellArgs(
 
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	let args = <string[] | string>((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.userValue) || shellArgsConfigValue.defaultValue);
+	let args = ((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.userValue) || shellArgsConfigValue.defaultValue);
+	if (!args) {
+		return [];
+	}
 	if (typeof args === 'string' && platformOverride === platform.Platform.Windows) {
 		return configurationResolverService ? configurationResolverService.resolve(lastActiveWorkspace, args) : args;
 	}
@@ -330,20 +333,20 @@ export function getDefaultShellArgs(
 }
 
 function getShellSetting(
-	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	type: 'automationShell' | 'shell',
 	platformOverride: platform.Platform = platform.platform,
 ): string | null {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.${type}.${platformKey}`);
-	const executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default);
+	const executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.userValue) || (<string | null>shellConfigValue.defaultValue);
 	return executable;
 }
 
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
-	lastActiveWorkspace: IWorkspaceFolder | null,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	envFromConfig: { userValue?: ITerminalEnvironment, value?: ITerminalEnvironment, defaultValue?: ITerminalEnvironment },
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,

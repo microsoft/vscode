@@ -133,6 +133,10 @@
 	justify-content: center;
 }
 
+.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
+}
+
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header > .extension-remote-badge-container {
 	margin-left: 6px;
 }
@@ -213,6 +217,10 @@
 	font-size: 120%;
 	margin-right: 2px;
 	-webkit-mask: inherit;
+}
+
+.extensions-viewlet>.extensions .extension>.details>.header-container>.header .extension-remote-badge .codicon {
+	margin-right: 0;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {

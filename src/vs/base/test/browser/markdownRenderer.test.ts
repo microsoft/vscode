@@ -54,34 +54,26 @@ suite('MarkdownRenderer', () => {
 
 		test('render appendText', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-			mds.appendText('$(zap) $(dont match me)');
+			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(dont match me)</p>`);
-		});
-
-		test('render appendText escaped', () => {
-			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-			mds.appendText(MarkdownString.escapeThemeIcons('$(zap) $(dont match me)'));
-
-			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(dont match me)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 
 		test('render appendMarkdown', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-			mds.appendMarkdown('$(zap) $(dont match me)');
+			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(dont match me)</p>`);
+			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
-		test('render appendMarkdown escaped', () => {
+		test('render appendMarkdown with escaped icon', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-			mds.appendMarkdown(MarkdownString.escapeThemeIcons('$(zap) $(dont match me)'));
+			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(dont match me)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
 	});
@@ -90,18 +82,18 @@ suite('MarkdownRenderer', () => {
 
 		test('render appendText', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
-			mds.appendText('$(zap) $(dont match me)');
+			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(dont match me)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 
-		test('render appendMarkdown', () => {
+		test('render appendMarkdown with escaped icon', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
-			mds.appendMarkdown('$(zap) $(dont match me)');
+			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(dont match me)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 
 	});

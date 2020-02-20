@@ -83,6 +83,8 @@ export interface IConfigurationValue<T> {
 	readonly workspace?: { value?: T, override?: T };
 	readonly workspaceFolder?: { value?: T, override?: T };
 	readonly memory?: { value?: T, override?: T };
+
+	readonly overrideIdentifiers?: string[];
 }
 
 export interface IConfigurationService {
@@ -216,14 +218,11 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 
 export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
 	const overrides: IOverrides[] = [];
-	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	for (const key of Object.keys(raw)) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
 			const overrideRaw: any = {};
 			for (const keyInOverrideRaw in raw[key]) {
-				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
-					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
-				}
+				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
 			}
 			overrides.push({
 				identifiers: [overrideIdentifierFromKey(key).trim()],

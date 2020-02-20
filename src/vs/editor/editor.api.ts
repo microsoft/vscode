@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOptions, WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
@@ -11,10 +11,10 @@ import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standalon
 const global: any = self;
 
 // Set defaults for standalone editor
-(<any>EditorOptions.wrappingIndent).defaultValue = WrappingIndent.None;
-(<any>EditorOptions.glyphMargin).defaultValue = false;
-(<any>EditorOptions.autoIndent).defaultValue = 'advanced';
-(<any>EditorOptions.overviewRulerLanes).defaultValue = 2;
+EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
+EditorOptions.glyphMargin.defaultValue = false;
+EditorOptions.autoIndent.defaultValue = EditorAutoIndentStrategy.Advanced;
+EditorOptions.overviewRulerLanes.defaultValue = 2;
 
 const api = createMonacoBaseAPI();
 api.editor = createMonacoEditorAPI();

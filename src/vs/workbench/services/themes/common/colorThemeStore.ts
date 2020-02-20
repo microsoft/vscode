@@ -71,13 +71,14 @@ export class ColorThemeStore {
 			}
 			this.extensionsColorThemes.length = 0;
 			for (let ext of extensions) {
-				let extensionData = {
+				let extensionData: ExtensionData = {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin
+					extensionIsBuiltin: ext.description.isBuiltin,
+					extensionLocation: ext.description.extensionLocation
 				};
-				this.onThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
+				this.onThemes(extensionData, ext.value, ext.collector);
 			}
 			for (const theme of this.extensionsColorThemes) {
 				if (!previousIds[theme.id]) {
@@ -88,7 +89,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	private onThemes(extensionLocation: URI, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onThemes(extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -108,9 +109,9 @@ export class ColorThemeStore {
 				return;
 			}
 
-			const colorThemeLocation = resources.joinPath(extensionLocation, theme.path);
-			if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, colorThemeLocation.path, extensionLocation.path));
+			const colorThemeLocation = resources.joinPath(extensionData.extensionLocation, theme.path);
+			if (!resources.isEqualOrParent(colorThemeLocation, extensionData.extensionLocation)) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, colorThemeLocation.path, extensionData.extensionLocation.path));
 			}
 
 			let themeData = ColorThemeData.fromExtensionTheme(theme, colorThemeLocation, extensionData);
@@ -148,10 +149,10 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeDataByParentLocation(parentLocation: URI | undefined): Promise<ColorThemeData[]> {
-		if (parentLocation) {
+	public findThemeDataByExtensionLocation(extLocation: URI | undefined): Promise<ColorThemeData[]> {
+		if (extLocation) {
 			return this.getColorThemes().then(allThemes => {
-				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, parentLocation));
+				return allThemes.filter(t => t.extensionData && resources.isEqual(t.extensionData.extensionLocation, extLocation));
 			});
 		}
 		return Promise.resolve([]);

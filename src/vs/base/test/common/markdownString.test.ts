@@ -8,10 +8,9 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 
 suite('MarkdownString', () => {
 
-	test('escape', () => {
+	test('appendText', () => {
 
 		const mds = new MarkdownString();
-
 		mds.appendText('# foo\n*bar*');
 
 		assert.equal(mds.value, '\\# foo\n\n\\*bar\\*');
@@ -19,59 +18,54 @@ suite('MarkdownString', () => {
 
 	suite('ThemeIcons', () => {
 
-		test('escapeThemeIcons', () => {
-			assert.equal(
-				MarkdownString.escapeThemeIcons('$(zap) $(not an icon) foo$(bar)'),
-				'\\$(zap) $(not an icon) foo\\$(bar)'
-			);
-		});
-
 		suite('Support On', () => {
 
 			test('appendText', () => {
 				const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-				mds.appendText('$(zap)');
+				mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-				assert.equal(mds.value, '$(zap)');
-			});
-
-			test('appendText escaped', () => {
-				const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-				mds.appendText(MarkdownString.escapeThemeIcons('$(zap)'));
-
-				assert.equal(mds.value, '\\\\$\\(zap\\)');
+				assert.equal(mds.value, '\\\\$\\(zap\\) $\\(not a theme icon\\) \\\\$\\(add\\)');
 			});
 
 			test('appendMarkdown', () => {
 				const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-				mds.appendMarkdown('$(zap)');
+				mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
-				assert.equal(mds.value, '$(zap)');
+				assert.equal(mds.value, '$(zap) $(not a theme icon) $(add)');
 			});
 
-			test('appendMarkdown escaped', () => {
+			test('appendMarkdown with escaped icon', () => {
 				const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-				mds.appendMarkdown(MarkdownString.escapeThemeIcons('$(zap)'));
+				mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-				assert.equal(mds.value, '\\$(zap)');
+				assert.equal(mds.value, '\\$(zap) $(not a theme icon) $(add)');
 			});
+
 		});
 
 		suite('Support Off', () => {
 
 			test('appendText', () => {
 				const mds = new MarkdownString(undefined, { supportThemeIcons: false });
-				mds.appendText('$(zap)');
+				mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-				assert.equal(mds.value, '$\\(zap\\)');
+				assert.equal(mds.value, '$\\(zap\\) $\\(not a theme icon\\) $\\(add\\)');
 			});
 
 			test('appendMarkdown', () => {
 				const mds = new MarkdownString(undefined, { supportThemeIcons: false });
-				mds.appendMarkdown('$(zap)');
+				mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
-				assert.equal(mds.value, '$(zap)');
+				assert.equal(mds.value, '$(zap) $(not a theme icon) $(add)');
 			});
+
+			test('appendMarkdown with escaped icon', () => {
+				const mds = new MarkdownString(undefined, { supportThemeIcons: true });
+				mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
+
+				assert.equal(mds.value, '\\$(zap) $(not a theme icon) $(add)');
+			});
+
 		});
 
 	});

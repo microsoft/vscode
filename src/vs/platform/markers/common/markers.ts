@@ -87,7 +87,7 @@ export namespace MarkerSeverity {
  * A structure defining a problem/warning/etc.
  */
 export interface IMarkerData {
-	code?: string;
+	code?: string | { value: string; target: URI };
 	severity: MarkerSeverity;
 	message: string;
 	source?: string;
@@ -108,7 +108,7 @@ export interface IMarker {
 	owner: string;
 	resource: URI;
 	severity: MarkerSeverity;
-	code?: string;
+	code?: string | { value: string; target: URI };
 	message: string;
 	source?: string;
 	startLineNumber: number;
@@ -135,12 +135,16 @@ export namespace IMarkerData {
 	export function makeKeyOptionalMessage(markerData: IMarkerData, useMessage: boolean): string {
 		let result: string[] = [emptyString];
 		if (markerData.source) {
-			result.push(markerData.source.replace('¦', '\¦'));
+			result.push(markerData.source.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);
 		}
 		if (markerData.code) {
-			result.push(markerData.code.replace('¦', '\¦'));
+			if (typeof markerData.code === 'string') {
+				result.push(markerData.code.replace('¦', '\\¦'));
+			} else {
+				result.push(markerData.code.value.replace('¦', '\\¦'));
+			}
 		} else {
 			result.push(emptyString);
 		}
@@ -153,7 +157,7 @@ export namespace IMarkerData {
 		// Modifed to not include the message as part of the marker key to work around
 		// https://github.com/microsoft/vscode/issues/77475
 		if (markerData.message && useMessage) {
-			result.push(markerData.message.replace('¦', '\¦'));
+			result.push(markerData.message.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);
 		}

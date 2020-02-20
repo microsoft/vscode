@@ -46,6 +46,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
 		};
 	}
+
 }
 
 registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);
