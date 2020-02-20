@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder, isTextEditor, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { SideBySideEditor as SideBySideEditorChoice, IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder, isTextEditor, IWorkbenchEditorConfiguration, toResource } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -20,7 +20,7 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, Gr
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -32,6 +32,7 @@ import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { timeout } from 'vs/base/common/async';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -59,15 +60,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	private fileInputFactory: IFileInputFactory;
-	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
-
-	private lastActiveEditor: IEditorInput | undefined = undefined;
-
-	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
-
-	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
-
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
@@ -75,11 +67,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
-
-		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 
 		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
 
@@ -94,6 +85,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
 		this.editorsObserver.onDidChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
 
+		// Out of workspace file watchers
+		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
+
 		// File changes & operations
 		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
@@ -101,6 +95,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Configuration
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
 	}
+
+	//#region Editor & group event handlers
+
+	private lastActiveEditor: IEditorInput | undefined = undefined;
 
 	private onEditorsRestored(): void {
 
@@ -163,25 +161,51 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		});
 	}
 
-	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		if (event.options && event.options.ignoreOverrides) {
-			return;
-		}
+	//#endregion
 
-		for (const handler of this.openEditorHandlers) {
-			const result = handler(event.editor, event.options, group);
-			const override = result?.override;
-			if (override) {
-				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
-				break;
+	//#region Visible Editors Change: Install file watchers for out of workspace resources that became visible
+
+	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
+
+	private handleVisibleEditorsChange(): void {
+		const visibleOutOfWorkspaceResources = new ResourceMap<URI>();
+
+		for (const editor of this.visibleEditors) {
+			const resources = distinct(coalesce([
+				toResource(editor, { supportSideBySide: SideBySideEditorChoice.MASTER }),
+				toResource(editor, { supportSideBySide: SideBySideEditorChoice.DETAILS })
+			]), resource => resource.toString());
+
+			for (const resource of resources) {
+				if (this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource)) {
+					visibleOutOfWorkspaceResources.set(resource, resource);
+				}
 			}
 		}
+
+		// Handle no longer visible out of workspace resources
+		this.activeOutOfWorkspaceWatchers.keys().forEach(resource => {
+			if (!visibleOutOfWorkspaceResources.get(resource)) {
+				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
+				this.activeOutOfWorkspaceWatchers.delete(resource);
+			}
+		});
+
+		// Handle newly visible out of workspace resources
+		visibleOutOfWorkspaceResources.forEach(resource => {
+			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
+				const disposable = this.fileService.watch(resource);
+				this.activeOutOfWorkspaceWatchers.set(resource, disposable);
+			}
+		});
 	}
+
+	//#endregion
 
 	//#region File Changes: Close editors of deleted files unless configured otherwise
 
 	private closeOnFileDelete: boolean = false;
-
+	private fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
 		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
@@ -285,6 +309,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region Editor accessors
+
+	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
+
 	get activeControl(): IVisibleEditor | undefined {
 		return this.editorGroupService.activeGroup?.activeControl;
 	}
@@ -354,7 +382,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return coalesce(this.editorGroupService.groups.map(group => group.activeEditor));
 	}
 
+	//#endregion
+
 	//#region preventOpenEditor()
+
+	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
 		this.openEditorHandlers.push(handler);
@@ -365,6 +397,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				this.openEditorHandlers.splice(index, 1);
 			}
 		});
+	}
+
+	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
+		if (event.options && event.options.ignoreOverrides) {
+			return;
+		}
+
+		for (const handler of this.openEditorHandlers) {
+			const result = handler(event.editor, event.options, group);
+			const override = result?.override;
+			if (override) {
+				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
+				break;
+			}
+		}
 	}
 
 	//#endregion
@@ -644,6 +691,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#endregion
 
 	//#region createInput()
+
+	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
 	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor): EditorInput {
 
@@ -937,6 +986,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	//#endregion
+
+	dispose(): void {
+		super.dispose();
+
+		// Dispose remaining watchers if any
+		this.activeOutOfWorkspaceWatchers.forEach(disposable => dispose(disposable));
+		this.activeOutOfWorkspaceWatchers.clear();
+	}
 }
 
 export interface IEditorOpenHandler {

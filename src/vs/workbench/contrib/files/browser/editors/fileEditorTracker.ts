@@ -6,15 +6,12 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { toResource, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
 import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { distinct, coalesce } from 'vs/base/common/arrays';
-import { ResourceMap } from 'vs/base/common/map';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -27,15 +24,12 @@ import { Schemas } from 'vs/base/common/network';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
-	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
-
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
@@ -54,11 +48,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.textFileService.files.onDidSaveError(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
 		this._register(this.textFileService.untitled.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
 
-		// Out of workspace file watchers
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
-
 		// Update visible editors when focus is gained
-		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
+		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -163,7 +154,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), 250));
 
 	private ensureDirtyTextFilesAreOpened(resources: URI[]): void {
-		this.doEnsureDirtyFilesAreOpened(distinct(resources.filter(resource => {
+		this.doEnsureDirtyTextFilesAreOpened(distinct(resources.filter(resource => {
 			if (!this.textFileService.isDirty(resource)) {
 				return false; // resource must be dirty
 			}
@@ -181,7 +172,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		}), resource => resource.toString()));
 	}
 
-	private doEnsureDirtyFilesAreOpened(resources: URI[]): void {
+	private doEnsureDirtyTextFilesAreOpened(resources: URI[]): void {
 		if (!resources.length) {
 			return;
 		}
@@ -194,78 +185,31 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#endregion
 
-	//#region Visible Editors Change: Install file watchers for out of workspace resources that became visible
-
-	private onDidVisibleEditorsChange(): void {
-		const visibleOutOfWorkspaceResources = new ResourceMap<URI>();
-
-		for (const editor of this.editorService.visibleEditors) {
-			const resources = distinct(coalesce([
-				toResource(editor, { supportSideBySide: SideBySideEditorChoice.MASTER }),
-				toResource(editor, { supportSideBySide: SideBySideEditorChoice.DETAILS })
-			]), resource => resource.toString());
-
-			for (const resource of resources) {
-				if (this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource)) {
-					visibleOutOfWorkspaceResources.set(resource, resource);
-				}
-			}
-		}
-
-		// Handle no longer visible out of workspace resources
-		this.activeOutOfWorkspaceWatchers.keys().forEach(resource => {
-			if (!visibleOutOfWorkspaceResources.get(resource)) {
-				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
-				this.activeOutOfWorkspaceWatchers.delete(resource);
-			}
-		});
-
-		// Handle newly visible out of workspace resources
-		visibleOutOfWorkspaceResources.forEach(resource => {
-			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
-				const disposable = this.fileService.watch(resource);
-				this.activeOutOfWorkspaceWatchers.set(resource, disposable);
-			}
-		});
-	}
-
-	//#endregion
-
 	//#region Window Focus Change: Update visible code editors when focus is gained that have a known text file model
 
-	private onWindowFocusChange(focused: boolean): void {
-		if (focused) {
-			// the window got focus and we use this as a hint that files might have been changed outside
-			// of this window. since file events can be unreliable, we queue a load for models that
-			// are visible in any editor. since this is a fast operation in the case nothing has changed,
-			// we tolerate the additional work.
-			distinct(
-				coalesce(this.codeEditorService.listCodeEditors()
-					.map(codeEditor => {
-						const resource = codeEditor.getModel()?.uri;
-						if (!resource) {
-							return undefined;
-						}
+	private reloadVisibleTextFileEditors(): void {
+		// the window got focus and we use this as a hint that files might have been changed outside
+		// of this window. since file events can be unreliable, we queue a load for models that
+		// are visible in any editor. since this is a fast operation in the case nothing has changed,
+		// we tolerate the additional work.
+		distinct(
+			coalesce(this.codeEditorService.listCodeEditors()
+				.map(codeEditor => {
+					const resource = codeEditor.getModel()?.uri;
+					if (!resource) {
+						return undefined;
+					}
 
-						const model = this.textFileService.files.get(resource);
-						if (!model || model.isDirty() || !model.isResolved()) {
-							return undefined;
-						}
+					const model = this.textFileService.files.get(resource);
+					if (!model || model.isDirty() || !model.isResolved()) {
+						return undefined;
+					}
 
-						return model;
-					})),
-				model => model.resource.toString()
-			).forEach(model => this.textFileService.files.resolve(model.resource, { reload: { async: true } }));
-		}
+					return model;
+				})),
+			model => model.resource.toString()
+		).forEach(model => this.textFileService.files.resolve(model.resource, { reload: { async: true } }));
 	}
 
 	//#endregion
-
-	dispose(): void {
-		super.dispose();
-
-		// Dispose remaining watchers if any
-		this.activeOutOfWorkspaceWatchers.forEach(disposable => dispose(disposable));
-		this.activeOutOfWorkspaceWatchers.clear();
-	}
 }
