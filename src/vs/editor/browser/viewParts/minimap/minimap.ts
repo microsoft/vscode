@@ -533,7 +533,7 @@ type SamplingStateEvent = SamplingStateLinesInsertedEvent | SamplingStateLinesDe
 
 class MinimapSamplingState {
 
-	public static compute(options: MinimapOptions, /* options: IComputedEditorOptions, */ viewLineCount: number, oldSamplingState: MinimapSamplingState | null): [MinimapSamplingState | null, SamplingStateEvent[]] {
+	public static compute(options: MinimapOptions, viewLineCount: number, oldSamplingState: MinimapSamplingState | null): [MinimapSamplingState | null, SamplingStateEvent[]] {
 		if (options.renderMinimap === RenderMinimap.None || !options.isSampling) {
 			return [null, []];
 		}
