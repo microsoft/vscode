@@ -52,6 +52,7 @@ export interface IListViewOptions<T> {
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
+	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
@@ -63,6 +64,7 @@ const DefaultOptions = {
 	useShadows: true,
 	verticalScrollMode: ScrollbarVisibility.Auto,
 	setRowLineHeight: true,
+	setRowHeight: true,
 	supportDynamicHeights: false,
 	dnd: {
 		getDragElements<T>(e: T) { return [e]; },
@@ -174,6 +176,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
 	private dragOverMouseY: number = 0;
 	private setRowLineHeight: boolean;
+	private setRowHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
 	private additionalScrollHeight: number;
@@ -262,6 +265,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		domEvent(window, 'dragend')(this.onDragEnd, this, this.disposables);
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
+		this.setRowHeight = getOrDefault(options, o => o.setRowHeight, DefaultOptions.setRowHeight);
 		this.supportDynamicHeights = getOrDefault(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
 		this.dnd = getOrDefault<IListViewOptions<T>, IListViewDragAndDrop<T>>(options, o => o.dnd, DefaultOptions.dnd);
 
@@ -614,7 +618,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row!.domNode!.style.top = `${this.elementTop(index)}px`;
-		item.row!.domNode!.style.height = `${item.size}px`;
+
+		if (this.setRowHeight) {
+			item.row!.domNode!.style.height = `${item.size}px`;
+		}
 
 		if (this.setRowLineHeight) {
 			item.row!.domNode!.style.lineHeight = `${item.size}px`;
