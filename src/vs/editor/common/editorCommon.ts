@@ -154,6 +154,7 @@ export interface IConfiguration extends IDisposable {
 	readonly options: IComputedEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	setViewLineCount(viewLineCount: number): void;
 	updateOptions(newOptions: IEditorOptions): void;
 	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
