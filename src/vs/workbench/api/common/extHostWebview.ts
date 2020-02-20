@@ -19,6 +19,7 @@ import { Cache } from './cache';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewEditorCapabilities, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -37,7 +38,7 @@ export class ExtHostWebview implements vscode.Webview {
 		private readonly _initData: WebviewInitData,
 		private readonly _workspace: IExtHostWorkspace | undefined,
 		private readonly _extension: IExtensionDescription,
-		private readonly _logService: ILogService,
+		private readonly _deprecationService: IExtHostApiDeprecationService,
 	) { }
 
 	public dispose() {
@@ -63,11 +64,10 @@ export class ExtHostWebview implements vscode.Webview {
 		this.assertNotDisposed();
 		if (this._html !== value) {
 			this._html = value;
-			if (this._initData.isExtensionDevelopmentDebug && !this._hasCalledAsWebviewUri) {
-				if (/(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
-					this._hasCalledAsWebviewUri = true;
-					this._logService.warn(`${this._extension.identifier.value} created a webview that appears to use the vscode-resource scheme directly. Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
-				}
+			if (!this._hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
+				this._hasCalledAsWebviewUri = true;
+				this._deprecationService.report('Webview vscode-resource: uris', this._extension,
+					`Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
 			}
 			this._proxy.$setHtml(this._handle, value);
 		}
@@ -271,6 +271,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		private readonly initData: WebviewInitData,
 		private readonly workspace: IExtHostWorkspace | undefined,
 		private readonly _logService: ILogService,
+		private readonly _deprecationService: IExtHostApiDeprecationService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
@@ -291,7 +292,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const handle = ExtHostWebviews.newHandle();
 		this._proxy.$createWebviewPanel({ id: extension.identifier, location: extension.extensionLocation }, handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options));
 
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
+		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
 		const panel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, webview);
 		this._webviewPanels.set(handle, panel);
 		return panel;
@@ -414,7 +415,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 		const { serializer, extension } = entry;
 
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
@@ -434,7 +435,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const { provider, extension } = entry;
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
+		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
 		const revivedResource = URI.revive(resource);

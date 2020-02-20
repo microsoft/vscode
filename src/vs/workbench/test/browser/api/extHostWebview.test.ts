@@ -13,6 +13,7 @@ import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { mock } from 'vs/workbench/test/browser/api/mock';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
+import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 suite('ExtHostWebview', () => {
 
@@ -24,7 +25,7 @@ suite('ExtHostWebview', () => {
 			webviewCspSource: '',
 			webviewResourceRoot: '',
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService());
+		}, undefined, new NullLogService(), NullApiDeprecationService);
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
@@ -62,7 +63,7 @@ suite('ExtHostWebview', () => {
 			webviewCspSource: '',
 			webviewResourceRoot: 'vscode-resource://{{resource}}',
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService());
+		}, undefined, new NullLogService(), NullApiDeprecationService);
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
@@ -103,7 +104,7 @@ suite('ExtHostWebview', () => {
 			webviewCspSource: '',
 			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService());
+		}, undefined, new NullLogService(), NullApiDeprecationService);
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		function stripEndpointUuid(input: string) {
