@@ -197,7 +197,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 
 		if (added.length || removed.length || updated.length) {
-			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localExtensions)));
+			// back up all disabled or market place extensions
+			const backUpExtensions = localExtensions.filter(e => e.disabled || !!e.identifier.uuid);
+			await this.backupLocal(VSBuffer.fromString(JSON.stringify(backUpExtensions)));
 			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
 		}
 
