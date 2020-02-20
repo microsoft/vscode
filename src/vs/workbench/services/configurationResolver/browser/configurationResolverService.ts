@@ -259,6 +259,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (info.default) {
 						inputOptions.value = info.default;
 					}
+					if (info.password) {
+						inputOptions.password = info.password;
+					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
 						return resolvedInput;
 					});

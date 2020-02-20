@@ -44,6 +44,10 @@ export const inputsSchema: IJSONSchema = {
 								type: 'string',
 								description: defaultDescription
 							},
+							password: {
+								type: 'boolean',
+								description: nls.localize('JsonSchema.input.password', "Set to true to show a password prompt that will not show the typed value."),
+							},
 						}
 					},
 					{
