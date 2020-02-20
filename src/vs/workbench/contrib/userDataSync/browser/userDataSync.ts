@@ -508,7 +508,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			[
 				localize('merge', "Merge"),
 				localize('cancel', "Cancel"),
-				localize('replace', "Replace (Overwrite Local)"),
+				localize('replace', "Replace Local"),
 			],
 			{
 				cancelId: 1,
