@@ -17,7 +17,14 @@ export class Registrar {
 	private _config: ClientConfig;
 
 	constructor() {
-		this._config = require('./config.json') as ClientConfig;
+		try {
+			this._config = require('./config.json') as ClientConfig;
+		} catch (e) {
+			this._config = {
+				OSS: {},
+				INSIDERS: {}
+			};
+		}
 	}
 	getClientDetails(product: string): ClientDetails {
 		let details: ClientDetails | undefined;
