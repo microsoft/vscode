@@ -15,7 +15,7 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Schemas } from 'vs/base/common/network';
 
-export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
+export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
