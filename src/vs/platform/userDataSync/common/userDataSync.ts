@@ -97,7 +97,8 @@ export function registerConfiguration(): IDisposable {
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,
 				additionalProperties: true,
-				uniqueItems: true
+				uniqueItems: true,
+				disallowSyncIgnore: true
 			}
 		}
 	});
