@@ -443,13 +443,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
 		const extensionHost = this._extensionHostProcessManagers[0];
 
-		let localExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
+		const allExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
 
 		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(localExtensions);
+		this._checkEnableProposedApi(allExtensions);
 
 		// remove disabled extensions
-		localExtensions = remove(localExtensions, extension => this._isDisabled(extension));
+		let localExtensions = remove(allExtensions, extension => this._isDisabled(extension));
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolverResult;
@@ -459,7 +459,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			} catch (err) {
 				const remoteName = getRemoteName(remoteAuthority);
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
-					this._handleNoResolverFound(remoteName);
+					this._handleNoResolverFound(remoteName, allExtensions);
 				} else {
 					console.log(err);
 					if (RemoteAuthorityResolverError.isHandledNotAvailable(err)) {
@@ -584,22 +584,33 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	private async _handleNoResolverFound(remoteName: string): Promise<void> {
+	private async _handleNoResolverFound(remoteName: string, allExtensions: IExtensionDescription[]): Promise<void> {
 		const recommendation = this._productService.remoteExtensionTips?.[remoteName];
 		if (!recommendation) {
 			return;
 		}
+		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
+			/* __GDPR__
+			"remoteExtensionRecommendations:popup" : {
+				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			}
+			*/
+			this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction, extensionId: resolverExtensionId });
+		};
+
 		const resolverExtensionId = recommendation.extensionId;
-		const installedExtensions = await this._extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => e.identifier.id === resolverExtensionId)[0];
+		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
-			if (!await this._extensionEnablementService.isEnabled(extension)) {
-				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window. Ok to enable the extension?", recommendation.friendlyName);
+			if (this._isDisabled(extension)) {
+				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOk to enable?", recommendation.friendlyName);
 				this._notificationService.prompt(Severity.Info, message,
 					[{
-						label: nls.localize('enable', 'Enable'),
+						label: nls.localize('enable', 'Enable and Reload'),
 						run: async () => {
-							this._extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
+							sendTelemetry('enable');
+							await this._extensionEnablementService.setEnablement([toExtension(extension)], EnablementState.EnabledGlobally);
+							await this._hostService.reload();
 						}
 					}],
 					{ sticky: true }
@@ -607,23 +618,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 		} else {
 			// Install the Extension and reload the window to handle.
-			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window. Ok to install the extension?", recommendation.friendlyName);
+			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nOk to install?", recommendation.friendlyName);
 			this._notificationService.prompt(Severity.Info, message,
 				[{
 					label: nls.localize('install', 'Install and Reload'),
 					run: async () => {
-						/* __GDPR__
-						"remoteExtensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-						*/
-						this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction: 'install', extensionId: resolverExtensionId });
-
+						sendTelemetry('install');
 						const galleryExtension = await this._extensionGalleryService.getCompatibleExtension({ id: resolverExtensionId });
 						if (galleryExtension) {
 							await this._extensionManagementService.installFromGallery(galleryExtension);
-							this._hostService.reload();
+							await this._hostService.reload();
 						} else {
 							this._notificationService.error(nls.localize('resolverExtensionNotFound', "`{0}` not found on marketplace"));
 						}
@@ -632,15 +636,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				}],
 				{
 					sticky: true,
-					onCancel: () => {
-						/* __GDPR__
-							"remoteExtensionRecommendations:popup" : {
-								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction: 'cancelled', extensionId: resolverExtensionId });
-					}
+					onCancel: () => sendTelemetry('cancel')
 				}
 			);
 
