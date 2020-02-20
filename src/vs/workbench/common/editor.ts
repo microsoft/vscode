@@ -780,6 +780,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Forces this file input to open as binary instead of text.
 	 */
 	setForceOpenAsBinary(): void;
+
+	/**
+	 * Figure out if the input has been resolved or not.
+	 */
+	isResolved(): boolean;
 }
 
 /**

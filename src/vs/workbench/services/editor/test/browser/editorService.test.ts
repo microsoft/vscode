@@ -91,6 +91,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	isReadonly(): boolean {
 		return false;
 	}
+	isResolved(): boolean { return false; }
 	dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;

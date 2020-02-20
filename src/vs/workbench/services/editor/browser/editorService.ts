@@ -5,16 +5,16 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder, isTextEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder, isTextEditor, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
@@ -30,6 +30,8 @@ import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserv
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { timeout } from 'vs/base/common/async';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -72,11 +74,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
+
+		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
 
 		this.registerListeners();
 	}
@@ -88,6 +93,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
 		this.editorsObserver.onDidChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
+
+		// File changes & operations
+		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+
+		// Configuration
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onEditorsRestored(): void {
@@ -165,6 +177,113 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 	}
+
+	//#region File Changes: Close editors of deleted files unless configured otherwise
+
+	private closeOnFileDelete: boolean = false;
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
+			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
+		} else {
+			this.closeOnFileDelete = false; // default
+		}
+	}
+
+	private onDidFilesChange(e: FileChangesEvent): void {
+		if (e.gotDeleted()) {
+			this.handleDeletes(e, true);
+		}
+	}
+
+	private onDidRunFileOperation(e: FileOperationEvent): void {
+		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
+			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
+		}
+	}
+
+	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
+		for (const editor of this.getAllNonDirtyEditors({ includeUntitled: false, supportSideBySide: true })) {
+			(async () => {
+				const resource = editor.resource;
+				if (!resource) {
+					return;
+				}
+
+				// Handle deletes in opened editors depending on:
+				// - the user has not disabled the setting closeOnFileDelete
+				// - the file change is local
+				// - the input is  a file that is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
+				if (this.closeOnFileDelete || !isExternal || (this.fileInputFactory.isFileInput(editor) && !editor.isResolved())) {
+
+					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
+					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
+					// path but different casing.
+					if (movedTo && isEqualOrParent(resource, movedTo)) {
+						return;
+					}
+
+					let matches = false;
+					if (arg1 instanceof FileChangesEvent) {
+						matches = arg1.contains(resource, FileChangeType.DELETED);
+					} else {
+						matches = isEqualOrParent(resource, arg1);
+					}
+
+					if (!matches) {
+						return;
+					}
+
+					// We have received reports of users seeing delete events even though the file still
+					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+					// Since we do not want to close an editor without reason, we have to check if the
+					// file is really gone and not just a faulty file event.
+					// This only applies to external file events, so we need to check for the isExternal
+					// flag.
+					let exists = false;
+					if (isExternal && this.fileService.canHandleResource(resource)) {
+						await timeout(100);
+						exists = await this.fileService.exists(resource);
+					}
+
+					if (!exists && !editor.isDisposed()) {
+						editor.dispose();
+					} else if (this.environmentService.verbose) {
+						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
+					}
+				}
+			})();
+		}
+	}
+
+	private getAllNonDirtyEditors(options: { includeUntitled: boolean, supportSideBySide: boolean }): IEditorInput[] {
+		const editors: IEditorInput[] = [];
+
+		function conditionallyAddEditor(editor: IEditorInput): void {
+			if (editor.isUntitled() && !options.includeUntitled) {
+				return;
+			}
+
+			if (editor.isDirty()) {
+				return;
+			}
+
+			editors.push(editor);
+		}
+
+		for (const editor of this.editors) {
+			if (options.supportSideBySide && editor instanceof SideBySideEditorInput) {
+				conditionallyAddEditor(editor.master);
+				conditionallyAddEditor(editor.details);
+			} else {
+				conditionallyAddEditor(editor);
+			}
+		}
+
+		return editors;
+	}
+
+	//#endregion
 
 	get activeControl(): IVisibleEditor | undefined {
 		return this.editorGroupService.activeGroup?.activeControl;
