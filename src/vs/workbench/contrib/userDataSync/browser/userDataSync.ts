@@ -756,7 +756,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						that.notificationService.error(localize('turn off failed', "Error while turning off sync: {0}", toErrorMessage(e)));
 					}
 				}
-				accessor.get(IPreferencesService).openGlobalSettings(false, { query: 'sync:' });
 			}
 		});
 	}
