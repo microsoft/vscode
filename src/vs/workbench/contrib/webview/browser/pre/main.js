@@ -267,6 +267,7 @@
 		};
 
 		let isHandlingScroll = false;
+
 		const handleWheel = (event) => {
 			if (isHandlingScroll) {
 				return;
