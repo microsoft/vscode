@@ -1543,11 +1543,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		}
 
+		const onDidChangeTextFocus = (textFocus: boolean) => {
+			if (this._modelData) {
+				this._modelData.cursor.setHasFocus(textFocus);
+			}
+			this._editorTextFocus.setValue(textFocus);
+		};
+
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
 		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
-		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
-		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
+		viewOutgoingEvents.onDidGainFocus = () => onDidChangeTextFocus(true);
+		viewOutgoingEvents.onDidLoseFocus = () => onDidChangeTextFocus(false);
 		viewOutgoingEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewOutgoingEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
 		viewOutgoingEvents.onMouseUp = (e) => this._onMouseUp.fire(e);

@@ -678,9 +678,5 @@ export const Handler = {
 	CompositionStart: 'compositionStart',
 	CompositionEnd: 'compositionEnd',
 	Paste: 'paste',
-
 	Cut: 'cut',
-
-	Undo: 'undo',
-	Redo: 'redo',
 };
