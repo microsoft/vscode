@@ -463,6 +463,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 		await this.handleFirstTimeSync();
 		this.userDataSyncEnablementService.setEnablement(true);
+		this.notificationService.info(localize('sync turned on', "Sync is turned on and from now on sycing will be done automatically."));
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
