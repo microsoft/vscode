@@ -308,19 +308,6 @@ export interface IUserDataSyncUtilService {
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 }
 
-export const IUserDataAuthTokenService = createDecorator<IUserDataAuthTokenService>('IUserDataAuthTokenService');
-
-export interface IUserDataAuthTokenService {
-	_serviceBrand: undefined;
-
-	readonly onDidChangeToken: Event<string | undefined>;
-	readonly onTokenFailed: Event<void>;
-
-	getToken(): Promise<string | undefined>;
-	setToken(accessToken: string | undefined): Promise<void>;
-	sendTokenFailed(): void;
-}
-
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
 export interface IUserDataSyncLogService extends ILogService { }
 
