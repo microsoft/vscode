@@ -1209,6 +1209,8 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 			if (this.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
 				editor.revealRangeNearTop(range, scrollType);
+			} else if (this.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {
+				editor.revealRangeNearTopIfOutsideViewport(range, scrollType);
 			} else if (this.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
 				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 			} else {
