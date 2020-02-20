@@ -11,7 +11,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, NotebookService, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -23,6 +23,8 @@ import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
+import { parse } from 'vs/base/common/marshalling';
 
 // Output renderers registration
 
@@ -42,6 +44,40 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	[
 		new SyncDescriptor(NotebookEditorInput)
 	]
+);
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+	NotebookEditorInput.ID,
+	class implements IEditorInputFactory {
+		canSerialize(): boolean {
+			return true;
+		}
+		serialize(input: EditorInput): string {
+			assertType(input instanceof NotebookEditorInput);
+			return JSON.stringify({
+				resource: input.resource,
+				name: input.name,
+				viewType: input.viewType,
+			});
+		}
+		deserialize(instantiationService: IInstantiationService, raw: string) {
+			type Data = { resource: URI, name: string, viewType: string };
+			const data = <Data>parse(raw);
+			if (!data) {
+				return undefined;
+			}
+			const { resource, name, viewType } = data;
+			if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
+				return undefined;
+			}
+			// TODO@joh,peng this is disabled because the note-editor isn't fit for being
+			// restorted (as it seems)
+			if ('true') {
+				return undefined;
+			}
+			return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType);
+		}
+	}
 );
 
 export class NotebookContribution implements IWorkbenchContribution {
@@ -87,7 +123,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			}
 		}
 
-		const input = this.instantiationService.createInstance(NotebookEditorInput, editor, viewType);
+		const input = this.instantiationService.createInstance(NotebookEditorInput, editor.resource!, editor.getName(), viewType);
 		this._resourceMapping.set(resource!.path, input);
 
 		return { override: this.editorService.openEditor(input, options, group) };

@@ -9,6 +9,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { INotebook, ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { URI } from 'vs/base/common/uri';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -96,7 +97,8 @@ export class NotebookEditorInput extends EditorInput {
 	private textModel: NotebookEditorModel | null = null;
 
 	constructor(
-		public readonly editorInput: IEditorInput,
+		public resource: URI,
+		public name: string,
 		public readonly viewType: string | undefined,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
@@ -109,7 +111,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return this.editorInput.getName();
+		return this.name;
 	}
 
 	isDirty() {
@@ -126,19 +128,15 @@ export class NotebookEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	get resource() {
-		return this.editorInput.resource;
-	}
-
 	resolve(): Promise<NotebookEditorModel> {
 		if (!this.promise) {
-			this.promise = this.textModelResolverService.createModelReference(this.editorInput.resource!)
+			this.promise = this.textModelResolverService.createModelReference(this.resource)
 				.then(async ref => {
 					const textModel = ref.object.textEditorModel;
 
 					let notebook: INotebook | undefined = undefined;
 					if (this.viewType !== undefined) {
-						notebook = await this.notebookService.resolveNotebook(this.viewType, this.editorInput.resource!);
+						notebook = await this.notebookService.resolveNotebook(this.viewType, this.resource);
 					}
 
 					this.textModel = new NotebookEditorModel(textModel, notebook);
