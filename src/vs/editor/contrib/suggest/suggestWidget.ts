@@ -468,7 +468,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private static readonly ID: string = 'editor.widget.suggestWidget';
 
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
-	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
+	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No Items.");
 
 	// Editor.IContentWidget.allowEditorOverflow
 	readonly allowEditorOverflow = true;
@@ -712,7 +712,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 
 		this.onDidSelectEmitter.fire({ item, index, model: completionModel });
-		this.editor.setAriaOptions({ ariaLabel: undefined });
 		this.editor.focus();
 	}
 
@@ -752,6 +751,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}
 
 			this.editor.setAriaOptions({ activeDescendant: undefined });
+			this.editor.setAriaOptions({ ariaLabel: undefined });
 			return;
 		}
 
