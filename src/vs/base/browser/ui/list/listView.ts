@@ -197,6 +197,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	get contentHeight(): number { return this.rangeMap.size; }
 
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
+	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
 
 	constructor(
 		container: HTMLElement,
