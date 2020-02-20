@@ -101,7 +101,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
 		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(editor.getResource());
+			const viewState = this.loadTextEditorViewState(editor.resource);
 			if (viewState) {
 				control.restoreViewState(viewState);
 			}
@@ -111,7 +111,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
 
-		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.getResource()) : this.input?.getName();
+		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.resource) : this.input?.getName();
 		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
@@ -163,7 +163,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			return; // only enabled for untitled and resource inputs
 		}
 
-		const resource = input.getResource();
+		const resource = input.resource;
 
 		// Clear view state if input is disposed
 		if (input.isDisposed()) {

@@ -13,6 +13,7 @@ import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/file
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 
 class ServiceAccessor {
 	constructor(
@@ -50,7 +51,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.ok(!manager.get(fileUpper));
 
-		let results = manager.getAll();
+		let results = manager.models;
 		assert.strictEqual(3, results.length);
 
 		let result = manager.get(URI.file('/yes'));
@@ -67,19 +68,19 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		manager.remove(URI.file(''));
 
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(3, results.length);
 
 		manager.remove(URI.file('/some/other.html'));
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(2, results.length);
 
 		manager.remove(fileUpper);
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(2, results.length);
 
 		manager.clear();
-		results = manager.getAll();
+		results = manager.models;
 		assert.strictEqual(0, results.length);
 
 		model1.dispose();
@@ -92,7 +93,15 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
-		const model = await manager.resolve(resource, { encoding });
+		const events: ITextFileEditorModel[] = [];
+		const listener = manager.onDidCreate(model => {
+			events.push(model);
+		});
+
+		const modelPromise = manager.resolve(resource, { encoding });
+		assert.ok(manager.get(resource)); // model known even before resolved()
+
+		const model = await modelPromise;
 		assert.ok(model);
 		assert.equal(model.getEncoding(), encoding);
 		assert.equal(manager.get(resource), model);
@@ -105,6 +114,12 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.notEqual(model3, model2);
 		assert.equal(manager.get(resource), model3);
 		model3.dispose();
+
+		assert.equal(events.length, 2);
+		assert.equal(events[0].resource.toString(), model.resource.toString());
+		assert.equal(events[1].resource.toString(), model2.resource.toString());
+
+		listener.dispose();
 	});
 
 	test('removed from cache when model disposed', function () {

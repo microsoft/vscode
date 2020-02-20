@@ -679,8 +679,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private toSideBySideLabel(leftInput: EditorInput, rightInput: EditorInput, divider: string): string | undefined {
-		const leftResource = leftInput.getResource();
-		const rightResource = rightInput.getResource();
+		const leftResource = leftInput.resource;
+		const rightResource = rightInput.resource;
 
 		// Without any resource, do not try to compute a label
 		if (!leftResource || !rightResource) {

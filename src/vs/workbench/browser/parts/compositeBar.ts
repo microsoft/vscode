@@ -19,7 +19,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -61,7 +61,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		items: ICompositeBarItem[],

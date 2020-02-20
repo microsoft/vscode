@@ -9,6 +9,7 @@
   "devDependencies": {
     "@types/mkdirp": "0.5.1",
     "@types/node": "^12.11.7",
+    "@types/optimist": "0.0.29",
     "@types/rimraf": "2.0.2",
     "@types/tmp": "^0.1.0",
     "rimraf": "^2.6.1",

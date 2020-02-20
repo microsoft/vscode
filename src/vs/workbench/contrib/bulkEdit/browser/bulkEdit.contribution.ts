@@ -64,9 +64,9 @@ class UXState {
 
 				let resource: URI | undefined;
 				if (input instanceof DiffEditorInput) {
-					resource = input.modifiedInput.getResource();
+					resource = input.modifiedInput.resource;
 				} else {
-					resource = input.getResource();
+					resource = input.resource;
 				}
 
 				if (resource?.scheme === BulkEditPreviewProvider.Schema) {

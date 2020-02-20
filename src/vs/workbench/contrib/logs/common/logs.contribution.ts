@@ -80,7 +80,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		}
 
 		const watcher = this.fileService.watch(dirname(file));
-		const disposable = this.fileService.onFileChanges(e => {
+		const disposable = this.fileService.onDidFilesChange(e => {
 			if (e.contains(file, FileChangeType.ADDED) || e.contains(file, FileChangeType.UPDATED)) {
 				watcher.dispose();
 				disposable.dispose();

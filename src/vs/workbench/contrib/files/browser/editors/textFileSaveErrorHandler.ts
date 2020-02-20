@@ -64,7 +64,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
 
 		// Set as save error handler to service for text files
-		this.textFileService.saveErrorHandler = this;
+		this.textFileService.files.saveErrorHandler = this;
 
 		this.registerListeners();
 	}
@@ -81,10 +81,10 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 		const activeInput = this.editorService.activeEditor;
 		if (activeInput instanceof DiffEditorInput && activeInput.originalInput instanceof ResourceEditorInput && activeInput.modifiedInput instanceof FileEditorInput) {
-			const resource = activeInput.originalInput.getResource();
+			const resource = activeInput.originalInput.resource;
 			if (resource?.scheme === CONFLICT_RESOLUTION_SCHEME) {
 				isActiveEditorSaveConflictResolution = true;
-				activeConflictResolutionResource = activeInput.modifiedInput.getResource();
+				activeConflictResolutionResource = activeInput.modifiedInput.resource;
 			}
 		}
 
@@ -221,13 +221,11 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	run(notification: IDisposable): Promise<any> {
+	async run(notification: IDisposable): Promise<any> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
 
 		// Hide notification
 		notification.dispose();
-
-		return Promise.resolve();
 	}
 }
 
@@ -262,8 +260,6 @@ class ResolveSaveConflictAction extends Action {
 			Event.once(handle.onDidClose)(() => dispose(actions.primary!));
 			pendingResolveSaveConflictMessages.push(handle);
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -276,7 +272,7 @@ class SaveElevatedAction extends Action {
 		super('workbench.files.action.saveElevated', triedToMakeWriteable ? isWindows ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? nls.localize('saveElevated', "Retry as Admin...") : nls.localize('saveElevatedSudo', "Retry as Sudo..."));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({
 				writeElevated: true,
@@ -284,8 +280,6 @@ class SaveElevatedAction extends Action {
 				reason: SaveReason.EXPLICIT
 			});
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -297,12 +291,10 @@ class OverwriteReadonlyAction extends Action {
 		super('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({ overwriteReadonly: true, reason: SaveReason.EXPLICIT });
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -314,12 +306,10 @@ class SaveIgnoreModifiedSinceAction extends Action {
 		super('workbench.files.action.saveIgnoreModifiedSince', nls.localize('overwrite', "Overwrite"));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -331,10 +321,8 @@ class ConfigureSaveConflictAction extends Action {
 		super('workbench.files.action.configureSaveConflict', nls.localize('configure', "Configure"));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
-
-		return Promise.resolve(true);
 	}
 }
 

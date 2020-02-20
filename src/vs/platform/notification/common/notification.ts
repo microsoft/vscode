@@ -6,7 +6,7 @@
 import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export import Severity = BaseSeverity;
@@ -318,16 +318,14 @@ export class NoOpNotification implements INotificationHandle {
 
 	readonly progress = new NoOpProgress();
 
-	private readonly _onDidClose: Emitter<void> = new Emitter();
-	readonly onDidClose: Event<void> = this._onDidClose.event;
+	readonly onDidClose = Event.None;
+	readonly onDidChangeVisibility = Event.None;
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }
 	updateActions(actions?: INotificationActions): void { }
 
-	close(): void {
-		this._onDidClose.dispose();
-	}
+	close(): void { }
 }
 
 export class NoOpProgress implements INotificationProgress {

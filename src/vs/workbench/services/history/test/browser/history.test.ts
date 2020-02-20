@@ -56,7 +56,6 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 }
 
@@ -175,7 +174,7 @@ suite('HistoryService', function () {
 		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
 		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
 
-		assert.equal(historyService.getLastActiveFile('foo')?.toString(), input1.getResource().toString());
+		assert.equal(historyService.getLastActiveFile('foo')?.toString(), input1.resource.toString());
 
 		part.dispose();
 	});

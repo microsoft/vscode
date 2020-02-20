@@ -25,6 +25,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
@@ -237,6 +238,7 @@ class BulkEdit {
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
@@ -309,7 +311,7 @@ class BulkEdit {
 				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 					continue; // not overwriting, but ignoring, and the target file exists
 				}
-				await this._textFileService.move(edit.oldUri, edit.newUri, options.overwrite);
+				await this._workingCopyFileService.move(edit.oldUri, edit.newUri, options.overwrite);
 
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
@@ -318,7 +320,7 @@ class BulkEdit {
 					if (useTrash && !(this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
 						useTrash = false; // not supported by provider
 					}
-					await this._textFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
+					await this._workingCopyFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
 				} else if (!options.ignoreIfNotExists) {
 					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
 				}

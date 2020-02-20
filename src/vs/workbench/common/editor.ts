@@ -165,7 +165,7 @@ export interface IFileInputFactory {
 
 	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
-	isFileInput(obj: any): obj is IFileEditorInput;
+	isFileInput(obj: unknown): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -363,9 +363,13 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
-	 * Returns the associated resource of this input.
+	 * Returns the optional associated resource of this input.
+	 *
+	 * This resource should be unique for all editors of the same
+	 * kind and is often used to identify the editor input among
+	 * others.
 	 */
-	getResource(): URI | undefined;
+	readonly resource: URI | undefined;
 
 	/**
 	 * Unique type identifier for this inpput.
@@ -470,11 +474,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	private disposed: boolean = false;
 
-	abstract getTypeId(): string;
+	abstract get resource(): URI | undefined;
 
-	getResource(): URI | undefined {
-		return undefined;
-	}
+	abstract getTypeId(): string;
 
 	getName(): string {
 		return `Editor ${this.getTypeId()}`;
@@ -574,7 +576,7 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	private static readonly MEMOIZER = createMemoizer();
 
 	constructor(
-		protected readonly resource: URI,
+		public readonly resource: URI,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
@@ -584,13 +586,14 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	) {
 		super();
 
+		this.registerListeners();
+	}
+
+	protected registerListeners(): void {
+
 		// Clear label memoizer on certain events that have impact
 		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 
 	getName(): string {
@@ -669,9 +672,7 @@ export abstract class TextResourceEditorInput extends EditorInput {
 			return true; // resources without file support are always readonly
 		}
 
-		const model = this.textFileService.files.get(this.resource);
-
-		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isSaving(): boolean {
@@ -763,7 +764,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	/**
 	 * Gets the resource this editor is about.
 	 */
-	getResource(): URI;
+	readonly resource: URI;
 
 	/**
 	 * Sets the preferred encoding to use for this input.
@@ -797,6 +798,10 @@ export class SideBySideEditorInput extends EditorInput {
 		super();
 
 		this.registerListeners();
+	}
+
+	get resource(): URI | undefined {
+		return undefined;
 	}
 
 	get master(): EditorInput {
@@ -1312,7 +1317,7 @@ export function toResource(editor: IEditorInput | undefined, options?: IResource
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
-	const resource = editor.getResource();
+	const resource = editor.resource;
 	if (!resource || !options || !options.filterByScheme) {
 		return resource;
 	}

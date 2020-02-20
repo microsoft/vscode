@@ -59,7 +59,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			return false;
 		}
 
-		const resource = this.editorService.activeEditor.getResource();
+		const resource = this.editorService.activeEditor.resource;
 
 		if (!resource) {
 			return false;

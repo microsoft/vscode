@@ -5,11 +5,11 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 interface IEditOperation {
-	operations: IIdentifiedSingleEditOperation[];
+	operations: IValidEditOperation[];
 }
 
 interface IStackElement {
@@ -174,7 +174,7 @@ export class EditStack {
 		return stackElement!.afterCursorState;
 	}
 
-	private static _computeCursorState(cursorStateComputer: ICursorStateComputer | null, inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null {
+	private static _computeCursorState(cursorStateComputer: ICursorStateComputer | null, inverseEditOperations: IValidEditOperation[]): Selection[] | null {
 		try {
 			return cursorStateComputer ? cursorStateComputer(inverseEditOperations) : null;
 		} catch (e) {

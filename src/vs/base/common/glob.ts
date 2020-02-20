@@ -251,14 +251,14 @@ export interface IGlobOptions {
 }
 
 interface ParsedStringPattern {
-	(path: string, basename: string): string | null | Promise<string | null> /* the matching pattern */;
+	(path: string, basename?: string): string | null | Promise<string | null> /* the matching pattern */;
 	basenames?: string[];
 	patterns?: string[];
 	allBasenames?: string[];
 	allPaths?: string[];
 }
 interface ParsedExpressionPattern {
-	(path: string, basename: string, name?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> /* the matching pattern */;
+	(path: string, basename?: string, name?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> /* the matching pattern */;
 	requiresSiblings?: boolean;
 	allBasenames?: string[];
 	allPaths?: string[];
@@ -374,7 +374,7 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 	if (n === 1) {
 		return <ParsedStringPattern>parsedPatterns[0];
 	}
-	const parsedPattern: ParsedStringPattern = function (path: string, basename: string) {
+	const parsedPattern: ParsedStringPattern = function (path: string, basename?: string) {
 		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 			if ((<ParsedStringPattern>parsedPatterns[i])(path, basename)) {
 				return pattern;
@@ -409,7 +409,7 @@ function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): Par
 function toRegExp(pattern: string): ParsedStringPattern {
 	try {
 		const regExp = new RegExp(`^${parseRegExp(pattern)}$`);
-		return function (path: string, basename: string) {
+		return function (path: string) {
 			regExp.lastIndex = 0; // reset RegExp to its initial state to reuse it!
 			return typeof path === 'string' && regExp.test(path) ? pattern : null;
 		};
@@ -457,7 +457,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
-		const resultPattern: ParsedPattern & { allBasenames?: string[]; allPaths?: string[]; } = function (path: string, basename: string) {
+		const resultPattern: ParsedPattern & { allBasenames?: string[]; allPaths?: string[]; } = function (path: string, basename?: string) {
 			return !!parsedPattern(path, basename);
 		};
 		if (parsedPattern.allBasenames) {
@@ -540,7 +540,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			return <ParsedStringPattern>parsedPatterns[0];
 		}
 
-		const resultExpression: ParsedStringPattern = function (path: string, basename: string) {
+		const resultExpression: ParsedStringPattern = function (path: string, basename?: string) {
 			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 				// Pattern matches path
 				const result = (<ParsedStringPattern>parsedPatterns[i])(path, basename);
@@ -565,7 +565,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		return resultExpression;
 	}
 
-	const resultExpression: ParsedStringPattern = function (path: string, basename: string, hasSibling?: (name: string) => boolean | Promise<boolean>) {
+	const resultExpression: ParsedStringPattern = function (path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) {
 		let name: string | undefined = undefined;
 
 		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
@@ -620,12 +620,12 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 	if (value) {
 		const when = (<SiblingClause>value).when;
 		if (typeof when === 'string') {
-			const result: ParsedExpressionPattern = (path: string, basename: string, name: string, hasSibling: (name: string) => boolean | Promise<boolean>) => {
+			const result: ParsedExpressionPattern = (path: string, basename?: string, name?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) => {
 				if (!hasSibling || !parsedPattern(path, basename)) {
 					return null;
 				}
 
-				const clausePattern = when.replace('$(basename)', name);
+				const clausePattern = when.replace('$(basename)', name!);
 				const matched = hasSibling(clausePattern);
 				return isThenable(matched) ?
 					matched.then(m => m ? pattern : null) :

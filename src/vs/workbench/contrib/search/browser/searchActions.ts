@@ -741,7 +741,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	private hasToOpenFile(): boolean {
 		const activeEditor = this.editorService.activeEditor;
-		const file = activeEditor ? activeEditor.getResource() : undefined;
+		const file = activeEditor ? activeEditor.resource : undefined;
 		if (file) {
 			return file.toString() === this.element.parent().resource.toString();
 		}

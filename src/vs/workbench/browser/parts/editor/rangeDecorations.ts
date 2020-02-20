@@ -60,7 +60,7 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor && activeEditor.getResource();
+		const resource = activeEditor && activeEditor.resource;
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
 				return this.editorService.activeTextEditorWidget as ICodeEditor;

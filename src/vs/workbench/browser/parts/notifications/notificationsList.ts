@@ -181,7 +181,7 @@ export class NotificationsList extends Themable {
 		}
 
 		// Restore DOM focus if we had focus before
-		if (listHasDOMFocus) {
+		if (this.isVisible && listHasDOMFocus) {
 			list.domFocus();
 		}
 	}
