@@ -48,14 +48,6 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 		this.view.domNode.focus();
 	}
 
-	domFocus() {
-		if (document.activeElement && this.view.domNode.contains(document.activeElement)) {
-			return;
-		}
-
-		super.domFocus();
-	}
-
 	getAbsoluteTop(index: number): number {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.listUser, `Invalid index ${index}`);
@@ -72,4 +64,13 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 		this.view.updateDynamicHeight(index, element, size);
 	}
 
+	// override
+	domFocus() {
+		if (document.activeElement && this.view.domNode.contains(document.activeElement)) {
+			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
+			return;
+		}
+
+		super.domFocus();
+	}
 }
