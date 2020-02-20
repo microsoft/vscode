@@ -200,9 +200,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
 
-	private readonly _willScroll = new Emitter<ScrollEvent>();
-	get onWillScroll(): Event<ScrollEvent> { return this._willScroll.event; }
-
 	private _isRendering: boolean = false;
 	get isRendering(): boolean {
 		return this._isRendering;
@@ -797,7 +794,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onScroll(e: ScrollEvent): void {
 		try {
-			this._willScroll.fire(e);
 			this.render(e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
 
 			if (this.supportDynamicHeights) {
