@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -175,3 +177,21 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContributio
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'notebook',
+	order: 100,
+	title: nls.localize('notebookConfigurationTitle', "Notebook"),
+	type: 'object',
+	properties: {
+		'notebook.displayOrder': {
+			markdownDescription: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
+			type: ['array'],
+			items: {
+				type: 'string'
+			},
+			default: []
+		}
+	}
+});

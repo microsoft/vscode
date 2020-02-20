@@ -100,6 +100,8 @@ export class BackLayerWebView extends Disposable {
 					}
 					body {
 						padding: 0px;
+						height: 100%;
+						width: 100%;
 					}
 				</style>
 			</head>
