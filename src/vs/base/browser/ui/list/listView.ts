@@ -674,6 +674,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row!.domNode!.style.top = `${this.elementTop(index)}px`;
+
 		if (this.setRowHeight) {
 			item.row!.domNode!.style.height = `${item.size}px`;
 		}
