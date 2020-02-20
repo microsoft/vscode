@@ -38,6 +38,7 @@ export interface ISyncConfiguration {
 
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
+	const ignoredExtensionsSchemaId = 'vscode://schemas/ignoredExtensions';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		id: 'sync',
@@ -84,11 +85,7 @@ export function registerConfiguration(): IDisposable {
 			'sync.ignoredExtensions': {
 				'type': 'array',
 				'description': localize('sync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
-				items: {
-					type: 'string',
-					pattern: EXTENSION_IDENTIFIER_PATTERN,
-					errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
-				},
+				$ref: ignoredExtensionsSchemaId,
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true
@@ -104,8 +101,8 @@ export function registerConfiguration(): IDisposable {
 			}
 		}
 	});
+	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const registerIgnoredSettingsSchema = () => {
-		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
@@ -114,6 +111,11 @@ export function registerConfiguration(): IDisposable {
 		};
 		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
 	};
+	jsonRegistry.registerSchema(ignoredExtensionsSchemaId, {
+		type: 'string',
+		pattern: EXTENSION_IDENTIFIER_PATTERN,
+		errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+	});
 	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
 }
 
