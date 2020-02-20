@@ -529,6 +529,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			id: MessageAction;
 		}
 
+		const previousVersion = this.apiVersion;
 		const previousState = this.serverState;
 		this.serverState = ServerState.None;
 
@@ -569,7 +570,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					prompt.then(item => {
 						if (item?.id === MessageAction.reportIssue) {
 							const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-								? getReportIssueArgsForError(previousState.error)
+								? getReportIssueArgsForError(previousState.error, previousVersion)
 								: undefined;
 							return vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
 						}
@@ -874,16 +875,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 }
 
-function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle: string, issueBody: string } | undefined {
+function getReportIssueArgsForError(error: TypeScriptServerError, apiVersion: API): { issueTitle: string, issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
 
 	// Note these strings are intentionally not localized
 	// as we want users to file issues in english
-	const issueBody = `**Are you using a workspace version of TypeScript?**
+	return {
+		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
 
-Yes/No
+		issueBody: `**TypeScript Version:** ${apiVersion.fullVersionString}
 
 **Steps to reproduce crash**
 
@@ -895,11 +897,7 @@ Yes/No
 
 \`\`\`
 ${error.serverStack}
-\`\`\``;
-
-	return {
-		issueBody,
-		issueTitle: `TS Server fatal error:  ${error.serverMessage}`
+\`\`\``,
 	};
 }
 
