@@ -68,7 +68,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private findEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
-			if (isEqual(editor.getResource(), resource)) {
+			if (isEqual(editor.resource, resource)) {
 				return editor;
 			}
 		}

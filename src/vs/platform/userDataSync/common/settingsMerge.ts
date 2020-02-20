@@ -576,15 +576,17 @@ function parseSettings(content: string): INode[] {
 			if (hierarchyLevel === 0) {
 				if (sep === ',') {
 					const node = nodes.pop();
-					nodes.push({
-						startOffset: node!.startOffset,
-						endOffset: node!.endOffset,
-						value: node!.value,
-						setting: {
-							key: node!.setting!.key,
-							hasCommaSeparator: true
-						}
-					});
+					if (node) {
+						nodes.push({
+							startOffset: node.startOffset,
+							endOffset: node.endOffset,
+							value: node.value,
+							setting: {
+								key: node.setting!.key,
+								hasCommaSeparator: true
+							}
+						});
+					}
 				}
 			}
 		},

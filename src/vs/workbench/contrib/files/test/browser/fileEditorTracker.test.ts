@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
+import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestFileService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -36,7 +36,7 @@ class ServiceAccessor {
 	}
 }
 
-suite('Files - FileEditorTracker', () => {
+suite('Files - TextFileEditorTracker', () => {
 
 	let disposables: IDisposable[] = [];
 
@@ -60,7 +60,7 @@ suite('Files - FileEditorTracker', () => {
 		const instantiationService = workbenchInstantiationService();
 		const accessor = instantiationService.createInstance(ServiceAccessor);
 
-		const tracker = instantiationService.createInstance(FileEditorTracker);
+		const tracker = instantiationService.createInstance(TextFileEditorTracker);
 
 		const resource = toResource.call(this, '/path/index.txt');
 
@@ -82,7 +82,7 @@ suite('Files - FileEditorTracker', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
-	async function createTracker(): Promise<[EditorPart, ServiceAccessor, FileEditorTracker, IInstantiationService, IEditorService]> {
+	async function createTracker(): Promise<[EditorPart, ServiceAccessor, TextFileEditorTracker, IInstantiationService, IEditorService]> {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = instantiationService.createInstance(EditorPart);
@@ -98,7 +98,7 @@ suite('Files - FileEditorTracker', () => {
 
 		await part.whenRestored;
 
-		const tracker = instantiationService.createInstance(FileEditorTracker);
+		const tracker = instantiationService.createInstance(TextFileEditorTracker);
 
 		return [part, accessor, tracker, instantiationService, editorService];
 	}

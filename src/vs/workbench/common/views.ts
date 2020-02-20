@@ -336,8 +336,8 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 			this._viewContainers.push(viewContainer);
 		}
 		for (const viewDescriptor of viewDescriptors) {
-			if (views.some(v => v.id === viewDescriptor.id)) {
-				throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the container '{1}'", viewDescriptor.id, viewContainer.id));
+			if (this.getView(viewDescriptor.id) !== null) {
+				throw new Error(localize('duplicateId', "A view with id '{0}' is already registered", viewDescriptor.id));
 			}
 			views.push(viewDescriptor);
 		}

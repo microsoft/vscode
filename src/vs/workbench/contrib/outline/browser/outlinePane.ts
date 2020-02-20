@@ -636,7 +636,7 @@ export class OutlinePane extends ViewPane {
 				options: {
 					preserveFocus: !focus,
 					selection: Range.collapseToStart(element.symbol.selectionRange),
-					selectionRevealType: TextEditorSelectionRevealType.NearTop,
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 				}
 			},
 			this._editorService.getActiveCodeEditor(),

@@ -80,7 +80,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			outerWidth: input.outerWidth,
 			outerHeight: input.outerHeight,
 			lineHeight: input.lineHeight,
-			maxLineNumber: input.maxLineNumber || Math.pow(10, input.lineNumbersDigitCount) - 1,
+			viewLineCount: input.maxLineNumber || Math.pow(10, input.lineNumbersDigitCount) - 1,
 			lineNumbersDigitCount: input.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: input.maxDigitWidth,

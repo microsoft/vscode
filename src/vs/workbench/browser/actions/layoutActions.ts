@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,8 +24,9 @@ import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleConte
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
 
 // --- Close Side Bar
@@ -481,6 +482,42 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	when: IsMacNativeContext.toNegated(),
 	order: 0
 });
+
+// --- Reset View Positions
+
+export class ResetViewLocationsAction extends Action {
+	static readonly ID = 'workbench.action.resetViewLocations';
+	static readonly LABEL = nls.localize('resetViewLocations', "Reset View Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		viewContainerRegistry.all.forEach(viewContainer => {
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+
+			viewDescriptors.allViewDescriptors.forEach(viewDescriptor => {
+				const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
+				const currentContainer = this.viewDescriptorService.getViewContainer(viewDescriptor.id);
+
+				if (defaultContainer && currentContainer !== defaultContainer) {
+					this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
+				}
+			});
+		});
+
+		return Promise.resolve();
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetViewLocationsAction, ResetViewLocationsAction.ID, ResetViewLocationsAction.LABEL), 'View: Reset View Locations', viewCategory);
+
 
 // --- Resize View
 

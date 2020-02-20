@@ -876,67 +876,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region locate evaluatable expressions for debug hover: https://github.com/microsoft/vscode/issues/89084
-
-	/**
-	* An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
-	* The result of this evaluation is shown in a tooltip-like widget.
-	* If only a range is specified, the expression will be extracted from the underlying document.
-	* An optional expression can be used to override the extracted expression.
-	* In this case the range is still used to highlight the range in the document.
-	*/
-	export class EvaluatableExpression {
-		/*
-		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
-		 */
-		readonly range: Range;
-		/*
-		 * If specified the expression overrides the extracted expression.
-		 */
-		readonly expression?: string;
-
-		/**
-		 * Creates a new evaluatable expression object.
-		 *
-		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
-		 * @param expression If specified overrides the extracted expression.
-		 */
-		constructor(range: Range, expression?: string);
-	}
-
-	/**
-	 * The evaluatable expression provider interface defines the contract between extensions and
-	 * the debug hover.
-	 */
-	export interface EvaluatableExpressionProvider {
-
-		/**
-		 * Provide an evaluatable expression for the given document and position.
-		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position where the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
-		 */
-		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
-	}
-
-	export namespace languages {
-		/**
-		 * Register a provider that locates evaluatable expressions in text documents.
-		 *
-		 * If multiple providers are registered for a language an arbitrary provider will be used.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An evaluatable expression provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
-	}
-
-	// deprecated
+	//#region deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**
@@ -1468,49 +1408,6 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region https://github.com/microsoft/vscode/issues/77728
-
-	/**
-	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
-	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
-	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
-	 */
-	export interface WorkspaceEditMetadata {
-
-		/**
-		 * A flag which indicates that user confirmation is needed.
-		 */
-		needsConfirmation: boolean;
-
-		/**
-		 * A human-readable string which is rendered prominent.
-		 */
-		label: string;
-
-		/**
-		 * A human-readable string which is rendered less prominent on the same line.
-		 */
-		description?: string;
-
-		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
-		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface WorkspaceEdit {
-
-		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditMetadata): void;
-		delete(uri: Uri, range: Range, metadata?: WorkspaceEditMetadata): void;
-		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditMetadata): void;
-
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-	}
-
-	//#endregion
-
 	//#region Diagnostic links https://github.com/microsoft/vscode/issues/11847
 
 	export interface Diagnostic {
@@ -1731,6 +1628,35 @@ declare module 'vscode' {
 		 * - Any code actions of `kind` are returned by the provider.
 		 */
 		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command }>;
+	}
+
+	//#endregion
+
+	//#region Dialog title: https://github.com/microsoft/vscode/issues/82871
+
+	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
+	 */
+	export interface OpenDialogOptions {
+		/**
+		 * Dialog title
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * Dialog title
+		 */
+		title?: string;
 	}
 
 	//#endregion

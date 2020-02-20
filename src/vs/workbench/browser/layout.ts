@@ -25,6 +25,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -40,6 +41,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
+import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -194,7 +196,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
-			setNotificationsFilter: false
+			setNotificationsFilter: false,
+			editorWidgetSet: new Set<IEditor>()
 		},
 
 	};
@@ -690,18 +693,39 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposables.clear();
 
-		const setLineNumbers = (lineNumbers?: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => {
-			// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
-			if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
-				const model = editor.getModel();
-				lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
-			}
-			if (!lineNumbers) {
-				lineNumbers = this.configurationService.getValue('editor.lineNumbers');
-			}
+		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
+			const setEditorLineNumbers = (editor: IEditor) => {
+				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
+				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
+					const model = editor.getModel();
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
+				}
+				if (!lineNumbers) {
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers');
+				}
 
-			editor.updateOptions({ lineNumbers });
-		});
+				editor.updateOptions({ lineNumbers });
+			};
+
+			const editorWidgetSet = this.state.zenMode.editorWidgetSet;
+			if (!lineNumbers) {
+				// Reset line numbers on all editors visible and non-visible
+				for (const editor of editorWidgetSet) {
+					setEditorLineNumbers(editor);
+				}
+				editorWidgetSet.clear();
+			} else {
+				this.editorService.visibleTextEditorWidgets.forEach(editor => {
+					if (!editorWidgetSet.has(editor)) {
+						editorWidgetSet.add(editor);
+						this.state.zenMode.transitionDisposables.add(editor.onDidDispose(() => {
+							editorWidgetSet.delete(editor);
+						}));
+					}
+					setEditorLineNumbers(editor);
+				});
+			}
+		};
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)

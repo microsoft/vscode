@@ -191,22 +191,6 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		};
 
-		const createWindowProgress = () => {
-			this.withWindowProgress<R>({
-				location: ProgressLocation.Window,
-				title: options.title
-			}, progress => {
-				if (progressStateModel.step) {
-					progress.report(progressStateModel.step);
-				}
-
-				const disposable = progressStateModel.onDidReport(step => progress.report(step));
-				Event.once(progressStateModel.onDispose)(() => disposable.dispose());
-
-				return progressStateModel.promise;
-			});
-		};
-
 		const createNotification = (message: string, increment?: number): INotificationHandle => {
 			const notificationDisposables = new DisposableStore();
 
@@ -254,18 +238,8 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			updateProgress(handle, increment);
 
-			Event.once(handle.onDidClose)(() => {
-
-				// Switch to window based progress once the notification
-				// is being closed even though still running and not
-				// cancelled.
-				if (!progressStateModel.done) {
-					createWindowProgress();
-				}
-
-				// Clear disposables
-				notificationDisposables.dispose();
-			});
+			// Clear upon dispose
+			Event.once(handle.onDidClose)(() => notificationDisposables.dispose());
 
 			return handle;
 		};

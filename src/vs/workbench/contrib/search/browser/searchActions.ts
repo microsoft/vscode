@@ -283,7 +283,7 @@ export class RefreshAction extends Action {
 	run(): Promise<void> {
 		const searchView = getSearchView(this.viewsService);
 		if (searchView) {
-			searchView.onQueryChanged(false);
+			searchView.triggerQueryChange({ preserveFocus: false });
 		}
 
 		return Promise.resolve();
@@ -741,7 +741,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	private hasToOpenFile(): boolean {
 		const activeEditor = this.editorService.activeEditor;
-		const file = activeEditor ? activeEditor.getResource() : undefined;
+		const file = activeEditor ? activeEditor.resource : undefined;
 		if (file) {
 			return file.toString() === this.element.parent().resource.toString();
 		}

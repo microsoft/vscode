@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
@@ -83,7 +83,12 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
-				description: localize('sync.ignoredExtensions', "Configure extensions to be ignored while synchronizing."),
+				'description': localize('sync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+				items: {
+					type: 'string',
+					pattern: EXTENSION_IDENTIFIER_PATTERN,
+					errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+				},
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true
@@ -120,23 +125,27 @@ export interface IUserData {
 }
 
 export interface IUserDataSyncStore {
-	url: string;
+	url: URI;
 	authenticationProviderId: string;
 }
 
 export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
-	return value && value.url && value.authenticationProviderId ? value : undefined;
+	const value = configurationService.getValue<{ url: string, authenticationProviderId: string }>(CONFIGURATION_SYNC_STORE_KEY);
+	if (value && value.url && value.authenticationProviderId) {
+		return {
+			url: joinPath(URI.parse(value.url), 'v1'),
+			authenticationProviderId: value.authenticationProviderId
+		};
+	}
+	return undefined;
 }
 
 export const ALL_RESOURCE_KEYS: ResourceKey[] = ['settings', 'keybindings', 'extensions', 'globalState'];
 export type ResourceKey = 'settings' | 'keybindings' | 'extensions' | 'globalState';
 
 export interface IUserDataManifest {
-	settings: string;
-	keybindings: string;
-	extensions: string;
-	globalState: string;
+	latest?: Record<ResourceKey, string>
+	session: string;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
@@ -162,10 +171,12 @@ export enum UserDataSyncErrorCode {
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
+	SessionExpired = 'SessionExpired',
 
 	// Local Errors
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
+	Incompatible = 'Incompatible',
 
 	Unknown = 'Unknown',
 }
@@ -199,7 +210,7 @@ export class UserDataSyncStoreError extends UserDataSyncError { }
 export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
 	version?: string;
-	enabled: boolean;
+	disabled?: boolean;
 }
 
 export interface IGlobalState {
@@ -272,6 +283,9 @@ export interface IUserDataSyncService {
 
 	readonly onDidChangeLocal: Event<void>;
 
+	readonly lastSyncTime: number | undefined;
+	readonly onDidChangeLastSyncTime: Event<number>;
+
 	pull(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;
@@ -297,17 +311,6 @@ export interface IUserDataSyncUtilService {
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 }
 
-export const IUserDataAuthTokenService = createDecorator<IUserDataAuthTokenService>('IUserDataAuthTokenService');
-
-export interface IUserDataAuthTokenService {
-	_serviceBrand: undefined;
-
-	readonly onDidChangeToken: Event<string | undefined>;
-
-	getToken(): Promise<string | undefined>;
-	setToken(accessToken: string | undefined): Promise<void>;
-}
-
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
 export interface IUserDataSyncLogService extends ILogService { }
 
@@ -328,6 +331,7 @@ export interface ISettingsSyncService extends IUserDataSynchroniser {
 //#endregion
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export function toRemoteContentResource(source: SyncSource): URI {

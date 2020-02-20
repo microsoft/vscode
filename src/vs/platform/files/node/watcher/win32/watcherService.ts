@@ -16,7 +16,7 @@ export class FileWatcher implements IDisposable {
 
 	constructor(
 		folders: { path: string, excludes: string[] }[],
-		private onFileChanges: (changes: IDiskFileChange[]) => void,
+		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
@@ -62,7 +62,7 @@ export class FileWatcher implements IDisposable {
 
 		// Emit through event emitter
 		if (events.length > 0) {
-			this.onFileChanges(events);
+			this.onDidFilesChange(events);
 		}
 	}
 

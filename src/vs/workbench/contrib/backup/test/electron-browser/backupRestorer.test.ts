@@ -125,7 +125,7 @@ suite('BackupRestorer', () => {
 
 		let counter = 0;
 		for (const editor of editorService.editors) {
-			const resource = editor.getResource();
+			const resource = editor.resource;
 			if (isEqual(resource, untitledFile1)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
 				assert.equal(model.textEditorModel.getValue(), 'untitled-1');

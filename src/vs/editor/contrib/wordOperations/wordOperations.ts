@@ -52,6 +52,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 			return this._moveTo(sel, outPosition, this._inSelectionMode);
 		});
 
+		model.pushStackElement();
 		editor._getCursors().setStates('moveWordCommand', CursorChangeReason.NotSet, result.map(r => CursorState.fromModelSelection(r)));
 		if (result.length === 1) {
 			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);

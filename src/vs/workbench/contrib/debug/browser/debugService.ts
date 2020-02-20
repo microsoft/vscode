@@ -124,7 +124,7 @@ export class DebugService implements IDebugService {
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
-		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 		this.toDispose.push(this.lifecycleService.onShutdown(this.dispose, this));
 
 		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {

@@ -51,26 +51,26 @@ suite('Untitled text editors', () => {
 
 		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		await input1.resolve();
-		assert.equal(service.get(input1.getResource()), input1.model);
+		assert.equal(service.get(input1.resource), input1.model);
 
-		assert.ok(service.get(input1.getResource()));
+		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
 
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		assert.equal(service.get(input2.getResource()), input2.model);
+		assert.equal(service.get(input2.resource), input2.model);
 
 		// get()
-		assert.equal(service.get(input1.getResource()), input1.model);
-		assert.equal(service.get(input2.getResource()), input2.model);
+		assert.equal(service.get(input1.resource), input1.model);
+		assert.equal(service.get(input2.resource), input2.model);
 
 		// revert()
 		await input1.revert(0);
 		assert.ok(input1.isDisposed());
-		assert.ok(!service.get(input1.getResource()));
+		assert.ok(!service.get(input1.resource));
 
 		// dirty
 		const model = await input2.resolve();
-		assert.equal(await service.resolve({ untitledResource: input2.getResource() }), model);
+		assert.equal(await service.resolve({ untitledResource: input2.resource }), model);
 		assert.ok(service.get(model.resource));
 
 		assert.ok(!input2.isDirty());
@@ -81,37 +81,37 @@ suite('Untitled text editors', () => {
 
 		const resource = await resourcePromise;
 
-		assert.equal(resource.toString(), input2.getResource().toString());
+		assert.equal(resource.toString(), input2.resource.toString());
 
 		assert.ok(input2.isDirty());
 
-		assert.ok(workingCopyService.isDirty(input2.getResource()));
+		assert.ok(workingCopyService.isDirty(input2.resource));
 		assert.equal(workingCopyService.dirtyCount, 1);
 
 		await input1.revert(0);
 		await input2.revert(0);
-		assert.ok(!service.get(input1.getResource()));
-		assert.ok(!service.get(input2.getResource()));
+		assert.ok(!service.get(input1.resource));
+		assert.ok(!service.get(input2.resource));
 		assert.ok(!input2.isDirty());
 		assert.ok(!model.isDirty());
 
-		assert.ok(!workingCopyService.isDirty(input2.getResource()));
+		assert.ok(!workingCopyService.isDirty(input2.resource));
 		assert.equal(workingCopyService.dirtyCount, 0);
 
 		assert.equal(await input1.revert(0), false);
 		assert.ok(input1.isDisposed());
-		assert.ok(!service.get(input1.getResource()));
+		assert.ok(!service.get(input1.resource));
 
 		input2.dispose();
-		assert.ok(!service.get(input2.getResource()));
+		assert.ok(!service.get(input2.resource));
 	});
 
 	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
 		return new Promise(c => {
-			const listener = service.onDidChangeDirty(async resource => {
+			const listener = service.onDidChangeDirty(async model => {
 				listener.dispose();
 
-				c(resource);
+				c(model.resource);
 			});
 		});
 	}
@@ -176,9 +176,9 @@ suite('Untitled text editors', () => {
 
 		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 
-		const model3 = await instantiationService.createInstance(UntitledTextEditorInput, service.create({ untitledResource: input.getResource() })).resolve();
+		const model3 = await instantiationService.createInstance(UntitledTextEditorInput, service.create({ untitledResource: input.resource })).resolve();
 
-		assert.equal(model3.resource.toString(), input.getResource().toString());
+		assert.equal(model3.resource.toString(), input.resource.toString());
 
 		const file = URI.file(join('C:\\', '/foo/file44.txt'));
 		const model4 = await instantiationService.createInstance(UntitledTextEditorInput, service.create({ associatedResource: file })).resolve();
@@ -328,9 +328,9 @@ suite('Untitled text editors', () => {
 
 		let counter = 0;
 
-		service.onDidChangeEncoding(r => {
+		service.onDidChangeEncoding(model => {
 			counter++;
-			assert.equal(r.toString(), input.getResource().toString());
+			assert.equal(model.resource.toString(), input.resource.toString());
 		});
 
 		// encoding
@@ -347,9 +347,9 @@ suite('Untitled text editors', () => {
 
 		let counter = 0;
 
-		service.onDidChangeLabel(r => {
+		service.onDidChangeLabel(model => {
 			counter++;
-			assert.equal(r.toString(), input.getResource().toString());
+			assert.equal(model.resource.toString(), input.resource.toString());
 		});
 
 		// label
@@ -366,9 +366,9 @@ suite('Untitled text editors', () => {
 
 		let counter = 0;
 
-		service.onDidDisposeModel(r => {
+		service.onDidDispose(model => {
 			counter++;
-			assert.equal(r.toString(), input.getResource().toString());
+			assert.equal(model.resource.toString(), input.resource.toString());
 		});
 
 		const model = await input.resolve();

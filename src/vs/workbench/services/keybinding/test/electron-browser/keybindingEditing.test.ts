@@ -51,6 +51,7 @@ import { TestWindowConfiguration, TestTextFileService } from 'vs/workbench/test/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -108,6 +109,8 @@ suite('KeybindingsEditing', () => {
 			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
+			instantiationService.stub(IWorkingCopyFileService, instantiationService.createInstance(WorkingCopyFileService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(IBackupFileService, new TestBackupFileService());
