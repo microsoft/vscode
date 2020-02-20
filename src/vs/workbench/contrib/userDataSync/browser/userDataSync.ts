@@ -386,24 +386,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					});
 				}
 				return;
-			case UserDataSyncErrorCode.LocalInvalidContent:
-				if (error.source === SyncSource.Keybindings || error.source === SyncSource.Settings) {
-					const sourceArea = getSyncAreaLabel(error.source);
-					this.notificationService.notify({
-						severity: Severity.Error,
-						message: localize('error invalid content', "Unable to sync {0} as there are errors/warnings in the file. Please open the file and fix them to continue syncing.", sourceArea),
-						actions: {
-							primary: [new Action('open sync file', localize('open file', "Show {0} file", sourceArea), undefined, true,
-								() => error.source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
-						}
-					});
-				}
-				return;
 			case UserDataSyncErrorCode.Incompatible:
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error incompatible', "Disabled synchronizing because local data is incompatible with the data in the cloud. Please update {0} to continue syncing.", this.productService.nameLong),
+					message: localize('error incompatible', "Turned off synchronizing because local data is incompatible with the data in the cloud. Please update {0} and turn on sync to continue syncing.", this.productService.nameLong),
 				});
 				return;
 		}
