@@ -373,12 +373,22 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onAutoSyncError(error: UserDataSyncError): void {
 		switch (error.code) {
+			case UserDataSyncErrorCode.TurnedOff:
+			case UserDataSyncErrorCode.SessionExpired:
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: localize('turned off', "Turned off sync because it was turned off from other device."),
+					actions: {
+						primary: [new Action('turn on sync', localize('Turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
+					}
+				});
+				return;
 			case UserDataSyncErrorCode.TooLarge:
 				if (error.source === SyncSource.Keybindings || error.source === SyncSource.Settings) {
 					const sourceArea = getSyncAreaLabel(error.source);
 					this.notificationService.notify({
 						severity: Severity.Error,
-						message: localize('too large', "Disabled synchronizing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
+						message: localize('too large', "Disabled sync {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
 						actions: {
 							primary: [new Action('open sync file', localize('open file', "Show {0} file", sourceArea), undefined, true,
 								() => error.source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
@@ -390,7 +400,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error incompatible', "Turned off synchronizing because local data is incompatible with the data in the cloud. Please update {0} and turn on sync to continue syncing.", this.productService.nameLong),
+					message: localize('error incompatible', "Turned off sync because local data is incompatible with the data in the cloud. Please update {0} and turn on sync to continue syncing.", this.productService.nameLong),
 				});
 				return;
 		}

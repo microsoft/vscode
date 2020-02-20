@@ -63,23 +63,18 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				this.resetFailures();
 			} catch (e) {
 				const error = UserDataSyncError.toUserDataSyncError(e);
-				if (error.code === UserDataSyncErrorCode.TurnedOff) {
+				if (error.code === UserDataSyncErrorCode.TurnedOff || error.code === UserDataSyncErrorCode.SessionExpired) {
 					this.logService.info('Auto Sync: Sync is turned off in the cloud.');
 					this.logService.info('Auto Sync: Resetting the local sync state.');
 					await this.userDataSyncService.resetLocal();
 					this.logService.info('Auto Sync: Completed resetting the local sync state.');
 					if (auto) {
-						return this.userDataSyncEnablementService.setEnablement(false);
+						this.userDataSyncEnablementService.setEnablement(false);
+						this._onError.fire(error);
+						return;
 					} else {
 						return this.sync(loop, auto);
 					}
-				}
-				if (error.code === UserDataSyncErrorCode.SessionExpired) {
-					this.logService.info('Auto Sync: Cloud has new session');
-					this.logService.info('Auto Sync: Resetting the local sync state.');
-					await this.userDataSyncService.resetLocal();
-					this.logService.info('Auto Sync: Completed resetting the local sync state.');
-					return this.sync(loop, auto);
 				}
 				this.logService.error(error);
 				this.successiveFailures++;
