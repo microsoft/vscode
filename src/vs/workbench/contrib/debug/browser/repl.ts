@@ -157,14 +157,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 									});
 								}
 
-								const history = this.history.getHistory();
-								history.forEach(h => suggestions.push({
-									label: h,
-									insertText: h,
-									kind: CompletionItemKind.Text,
-									range: computeRange(h.length),
-									sortText: 'ZZZ'
-								}));
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
+									const history = this.history.getHistory();
+									history.forEach(h => suggestions.push({
+										label: h,
+										insertText: h,
+										kind: CompletionItemKind.Text,
+										range: computeRange(h.length),
+										sortText: 'ZZZ'
+									}));
+								}
 
 								return { suggestions };
 							}
