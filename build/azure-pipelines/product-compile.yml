@@ -116,6 +116,11 @@ steps:
     yarn gulp minify-vscode-reh-web
   displayName: Compile
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+  env:
+    OSS_GITHUB_ID: "a5d3c261b032765a78de"
+    OSS_GITHUB_SECRET: $(oss-github-client-secret)
+    INSIDERS_GITHUB_ID: "31f02627809389d9f111"
+    INSIDERS_GITHUB_SECRET: $(insiders-github-client-secret)
 
 - script: |
     set -e
