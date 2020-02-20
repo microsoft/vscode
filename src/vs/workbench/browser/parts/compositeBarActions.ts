@@ -20,8 +20,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
-import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/workbench/browser/parts/compositeBar';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/base/parts/composite/browser/compositeDnd';
 
 export interface ICompositeActivity {
 	badge: IBadge;

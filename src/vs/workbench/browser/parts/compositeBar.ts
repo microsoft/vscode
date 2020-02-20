@@ -21,9 +21,9 @@ import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
+import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/base/parts/composite/browser/compositeDnd';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -31,23 +31,6 @@ export interface ICompositeBarItem {
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
-}
-
-export class CompositeDragAndDropData implements IDragAndDropData {
-	constructor(
-		private type: 'view' | 'composite',
-		private id: string
-	) { }
-	update(dataTransfer: DataTransfer): void {
-		// no-op
-	}
-	getData(): { type: 'view' | 'composite', id: string } {
-		return { type: this.type, id: this.id };
-	}
-}
-
-export interface ICompositeDragAndDrop {
-	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): void;
 }
 
 export class CompositeDragAndDrop implements ICompositeDragAndDrop {
