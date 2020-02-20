@@ -23,8 +23,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
 	static readonly Resource = new RawContextKey<URI>('resource', undefined);
 	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined);
-	static readonly HasResource = new RawContextKey<boolean>('resourceSet', false);
-	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
+	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined);
+	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined);
 
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
