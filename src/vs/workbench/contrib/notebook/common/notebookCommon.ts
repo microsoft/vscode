@@ -164,3 +164,14 @@ export type NotebookCellOutputsSplice = [
 	number /* delete count */,
 	IOutput[]
 ];
+
+export function parseCellUri(resource: URI): { viewType: string, notebook: URI } | undefined {
+	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
+	if (resource.scheme !== 'vscode-notebook') {
+		return undefined;
+	}
+	// @todo Jo,Peng: `authority` will be transformed to lower case in `URI.toString()`, so we won't retrive the same viewType later on.
+	const viewType = resource.authority;
+	const notebook = URI.parse(resource.query);
+	return { viewType, notebook };
+}

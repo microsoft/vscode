@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, IGenericOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, IGenericOutput, parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
@@ -421,21 +421,25 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
-		let regex = new RegExp(`notebook\\+${viewType}-(\\d+)-(\\d+)`);
+		const regex = new RegExp(/cell_(\d)*\./g);
 		this._documentsAndEditors.onDidAddDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
-				let authority = textDocument.uri.authority;
+				let parsedCellUri = parseCellUri(textDocument.uri);
 
-				if (authority !== '') {
-					let matches = regex.exec(authority);
-					if (matches) {
-						const notebookHandle = matches[1];
-						const cellHandle = matches[2];
+				if (!parsedCellUri) {
+					continue;
+				}
 
-						if (Number(notebookHandle) === this.document.handle) {
-							document.attachCellTextDocument(Number(cellHandle), textDocument);
-						}
+				let notebookUri = parsedCellUri.notebook;
+				let cellFsPath = textDocument.uri.fsPath;
+
+				let matches = regex.exec(cellFsPath);
+
+				if (matches) {
+					const cellHandle = matches[1];
+					if (this.document.uri.fsPath === notebookUri.fsPath) {
+						document.attachCellTextDocument(Number(cellHandle), textDocument);
 					}
 				}
 			}
@@ -444,17 +448,21 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 		this._documentsAndEditors.onDidRemoveDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
-				let authority = textDocument.uri.authority;
+				let parsedCellUri = parseCellUri(textDocument.uri);
 
-				if (authority !== '') {
-					let matches = regex.exec(authority);
-					if (matches) {
-						const notebookHandle = matches[1];
-						const cellHandle = matches[2];
+				if (!parsedCellUri) {
+					continue;
+				}
 
-						if (Number(notebookHandle) === this.document.handle) {
-							document.detachCellTextDocument(Number(cellHandle), textDocument);
-						}
+				let notebookUri = parsedCellUri.notebook;
+				let cellFsPath = textDocument.uri.fsPath;
+
+				let matches = regex.exec(cellFsPath);
+
+				if (matches) {
+					const cellHandle = matches[1];
+					if (this.document.uri.fsPath === notebookUri.fsPath) {
+						document.detachCellTextDocument(Number(cellHandle), textDocument);
 					}
 				}
 			}

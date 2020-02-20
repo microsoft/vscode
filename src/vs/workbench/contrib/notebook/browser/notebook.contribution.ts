@@ -16,7 +16,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService, NotebookService, parseCellUri } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -36,6 +36,7 @@ import 'vs/workbench/contrib/notebook/browser/output/transforms/richTransform';
 
 // Actions
 import 'vs/workbench/contrib/notebook/browser/notebookActions';
+import { parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
