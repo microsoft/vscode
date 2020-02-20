@@ -36,34 +36,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(vscode.commands.registerCommand('githubAuth.signIn', async (scopes) => {
-		const resultingSession = await loginService.login(scopes || 'user:email');
-		vscode.window.showInformationMessage(`Signed in as ${resultingSession.accountName}`);
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('githubAuth.signOut', async () => {
-		const sessions = loginService.sessions;
-		if (sessions.length === 0) {
-			return;
-		}
-
-		if (sessions.length === 1) {
-			return loginService.logout(sessions[0].id);
-		}
-
-		// Show quick pick if there is more than one session
-		const result = await vscode.window.showQuickPick(sessions.map(session => {
-			return {
-				label: session.accountName,
-				id: session.id
-			};
-		}));
-
-		if (result) {
-			return loginService.logout(result.id);
-		}
-	}));
-
 	return;
 }
 

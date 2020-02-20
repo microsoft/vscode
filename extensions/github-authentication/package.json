@@ -15,20 +15,6 @@
 		"*"
 	],
 	"main": "./out/extension.js",
-	"contributes": {
-		"commands": [
-			{
-				"command": "githubAuth.signIn",
-				"title": "%command.signIn%",
-				"category": "GitHub"
-			},
-			{
-				"command": "githubAuth.signOut",
-				"title": "%command.signOut%",
-				"category": "GitHub"
-			}
-		]
-	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "gulp compile-extension:github-authentication",
