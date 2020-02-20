@@ -10,11 +10,11 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, isEqualOrParent } from 'vs/base/common/resources';
+import { basename, isEqualOrParent, isEqual, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
@@ -89,6 +89,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
 
 		// File changes & operations
+		// Note: there is some duplication with the two file event handlers- Since we cannot always rely on the disk events
+		// carrying all necessary data in all environments, we also use the file operation events to make sure operations are handled.
+		// In any case there is no guarantee if the local event is fired first or the disk one. Thus, code must handle the case
+		// that the event ordering is random as well as might not carry all information needed.
 		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
@@ -202,6 +206,118 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region File Changes: Move editors when detecting file move operations
+
+	private onDidRunFileOperation(e: FileOperationEvent): void {
+
+		// Handle moves specially when file is opened
+		if (e.isOperation(FileOperation.MOVE)) {
+			this.handleMovedFile(e.resource, e.target.resource);
+		}
+
+		// Handle deletes
+		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
+			this.handleDeletedFile(e.resource, false, e.target ? e.target.resource : undefined);
+		}
+	}
+
+	private handleMovedFile(oldResource: URI, newResource: URI): void {
+		for (const group of this.editorGroupService.groups) {
+			let replacements: (IResourceEditorReplacement | IEditorReplacement)[] = [];
+
+			for (const editor of group.editors) {
+				const resource = editor.resource;
+				if (!resource || !isEqualOrParent(resource, oldResource)) {
+					continue; // not matching our resource
+				}
+
+				// Determine new resulting target resource
+				let targetResource: URI;
+				if (oldResource.toString() === resource.toString()) {
+					targetResource = newResource; // file got moved
+				} else {
+					const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
+					const index = this.getIndexOfPath(resource.path, oldResource.path, ignoreCase);
+					targetResource = joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
+				}
+
+				// Delegate move() to editor instance
+				const moveResult = editor.move(group.id, targetResource);
+				if (!moveResult) {
+					return; // not target - ignore
+				}
+
+				const extraOptions = {
+					preserveFocus: true,
+					pinned: group.isPinned(editor),
+					index: group.getIndexOfEditor(editor),
+					inactive: !group.isActive(editor),
+					viewState: this.getViewStateFor(oldResource, group)
+				};
+
+				// Construct a replacement with our extra options mixed in
+				if (moveResult.editor instanceof EditorInput) {
+					replacements.push({
+						editor,
+						replacement: moveResult.editor,
+						options: {
+							...moveResult.options,
+							...extraOptions
+						}
+					});
+				} else {
+					replacements.push({
+						editor: { resource: editor.resource },
+						replacement: {
+							...moveResult.editor,
+							options: {
+								...(moveResult.editor as IResourceEditor /* TS fail */).options,
+								...extraOptions
+							}
+						}
+					});
+				}
+			}
+
+			// Apply replacements
+			if (replacements.length) {
+				this.replaceEditors(replacements, group);
+			}
+		}
+	}
+
+	private getIndexOfPath(path: string, candidate: string, ignoreCase: boolean): number {
+		if (candidate.length > path.length) {
+			return -1;
+		}
+
+		if (path === candidate) {
+			return 0;
+		}
+
+		if (ignoreCase) {
+			path = path.toLowerCase();
+			candidate = candidate.toLowerCase();
+		}
+
+		return path.indexOf(candidate);
+	}
+
+	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
+		for (const editor of this.visibleControls) {
+			if (isEqual(editor.input.resource, resource) && editor.group === group) {
+				const control = editor.getControl();
+				if (isCodeEditor(control)) {
+					return withNullAsUndefined(control.saveViewState());
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	//#endregion
+
 	//#region File Changes: Close editors of deleted files unless configured otherwise
 
 	private closeOnFileDelete: boolean = false;
@@ -216,17 +332,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private onDidFilesChange(e: FileChangesEvent): void {
 		if (e.gotDeleted()) {
-			this.handleDeletes(e, true);
+			this.handleDeletedFile(e, true);
 		}
 	}
 
-	private onDidRunFileOperation(e: FileOperationEvent): void {
-		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
-			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
-		}
-	}
-
-	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
+	private handleDeletedFile(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
 		for (const editor of this.getAllNonDirtyEditors({ includeUntitled: false, supportSideBySide: true })) {
 			(async () => {
 				const resource = editor.resource;

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput } from 'vs/workbench/common/editor';
+import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput, GroupIdentifier, IMoveResult } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileLoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -274,6 +274,15 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 
 	isResolved(): boolean {
 		return !!this.model;
+	}
+
+	move(group: GroupIdentifier, target: URI): IMoveResult {
+		return {
+			editor: {
+				resource: target,
+				encoding: this.getEncoding()
+			}
+		};
 	}
 
 	matches(otherInput: unknown): boolean {
