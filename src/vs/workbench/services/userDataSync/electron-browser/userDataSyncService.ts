@@ -29,6 +29,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
 	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
 
+	private _lastSyncTime: number | undefined = undefined;
+	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
+	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
+	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {
@@ -43,10 +48,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return userDataSyncChannel.listen(event, arg);
 			}
 		};
-		this.channel.call<[SyncStatus, SyncSource[]]>('_getInitialData').then(([status, conflicts]) => {
+		this.channel.call<[SyncStatus, SyncSource[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
 			this.updateStatus(status);
 			this.updateConflicts(conflicts);
+			if (lastSyncTime) {
+				this.updateLastSyncTime(lastSyncTime);
+			}
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
 		});
 		this._register(this.channel.listen<SyncSource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
 	}
@@ -93,6 +102,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._onDidChangeConflicts.fire(conflicts);
 	}
 
+	private updateLastSyncTime(lastSyncTime: number): void {
+		if (this._lastSyncTime !== lastSyncTime) {
+			this._lastSyncTime = lastSyncTime;
+			this._onDidChangeLastSyncTime.fire(lastSyncTime);
+		}
+	}
 }
 
 registerSingleton(IUserDataSyncService, UserDataSyncService);
