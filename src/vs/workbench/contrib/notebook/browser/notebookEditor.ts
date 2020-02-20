@@ -15,7 +15,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -37,6 +36,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
+import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -54,7 +54,7 @@ class NotebookCodeEditors implements ICompositeCodeEditor {
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	constructor(
-		private _list: WorkbenchList<CellViewModel>,
+		private _list: NotebookCellList<CellViewModel>,
 		private _renderedEditors: Map<CellViewModel, ICodeEditor | undefined>
 	) {
 		_list.onFocusChange(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
@@ -114,7 +114,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private contentWidgets!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
 
-	private list: WorkbenchList<CellViewModel> | undefined;
+	private list: NotebookCellList<CellViewModel> | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<CellViewModel, ICodeEditor | undefined> = new Map();
 	private model: NotebookEditorModel | undefined;
@@ -196,8 +196,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.instantiationService.createInstance(MarkdownCellRenderer, this),
 		];
 
-		this.list = <WorkbenchList<CellViewModel>>this.instantiationService.createInstance(
-			WorkbenchList,
+		this.list = <NotebookCellList<CellViewModel>>this.instantiationService.createInstance(
+			NotebookCellList,
 			'NotebookCellList',
 			this.body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
@@ -233,7 +233,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
-		this.list.view.rowsContainer.appendChild(this.webview.element);
+		this.list.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
 	}
 
@@ -250,7 +250,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		if (this.webview) {
 			this.localStore.clear();
-			this.list?.view.rowsContainer.removeChild(this.webview?.element);
+			this.list?.rowsContainer.removeChild(this.webview?.element);
 			this.webview?.dispose();
 			this.webview = null;
 		}
@@ -302,7 +302,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					this.webview?.clearPreloadsCache();
 				} else {
 					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
-					this.list?.view.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
+					this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
 				}
 
 				this.model = model;
@@ -407,7 +407,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		};
 
-		if (this.list?.view.isRendering) {
+		if (this.list?.isRendering) {
 			// if (this.relayoutDisposable) {
 			// 	this.relayoutDisposable.dispose();
 			// 	this.relayoutDisposable = null;
@@ -428,7 +428,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}));
 		});
 
-		if (this.list?.view.isRendering) {
+		if (this.list?.isRendering) {
 			// if (this.relayoutDisposable) {
 			// 	this.relayoutDisposable.dispose();
 			// 	this.relayoutDisposable = null;
@@ -493,7 +493,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		if (focusEditor) {
 
 		} else {
-			let itemDOM = this.list?.view.domElement(index);
+			let itemDOM = this.list?.domElementAtIndex(index);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
 			}
@@ -502,7 +502,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.list?.setFocus([index]);
-		this.list?.view.domNode.focus();
+		this.list?.focusView();
 	}
 
 	async deleteNotebookCell(listIndex: number | undefined, cell: CellViewModel): Promise<void> {

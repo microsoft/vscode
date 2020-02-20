@@ -572,10 +572,6 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
-		if (e.browserEvent.target && this.list.view.domNode.contains(e.browserEvent.target as HTMLElement)) {
-			return;
-		}
-
 		if (document.activeElement !== e.browserEvent.target) {
 			this.list.domFocus();
 		}
@@ -1120,7 +1116,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private eventBufferer = new EventBufferer();
-	public view: ListView<T>;
+	protected view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
@@ -1144,7 +1140,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
-	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
 	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }
@@ -1586,14 +1581,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
-	}
-
-	getAbsoluteTop(index: number): number {
-		if (index < 0 || index >= this.length) {
-			throw new ListError(this.user, `Invalid index ${index}`);
-		}
-
-		return this.view.elementTop(index);
 	}
 
 	/**
