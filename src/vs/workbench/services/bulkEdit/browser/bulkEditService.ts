@@ -29,9 +29,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-
-const USE_MULTI_MODEL_EDIT_STACK_ELEMENT = false;
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
@@ -138,8 +135,7 @@ class BulkEditModel implements IDisposable {
 		edits: WorkspaceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
 	) {
 		edits.forEach(this._addEdit, this);
 	}
@@ -224,7 +220,7 @@ class BulkEditModel implements IDisposable {
 	apply(): void {
 		const tasks = this._tasks!;
 
-		if (tasks.length === 1 || !USE_MULTI_MODEL_EDIT_STACK_ELEMENT) {
+		if (tasks.length === 1) {
 			// This edit touches a single model => keep things simple
 			for (const task of tasks) {
 				task.model.pushStackElement();
@@ -237,8 +233,7 @@ class BulkEditModel implements IDisposable {
 
 		const multiModelEditStackElement = new MultiModelEditStackElement(
 			localize('workspaceEdit', "Workspace Edit"),
-			tasks.map(t => new EditStackElement(t.model, t.getBeforeCursorState())),
-			this._dialogService
+			tasks.map(t => new EditStackElement(t.model, t.getBeforeCursorState()))
 		);
 		this._undoRedoService.pushElement(multiModelEditStackElement);
 

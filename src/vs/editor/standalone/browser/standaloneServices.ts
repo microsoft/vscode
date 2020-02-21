@@ -152,7 +152,7 @@ export module StaticServices {
 
 	export const logService = define(ILogService, () => new NullLogService());
 
-	export const undoRedoService = define(IUndoRedoService, () => new UndoRedoService());
+	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o), undoRedoService.get(o)));
 

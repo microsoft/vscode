@@ -8,17 +8,15 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation, ITextModel, IValidEditOperations } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IUndoRedoService, IUndoRedoElement, IUndoRedoContext } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getComparisonKey as uriGetComparisonKey } from 'vs/base/common/resources';
-import { Severity } from 'vs/platform/notification/common/notification';
 
-export class EditStackElement implements IUndoRedoElement {
+export class EditStackElement implements IResourceUndoRedoElement {
 
+	public readonly type = UndoRedoElementType.Resource;
 	public readonly label: string;
 	private _isOpen: boolean;
-	private _isValid: boolean;
 	public readonly model: ITextModel;
 	private readonly _beforeVersionId: number;
 	private readonly _beforeEOL: EndOfLineSequence;
@@ -28,14 +26,13 @@ export class EditStackElement implements IUndoRedoElement {
 	private _afterCursorState: Selection[] | null;
 	private _edits: IValidEditOperations[];
 
-	public get resources(): readonly URI[] {
-		return [this.model.uri];
+	public get resource(): URI {
+		return this.model.uri;
 	}
 
 	constructor(model: ITextModel, beforeCursorState: Selection[] | null) {
 		this.label = nls.localize('edit', "Typing");
 		this._isOpen = true;
-		this._isValid = true;
 		this.model = model;
 		this._beforeVersionId = this.model.getAlternativeVersionId();
 		this._beforeEOL = getModelEOL(this.model);
@@ -44,10 +41,6 @@ export class EditStackElement implements IUndoRedoElement {
 		this._afterEOL = this._beforeEOL;
 		this._afterCursorState = this._beforeCursorState;
 		this._edits = [];
-	}
-
-	public isValid(): boolean {
-		return this._isValid;
 	}
 
 	public canAppend(model: ITextModel): boolean {
@@ -67,44 +60,26 @@ export class EditStackElement implements IUndoRedoElement {
 		this._isOpen = false;
 	}
 
-	public canUndo(): boolean {
-		if (!this._isValid) {
-			return false;
-		}
-		return (this._afterVersionId === this.model.getAlternativeVersionId());
-	}
-
-	public undo(ctx: IUndoRedoContext): void {
+	public undo(): void {
 		this._isOpen = false;
 		this._edits.reverse();
 		this._edits = this.model._applyUndoRedoEdits(this._edits, this._beforeEOL, true, false, this._beforeVersionId, this._beforeCursorState);
 	}
 
-	public canRedo(): boolean {
-		if (!this._isValid) {
-			return false;
-		}
-		return (this._beforeVersionId === this.model.getAlternativeVersionId());
-	}
-
-	public redo(ctx: IUndoRedoContext): void {
+	public redo(): void {
 		this._edits.reverse();
 		this._edits = this.model._applyUndoRedoEdits(this._edits, this._afterEOL, false, true, this._afterVersionId, this._afterCursorState);
 	}
-
-	public invalidate(resource: URI): void {
-		this._isValid = false;
-	}
 }
 
-export class MultiModelEditStackElement implements IUndoRedoElement {
+export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 
+	public readonly type = UndoRedoElementType.Workspace;
 	public readonly label: string;
 	private _isOpen: boolean;
 
 	private readonly _editStackElementsArr: EditStackElement[];
 	private readonly _editStackElementsMap: Map<string, EditStackElement>;
-	private _isValid: boolean;
 
 	public get resources(): readonly URI[] {
 		return this._editStackElementsArr.map(editStackElement => editStackElement.model.uri);
@@ -112,8 +87,7 @@ export class MultiModelEditStackElement implements IUndoRedoElement {
 
 	constructor(
 		label: string,
-		editStackElements: EditStackElement[],
-		@IDialogService private readonly _dialogService: IDialogService
+		editStackElements: EditStackElement[]
 	) {
 		this.label = label;
 		this._isOpen = true;
@@ -123,7 +97,6 @@ export class MultiModelEditStackElement implements IUndoRedoElement {
 			const key = uriGetComparisonKey(editStackElement.model.uri);
 			this._editStackElementsMap.set(key, editStackElement);
 		}
-		this._isValid = true;
 	}
 
 	public canAppend(model: ITextModel): boolean {
@@ -148,66 +121,22 @@ export class MultiModelEditStackElement implements IUndoRedoElement {
 		this._isOpen = false;
 	}
 
-	private _canUndo(): boolean {
-		if (!this._isValid) {
-			return false;
-		}
-		for (const editStackElement of this._editStackElementsArr) {
-			if (!editStackElement.canUndo()) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	undo(ctx: IUndoRedoContext): void {
+	public undo(): void {
 		this._isOpen = false;
 
-		if (this._canUndo()) {
-			for (const editStackElement of this._editStackElementsArr) {
-				editStackElement.undo(ctx);
-			}
-		} else {
-			// cannot apply!
-			const validStackElements = this._editStackElementsArr.filter(stackElement => stackElement.isValid());
-			ctx.replaceCurrentElement(validStackElements);
-			this._dialogService.show(Severity.Info, nls.localize('workspace', "Could not apply the edit in all the impacted files."), []);
-		}
-	}
-
-	private _canRedo(): boolean {
-		if (!this._isValid) {
-			return false;
-		}
 		for (const editStackElement of this._editStackElementsArr) {
-			if (!editStackElement.canRedo()) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	redo(ctx: IUndoRedoContext): void {
-		if (this._canRedo()) {
-			for (const editStackElement of this._editStackElementsArr) {
-				editStackElement.redo(ctx);
-			}
-		} else {
-			// cannot apply!
-			const validStackElements = this._editStackElementsArr.filter(stackElement => stackElement.isValid());
-			ctx.replaceCurrentElement(validStackElements);
-			this._dialogService.show(Severity.Info, nls.localize('workspace', "Could not apply the edit in all the impacted files."), []);
+			editStackElement.undo();
 		}
 	}
 
-	invalidate(resource: URI): void {
-		const key = uriGetComparisonKey(resource);
-		if (!this._editStackElementsMap.has(key)) {
-			return;
+	public redo(): void {
+		for (const editStackElement of this._editStackElementsArr) {
+			editStackElement.redo();
 		}
-		this._isValid = false;
-		const stackElement = this._editStackElementsMap.get(key)!;
-		stackElement.invalidate(resource);
+	}
+
+	public split(): IResourceUndoRedoElement[] {
+		return this._editStackElementsArr;
 	}
 }
 
@@ -220,7 +149,7 @@ function getModelEOL(model: ITextModel): EndOfLineSequence {
 	}
 }
 
-function isKnownStackElement(element: IUndoRedoElement | null): element is EditStackElement | MultiModelEditStackElement {
+function isKnownStackElement(element: IResourceUndoRedoElement | IWorkspaceUndoRedoElement | null): element is EditStackElement | MultiModelEditStackElement {
 	if (!element) {
 		return false;
 	}
