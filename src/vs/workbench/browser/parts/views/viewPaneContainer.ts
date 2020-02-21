@@ -198,7 +198,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
@@ -402,7 +402,9 @@ export abstract class ViewPane extends Pane implements IView {
 		addClass(this.bodyContainer, 'welcome');
 		this.viewWelcomeContainer.innerHTML = '';
 
-		for (const { content } of contents) {
+		let buttonIndex = 0;
+
+		for (const { content, preconditions } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -427,6 +429,22 @@ export abstract class ViewPane extends Pane implements IView {
 						}, null, disposables);
 						disposables.add(button);
 						disposables.add(attachButtonStyler(button, this.themeService));
+
+						if (preconditions) {
+							const precondition = preconditions[buttonIndex];
+
+							if (precondition) {
+								const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+
+						buttonIndex++;
 					} else {
 						const link = this.instantiationService.createInstance(Link, node);
 						append(p, link.el);
