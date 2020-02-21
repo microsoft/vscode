@@ -212,29 +212,33 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	private async cleanUpBackup(): Promise<void> {
-		const stat = await this.fileService.resolve(this.syncFolder);
-		if (stat.children) {
-			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
-			const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
-			let toDelete = all.filter(stat => {
-				const ctime = stat.ctime || new Date(
-					parseInt(stat.name.substring(0, 4)),
-					parseInt(stat.name.substring(4, 6)) - 1,
-					parseInt(stat.name.substring(6, 8)),
-					parseInt(stat.name.substring(9, 11)),
-					parseInt(stat.name.substring(11, 13)),
-					parseInt(stat.name.substring(13, 15))
-				).getTime();
-				return Date.now() - ctime > backUpMaxAge;
-			});
-			const remaining = all.length - toDelete.length;
-			if (remaining < 10) {
-				toDelete = toDelete.slice(10 - remaining);
+		try {
+			const stat = await this.fileService.resolve(this.syncFolder);
+			if (stat.children) {
+				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
+				const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
+				let toDelete = all.filter(stat => {
+					const ctime = stat.ctime || new Date(
+						parseInt(stat.name.substring(0, 4)),
+						parseInt(stat.name.substring(4, 6)) - 1,
+						parseInt(stat.name.substring(6, 8)),
+						parseInt(stat.name.substring(9, 11)),
+						parseInt(stat.name.substring(11, 13)),
+						parseInt(stat.name.substring(13, 15))
+					).getTime();
+					return Date.now() - ctime > backUpMaxAge;
+				});
+				const remaining = all.length - toDelete.length;
+				if (remaining < 10) {
+					toDelete = toDelete.slice(10 - remaining);
+				}
+				await Promise.all(toDelete.map(stat => {
+					this.logService.info('Deleting from backup', stat.resource.path);
+					this.fileService.del(stat.resource);
+				}));
 			}
-			await Promise.all(toDelete.map(stat => {
-				this.logService.info('Deleting from backup', stat.resource.path);
-				this.fileService.del(stat.resource);
-			}));
+		} catch (e) {
+			this.logService.error(e);
 		}
 	}
 
