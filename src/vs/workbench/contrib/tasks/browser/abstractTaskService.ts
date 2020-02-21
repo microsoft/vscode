@@ -1167,8 +1167,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (uri: URI, alias: string) => {
-				let data = resolverData.get(uri.toString());
+			resolve: (uri: URI | string, alias: string) => {
+				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
 				if (!data) {
 					return undefined;
 				}
@@ -1234,8 +1234,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 
 		return {
-			resolve: (uri: URI, identifier: string | TaskIdentifier | undefined) => {
-				let data = uri ? resolverData.get(uri.toString()) : undefined;
+			resolve: (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
+				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
 				if (!data || !identifier) {
 					return undefined;
 				}
@@ -2116,9 +2116,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (identifier !== undefined) {
 			this.getGroupedTasks().then((grouped) => {
 				let resolver = this.createResolver(grouped);
-				let folders = this.contextService.getWorkspace().folders;
+				let folders: (IWorkspaceFolder | string)[] = this.contextService.getWorkspace().folders;
+				folders = folders.concat([USER_TASKS_GROUP_KEY]);
 				for (let folder of folders) {
-					let task = resolver.resolve(folder.uri, identifier);
+					let task = resolver.resolve(typeof folder === 'string' ? folder : folder.uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
