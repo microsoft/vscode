@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -16,6 +16,8 @@ import { Dimension } from 'vs/base/browser/dom';
  * Webview editor overlay that creates and destroys the underlying webview as needed.
  */
 export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOverlay {
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
 
 	private readonly _pendingMessages = new Set<any>();
 	private readonly _webview = this._register(new MutableDisposable<WebviewElement>());
@@ -99,7 +101,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
-			this._webview.value.mountTo(this.container);
+			webview.mountTo(this.container);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
@@ -107,6 +109,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			this._webviewEvents.add(webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }));
 			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
+			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -160,8 +163,8 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
-	public readonly onDidClickLink: Event<URI> = this._onDidClickLink.event;
+	private readonly _onDidClickLink = this._register(new Emitter<string>());
+	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
 	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;
@@ -188,6 +191,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	showFind(): void { this.withWebview(webview => webview.showFind()); }
 	hideFind(): void { this.withWebview(webview => webview.hideFind()); }
 	runFindAction(previous: boolean): void { this.withWebview(webview => webview.runFindAction(previous)); }
+	selectAll(): void { this.withWebview(webview => webview.selectAll()); }
 
 	public getInnerWebview() {
 		return this._webview.value;

@@ -53,7 +53,7 @@ export interface IStatusbarEntry {
 	readonly arguments?: any[];
 
 	/**
-	 * Wether to show a beak above the status bar entry.
+	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
 }
@@ -61,8 +61,6 @@ export interface IStatusbarEntry {
 export interface IStatusbarService {
 
 	_serviceBrand: undefined;
-
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
@@ -75,6 +73,16 @@ export interface IStatusbarService {
 	 * in their respective alignment slot
 	 */
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+
+	/**
+	 * An event that is triggered when an entry's visibility is changed.
+	 */
+	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+
+	/**
+	 * Return if an entry is visible or not.
+	 */
+	isEntryVisible(id: string): boolean;
 
 	/**
 	 * Allows to update an entry's visibility with the provided ID.

@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder, IConfiguration } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -25,6 +25,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/tes
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 const H = Handler;
 
@@ -130,6 +131,11 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 	assert.deepEqual(actual, expected);
 }
 
+function createViewModel(configuration: IConfiguration, model: ITextModel): ViewModel {
+	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
+	return new ViewModel(0, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
+}
+
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
@@ -152,7 +158,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = createTextModel(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
+		thisViewModel = createViewModel(thisConfiguration, thisModel);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -726,7 +732,7 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('combining marks', () => {
+	test('grapheme breaking', () => {
 		withTestCodeEditor([
 			'abcabc',
 			'ãããããã',
@@ -776,7 +782,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -816,7 +822,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -880,7 +886,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -929,7 +935,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -1234,22 +1240,22 @@ suite('Editor Controller - Regression tests', () => {
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert9');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert10');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert11');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert12');
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert13');
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert14');
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert15');
 		});
 
@@ -1257,12 +1263,12 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #23539: Setting model EOL isn\'t undoable', () => {
-		usingCursor({
-			text: [
-				'Hello',
-				'world'
-			]
-		}, (model, cursor) => {
+		withTestCodeEditor([
+			'Hello',
+			'world'
+		], {}, (editor, cursor) => {
+			const model = editor.getModel()!;
+
 			assertCursor(cursor, new Position(1, 1));
 			model.setEOL(EndOfLineSequence.LF);
 			assert.equal(model.getValue(), 'Hello\nworld');
@@ -1270,7 +1276,7 @@ suite('Editor Controller - Regression tests', () => {
 			model.pushEOL(EndOfLineSequence.CRLF);
 			assert.equal(model.getValue(), 'Hello\r\nworld');
 
-			cursorCommand(cursor, H.Undo);
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(), 'Hello\nworld');
 		});
 	});
@@ -1295,7 +1301,7 @@ suite('Editor Controller - Regression tests', () => {
 			cursorCommand(cursor, H.Type, { text: '%' }, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '%\'%👁\'', 'assert1');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'', 'assert2');
 		});
 
@@ -1321,39 +1327,39 @@ suite('Editor Controller - Regression tests', () => {
 			assert.equal(model.getLineContent(1), 'Hello world');
 			assertCursor(cursor, new Position(1, 12));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
 			assertCursor(cursor, new Position(1, 13));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
 			assertCursor(cursor, new Position(1, 12));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello');
 			assertCursor(cursor, new Position(1, 6));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '');
 			assertCursor(cursor, new Position(1, 1));
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello');
 			assertCursor(cursor, new Position(1, 6));
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
 			assertCursor(cursor, new Position(1, 12));
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
 			assertCursor(cursor, new Position(1, 13));
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
 			assertCursor(cursor, new Position(1, 12));
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
 			assertCursor(cursor, new Position(1, 12));
 		});
@@ -1729,21 +1735,21 @@ suite('Editor Controller - Regression tests', () => {
 				'\t just some text'
 			].join('\n'), '001');
 
-			cursorCommand(cursor, H.Undo);
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(), [
 				'    some lines',
 				'    and more lines',
 				'    just some text',
 			].join('\n'), '002');
 
-			cursorCommand(cursor, H.Undo);
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(), [
 				'some lines',
 				'and more lines',
 				'just some text',
 			].join('\n'), '003');
 
-			cursorCommand(cursor, H.Undo);
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(), [
 				'some lines',
 				'and more lines',
@@ -1929,10 +1935,8 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
-		usingCursor({
-			text: [
-			]
-		}, (model, cursor) => {
+		withTestCodeEditor([], {}, (editor, cursor) => {
+			const model = editor.getModel()!;
 			assertCursor(cursor, new Position(1, 1));
 
 			// Typing sennsei in Japanese - Hiragana
@@ -1951,7 +1955,7 @@ suite('Editor Controller - Regression tests', () => {
 			assert.equal(model.getLineContent(1), 'せんせい');
 			assertCursor(cursor, new Position(1, 5));
 
-			cursorCommand(cursor, H.Undo);
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '');
 			assertCursor(cursor, new Position(1, 1));
 		});
@@ -2074,7 +2078,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -2132,7 +2136,7 @@ suite('Editor Controller - Regression tests', () => {
 			}], () => [new Selection(1, 1, 1, 1)]);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
 		});
 
@@ -2223,12 +2227,12 @@ suite('Editor Controller - Regression tests', () => {
 				new Selection(1, 5, 1, 5),
 			]);
 
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assertCursor(cursor, [
 				new Selection(1, 4, 1, 4),
 			]);
 
-			cursorCommand(cursor, H.Redo, null, 'keyboard');
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assertCursor(cursor, [
 				new Selection(1, 5, 1, 5),
 			]);
@@ -2257,7 +2261,7 @@ suite('Editor Controller - Regression tests', () => {
 				new Selection(1, 1, 1, 1),
 			]);
 
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assertCursor(cursor, [
 				new Selection(1, 1, 1, 1),
 			]);
@@ -2269,6 +2273,64 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, [
 				new Selection(1, 1, 1, 1),
 			]);
+		});
+
+		model.dispose();
+	});
+
+	test('issue #85712: Paste line moves cursor to start of current line rather than start of next line', () => {
+		let model = createTextModel(
+			[
+				'abc123',
+				''
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(2, 1, 2, 1)
+			]);
+			cursorCommand(cursor, H.Paste, { text: 'something\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'abc123',
+				'something',
+				''
+			].join('\n'));
+			assertCursor(cursor, new Position(3, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #84897: Left delete behavior in some languages is changed', () => {
+		let model = createTextModel(
+			[
+				'สวัสดี'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 7, 1, 7)
+			]);
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวัส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สวั');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'สว');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'ส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(EndOfLinePreference.LF), '');
 		});
 
 		model.dispose();
@@ -2314,49 +2376,49 @@ suite('Editor Controller - Cursor Configuration', () => {
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 1) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '             My Second Line123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 2
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 2) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'M            y Second Line123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 3
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 3) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My            Second Line123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 4
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 4) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My           Second Line123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 13
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 13) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Li ne123');
-			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 14
 			assert.equal(model.getLineContent(2), 'My Second Line123');
@@ -2630,7 +2692,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(4, 1));
+			assertCursor(cursor, new Position(5, 1));
 		});
 
 		model.dispose();
@@ -2710,7 +2772,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(2), 'a   ');
 
 			// Undo DeleteLeft - get us back to original indentation
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '        a   ');
 
 			// Nothing is broken when cursor is in (1,1)
@@ -2795,27 +2857,54 @@ suite('Editor Controller - Cursor Configuration', () => {
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert10');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert11');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert12');
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert13');
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert14');
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert15');
 
-			cursorCommand(cursor, H.Redo, {});
+			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert16');
 		});
 
 		model.dispose();
 	});
+
+	test('issue #90973: Undo brings back model alternative version', () => {
+		let model = createTextModel(
+			[
+				''
+			].join('\n'),
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			const beforeVersion = model.getVersionId();
+			const beforeAltVersion = model.getAlternativeVersionId();
+			cursorCommand(cursor, H.Type, { text: 'Hello' }, 'keyboard');
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			const afterVersion = model.getVersionId();
+			const afterAltVersion = model.getAlternativeVersionId();
+
+			assert.notEqual(beforeVersion, afterVersion);
+			assert.equal(beforeAltVersion, afterAltVersion);
+		});
+
+		model.dispose();
+	});
+
+
 });
 
 suite('Editor Controller - Indentation Rules', () => {
@@ -2834,7 +2923,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2857,7 +2946,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
@@ -2876,7 +2965,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
 			assertCursor(cursor, new Selection(2, 15, 2, 15));
@@ -2896,7 +2985,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
@@ -2924,7 +3013,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
@@ -2948,7 +3037,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
@@ -3084,7 +3173,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
@@ -3554,7 +3643,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 4, 7, false);
 			assertCursor(cursor, new Selection(4, 7, 4, 7));
 
@@ -3615,7 +3704,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3664,7 +3753,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 7, 6, false);
 			assertCursor(cursor, new Selection(7, 6, 7, 6));
 
@@ -3728,7 +3817,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 8, 1, false);
 			assertCursor(cursor, new Selection(8, 1, 8, 1));
 
@@ -3791,7 +3880,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 3, 19, false);
 			assertCursor(cursor, new Selection(3, 19, 3, 19));
 
@@ -3834,7 +3923,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cur
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts || {});
-	let viewModel = new ViewModel(0, config, model, null!);
+	let viewModel = createViewModel(config, model);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);
@@ -4172,7 +4261,7 @@ suite('autoClosingPairs', () => {
 		moveTo(cursor, lineNumber, column);
 		cursorCommand(cursor, H.Type, { text: chr }, 'keyboard');
 		assert.deepEqual(model.getLineContent(lineNumber), expected, message);
-		cursorCommand(cursor, H.Undo);
+		model.undo();
 	}
 
 	test('open parens: default', () => {
@@ -4837,6 +4926,51 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #85983 - editor.autoClosingBrackets: beforeWhitespace is incorrect for Python', () => {
+		const languageId = new LanguageIdentifier('pythonMode', 5);
+		class PythonMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'r\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'R\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'u\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'U\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'f\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'F\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'b\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'r\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'R\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'u\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'U\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'f\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'F\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'b\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: 'B\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+		const mode = new PythonMode();
+		usingCursor({
+			text: [
+				'foo\'hello\''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
+		});
+		mode.dispose();
+	});
+
 	test('issue #78975 - Parentheses swallowing does not work when parentheses are inserted by autocomplete', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4932,6 +5066,35 @@ suite('autoClosingPairs', () => {
 
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
 			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
+		});
+		mode.dispose();
+	});
+
+	test('issue #84998: Overtyping Brackets doesn\'t work after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '\\()');
+
+			cursorCommand(cursor, H.Type, { text: 'abc' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc)');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
 		});
 		mode.dispose();
 	});
@@ -5182,11 +5345,11 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(1), 'A fir line');
 			assertCursor(cursor, new Selection(1, 6, 1, 6));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first line');
 			assertCursor(cursor, new Selection(1, 8, 1, 8));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A  line');
 			assertCursor(cursor, new Selection(1, 3, 1, 3));
 		});
@@ -5211,11 +5374,11 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(1), 'A firstine');
 			assertCursor(cursor, new Selection(1, 8, 1, 8));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first line');
 			assertCursor(cursor, new Selection(1, 8, 1, 8));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A  line');
 			assertCursor(cursor, new Selection(1, 3, 1, 3));
 		});
@@ -5245,11 +5408,11 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(2), 'Second line');
 			assertCursor(cursor, new Selection(2, 7, 2, 7));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), ' line');
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
 			assertCursor(cursor, new Selection(2, 8, 2, 8));
 		});
@@ -5283,11 +5446,11 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(2), '');
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), ' line');
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
 			assertCursor(cursor, new Selection(2, 8, 2, 8));
 		});
@@ -5314,11 +5477,11 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(2), 'Another text');
 			assertCursor(cursor, new Selection(2, 13, 2, 13));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another ');
 			assertCursor(cursor, new Selection(2, 9, 2, 9));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
 			assertCursor(cursor, new Selection(2, 9, 2, 9));
 		});
@@ -5350,11 +5513,11 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(2), 'An');
 			assertCursor(cursor, new Selection(2, 3, 2, 3));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another ');
 			assertCursor(cursor, new Selection(2, 9, 2, 9));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
 			assertCursor(cursor, new Selection(2, 9, 2, 9));
 		});
@@ -5374,16 +5537,40 @@ suite('Undo stops', () => {
 			assert.equal(model.getLineContent(1), 'A first and interesting line');
 			assertCursor(cursor, new Selection(1, 24, 1, 24));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first and line');
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first line');
 			assertCursor(cursor, new Selection(1, 8, 1, 8));
 
-			cursorCommand(cursor, H.Undo, {});
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
+	test('can undo typing and EOL change in one undo stop', () => {
+		let model = createTextModel(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
+			assert.equal(model.getValue(), 'A first line\nAnother line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			model.pushEOL(EndOfLineSequence.CRLF);
+			assert.equal(model.getValue(), 'A first line\r\nAnother line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(), 'A  line\nAnother line');
 			assertCursor(cursor, new Selection(1, 3, 1, 3));
 		});
 	});

@@ -52,7 +52,6 @@ import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceL
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -60,25 +59,31 @@ import { BackupFileService } from 'vs/workbench/services/backup/common/backupFil
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
+import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
-import { IAuthTokenService } from 'vs/platform/auth/common/auth';
-import { AuthTokenService } from 'vs/workbench/services/authToken/browser/authTokenService';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, ISettingsSyncService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
+import { IAuthenticationTokenService, AuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
-registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
+registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
-registerSingleton(ITunnelService, NoOpTunnelService, true);
+registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ILoggerService, FileLoggerService);
-registerSingleton(IAuthTokenService, AuthTokenService);
+registerSingleton(IAuthenticationService, AuthenticationService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
+registerSingleton(IAuthenticationTokenService, AuthenticationTokenService);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
+registerSingleton(ISettingsSyncService, SettingsSynchroniser);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 //#endregion
@@ -88,6 +93,9 @@ registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
+
+// Backup
+import 'vs/workbench/contrib/backup/browser/backup.web.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
@@ -100,7 +108,6 @@ import 'vs/workbench/contrib/webview/browser/webviewService';
 import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 // Terminal
-import 'vs/workbench/contrib/terminal/browser/terminalNativeService';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
@@ -111,5 +118,8 @@ import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.con
 
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.contribution';
+
+// Open In Desktop
+import 'vs/workbench/contrib/openInDesktop/browser/openInDesktop.web.contribution';
 
 //#endregion

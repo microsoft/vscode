@@ -13,9 +13,8 @@ set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
-:: Download Electron if needed
-node build\lib\electron.js
-if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+:: Get electron
+call yarn electron
 
 :: Manage built-in extensions
 if "%1"=="--builtin" goto builtin

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { URI } from 'vs/base/common/uri';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,6 +26,7 @@ export const enum WebviewMessageChannels {
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
+	wheel = 'did-scroll-wheel'
 }
 
 interface IKeydownEvent {
@@ -94,7 +95,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
-			this._onDidClickLink.fire(URI.parse(uri));
+			this._onDidClickLink.fire(uri);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
@@ -116,6 +117,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._register(this.on(WebviewMessageChannels.didFocus, () => {
 			this.handleFocusChange(true);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+			this._onDidWheel.fire(event);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
@@ -145,7 +150,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp = this._onMissingCsp.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
 	private readonly _onMessage = this._register(new Emitter<any>());
@@ -153,6 +158,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
 	public readonly onDidScroll = this._onDidScroll.event;
+
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState = this._onDidUpdateState.event;
@@ -285,6 +293,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	windowDidDragEnd(): void {
 		if (this.element) {
 			this.element.style.pointerEvents = '';
+		}
+	}
+
+	public selectAll() {
+		if (this.element) {
+			this._send('execCommand', 'selectAll');
 		}
 	}
 }

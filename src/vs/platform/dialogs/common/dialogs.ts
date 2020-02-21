@@ -141,7 +141,6 @@ export interface IOpenDialogOptions {
 	availableFileSystems?: readonly string[];
 }
 
-
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
 export interface IDialogOptions {
@@ -231,9 +230,9 @@ export interface IFileDialogService {
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
-	 * Shows a save file file dialog and save the file at the chosen file URI.
+	 * Shows a save file dialog and save the file at the chosen file URI.
 	 */
-	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.
@@ -241,22 +240,32 @@ export interface IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 
 	/**
+	 * Shows a confirm dialog for saving 1-N files.
+	 */
+	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult>;
+
+	/**
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 }
 
-const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: readonly URI[]): string {
-	const message = [start];
-	message.push('');
-	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));
+export const enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
+}
 
-	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
-		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+const MAX_CONFIRM_FILES = 10;
+export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI)[]): string {
+	const message: string[] = [];
+	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
+
+	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {
+		if (fileNamesOrResources.length - MAX_CONFIRM_FILES === 1) {
 			message.push(localize('moreFile', "...1 additional file not shown"));
 		} else {
-			message.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+			message.push(localize('moreFiles', "...{0} additional files not shown", fileNamesOrResources.length - MAX_CONFIRM_FILES));
 		}
 	}
 

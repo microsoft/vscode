@@ -9,6 +9,7 @@ import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation 
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	let originalStr = original.join('\n');
@@ -88,7 +89,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: ((model: TextModel) => void) | null = null): void {
-	let model = new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	let model = createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 

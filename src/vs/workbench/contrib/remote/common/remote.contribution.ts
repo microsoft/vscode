@@ -12,38 +12,16 @@ import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
+import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const VIEWLET_ID = 'workbench.view.remote';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
-	VIEWLET_ID,
-	true,
-	undefined,
-	{
-		getOrder: (group?: string) => {
-			if (!group) {
-				return;
-			}
-
-			let matches = /^targets@(\d+)$/.exec(group);
-			if (matches) {
-				return -1000;
-			}
-
-			matches = /^details(@(\d+))?$/.exec(group);
-
-			if (matches) {
-				return -500;
-			}
-
-			return;
-		}
-	}
-);
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -82,12 +60,15 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 	) {
 		super();
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const loggerClient = new LoggerChannelClient(connection.getChannel('logger'));
-			loggerClient.setLevel(logService.getLevel());
-			this._register(logService.onDidChangeLogLevel(level => loggerClient.setLevel(level)));
-		}
+		const updateRemoteLogLevel = () => {
+			const connection = remoteAgentService.getConnection();
+			if (!connection) {
+				return;
+			}
+			connection.withChannel('logger', (channel) => LoggerChannelClient.setLevel(channel, logService.getLevel()));
+		};
+		updateRemoteLogLevel();
+		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 	}
 }
 
@@ -109,3 +90,39 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
+
+const extensionKindSchema: IJSONSchema = {
+	type: 'string',
+	enum: [
+		'ui',
+		'workspace'
+	],
+	enumDescriptions: [
+		localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+	],
+};
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		id: 'remote',
+		title: localize('remote', "Remote"),
+		type: 'object',
+		properties: {
+			'remote.extensionKind': {
+				type: 'object',
+				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
+						default: ['ui'],
+					},
+				},
+				default: {
+					'pub.name': ['ui']
+				}
+			},
+		}
+	});

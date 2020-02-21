@@ -31,11 +31,11 @@ import { find } from 'vs/base/common/arrays';
  */
 export abstract class Composite extends Component implements IComposite {
 
-	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
+	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
+	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
 
-	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
@@ -250,11 +250,11 @@ export abstract class CompositeDescriptor<T extends Composite> {
 
 export abstract class CompositeRegistry<T extends Composite> extends Disposable {
 
-	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
-	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
+	private readonly _onDidRegister = this._register(new Emitter<CompositeDescriptor<T>>());
+	readonly onDidRegister = this._onDidRegister.event;
 
-	private readonly _onDidDeregister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
-	get onDidDeregister(): Event<CompositeDescriptor<T>> { return this._onDidDeregister.event; }
+	private readonly _onDidDeregister = this._register(new Emitter<CompositeDescriptor<T>>());
+	readonly onDidDeregister = this._onDidDeregister.event;
 
 	private composites: CompositeDescriptor<T>[] = [];
 

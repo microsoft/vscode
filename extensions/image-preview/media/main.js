@@ -303,7 +303,13 @@
 		document.body.classList.remove('loading');
 	});
 
-	image.src = decodeURI(settings.src);
+	image.src = settings.src;
+
+	document.querySelector('.open-file-link').addEventListener('click', () => {
+		vscode.postMessage({
+			type: 'reopen-as-text',
+		});
+	});
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {

@@ -501,7 +501,7 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
-			actionViewItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
+			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
 		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
@@ -643,7 +643,7 @@ export class SearchWidget extends Widget {
 				this.countElement.style.borderColor = border;
 
 				const color = this.themeService.getTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : null;
+				this.countElement.style.color = color ? color.toString() : '';
 			}));
 		}
 

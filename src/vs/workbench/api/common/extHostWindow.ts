@@ -39,7 +39,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	}
 
 	openUri(stringOrUri: string | URI, options: IOpenUriOptions): Promise<boolean> {
+		let uriAsString: string | undefined;
 		if (typeof stringOrUri === 'string') {
+			uriAsString = stringOrUri;
 			try {
 				stringOrUri = URI.parse(stringOrUri);
 			} catch (e) {
@@ -51,7 +53,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		} else if (stringOrUri.scheme === Schemas.command) {
 			return Promise.reject(`Invalid scheme '${stringOrUri.scheme}'`);
 		}
-		return this._proxy.$openUri(stringOrUri, options);
+		return this._proxy.$openUri(stringOrUri, uriAsString, options);
 	}
 
 	async asExternalUri(uri: URI, options: IOpenUriOptions): Promise<URI> {

@@ -76,10 +76,10 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const { stat, symbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
-				type: this.toType(stat, isSymbolicLink),
+				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -115,12 +115,28 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
-		if (isSymbolicLink) {
-			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+	private toType(entry: Stats | Dirent, symbolicLink?: { dangling: boolean }): FileType {
+
+		// Signal file type by checking for file / directory, except:
+		// - symbolic links pointing to non-existing files are FileType.Unknown
+		// - files that are neither file nor directory are FileType.Unknown
+		let type: FileType;
+		if (symbolicLink?.dangling) {
+			type = FileType.Unknown;
+		} else if (entry.isFile()) {
+			type = FileType.File;
+		} else if (entry.isDirectory()) {
+			type = FileType.Directory;
+		} else {
+			type = FileType.Unknown;
 		}
 
-		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
+		// Always signal symbolic link as file type additionally
+		if (symbolicLink) {
+			type |= FileType.SymbolicLink;
+		}
+
+		return type;
 	}
 
 	//#endregion
@@ -484,15 +500,15 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
+	private _onDidWatchErrorOccur = this._register(new Emitter<string>());
+	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
 
 	private _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	get onDidChangeFile(): Event<readonly IFileChange[]> { return this._onDidChangeFile.event; }
+	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
 	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
-	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
+	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private recursiveWatcherLogLevelListener: IDisposable | undefined;
 

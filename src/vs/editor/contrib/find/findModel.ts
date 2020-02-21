@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Constants } from 'vs/base/common/uint';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ScrollType, ICommand } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, FindMatch, ITextModel } from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
@@ -209,7 +209,7 @@ export class FindModelBoundToEditorModel {
 			let findScope = this._decorations.getFindScope();
 			if (findScope) {
 				// Reveal the selection so user is reminded that 'selection find' is on.
-				this._editor.revealRangeInCenterIfOutsideViewport(findScope, editorCommon.ScrollType.Smooth);
+				this._editor.revealRangeInCenterIfOutsideViewport(findScope, ScrollType.Smooth);
 			}
 			return true;
 		}
@@ -225,7 +225,7 @@ export class FindModelBoundToEditorModel {
 		);
 
 		this._editor.setSelection(match);
-		this._editor.revealRangeInCenterIfOutsideViewport(match, editorCommon.ScrollType.Smooth);
+		this._editor.revealRangeInCenterIfOutsideViewport(match, ScrollType.Smooth);
 	}
 
 	private _prevSearchPosition(before: Position) {
@@ -536,7 +536,7 @@ export class FindModelBoundToEditorModel {
 		this._editor.setSelections(selections);
 	}
 
-	private _executeEditorCommand(source: string, command: editorCommon.ICommand): void {
+	private _executeEditorCommand(source: string, command: ICommand): void {
 		try {
 			this._ignoreModelContentChanged = true;
 			this._editor.pushUndoStop();

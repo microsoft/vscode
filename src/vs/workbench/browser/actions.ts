@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The action bar contributor allows to add actions to an actionbar in a given context.
@@ -134,7 +134,7 @@ export interface IActionBarRegistry {
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
 	 * that are used in the Workbench in the given scope.
 	 */
-	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void;
+	registerActionBarContributor<Services extends BrandedService[]>(scope: string, ctor: { new(...services: Services): ActionBarContributor }): void;
 
 	/**
 	 * Returns an array of registered action bar contributors known to the workbench for the given scope.

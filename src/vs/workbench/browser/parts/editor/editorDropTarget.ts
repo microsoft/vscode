@@ -18,6 +18,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { find } from 'vs/base/common/arrays';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { URI } from 'vs/base/common/uri';
+import { joinPath } from 'vs/base/common/resources';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -41,8 +46,10 @@ class DropOverlay extends Themable {
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private groupView: IEditorGroupView,
-		themeService: IThemeService,
-		private instantiationService: IInstantiationService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(themeService);
 
@@ -100,10 +107,6 @@ class DropOverlay extends Themable {
 		this._register(new DragAndDropObserver(this.container, {
 			onDragEnter: e => undefined,
 			onDragOver: e => {
-				if (isWeb && containsDragType(e, DataTransfers.FILES)) {
-					return; // dropping files into editor is unsupported on web
-				}
-
 				const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 				const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
 
@@ -278,6 +281,48 @@ class DropOverlay extends Themable {
 				}
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			}
+		}
+
+		// Web: check for file transfer
+		else if (isWeb && containsDragType(event, DataTransfers.FILES)) {
+			let targetGroup: IEditorGroupView | undefined = undefined;
+
+			const files = event.dataTransfer?.files;
+			if (files) {
+				for (let i = 0; i < files.length; i++) {
+					const file = files.item(i);
+					if (file) {
+						const reader = new FileReader();
+						reader.readAsArrayBuffer(file);
+						reader.onload = async event => {
+							const name = file.name;
+							if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
+
+								// Try to come up with a good file path for the untitled
+								// editor by asking the file dialog service for the default
+								let proposedFilePath: URI | undefined = undefined;
+								const defaultFilePath = this.fileDialogService.defaultFilePath();
+								if (defaultFilePath) {
+									proposedFilePath = joinPath(defaultFilePath, name);
+								}
+
+								// Open as untitled file with the provided contents
+								const untitledEditor = this.editorService.createInput({
+									resource: proposedFilePath,
+									forceUntitled: true,
+									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
+								});
+
+								if (!targetGroup) {
+									targetGroup = ensureTargetGroup();
+								}
+
+								await targetGroup.openEditor(untitledEditor);
+							}
+						};
+					}
+				}
 			}
 		}
 
@@ -532,7 +577,7 @@ export class EditorDropTarget extends Themable {
 			if (!this.overlay) {
 				const targetGroupView = this.findTargetGroupView(target);
 				if (targetGroupView) {
-					this._overlay = new DropOverlay(this.accessor, targetGroupView, this.themeService, this.instantiationService);
+					this._overlay = this.instantiationService.createInstance(DropOverlay, this.accessor, targetGroupView);
 				}
 			}
 		}

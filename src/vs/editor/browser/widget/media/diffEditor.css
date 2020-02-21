@@ -8,19 +8,14 @@
 	z-index: 9;
 }
 
+.monaco-diff-editor .diffOverview .diffViewport {
+	z-index: 10;
+}
+
 /* colors not externalized: using transparancy on background */
 .monaco-diff-editor.vs			.diffOverview { background: rgba(0, 0, 0, 0.03); }
 .monaco-diff-editor.vs-dark		.diffOverview { background: rgba(255, 255, 255, 0.01); }
 
-.monaco-diff-editor .diffViewport {
-	box-shadow: inset 0px 0px 1px 0px #B9B9B9;
-	background: rgba(0, 0, 0, 0.10);
-}
-
-.monaco-diff-editor.vs-dark .diffViewport,
-.monaco-diff-editor.hc-black .diffViewport {
-	background: rgba(255, 255, 255, 0.10);
-}
 .monaco-scrollable-element.modified-in-monaco-diff-editor.vs		.scrollbar { background: rgba(0,0,0,0); }
 .monaco-scrollable-element.modified-in-monaco-diff-editor.vs-dark	.scrollbar { background: rgba(0,0,0,0); }
 .monaco-scrollable-element.modified-in-monaco-diff-editor.hc-black	.scrollbar { background: none; }
@@ -37,38 +32,16 @@
 .monaco-diff-editor .insert-sign,
 .monaco-editor .delete-sign,
 .monaco-diff-editor .delete-sign {
-	background-size: 60%;
-	opacity: 0.7;
-	background-repeat: no-repeat;
-	background-position: 75% center;
-	background-size: 11px 11px;
+	font-size: 11px !important;
+	opacity: 0.7 !important;
+	display: flex !important;
+	align-items: center;
 }
 .monaco-editor.hc-black .insert-sign,
 .monaco-diff-editor.hc-black .insert-sign,
 .monaco-editor.hc-black .delete-sign,
 .monaco-diff-editor.hc-black .delete-sign {
 	opacity: 1;
-}
-.monaco-editor .insert-sign,
-.monaco-diff-editor .insert-sign {
-	background-image: url('addition-light.svg');
-}
-.monaco-editor .delete-sign,
-.monaco-diff-editor .delete-sign {
-	background-image: url('deletion-light.svg');
-}
-
-.monaco-editor.vs-dark .insert-sign,
-.monaco-diff-editor.vs-dark .insert-sign,
-.monaco-editor.hc-black .insert-sign,
-.monaco-diff-editor.hc-black .insert-sign {
-	background-image: url('addition-dark.svg');
-}
-.monaco-editor.vs-dark .delete-sign,
-.monaco-diff-editor.vs-dark .delete-sign,
-.monaco-editor.hc-black .delete-sign,
-.monaco-diff-editor.hc-black .delete-sign {
-	background-image: url('deletion-dark.svg');
 }
 
 .monaco-editor .inline-deleted-margin-view-zone {
@@ -92,15 +65,6 @@
 
 .monaco-editor .view-zones .view-lines .view-line span {
 	display: inline-block;
-}
-
-.monaco-editor .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph {
-	background: url('lightbulb-light.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph,
-.monaco-editor.hc-dark .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph {
-	background: url('lightbulb-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .margin-view-zones .lightbulb-glyph:hover {

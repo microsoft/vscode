@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { FileKind } from 'vs/platform/files/common/files';
 
@@ -25,11 +25,14 @@ suite('Breadcrumb Model', function () {
 			}
 			return super.getValue(...args);
 		}
+		updateValue() {
+			return Promise.resolve();
+		}
 	};
 
 	test('only uri, inside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService);
+		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, configService, workspaceService);
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 3);
@@ -44,7 +47,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService);
+		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, configService, workspaceService);
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 2);

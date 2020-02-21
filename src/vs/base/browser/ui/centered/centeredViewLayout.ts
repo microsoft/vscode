@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
+import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 
 export interface CenteredViewState {
 	leftMarginRatio: number;
@@ -42,7 +43,7 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
 		get maximumSize() { return view.maximumWidth; },
 		get minimumSize() { return view.minimumWidth; },
 		onDidChange: Event.map(view.onDidChange, e => e && e.width),
-		layout: size => view.layout(size, getHeight(), Orientation.HORIZONTAL)
+		layout: (size, offset) => view.layout(size, getHeight(), 0, offset)
 	};
 }
 
@@ -72,6 +73,19 @@ export class CenteredViewLayout implements IDisposable {
 	get maximumHeight(): number { return this.view.maximumHeight; }
 	get onDidChange(): Event<IViewSize | undefined> { return this.view.onDidChange; }
 
+	private _boundarySashes: IBoundarySashes = {};
+	get boundarySashes(): IBoundarySashes { return this._boundarySashes; }
+	set boundarySashes(boundarySashes: IBoundarySashes) {
+		this._boundarySashes = boundarySashes;
+
+		if (!this.splitView) {
+			return;
+		}
+
+		this.splitView.orthogonalStartSash = boundarySashes.top;
+		this.splitView.orthogonalEndSash = boundarySashes.bottom;
+	}
+
 	layout(width: number, height: number): void {
 		this.width = width;
 		this.height = height;
@@ -81,7 +95,7 @@ export class CenteredViewLayout implements IDisposable {
 				this.resizeMargins();
 			}
 		} else {
-			this.view.layout(width, height, Orientation.HORIZONTAL);
+			this.view.layout(width, height, 0, 0);
 		}
 		this.didLayout = true;
 	}
@@ -119,6 +133,8 @@ export class CenteredViewLayout implements IDisposable {
 				orientation: Orientation.HORIZONTAL,
 				styles: this.style
 			});
+			this.splitView.orthogonalStartSash = this.boundarySashes.top;
+			this.splitView.orthogonalEndSash = this.boundarySashes.bottom;
 
 			this.splitViewDisposables.add(this.splitView.onDidSashChange(() => {
 				if (this.splitView) {

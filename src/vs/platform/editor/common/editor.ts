@@ -215,20 +215,41 @@ export interface ITextEditorSelection {
 	readonly endColumn?: number;
 }
 
+export const enum TextEditorSelectionRevealType {
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
+	 */
+	Center = 0,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	CenterIfOutsideViewport = 1,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 */
+	NearTop = 2,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 * Only if it lies outside the viewport
+	 */
+	NearTopIfOutsideViewport = 3,
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
 	 */
-	selection?: ITextEditorSelection;
+	readonly selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: object;
+	readonly viewState?: object;
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Option to control the text editor selection reveal type.
+	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
-	revealInCenterIfOutsideViewport?: boolean;
+	readonly selectionRevealType?: TextEditorSelectionRevealType;
 }

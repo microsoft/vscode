@@ -196,13 +196,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined || envConfigValue.workspace !== undefined) {
+		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
 			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspace === undefined && envConfigValue.workspace === undefined &&
-			shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
+		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
+			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
 			isWorkspaceShellAllowed = true;
 		}
 
@@ -210,16 +210,16 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
 			let shellString: string | undefined;
-			if (shellConfigValue.workspace) {
-				shellString = `shell: "${shellConfigValue.workspace}"`;
+			if (shellConfigValue.workspaceValue) {
+				shellString = `shell: "${shellConfigValue.workspaceValue}"`;
 			}
 			let argsString: string | undefined;
-			if (shellArgsConfigValue.workspace) {
-				argsString = `shellArgs: [${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
+			if (shellArgsConfigValue.workspaceValue) {
+				argsString = `shellArgs: [${shellArgsConfigValue.workspaceValue.map(v => '"' + v + '"').join(', ')}]`;
 			}
 			let envString: string | undefined;
-			if (envConfigValue.workspace) {
-				envString = `env: {${Object.keys(envConfigValue.workspace).map(k => `${k}:${envConfigValue.workspace![k]}`).join(', ')}}`;
+			if (envConfigValue.workspaceValue) {
+				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			const workspaceConfigStrings: string[] = [];
@@ -312,9 +312,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 	}
 
-	private isExtensionInstalled(id: string): Promise<boolean> {
-		return this._extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			return extensions.some(e => e.identifier.id === id);
-		});
+	private async isExtensionInstalled(id: string): Promise<boolean> {
+		const extensions = await this._extensionManagementService.getInstalled(ExtensionType.User);
+		return extensions.some(e => e.identifier.id === id);
 	}
 }

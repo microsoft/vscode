@@ -404,7 +404,7 @@ suite('URI', () => {
 		path = 'foo/bar';
 		assert.equal(URI.file(path).path, '/foo/bar');
 		path = './foo/bar';
-		assert.equal(URI.file(path).path, '/./foo/bar'); // todo@joh missing normalization
+		assert.equal(URI.file(path).path, '/./foo/bar'); // missing normalization
 
 		const fileUri1 = URI.parse(`file:foo/bar`);
 		assert.equal(fileUri1.path, '/foo/bar');
@@ -439,6 +439,10 @@ suite('URI', () => {
 		assert.equal(uri.path, uri2.path);
 	});
 
+	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+		assert.equal(URI.parse('file://some/%.txt'), 'file://some/%25.txt');
+		assert.equal(URI.parse('file://some/%A0.txt'), 'file://some/%25A0.txt');
+	});
 
 	test('Links in markdown are broken if url contains encoded parameters #79474', function () {
 		this.skip();

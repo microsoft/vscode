@@ -6,6 +6,8 @@
 .extension-editor {
 	height: 100%;
 	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .extension-editor .clickable {
@@ -47,6 +49,7 @@
 }
 
 .extension-editor > .header > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
 	font-size: 28px;
 }
 
@@ -188,7 +191,7 @@
 }
 
 .extension-editor > .body {
-	height: calc(100% - 168px);
+	flex: 1;
 	overflow: hidden;
 }
 

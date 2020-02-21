@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -39,16 +39,17 @@ const configurationEntrySchema: IJSONSchema = {
 							},
 							scope: {
 								type: 'string',
-								enum: ['application', 'machine', 'window', 'resource', 'machine-overridable'],
+								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
 								default: 'window',
 								enumDescriptions: [
 									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
 									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings when the extension is running locally, or only in the remote settings when the extension is running remotely."),
 									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
 									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
+									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),
 									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource` and `machine-overridable`.")
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',
@@ -57,12 +58,12 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
 							},
-							markdownEnumDescription: {
+							markdownEnumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.markdownEnumDescription', 'Descriptions for enum values in the markdown format.')
+								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
 							markdownDescription: {
 								type: 'string',
@@ -90,7 +91,7 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 			'\\[.*\\]$': {
 				type: 'object',
 				default: {},
-				$ref: editorConfigurationSchemaId,
+				$ref: resourceLanguageSettingsSchemaId,
 			}
 		}
 	}
@@ -218,6 +219,8 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
 				} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
 					propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
+				} else if (propertyConfiguration.scope.toString() === 'language-overridable') {
+					propertyConfiguration.scope = ConfigurationScope.LANGUAGE_OVERRIDABLE;
 				} else {
 					propertyConfiguration.scope = ConfigurationScope.WINDOW;
 				}
@@ -309,9 +312,10 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			$ref: 'vscode://schemas/extensions'
 		},
 		'remoteAuthority': {
-			type: 'string'
+			type: 'string',
+			doNotSuggest: true,
+			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located. Only used by unsaved remote workspaces."),
 		}
 	},
-	additionalProperties: false,
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
 });

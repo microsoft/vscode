@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { QuickOpenEditorWidget } from 'vs/editor/standalone/browser/quickOpen/quickOpenEditorWidget';
@@ -22,7 +22,7 @@ export interface IQuickOpenControllerOpts {
 	getAutoFocus(searchValue: string): IAutoFocus;
 }
 
-export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
+export class QuickOpenController implements IEditorContribution, IDecorator {
 
 	public static readonly ID = 'editor.controller.quickOpenController';
 
@@ -61,7 +61,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			// Restore selection if canceled
 			if (canceled && this.lastKnownEditorSelection) {
 				this.editor.setSelection(this.lastKnownEditorSelection);
-				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection, editorCommon.ScrollType.Smooth);
+				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection, ScrollType.Smooth);
 			}
 
 			this.lastKnownEditorSelection = null;
@@ -165,7 +165,7 @@ export abstract class BaseEditorQuickOpenAction extends EditorAction {
 }
 
 export interface IDecorator {
-	decorateLine(range: Range, editor: editorCommon.IEditor): void;
+	decorateLine(range: Range, editor: IEditor): void;
 	clearDecorations(): void;
 }
 

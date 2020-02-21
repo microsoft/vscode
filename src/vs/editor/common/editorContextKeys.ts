@@ -6,6 +6,8 @@
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export namespace EditorContextKeys {
+
+	export const editorSimpleInput = new RawContextKey<boolean>('editorSimpleInput', false);
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 */
@@ -21,6 +23,7 @@ export namespace EditorContextKeys {
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
+	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false);
 	export const writable: ContextKeyExpr = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
 	export const hasOnlyEmptySelection: ContextKeyExpr = hasNonEmptySelection.toNegated();

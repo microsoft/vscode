@@ -61,7 +61,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	protected createElement(options: WebviewOptions) {
 		const element = document.createElement('iframe');
 		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin');
+		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
 		element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		element.style.border = 'none';
 		element.style.width = '100%';

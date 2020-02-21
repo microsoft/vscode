@@ -283,3 +283,20 @@ export function isRootOrDriveLetter(path: string): boolean {
 
 	return pathNormalized === posix.sep;
 }
+
+export function indexOfPath(path: string, candidate: string, ignoreCase: boolean): number {
+	if (candidate.length > path.length) {
+		return -1;
+	}
+
+	if (path === candidate) {
+		return 0;
+	}
+
+	if (ignoreCase) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate);
+}

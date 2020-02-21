@@ -34,7 +34,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -373,7 +373,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		const actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
 					return new CheckboxActionViewItem(null, action);
 				}
@@ -410,7 +410,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			recordingBadge.style.borderWidth = border ? '1px' : '';
 			recordingBadge.style.borderStyle = border ? 'solid' : '';
 			recordingBadge.style.borderColor = border;
-			recordingBadge.style.color = color ? color.toString() : null;
+			recordingBadge.style.color = color ? color.toString() : '';
 		}));
 		return recordingBadge;
 	}
@@ -457,8 +457,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			ariaLabel: localize('keybindingsLabel', "Keybindings"),
 			setRowLineHeight: false,
-			horizontalScrolling: false
-		}));
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: editorBackground
+			}
+		})) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {

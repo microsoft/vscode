@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -38,7 +38,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
@@ -70,29 +69,33 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(this.windowCommandMenu);
 
 		const category = nls.localize('remote.category', "Remote");
-
-		registerAction({
-			id: WINDOW_ACTIONS_COMMAND_ID,
-			category,
-			title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
-			menu: {
-				menuId: MenuId.CommandPalette
-			},
-			handler: (_accessor) => this.showIndicatorActions(this.windowCommandMenu)
+		const that = this;
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: WINDOW_ACTIONS_COMMAND_ID,
+					category,
+					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+					f1: true,
+				});
+			}
+			run = () => that.showIndicatorActions(that.windowCommandMenu);
 		});
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
 
 		if (this.remoteAuthority) {
-			registerAction({
-				id: CLOSE_REMOTE_COMMAND_ID,
-				category,
-				title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
-				menu: {
-					menuId: MenuId.CommandPalette
-				},
-				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
+			registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: CLOSE_REMOTE_COMMAND_ID,
+						category,
+						title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+						f1: true
+					});
+				}
+				run = () => that.remoteAuthority && hostService.openWindow({ forceReuseWindow: true });
 			});
 
 			// Pending entry until extensions are ready
@@ -344,8 +347,8 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 			return shouldShowExplorer();
 		}
 
-		const { remoteAuthority, folderUri, workspace } = environmentService.configuration;
-		if (remoteAuthority && !folderUri && !workspace) {
+		const { remoteAuthority, folderUri, workspace, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService.configuration;
+		if (remoteAuthority && !folderUri && !workspace && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
 			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
 				if (shouldShowExplorer()) {
 					commandService.executeCommand('workbench.view.explorer');
@@ -366,40 +369,20 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveI
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
-const extensionKindSchema: IJSONSchema = {
-	type: 'string',
-	enum: [
-		'ui',
-		'workspace'
-	],
-	enumDescriptions: [
-		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
-	],
-};
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'remote',
 		title: nls.localize('remote', "Remote"),
 		type: 'object',
 		properties: {
-			'remote.extensionKind': {
-				type: 'object',
-				markdownDescription: nls.localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-						default: 'ui',
-					},
-				},
-				default: {
-					'pub.name': 'ui'
-				}
-			},
 			'remote.downloadExtensionsLocally': {
 				type: 'boolean',
 				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
+				default: false
+			},
+			'remote.restoreForwardedPorts': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
 				default: false
 			}
 		}

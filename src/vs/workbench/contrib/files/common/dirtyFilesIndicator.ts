@@ -10,24 +10,22 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
-	private lastKnownDirtyCount: number | undefined;
-
-	private get hasDirtyCount(): boolean {
-		return typeof this.lastKnownDirtyCount === 'number' && this.lastKnownDirtyCount > 0;
-	}
+	private lastKnownDirtyCount = 0;
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
+
+		this.updateActivityBadge();
 
 		this.registerListeners();
 	}
@@ -35,26 +33,25 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 	private registerListeners(): void {
 
 		// Working copy dirty indicator
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.onWorkingCopyDidChangeDirty(c)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onWorkingCopyDidChangeDirty(workingCopy)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onWorkingCopyDidChangeDirty(copy: IWorkingCopy): void {
-		const gotDirty = copy.isDirty();
-		if (gotDirty && !!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
+		const gotDirty = workingCopy.isDirty();
+		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 
-		if (gotDirty || this.hasDirtyCount) {
+		if (gotDirty || this.lastKnownDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
 
 	private updateActivityBadge(): void {
-		const dirtyCount = this.workingCopyService.dirtyCount;
-		this.lastKnownDirtyCount = dirtyCount;
+		const dirtyCount = this.lastKnownDirtyCount = this.workingCopyService.dirtyCount;
 
 		// Indicate dirty count in badge if any
 		if (dirtyCount > 0) {

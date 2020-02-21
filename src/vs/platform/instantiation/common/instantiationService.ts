@@ -16,7 +16,7 @@ const _enableTracing = false;
 // PROXY
 // Ghetto-declare of the global Proxy object. This isn't the proper way
 // but allows us to run this code in the browser without IE11.
-declare var Proxy: any;
+declare const Proxy: any;
 const _canUseProxy = typeof Proxy === 'function';
 
 class CyclicDependencyError extends Error {
@@ -64,7 +64,7 @@ export class InstantiationService implements IInstantiationService {
 					return result;
 				}
 			};
-			return fn.apply(undefined, [accessor, ...args]);
+			return fn(accessor, ...args);
 		} finally {
 			_done = true;
 			_trace.stop();
@@ -157,7 +157,7 @@ export class InstantiationService implements IInstantiationService {
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks
-			if (cycleCount++ > 150) {
+			if (cycleCount++ > 200) {
 				throw new CyclicDependencyError(graph);
 			}
 

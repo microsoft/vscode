@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper, $ } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -23,6 +23,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { startsWith } from 'vs/base/common/strings';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -85,7 +86,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
+		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * 24) /* 24px per action */)}px`;
 
 		// Render message into offset helper
 		const renderedMessage = NotificationMessageRenderer.render(notification.message);
@@ -136,39 +137,25 @@ class NotificationMessageRenderer {
 	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
 		const messageContainer = document.createElement('span');
 
-		// Message has no links
-		if (message.links.length === 0) {
-			messageContainer.textContent = message.value;
-		}
+		for (const node of message.linkedText.nodes) {
+			if (typeof node === 'string') {
+				messageContainer.appendChild(document.createTextNode(node));
+			} else {
+				let title = node.title;
 
-		// Message has links
-		else {
-			let index = 0;
-			for (const link of message.links) {
-
-				const textBefore = message.value.substring(index, link.offset);
-				if (textBefore) {
-					messageContainer.appendChild(document.createTextNode(textBefore));
+				if (!title && startsWith(node.href, 'command:')) {
+					title = localize('executeCommand', "Click to execute command '{0}'", node.href.substr('command:'.length));
+				} else if (!title) {
+					title = node.href;
 				}
 
-				const anchor = document.createElement('a');
-				anchor.textContent = link.name;
-				anchor.title = link.title;
-				anchor.href = link.href;
+				const anchor = $('a', { href: node.href, title: title, }, node.label);
 
 				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(link.href)));
+					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(node.href)));
 				}
 
 				messageContainer.appendChild(anchor);
-
-				index = link.offset + link.length;
-			}
-
-			// Add text after links if any
-			const textAfter = message.value.substring(index);
-			if (textAfter) {
-				messageContainer.appendChild(document.createTextNode(textAfter));
 			}
 		}
 
@@ -319,7 +306,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		// Container
 		toggleClass(this.template.container, 'expanded', notification.expanded);
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
-			if (e.button === 1 /* Middle Button */) {
+			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e);
 
 				notification.close();
@@ -345,7 +332,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.renderProgress(notification);
 
 		// Label Change Events
-		this.inputDisposables.add(notification.onDidLabelChange(event => {
+		this.inputDisposables.add(notification.onDidChangeLabel(event => {
 			switch (event.kind) {
 				case NotificationViewItemLabelKind.SEVERITY:
 					this.renderSeverity(notification);
@@ -416,8 +403,10 @@ export class NotificationTemplateRenderer extends Disposable {
 			actions.push(notification.expanded ? NotificationTemplateRenderer.collapseNotificationAction : NotificationTemplateRenderer.expandNotificationAction);
 		}
 
-		// Close
-		actions.push(NotificationTemplateRenderer.closeNotificationAction);
+		// Close (unless progress is showing)
+		if (!notification.hasProgress) {
+			actions.push(NotificationTemplateRenderer.closeNotificationAction);
+		}
 
 		this.template.toolbar.clear();
 		this.template.toolbar.context = notification;
@@ -466,7 +455,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
-		if (!notification.hasProgress()) {
+		if (!notification.hasProgress) {
 			this.template.progress.stop().hide();
 
 			return;

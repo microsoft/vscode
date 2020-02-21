@@ -5,6 +5,7 @@
 
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { Constants, getCharIndex } from './minimapCharSheet';
+import { toUint8 } from 'vs/base/common/uint';
 
 export class MinimapCharRenderer {
 	_minimapCharRendererBrand: void;
@@ -20,7 +21,7 @@ export class MinimapCharRenderer {
 	private static soften(input: Uint8ClampedArray, ratio: number): Uint8ClampedArray {
 		let result = new Uint8ClampedArray(input.length);
 		for (let i = 0, len = input.length; i < len; i++) {
-			result[i] = input[i] * ratio;
+			result[i] = toUint8(input[i] * ratio);
 		}
 		return result;
 	}
@@ -32,17 +33,20 @@ export class MinimapCharRenderer {
 		chCode: number,
 		color: RGBA8,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean
+		fontScale: number,
+		useLighterFont: boolean,
+		force1pxHeight: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
 		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		if (dx + charWidth > target.width || dy + charHeight > target.height) {
+		const renderHeight = (force1pxHeight ? 1 : charHeight);
+		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
 
 		const charData = useLighterFont ? this.charDataLight : this.charDataNormal;
-		const charIndex = getCharIndex(chCode);
+		const charIndex = getCharIndex(chCode, fontScale);
 
 		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
@@ -58,7 +62,7 @@ export class MinimapCharRenderer {
 		let sourceOffset = charIndex * charWidth * charHeight;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < charHeight; y++) {
+		for (let y = 0; y < renderHeight; y++) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
 				const c = charData[sourceOffset++] / 255;
@@ -78,11 +82,13 @@ export class MinimapCharRenderer {
 		dy: number,
 		color: RGBA8,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean
+		useLighterFont: boolean,
+		force1pxHeight: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
 		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		if (dx + charWidth > target.width || dy + charHeight > target.height) {
+		const renderHeight = (force1pxHeight ? 1 : charHeight);
+		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
@@ -106,7 +112,7 @@ export class MinimapCharRenderer {
 		const dest = target.data;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < charHeight; y++) {
+		for (let y = 0; y < renderHeight; y++) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
 				dest[column++] = colorR;

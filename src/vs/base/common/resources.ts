@@ -182,7 +182,7 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
 		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
 	} else {
 		const p = resource.path;
-		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
+		return (p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath)); // ignore the slash at offset 0
 	}
 }
 
@@ -191,6 +191,7 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
 export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
 	if (hasTrailingPathSeparator(resource, sep)) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
@@ -226,7 +227,7 @@ export function relativePath(from: URI, to: URI, ignoreCase = hasToIgnoreCase(fr
 		return undefined;
 	}
 	if (from.scheme === Schemas.file) {
-		const relativePath = paths.relative(from.path, to.path);
+		const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
 		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
 	let fromPath = from.path || '/', toPath = to.path || '/';

@@ -22,6 +22,7 @@ import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Actions
 (function registerActions(): void {
@@ -31,16 +32,16 @@ import product from 'vs/platform/product/common/product';
 	(function registerZoomActions(): void {
 		const viewCategory = nls.localize('view', "View");
 
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', viewCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT], linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT] } }), 'View: Zoom Out', viewCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0 }), 'View: Reset Zoom', viewCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', viewCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT], linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT] } }), 'View: Zoom Out', viewCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0 }), 'View: Reset Zoom', viewCategory);
 	})();
 
 	// Actions: Window
 	(function registerWindowActions(): void {
-		registry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
-		registry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
-		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CloseCurrentWindowAction.ID, // close the window when the last editor is closed by reusing the same keybinding
@@ -90,9 +91,9 @@ import product from 'vs/platform/product/common/product';
 	// Actions: Developer
 	(function registerDeveloperActions(): void {
 		const developerCategory = nls.localize('developer', "Developer");
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload With Extensions Disabled', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload With Extensions Disabled', developerCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
 		KeybindingsRegistry.registerKeybindingRule({
 			id: ToggleDevToolsAction.ID,
@@ -106,7 +107,7 @@ import product from 'vs/platform/product/common/product';
 	// Actions: Runtime Arguments
 	(function registerRuntimeArgumentsAction(): void {
 		const preferencesCategory = nls.localize('preferences', "Preferences");
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureRuntimeArgumentsAction, ConfigureRuntimeArgumentsAction.ID, ConfigureRuntimeArgumentsAction.LABEL), 'Preferences: Configure Runtime Arguments', preferencesCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(ConfigureRuntimeArgumentsAction, ConfigureRuntimeArgumentsAction.ID, ConfigureRuntimeArgumentsAction.LABEL), 'Preferences: Configure Runtime Arguments', preferencesCategory);
 	})();
 })();
 
@@ -202,23 +203,6 @@ import product from 'vs/platform/product/common/product';
 		'title': nls.localize('windowConfigurationTitle', "Window"),
 		'type': 'object',
 		'properties': {
-			'window.openFilesInNewWindow': {
-				'type': 'string',
-				'enum': ['on', 'off', 'default'],
-				'enumDescriptions': [
-					nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
-					nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
-					isMacintosh ?
-						nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
-						nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
-				],
-				'default': 'off',
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription':
-					isMacintosh ?
-						nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
-						nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
-			},
 			'window.openWithoutArgumentsInNewWindow': {
 				'type': 'string',
 				'enum': ['on', 'off'],
@@ -239,7 +223,7 @@ import product from 'vs/platform/product/common/product';
 					nls.localize('window.reopenFolders.one', "Reopen the last active window."),
 					nls.localize('window.reopenFolders.none', "Never reopen a window. Always start with an empty one.")
 				],
-				'default': 'one',
+				'default': 'all',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart.")
 			},
@@ -256,10 +240,11 @@ import product from 'vs/platform/product/common/product';
 			},
 			'window.newWindowDimensions': {
 				'type': 'string',
-				'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+				'enum': ['default', 'inherit', 'offset', 'maximized', 'fullscreen'],
 				'enumDescriptions': [
 					nls.localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
 					nls.localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
+					nls.localize('window.newWindowDimensions.offset', "Open new windows with same dimension as last active one with an offset position."),
 					nls.localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
 					nls.localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
 				],
@@ -337,8 +322,7 @@ import product from 'vs/platform/product/common/product';
 (function registerJSONSchemas(): void {
 	const argvDefinitionFileSchemaId = 'vscode://schemas/argv';
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-
-	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, {
+	const schema: IJSONSchema = {
 		id: argvDefinitionFileSchemaId,
 		allowComments: true,
 		allowTrailingCommas: true,
@@ -357,7 +341,19 @@ import product from 'vs/platform/product/common/product';
 			'disable-color-correct-rendering': {
 				type: 'boolean',
 				description: nls.localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
+			},
+			'force-color-profile': {
+				type: 'string',
+				markdownDescription: nls.localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
 			}
 		}
-	});
+	};
+	if (isLinux) {
+		schema.properties!['force-renderer-accessibility'] = {
+			type: 'boolean',
+			description: nls.localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+	}
+
+	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
 })();

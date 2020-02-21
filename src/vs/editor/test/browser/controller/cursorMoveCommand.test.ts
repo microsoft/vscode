@@ -13,6 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Cursor move command test', () => {
 
@@ -30,9 +32,10 @@ suite('Cursor move command test', () => {
 			'1'
 		].join('\n');
 
-		thisModel = TextModel.createFromString(text);
+		thisModel = createTextModel(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(thisConfiguration.options);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 

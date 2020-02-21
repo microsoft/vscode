@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/abstractAccessibilityService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
@@ -19,11 +24,10 @@ type AccessibilityMetricsClassification = {
 	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-export class AccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
+export class NodeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
 	_serviceBrand: undefined;
 
-	private _accessibilitySupport = AccessibilitySupport.Unknown;
 	private didSendTelemetry = false;
 
 	constructor(
@@ -56,22 +60,34 @@ export class AccessibilityService extends AbstractAccessibilityService implement
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
+		super.setAccessibilitySupport(accessibilitySupport);
 
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {
 			this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: true });
 			this.didSendTelemetry = true;
 		}
 	}
+}
 
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
+registerSingleton(IAccessibilityService, NodeAccessibilityService, true);
+
+// On linux we do not automatically detect that a screen reader is detected, thus we have to implicitly notify the renderer to enable accessibility when user configures it in settings
+class LinuxAccessibilityContribution implements IWorkbenchContribution {
+	constructor(
+		@IJSONEditingService jsonEditingService: IJSONEditingService,
+		@IAccessibilityService accessibilityService: AccessibilityService,
+		@IEnvironmentService environmentService: IEnvironmentService
+	) {
+		const forceRendererAccessibility = () => {
+			if (accessibilityService.isScreenReaderOptimized()) {
+				jsonEditingService.write(environmentService.argvResource, [{ key: 'force-renderer-accessibility', value: true }], true);
+			}
+		};
+		forceRendererAccessibility();
+		accessibilityService.onDidChangeScreenReaderOptimized(forceRendererAccessibility);
 	}
 }
 
-registerSingleton(IAccessibilityService, AccessibilityService, true);
+if (isLinux) {
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LinuxAccessibilityContribution, LifecyclePhase.Ready);
+}

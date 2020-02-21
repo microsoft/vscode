@@ -17,14 +17,14 @@ const compilation = require('./lib/compilation');
 const monacoapi = require('./monaco/api');
 const fs = require('fs');
 
-var root = path.dirname(__dirname);
-var sha1 = util.getVersion(root);
-var semver = require('./monaco/package.json').version;
-var headerVersion = semver + '(' + sha1 + ')';
+let root = path.dirname(__dirname);
+let sha1 = util.getVersion(root);
+let semver = require('./monaco/package.json').version;
+let headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-var editorEntryPoints = [
+let editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
@@ -40,11 +40,11 @@ var editorEntryPoints = [
 	}
 ];
 
-var editorResources = [
+let editorResources = [
 	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
 ];
 
-var BUNDLED_FILE_HEADER = [
+let BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
@@ -197,7 +197,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 });
 
 function toExternalDTS(contents) {
-	let lines = contents.split('\n');
+	let lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
 	for (let i = 0; i < lines.length; i++) {
 		let line = lines[i];
@@ -227,8 +227,13 @@ function toExternalDTS(contents) {
 		if (line.indexOf('declare namespace monaco.') === 0) {
 			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
 		}
+
+		if (line.indexOf('declare let MonacoEnvironment') === 0) {
+			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
+			// lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
 	}
-	return lines.join('\n');
+	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
 }
 
 function filterStream(testFunc) {
@@ -263,7 +268,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		// package.json
 		gulp.src('build/monaco/package.json')
 			.pipe(es.through(function (data) {
-				var json = JSON.parse(data.contents.toString());
+				let json = JSON.parse(data.contents.toString());
 				json.private = false;
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
@@ -307,10 +312,10 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				return;
 			}
 
-			var relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
+			let relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
 
-			var strContents = data.contents.toString();
-			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
+			let strContents = data.contents.toString();
+			let newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
 			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
 
 			data.contents = Buffer.from(strContents);
@@ -374,6 +379,13 @@ gulp.task('editor-esm-bundle',
 		finalEditorResourcesTask
 	)
 );
+
+gulp.task('monacodts', task.define('monacodts', () => {
+	const result = monacoapi.execute();
+	fs.writeFileSync(result.filePath, result.content);
+	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	return Promise.resolve(true);
+}));
 
 //#region monaco type checking
 

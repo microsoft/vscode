@@ -49,6 +49,7 @@ export interface IProductConfiguration {
 	readonly extensionTips?: { [id: string]: string; };
 	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
+	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
 
@@ -97,13 +98,11 @@ export interface IProductConfiguration {
 
 	readonly portable?: string;
 
-	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind | ExtensionKind[]; };
+	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
-
-	readonly settingsSyncStoreUrl?: string;
 }
 
 export interface IExeBasedExtensionTip {
@@ -112,6 +111,11 @@ export interface IExeBasedExtensionTip {
 	recommendations: readonly string[];
 	important?: boolean;
 	exeFriendlyName?: string;
+}
+
+export interface IRemoteExtensionTip {
+	friendlyName: string;
+	extensionId: string;
 }
 
 export interface ISurveyData {

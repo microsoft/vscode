@@ -42,6 +42,19 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 					key: 'tabDescription'
 				}, "Controls the format of the label for an editor."),
 			},
+			'workbench.editor.untitled.labelFormat': {
+				'type': 'string',
+				'enum': ['content', 'name'],
+				'enumDescriptions': [
+					nls.localize('workbench.editor.untitled.labelFormat.content', "The name of the untitled file is derived from the contents of its first line unless it has an associated file path. It will fallback to the name in case the line is empty or contains no word characters."),
+					nls.localize('workbench.editor.untitled.labelFormat.name', "The name of the untitled file is not derived from the contents of the file."),
+				],
+				'default': 'content',
+				'description': nls.localize({
+					comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
+					key: 'untitledLabelFormat'
+				}, "Controls the format of the label for an untitled editor."),
+			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
@@ -118,8 +131,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
 				'description': nls.localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
-				'default': true,
-				'included': !isMacintosh
+				'default': true
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -130,6 +142,22 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'boolean',
 				'default': true,
 				'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+			},
+			'workbench.editor.limit.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors that are not dirty will close to make space for newly opening editors.")
+			},
+			'workbench.editor.limit.value': {
+				'type': 'number',
+				'default': 10,
+				'exclusiveMinimum': 0,
+				'markdownDescription': nls.localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
+			},
+			'workbench.editor.limit.perEditorGroup': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
@@ -170,13 +198,13 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+				'description': nls.localize('sideBarLocation', "Controls the location of the sidebar and activity bar. They can either show on the left or right of the workbench.")
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
-				'enum': ['bottom', 'right'],
+				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
+				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
 			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
@@ -193,6 +221,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': false,
 				'description': nls.localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
 			},
+			'workbench.view.experimental.allowMovingToNewContainer': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('movingViewContainer', "Controls whether specific views will have a context menu entry allowing them to be moved to a new container. Currently, this setting only affects the outline view and views contributed by extensions.")
+			},
 			'workbench.fontAliasing': {
 				'type': 'string',
 				'enum': ['default', 'antialiased', 'none', 'auto'],
@@ -207,24 +240,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				],
 				'included': isMacintosh
 			},
-			'workbench.settings.enableNaturalLanguageSearch': {
-				'type': 'boolean',
-				'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
-				'default': true,
-				'scope': ConfigurationScope.WINDOW,
-				'tags': ['usesOnlineServices']
-			},
-			'workbench.settings.settingsSearchTocBehavior': {
-				'type': 'string',
-				'enum': ['hide', 'filter'],
-				'enumDescriptions': [
-					nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
-					nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
-				],
-				'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
-				'default': 'filter',
-				'scope': ConfigurationScope.WINDOW
-			},
 			'workbench.settings.editor': {
 				'type': 'string',
 				'enum': ['ui', 'json'],
@@ -235,12 +250,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
-			},
-			'workbench.enableExperiments': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-				'default': true,
-				'tags': ['usesOnlineServices']
 			}
 		}
 	});
@@ -315,6 +324,23 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': nls.localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
 				'included': isWindows || isLinux || isWeb
+			},
+			'window.openFilesInNewWindow': {
+				'type': 'string',
+				'enum': ['on', 'off', 'default'],
+				'enumDescriptions': [
+					nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
+					nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
+					isMacintosh ?
+						nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
+						nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
+				],
+				'default': 'off',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription':
+					isMacintosh ?
+						nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+						nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',

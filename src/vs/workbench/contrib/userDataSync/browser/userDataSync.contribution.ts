@@ -4,41 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isWeb } from 'vs/base/common/platform';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncWorkbenchContribution } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IUserDataSyncEnablementService, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 
-class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IProductService productService: IProductService
-	) {
-		if (productService.settingsSyncStoreUrl) {
-			registerConfiguration();
-		}
-	}
-}
-
-class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContribution {
+class UserDataSyncSettingsMigrationContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
-		super();
-		if (isWeb) {
-			instantiationService.createInstance(UserDataAutoSync);
+		if (getUserDataSyncStore(configurationService)) {
+			if (!configurationService.getValue('sync.enableSettings')) {
+				userDataSyncEnablementService.setResourceEnablement('settings', false);
+			}
+			if (!configurationService.getValue('sync.enableKeybindings')) {
+				userDataSyncEnablementService.setResourceEnablement('keybindings', false);
+			}
+			if (!configurationService.getValue('sync.enableUIState')) {
+				userDataSyncEnablementService.setResourceEnablement('globalState', false);
+			}
+			if (!configurationService.getValue('sync.enableExtensions')) {
+				userDataSyncEnablementService.setResourceEnablement('extensions', false);
+			}
+			if (configurationService.getValue('sync.enable')) {
+				userDataSyncEnablementService.setEnablement(true);
+			}
+			this.removeFromConfiguration();
 		}
 	}
-}
 
+	private async removeFromConfiguration(): Promise<void> {
+		await this.configurationService.updateValue('sync.enable', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableSettings', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableKeybindings', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableUIState', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableExtensions', undefined, {}, ConfigurationTarget.USER, true);
+	}
+}
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncConfigurationContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncSettingsMigrationContribution, LifecyclePhase.Ready);

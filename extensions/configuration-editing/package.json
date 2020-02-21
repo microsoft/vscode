@@ -18,8 +18,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.1.1",
-    "vscode-nls": "^4.0.0"
+    "jsonc-parser": "^2.2.1",
+    "vscode-nls": "^4.1.1"
   },
   "contributes": {
     "languages": [
@@ -86,6 +86,10 @@
       },
       {
         "fileMatch": "/.vscode/tasks.json",
+        "url": "vscode://schemas/tasks"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
         "url": "vscode://schemas/tasks"
       },
       {

@@ -245,9 +245,9 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 				return this.callOriginal(target, options);
 			}
 			if (uri.scheme === 'http' || uri.scheme === 'https') {
-				return mainThreadWindow.$openUri(uri, { allowTunneling: true });
+				return mainThreadWindow.$openUri(uri, target, { allowTunneling: true });
 			} else if (uri.scheme === 'mailto' || uri.scheme === this._appUriScheme) {
-				return mainThreadWindow.$openUri(uri, {});
+				return mainThreadWindow.$openUri(uri, target, {});
 			}
 			return this.callOriginal(target, options);
 		};

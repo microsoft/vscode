@@ -6,7 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ApplyEditsResult, EndOfLinePreference, FindMatch, IIdentifiedSingleEditOperation, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot } from 'vs/editor/common/model';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 
@@ -21,7 +21,7 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
-export interface IReverseSingleEditOperation extends IIdentifiedSingleEditOperation {
+export interface IReverseSingleEditOperation extends IValidEditOperation {
 	sortIndex: number;
 }
 
@@ -201,7 +201,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		this._pieceTree.setEOL(newEOL);
 	}
 
-	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
+	public applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;

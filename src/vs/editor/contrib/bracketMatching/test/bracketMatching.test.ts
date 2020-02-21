@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bracketMatching';
@@ -31,7 +31,7 @@ suite('bracket matching', () => {
 
 	test('issue #183: jump to matching bracket position', () => {
 		let mode = new BracketMode();
-		let model = TextModel.createFromString('var x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.getLanguageIdentifier());
+		let model = createTextModel('var x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.getLanguageIdentifier());
 
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);
@@ -63,7 +63,7 @@ suite('bracket matching', () => {
 
 	test('Jump to next bracket', () => {
 		let mode = new BracketMode();
-		let model = TextModel.createFromString('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
+		let model = createTextModel('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
 
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);
@@ -100,7 +100,7 @@ suite('bracket matching', () => {
 
 	test('Select to next bracket', () => {
 		let mode = new BracketMode();
-		let model = TextModel.createFromString('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
+		let model = createTextModel('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
 
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);
@@ -152,7 +152,7 @@ suite('bracket matching', () => {
 			'};',
 		].join('\n');
 		const mode = new BracketMode();
-		const model = TextModel.createFromString(text, undefined, mode.getLanguageIdentifier());
+		const model = createTextModel(text, undefined, mode.getLanguageIdentifier());
 
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			const bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);
@@ -177,7 +177,7 @@ suite('bracket matching', () => {
 			'};',
 		].join('\n');
 		const mode = new BracketMode();
-		const model = TextModel.createFromString(text, undefined, mode.getLanguageIdentifier());
+		const model = createTextModel(text, undefined, mode.getLanguageIdentifier());
 
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			const bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);
@@ -195,7 +195,7 @@ suite('bracket matching', () => {
 
 	test('issue #45369: Select to Bracket with multicursor', () => {
 		let mode = new BracketMode();
-		let model = TextModel.createFromString('{  }   {   }   { }', undefined, mode.getLanguageIdentifier());
+		let model = createTextModel('{  }   {   }   { }', undefined, mode.getLanguageIdentifier());
 
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);

@@ -47,7 +47,7 @@ suite('Lazy', () => {
 		assert.deepEqual(innerLazy.getValue(), [1, 11]);
 	});
 
-	test('map should should handle error values', () => {
+	test('map should handle error values', () => {
 		let outer = 0;
 		let inner = 10;
 		const outerLazy = new Lazy(() => { throw new Error(`${++outer}`); });

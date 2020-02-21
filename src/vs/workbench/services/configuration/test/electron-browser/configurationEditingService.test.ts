@@ -11,14 +11,14 @@ import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestWindowConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -40,13 +40,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
+		super(TestWindowConfiguration, TestWindowConfiguration.execPath, TestWindowConfiguration.windowId);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -60,6 +59,7 @@ suite('ConfigurationEditingService', () => {
 	let parentDir: string;
 	let workspaceDir: string;
 	let globalSettingsFile: string;
+	let globalTasksFile: string;
 	let workspaceSettingsDir;
 
 	suiteSetup(() => {
@@ -94,6 +94,7 @@ suite('ConfigurationEditingService', () => {
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
 		globalSettingsFile = path.join(workspaceDir, 'settings.json');
+		globalTasksFile = path.join(workspaceDir, 'tasks.json');
 		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
 
 		return await mkdirp(workspaceSettingsDir, 493);
@@ -149,12 +150,6 @@ suite('ConfigurationEditingService', () => {
 				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY));
 	});
 
-	test('errors cases - invalid target', () => {
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.something', value: 'value' })
-			.then(() => assert.fail('Should fail with ERROR_INVALID_TARGET'),
-				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET));
-	});
-
 	test('errors cases - no workspace', () => {
 		return setUpServices(true)
 			.then(() => testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }))
@@ -162,11 +157,19 @@ suite('ConfigurationEditingService', () => {
 				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED));
 	});
 
-	test('errors cases - invalid configuration', () => {
-		fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' })
+	function errorCasesInvalidConfig(file: string, key: string) {
+		fs.writeFileSync(file, ',,,,,,,,,,,,,,');
+		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_INVALID_CONFIGURATION'),
 				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
+	}
+
+	test('errors cases - invalid configuration', () => {
+		return errorCasesInvalidConfig(globalSettingsFile, 'configurationEditing.service.testSetting');
+	});
+
+	test('errors cases - invalid global tasks configuration', () => {
+		return errorCasesInvalidConfig(globalTasksFile, 'tasks.configurationEditing.service.testSetting');
 	});
 
 	test('errors cases - dirty', () => {
@@ -271,44 +274,89 @@ suite('ConfigurationEditingService', () => {
 			});
 	});
 
-	test('write workspace standalone setting - empty file', () => {
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' })
+	function writeStandaloneSettingEmptyFile(configTarget: EditableConfigurationTarget, pathMap: any) {
+		return testObject.writeConfiguration(configTarget, { key: 'tasks.service.testSetting', value: 'value' })
 			.then(() => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+				const target = path.join(workspaceDir, pathMap['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 				assert.equal(parsed['service.testSetting'], 'value');
 			});
+	}
+
+	test('write workspace standalone setting - empty file', () => {
+		return writeStandaloneSettingEmptyFile(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
 	});
 
-	test('write workspace standalone setting - existing file', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+	test('write user standalone setting - empty file', () => {
+		return writeStandaloneSettingEmptyFile(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingExitingFile(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
 		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'launch.service.testSetting', value: 'value' })
+		return testObject.writeConfiguration(configTarget, { key: 'tasks.service.testSetting', value: 'value' })
 			.then(() => {
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 				assert.equal(parsed['service.testSetting'], 'value');
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
 			});
+	}
+
+	test('write workspace standalone setting - existing file', () => {
+		return writeStandaloneSettingExitingFile(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
 	});
+
+	test('write user standalone setting - existing file', () => {
+		return writeStandaloneSettingExitingFile(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingEmptyFileFullJson(configTarget: EditableConfigurationTarget, pathMap: any) {
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+			.then(() => {
+				const target = path.join(workspaceDir, pathMap['tasks']);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
+
+				assert.equal(parsed['version'], '1.0.0');
+				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+			});
+	}
 
 	test('write workspace standalone setting - empty file - full JSON', () => {
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+		return writeStandaloneSettingEmptyFileFullJson(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
+	});
+
+	test('write user standalone setting - empty file - full JSON', () => {
+		return writeStandaloneSettingEmptyFileFullJson(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingExistingFileFullJson(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
+		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
 			.then(() => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 
 				assert.equal(parsed['version'], '1.0.0');
 				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
 			});
-	});
+	}
 
 	test('write workspace standalone setting - existing file - full JSON', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+		return writeStandaloneSettingExistingFileFullJson(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
+	});
+
+	test('write user standalone setting - existing file - full JSON', () => {
+		return writeStandaloneSettingExistingFileFullJson(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingExistingFileWithJsonErrorFullJson(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
+		fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
 			.then(() => {
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
@@ -316,23 +364,18 @@ suite('ConfigurationEditingService', () => {
 				assert.equal(parsed['version'], '1.0.0');
 				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
 			});
-	});
+	}
 
 	test('write workspace standalone setting - existing file with JSON errors - full JSON', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
-			.then(() => {
-				const contents = fs.readFileSync(target).toString('utf8');
-				const parsed = json.parse(contents);
-
-				assert.equal(parsed['version'], '1.0.0');
-				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
-			});
+		return writeStandaloneSettingExistingFileWithJsonErrorFullJson(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
 	});
 
-	test('write workspace standalone setting should replace complete file', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+	test('write user standalone setting - existing file with JSON errors - full JSON', () => {
+		return writeStandaloneSettingExistingFileWithJsonErrorFullJson(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingShouldReplace(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
 		fs.writeFileSync(target, `{
 			"version": "1.0.0",
 			"tasks": [
@@ -344,11 +387,19 @@ suite('ConfigurationEditingService', () => {
 				}
 			]
 		}`);
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } })
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } })
 			.then(() => {
 				const actual = fs.readFileSync(target).toString('utf8');
 				const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
 				assert.equal(actual, expected);
 			});
+	}
+
+	test('write workspace standalone setting should replace complete file', () => {
+		return writeStandaloneSettingShouldReplace(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
+	});
+
+	test('write user standalone setting should replace complete file', () => {
+		return writeStandaloneSettingShouldReplace(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
 	});
 });

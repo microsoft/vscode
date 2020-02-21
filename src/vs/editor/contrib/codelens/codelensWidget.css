@@ -23,12 +23,16 @@
 }
 
 .monaco-editor .codelens-decoration > a:hover {
-	text-decoration: underline;
 	cursor: pointer;
 }
 
-.monaco-editor .codelens-decoration.invisible-cl {
-	opacity: 0;
+.monaco-editor .codelens-decoration .codicon {
+	vertical-align: middle;
+	color: currentColor !important;
+}
+
+.monaco-editor .codelens-decoration > a:hover .codicon::before {
+	cursor: pointer;
 }
 
 @keyframes fadein {

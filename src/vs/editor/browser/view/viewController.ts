@@ -37,7 +37,7 @@ export interface IMouseDispatchData {
 export interface ICommandDelegate {
 	executeEditorCommand(editorCommand: CoreEditorCommand, args: any): void;
 
-	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void;
+	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
 	type(source: string, text: string): void;
 	replacePreviousChar(source: string, text: string, replaceCharCnt: number): void;
 	compositionStart(source: string): void;
@@ -69,8 +69,8 @@ export class ViewController {
 		this.commandDelegate.executeEditorCommand(editorCommand, args);
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void {
-		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText);
+	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
+		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText, mode);
 	}
 
 	public type(source: string, text: string): void {
@@ -133,7 +133,9 @@ export class ViewController {
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
-		const selectionClipboardIsOn = (platform.isLinux && this.configuration.options.get(EditorOption.selectionClipboard));
+		const options = this.configuration.options;
+		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
+		const columnSelection = options.get(EditorOption.columnSelection);
 		if (data.middleButton && !selectionClipboardIsOn) {
 			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
@@ -196,7 +198,11 @@ export class ViewController {
 					if (data.altKey) {
 						this._columnSelect(data.position, data.mouseColumn, true);
 					} else {
-						this._moveToSelect(data.position);
+						if (columnSelection) {
+							this._columnSelect(data.position, data.mouseColumn, true);
+						} else {
+							this._moveToSelect(data.position);
+						}
 					}
 				} else {
 					this.moveTo(data.position);

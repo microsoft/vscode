@@ -21,10 +21,6 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 		super(modelService, modeService, resource);
 	}
 
-	isReadonly(): boolean {
-		return true;
-	}
-
 	dispose(): void {
 
 		// TODO@Joao: force this class to dispose the underlying model

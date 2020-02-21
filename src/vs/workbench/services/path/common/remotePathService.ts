@@ -9,6 +9,8 @@ import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const REMOTE_PATH_SERVICE_ID = 'remotePath';
 export const IRemotePathService = createDecorator<IRemotePathService>(REMOTE_PATH_SERVICE_ID);
@@ -16,8 +18,10 @@ export const IRemotePathService = createDecorator<IRemotePathService>(REMOTE_PAT
 export interface IRemotePathService {
 	_serviceBrand: undefined;
 
-	path: Promise<path.IPath>;
+	readonly path: Promise<path.IPath>;
 	fileURI(path: string): Promise<URI>;
+
+	readonly userHome: Promise<URI>;
 }
 
 /**
@@ -29,7 +33,8 @@ export class RemotePathService implements IRemotePathService {
 	private _extHostOS: Promise<platform.OperatingSystem>;
 
 	constructor(
-		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		this._extHostOS = remoteAgentService.getEnvironment().then(remoteEnvironment => {
 			return remoteEnvironment ? remoteEnvironment.os : platform.OS;
@@ -74,6 +79,19 @@ export class RemotePathService implements IRemotePathService {
 			path: _path,
 			query: '',
 			fragment: ''
+		});
+	}
+
+	get userHome(): Promise<URI> {
+		return this.remoteAgentService.getEnvironment().then(env => {
+
+			// remote: use remote environment userHome
+			if (env) {
+				return env.userHome;
+			}
+
+			// local: use the userHome from environment
+			return URI.from({ scheme: Schemas.file, path: this.environmentService.userHome });
 		});
 	}
 }

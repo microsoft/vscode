@@ -34,7 +34,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		});
 	});
 
-	return new class implements CancelablePromise<T> {
+	return <CancelablePromise<T>>new class {
 		cancel() {
 			source.cancel();
 		}
@@ -54,6 +54,20 @@ export function raceCancellation<T>(promise: Promise<T>, token: CancellationToke
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T> {
 	return Promise.race([promise, new Promise<T>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
+}
+
+export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T> {
+	let promiseResolve: (() => void) | undefined = undefined;
+
+	const timer = setTimeout(() => {
+		promiseResolve?.();
+		onTimeout?.();
+	}, timeout);
+
+	return Promise.race([
+		promise.finally(() => clearTimeout(timer)),
+		new Promise<T>(resolve => promiseResolve = resolve)
+	]);
 }
 
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
@@ -184,13 +198,14 @@ export class Delayer<T> implements IDisposable {
 	private timeout: any;
 	private completionPromise: Promise<any> | null;
 	private doResolve: ((value?: any | Promise<any>) => void) | null;
-	private doReject?: (err: any) => void;
+	private doReject: ((err: any) => void) | null;
 	private task: ITask<T | Promise<T>> | null;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
 		this.completionPromise = null;
 		this.doResolve = null;
+		this.doReject = null;
 		this.task = null;
 	}
 
@@ -205,16 +220,20 @@ export class Delayer<T> implements IDisposable {
 			}).then(() => {
 				this.completionPromise = null;
 				this.doResolve = null;
-				const task = this.task!;
-				this.task = null;
-
-				return task();
+				if (this.task) {
+					const task = this.task;
+					this.task = null;
+					return task();
+				}
+				return undefined;
 			});
 		}
 
 		this.timeout = setTimeout(() => {
 			this.timeout = null;
-			this.doResolve!(null);
+			if (this.doResolve) {
+				this.doResolve(null);
+			}
 		}, delay);
 
 		return this.completionPromise;
@@ -228,7 +247,9 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.doReject!(errors.canceled());
+			if (this.doReject) {
+				this.doReject(errors.canceled());
+			}
 			this.completionPromise = null;
 		}
 	}
@@ -474,8 +495,9 @@ export class Queue<T> extends Limiter<T> {
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
-export class ResourceQueue {
-	private queues: Map<string, Queue<void>> = new Map();
+export class ResourceQueue implements IDisposable {
+
+	private readonly queues = new Map<string, Queue<void>>();
 
 	queueFor(resource: URI): Queue<void> {
 		const key = resource.toString();
@@ -490,6 +512,11 @@ export class ResourceQueue {
 		}
 
 		return this.queues.get(key)!;
+	}
+
+	dispose(): void {
+		this.queues.forEach(queue => queue.dispose());
+		this.queues.clear();
 	}
 }
 
@@ -661,7 +688,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 
 export interface IdleDeadline {
 	readonly didTimeout: boolean;
-	timeRemaining(): DOMHighResTimeStamp;
+	timeRemaining(): number;
 }
 /**
  * Execute the callback the next time the browser is idle
@@ -766,3 +793,107 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 
 	throw lastError;
 }
+
+//#region Task Sequentializer
+
+interface IPendingTask {
+	taskId: number;
+	cancel: () => void;
+	promise: Promise<void>;
+}
+
+interface ISequentialTask {
+	promise: Promise<void>;
+	promiseResolve: () => void;
+	promiseReject: (error: Error) => void;
+	run: () => Promise<void>;
+}
+
+export interface ITaskSequentializerWithPendingTask {
+	readonly pending: Promise<void>;
+}
+
+export class TaskSequentializer {
+	private _pending?: IPendingTask;
+	private _next?: ISequentialTask;
+
+	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
+		if (!this._pending) {
+			return false;
+		}
+
+		if (typeof taskId === 'number') {
+			return this._pending.taskId === taskId;
+		}
+
+		return !!this._pending;
+	}
+
+	get pending(): Promise<void> | undefined {
+		return this._pending ? this._pending.promise : undefined;
+	}
+
+	cancelPending(): void {
+		this._pending?.cancel();
+	}
+
+	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void, ): Promise<void> {
+		this._pending = { taskId: taskId, cancel: () => onCancel?.(), promise };
+
+		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
+
+		return promise;
+	}
+
+	private donePending(taskId: number): void {
+		if (this._pending && taskId === this._pending.taskId) {
+
+			// only set pending to done if the promise finished that is associated with that taskId
+			this._pending = undefined;
+
+			// schedule the next task now that we are free if we have any
+			this.triggerNext();
+		}
+	}
+
+	private triggerNext(): void {
+		if (this._next) {
+			const next = this._next;
+			this._next = undefined;
+
+			// Run next task and complete on the associated promise
+			next.run().then(next.promiseResolve, next.promiseReject);
+		}
+	}
+
+	setNext(run: () => Promise<void>): Promise<void> {
+
+		// this is our first next task, so we create associated promise with it
+		// so that we can return a promise that completes when the task has
+		// completed.
+		if (!this._next) {
+			let promiseResolve: () => void;
+			let promiseReject: (error: Error) => void;
+			const promise = new Promise<void>((resolve, reject) => {
+				promiseResolve = resolve;
+				promiseReject = reject;
+			});
+
+			this._next = {
+				run,
+				promise,
+				promiseResolve: promiseResolve!,
+				promiseReject: promiseReject!
+			};
+		}
+
+		// we have a previous next task, just overwrite it
+		else {
+			this._next.run = run;
+		}
+
+		return this._next.promise;
+	}
+}
+
+//#endregion

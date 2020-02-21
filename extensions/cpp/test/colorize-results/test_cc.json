@@ -36,10 +36,10 @@
 		"c": "B4G_DEBUG_CHECK",
 		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
+			"dark_plus": "entity.name.function.preprocessor: #569CD6",
+			"light_plus": "entity.name.function.preprocessor: #0000FF",
+			"dark_vs": "entity.name.function.preprocessor: #569CD6",
+			"light_vs": "entity.name.function.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "%d",
-		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
+		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -268,9 +268,9 @@
 		"t": "source.cpp meta.parens.cpp constant.numeric.decimal.cpp",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "%d",
-		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
+		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "user_candidate",
-		"t": "source.cpp meta.bracket.square.access.cpp variable.other.object.cpp",
+		"t": "source.cpp meta.bracket.square.access variable.other.object",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.cpp meta.bracket.square.access.cpp punctuation.definition.begin.bracket.square.cpp",
+		"t": "source.cpp meta.bracket.square.access punctuation.definition.begin.bracket.square",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "i",
-		"t": "source.cpp meta.bracket.square.access.cpp",
+		"t": "source.cpp meta.bracket.square.access",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.cpp meta.bracket.square.access.cpp punctuation.definition.end.bracket.square.cpp",
+		"t": "source.cpp meta.bracket.square.access punctuation.definition.end.bracket.square",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": "O",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp entity.name.type.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp entity.name.type.parameter.cpp",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": "obj",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1464,7 +1464,7 @@
 	},
 	{
 		"c": "%s",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": "%s",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1805,12 +1805,12 @@
 	},
 	{
 		"c": "movw $0x38, %ax; ltr %ax",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
+			"dark_plus": "meta.embedded.assembly: #CE9178",
+			"light_plus": "meta.embedded.assembly: #A31515",
+			"dark_vs": "meta.embedded.assembly: #CE9178",
+			"light_vs": "meta.embedded.assembly: #A31515",
 			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},

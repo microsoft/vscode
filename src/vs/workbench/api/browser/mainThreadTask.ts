@@ -512,17 +512,21 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				if (workspaceFolder) {
-					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
-						this._taskService.run(task).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
-						});
-						const result: TaskExecutionDTO = {
-							id: value.id,
-							task: TaskDTO.from(task)
-						};
-						resolve(result);
+					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
+						if (!task) {
+							reject(new Error('Task not found'));
+						} else {
+							this._taskService.run(task).then(undefined, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
+							const result: TaskExecutionDTO = {
+								id: value.id,
+								task: TaskDTO.from(task)
+							};
+							resolve(result);
+						}
 					}, (_error) => {
 						reject(new Error('Task not found'));
 					});
@@ -617,7 +621,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 							for (let i = 0; i < partiallyResolvedVars.length; i++) {
 								const variableName = vars[i].substring(2, vars[i].length - 1);
 								if (resolvedVars && values.variables[vars[i]] === vars[i]) {
-									result.variables.set(variableName, resolvedVars.get(variableName));
+									const resolved = resolvedVars.get(variableName);
+									if (typeof resolved === 'string') {
+										result.variables.set(variableName, resolved);
+									}
 								} else {
 									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}

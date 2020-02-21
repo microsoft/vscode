@@ -13,6 +13,7 @@ import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -35,6 +36,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 	constructor(
 		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
+		@ILogService private readonly _logService: ILogService
 	) { }
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
@@ -92,8 +94,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 				const documentData = this._documents.get(resource.toString())!;
 				const editor = new ExtHostTextEditor(
-					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
+					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
+					this._logService,
 					documentData,
 					data.selections.map(typeConverters.Selection.to),
 					data.options,

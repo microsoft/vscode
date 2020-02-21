@@ -55,18 +55,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
-		const handleProjectCreateOrDelete = () => {
-			this.triggerAllDiagnostics();
-		};
-		const handleProjectChange = () => {
-			setTimeout(() => {
-				this.triggerAllDiagnostics();
-			}, 1500);
-		};
-		const configFileWatcher = this._register(vscode.workspace.createFileSystemWatcher('**/[tj]sconfig.json'));
-		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this._disposables);
-		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
-		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
 		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
@@ -182,8 +170,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
-		this.client.bufferSyncSupport.reset();
-		this.client.bufferSyncSupport.requestAllDiagnostics();
 
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		vscode.workspace.saveAll(false).then(() => {

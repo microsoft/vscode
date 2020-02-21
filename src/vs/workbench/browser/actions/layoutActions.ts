@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,9 +24,36 @@ import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleConte
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
+
+// --- Close Side Bar
+
+export class CloseSidebarAction extends Action {
+
+	static readonly ID = 'workbench.action.closeSidebar';
+	static readonly LABEL = nls.localize('closeSidebar', "Close Side Bar");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label);
+
+		this.enabled = !!this.layoutService;
+	}
+
+	run(): Promise<any> {
+		this.layoutService.setSideBarHidden(true);
+
+		return Promise.resolve();
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseSidebarAction, CloseSidebarAction.ID, CloseSidebarAction.LABEL), 'View: Close Side Bar ', viewCategory);
 
 // --- Toggle Activity Bar
 
@@ -56,7 +83,7 @@ export class ToggleActivityBarVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, ToggleActivityBarVisibilityAction.LABEL), 'View: Toggle Activity Bar Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, ToggleActivityBarVisibilityAction.LABEL), 'View: Toggle Activity Bar Visibility', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -91,7 +118,7 @@ class ToggleCenteredLayout extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCenteredLayout, ToggleCenteredLayout.ID, ToggleCenteredLayout.LABEL), 'View: Toggle Centered Layout', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleCenteredLayout, ToggleCenteredLayout.ID, ToggleCenteredLayout.LABEL), 'View: Toggle Centered Layout', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
@@ -143,7 +170,7 @@ export class ToggleEditorLayoutAction extends Action {
 }
 
 const group = viewCategory;
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: 'z_flip',
@@ -186,7 +213,7 @@ export class ToggleSidebarPositionAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
@@ -231,7 +258,7 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -266,7 +293,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
@@ -313,7 +340,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, ToggleStatusbarVisibilityAction.LABEL), 'View: Toggle Status Bar Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, ToggleStatusbarVisibilityAction.LABEL), 'View: Toggle Status Bar Visibility', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -350,7 +377,7 @@ class ToggleTabsVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, {
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, {
 	primary: undefined,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
@@ -379,7 +406,7 @@ class ToggleZenMode extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleZenMode, ToggleZenMode.ID, ToggleZenMode.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z) }), 'View: Toggle Zen Mode', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleZenMode, ToggleZenMode.ID, ToggleZenMode.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z) }), 'View: Toggle Zen Mode', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
@@ -442,7 +469,7 @@ export class ToggleMenuBarAction extends Action {
 }
 
 if (isWindows || isLinux || isWeb) {
-	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
+	registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
@@ -455,6 +482,42 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	when: IsMacNativeContext.toNegated(),
 	order: 0
 });
+
+// --- Reset View Positions
+
+export class ResetViewLocationsAction extends Action {
+	static readonly ID = 'workbench.action.resetViewLocations';
+	static readonly LABEL = nls.localize('resetViewLocations', "Reset View Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		viewContainerRegistry.all.forEach(viewContainer => {
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+
+			viewDescriptors.allViewDescriptors.forEach(viewDescriptor => {
+				const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
+				const currentContainer = this.viewDescriptorService.getViewContainer(viewDescriptor.id);
+
+				if (defaultContainer && currentContainer !== defaultContainer) {
+					this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
+				}
+			});
+		});
+
+		return Promise.resolve();
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetViewLocationsAction, ResetViewLocationsAction.ID, ResetViewLocationsAction.LABEL), 'View: Reset View Locations', viewCategory);
+
 
 // --- Resize View
 
@@ -529,5 +592,5 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, undefined), 'View: Increase Current View Size', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, undefined), 'View: Decrease Current View Size', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, undefined), 'View: Increase Current View Size', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, undefined), 'View: Decrease Current View Size', viewCategory);

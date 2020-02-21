@@ -490,6 +490,9 @@ export class DynamicMarkdownPreview extends Disposable {
 	}
 
 	private async onDidClickPreview(line: number): Promise<void> {
+		// fix #82457, find currently opened but unfocused source tab
+		await vscode.commands.executeCommand('markdown.showSource');
+
 		for (const visibleEditor of vscode.window.visibleTextEditors) {
 			if (this.isPreviewOf(visibleEditor.document.uri)) {
 				const editor = await vscode.window.showTextDocument(visibleEditor.document, visibleEditor.viewColumn);

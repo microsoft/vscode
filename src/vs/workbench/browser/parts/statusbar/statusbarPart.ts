@@ -433,6 +433,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		};
 	}
 
+	isEntryVisible(id: string): boolean {
+		return !this.viewModel.isHidden(id);
+	}
+
 	updateEntryVisibility(id: string, visible: boolean): void {
 		if (visible) {
 			this.viewModel.show(id);
@@ -585,7 +589,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
 		container.style.backgroundColor = backgroundColor;
-		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
+		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND) || '';
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
@@ -791,7 +795,7 @@ class StatusbarEntryItem extends Disposable {
 		if (isBackground) {
 			container.style.backgroundColor = colorResult || '';
 		} else {
-			container.style.color = colorResult;
+			container.style.color = colorResult || '';
 		}
 	}
 

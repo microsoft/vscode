@@ -13,7 +13,7 @@ import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textF
 
 // Register file editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		TextFileEditor,
 		TextFileEditor.ID,
 		nls.localize('textFileEditor', "Text File Editor")

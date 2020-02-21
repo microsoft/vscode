@@ -21,7 +21,11 @@
 	margin-left: 0.5em;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .meta::before {
+.monaco-editor .peekview-widget .head .peekview-title .meta {
+	white-space: nowrap;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .meta:not(:empty)::before {
 	content: '-';
 	padding: 0 0.3em;
 }

@@ -493,7 +493,7 @@ export class DefaultSettings extends Disposable {
 	getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
-			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+			.reduce<ISettingsGroup[]>((result, config, index, array) => this.parseConfig(config, result, array), []));
 
 		return this.sortGroups(groups);
 	}
@@ -636,6 +636,7 @@ export class DefaultSettings extends Disposable {
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
 					tags: prop.tags,
+					disallowSyncIgnore: prop.disallowSyncIgnore,
 					extensionInfo: extensionInfo,
 					deprecationMessage: prop.deprecationMessage,
 					validator: createValidator(prop)
@@ -1056,7 +1057,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 				}
 
 				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
-					message += nls.localize('validations.stringArrayMaxItem', 'Array must have less than {0} items', prop.maxItems);
+					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
 					message += '\n';
 				}
 

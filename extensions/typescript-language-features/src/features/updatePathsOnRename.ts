@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Delayer } from '../utils/async';
@@ -58,7 +58,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		super();
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
-			const [{ newUri, oldUri }] = e.renamed;
+			const [{ newUri, oldUri }] = e.files;
 			const newFilePath = this.client.toPath(newUri);
 			if (!newFilePath) {
 				return;

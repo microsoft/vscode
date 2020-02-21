@@ -9,12 +9,8 @@ import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -32,6 +28,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isStandalone } from 'vs/base/browser/browser';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -39,6 +36,7 @@ export interface IDraggedResource {
 }
 
 export class DraggedEditorIdentifier {
+
 	constructor(private _identifier: IEditorIdentifier) { }
 
 	get identifier(): IEditorIdentifier {
@@ -47,6 +45,7 @@ export class DraggedEditorIdentifier {
 }
 
 export class DraggedEditorGroupIdentifier {
+
 	constructor(private _identifier: GroupIdentifier) { }
 
 	get identifier(): GroupIdentifier {
@@ -55,14 +54,18 @@ export class DraggedEditorGroupIdentifier {
 }
 
 export interface IDraggedEditor extends IDraggedResource {
-	backupResource?: URI;
+	content?: string;
+	encoding?: string;
+	mode?: string;
 	viewState?: IEditorViewState;
 }
 
 export interface ISerializedDraggedEditor {
 	resource: string;
-	backupResource?: string;
-	viewState: IEditorViewState | null;
+	content?: string;
+	encoding?: string;
+	mode?: string;
+	viewState?: IEditorViewState;
 }
 
 export const CodeDataTransfers = {
@@ -85,8 +88,10 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 					draggedEditors.forEach(draggedEditor => {
 						resources.push({
 							resource: URI.parse(draggedEditor.resource),
-							backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined,
-							viewState: withNullAsUndefined(draggedEditor.viewState),
+							content: draggedEditor.content,
+							viewState: draggedEditor.viewState,
+							encoding: draggedEditor.encoding,
+							mode: draggedEditor.mode,
 							isExternal: false
 						});
 					});
@@ -145,8 +150,8 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 export interface IResourcesDropHandlerOptions {
 
 	/**
-	 * Wether to open the actual workspace when a workspace configuration file is dropped
-	 * or wether to open the configuration file within the editor as normal file.
+	 * Whether to open the actual workspace when a workspace configuration file is dropped
+	 * or whether to open the configuration file within the editor as normal file.
 	 */
 	allowWorkspaceOpen: boolean;
 }
@@ -163,9 +168,7 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService
 	) {
@@ -195,6 +198,8 @@ export class ResourcesDropHandler {
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
 			resource: untitledOrFileResource.resource,
+			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
+			mode: (untitledOrFileResource as IDraggedEditor).mode,
 			options: {
 				pinned: true,
 				index: targetIndex,
@@ -213,9 +218,9 @@ export class ResourcesDropHandler {
 	private async doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
 
 		// Check for dirty editors being dropped
-		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
-		if (resourcesWithBackups.length > 0) {
-			await Promise.all(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup)));
+		const resourcesWithContent: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).content);
+		if (resourcesWithContent.length > 0) {
+			await Promise.all(resourcesWithContent.map(resourceWithContent => this.handleDirtyEditorDrop(resourceWithContent)));
 			return false;
 		}
 
@@ -232,36 +237,30 @@ export class ResourcesDropHandler {
 
 	private async handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
 
-		// Untitled: always ensure that we open a new untitled for each file we drop
+		// Untitled: always ensure that we open a new untitled editor for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.untitledTextEditorService.createOrGet().getResource();
+			const untitledEditorResource = this.editorService.createInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
+			if (untitledEditorResource) {
+				droppedDirtyEditor.resource = untitledEditorResource;
+			}
 		}
 
-		// Return early if the resource is already dirty in target or opened already
-		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
+		// File: ensure the file is not dirty or opened already
+		else if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen(this.editorService.createInput({ resource: droppedDirtyEditor.resource, forceFile: true }))) {
 			return false;
 		}
 
-		// Resolve the contents of the dropped dirty resource from source
-		if (droppedDirtyEditor.backupResource) {
+		// If the dropped editor is dirty with content we simply take that
+		// content and turn it into a backup so that it loads the contents
+		if (droppedDirtyEditor.content) {
 			try {
-				const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource));
-				await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
+				await this.backupFileService.backup(droppedDirtyEditor.resource, stringToSnapshot(droppedDirtyEditor.content));
 			} catch (e) {
 				// Ignore error
 			}
 		}
 
 		return false;
-	}
-
-	private getDefaultEOL(): DefaultEndOfLine {
-		const eol = this.configurationService.getValue('files.eol');
-		if (eol === '\r\n') {
-			return DefaultEndOfLine.CRLF;
-		}
-
-		return DefaultEndOfLine.LF;
 	}
 
 	private async handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
@@ -299,7 +298,7 @@ export class ResourcesDropHandler {
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
+			await this.hostService.openWindow(toOpen);
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open
@@ -342,31 +341,43 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
-	const backupFileService = accessor.get(IBackupFileService);
 	const editorService = accessor.get(IEditorService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
-		let viewState: IEditorViewState | null = null;
+		let viewState: IEditorViewState | undefined = undefined;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
 		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
 				const model = textEditorWidget.getModel();
 				if (model?.uri?.toString() === file.resource.toString()) {
-					viewState = textEditorWidget.saveViewState();
+					viewState = withNullAsUndefined(textEditorWidget.saveViewState());
 					break;
 				}
 			}
 		}
 
+		// Try to find encoding and mode from text model
+		let encoding: string | undefined = undefined;
+		let mode: string | undefined = undefined;
+
+		const model = file.resource.scheme === Schemas.untitled ? textFileService.untitled.get(file.resource) : textFileService.files.get(file.resource);
+		if (model) {
+			encoding = model.getEncoding();
+			mode = model.getMode();
+		}
+
+		// If the resource is dirty or untitled, send over its content
+		// to restore dirty state. Get that from the text model directly
+		let content: string | undefined = undefined;
+		if (model?.isDirty()) {
+			content = model.textEditorModel.getValue();
+		}
+
 		// Add as dragged editor
-		draggedEditors.push({
-			resource: file.resource.toString(),
-			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : undefined,
-			viewState
-		});
+		draggedEditors.push({ resource: file.resource.toString(), content, viewState, encoding, mode });
 	});
 
 	if (draggedEditors.length) {

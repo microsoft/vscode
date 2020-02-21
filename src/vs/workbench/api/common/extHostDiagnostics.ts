@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
@@ -224,7 +224,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	private readonly _collections = new Map<string, DiagnosticCollection>();
 	private readonly _onDidChangeDiagnostics = new Emitter<(vscode.Uri | string)[]>();
 
-	static _debouncer(last: (vscode.Uri | string)[], current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
+	static _debouncer(last: (vscode.Uri | string)[] | undefined, current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
 		if (!last) {
 			return current;
 		} else {

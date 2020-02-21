@@ -85,6 +85,10 @@ export interface ParsedArgs {
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
+	'force-device-scale-factor'?: string;
+	'force-renderer-accessibility'?: boolean;
+	'ignore-certificate-error'?: boolean;
+	'allow-insecure-localhost'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -124,7 +128,9 @@ export interface IEnvironmentService extends IUserHomeProvider {
 
 	// sync resources
 	userDataSyncLogResource: URI;
+	userDataSyncHome: URI;
 	settingsSyncPreviewResource: URI;
+	keybindingsSyncPreviewResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
