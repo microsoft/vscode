@@ -22,6 +22,8 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import * as Tasks from './tasks';
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { URI } from 'vs/base/common/uri';
+import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
 
 export const enum ShellQuoting {
@@ -1231,9 +1233,15 @@ namespace GroupKind {
 }
 
 namespace TaskDependency {
-	export function from(this: void, external: string | TaskIdentifier, context: ParseContext): Tasks.TaskDependency | undefined {
+	export function from(this: void, external: string | TaskIdentifier, context: ParseContext, source: TaskConfigSource): Tasks.TaskDependency | undefined {
 		if (Types.isString(external)) {
-			return { uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri, task: external };
+			let uri: URI | string;
+			if (source === TaskConfigSource.User) {
+				uri = USER_TASKS_GROUP_KEY;
+			} else {
+				uri = context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri;
+			}
+			return { uri, task: external };
 		} else if (TaskIdentifier.is(external)) {
 			return {
 				uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri,
@@ -1267,7 +1275,7 @@ namespace ConfigurationProperties {
 		{ property: 'options' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext, includeCommandOptions: boolean, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
+	export function from(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext, includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
 		if (!external) {
 			return undefined;
 		}
@@ -1311,14 +1319,14 @@ namespace ConfigurationProperties {
 		if (external.dependsOn !== undefined) {
 			if (Types.isArray(external.dependsOn)) {
 				result.dependsOn = external.dependsOn.reduce((dependencies: Tasks.TaskDependency[], item): Tasks.TaskDependency[] => {
-					const dependency = TaskDependency.from(item, context);
+					const dependency = TaskDependency.from(item, context, source);
 					if (dependency) {
 						dependencies.push(dependency);
 					}
 					return dependencies;
 				}, []);
 			} else {
-				const dependsOnValue = TaskDependency.from(external.dependsOn, context);
+				const dependsOnValue = TaskDependency.from(external.dependsOn, context, source);
 				result.dependsOn = dependsOnValue ? [dependsOnValue] : undefined;
 			}
 		}
@@ -1435,7 +1443,7 @@ namespace ConfiguringTask {
 			RunOptions.fromConfiguration(external.runOptions),
 			{}
 		);
-		let configuration = ConfigurationProperties.from(external, context, true, typeDeclaration.properties);
+		let configuration = ConfigurationProperties.from(external, context, true, source, typeDeclaration.properties);
 		if (configuration) {
 			result.configurationProperties = Objects.assign(result.configurationProperties, configuration);
 			if (result.configurationProperties.name) {
@@ -1512,7 +1520,7 @@ namespace CustomTask {
 				identifier: taskName,
 			}
 		);
-		let configuration = ConfigurationProperties.from(external, context, false);
+		let configuration = ConfigurationProperties.from(external, context, false, source);
 		if (configuration) {
 			result.configurationProperties = Objects.assign(result.configurationProperties, configuration);
 		}
