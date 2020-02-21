@@ -38,12 +38,18 @@
 	user-select: text;
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output p {
 	white-space: initial;
 	overflow-x: auto;
 	margin: 0px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output > div.foreground {
+	padding: 8px;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output .multi-mimetype-output {

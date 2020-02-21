@@ -92,7 +92,7 @@ export class BackLayerWebView extends Disposable {
 			<head>
 				<meta charset="UTF-8">
 				<style>
-					#container > div {
+					#container > div > div {
 						width: 100%;
 						padding: 0 8px;
 						margin: 8px 0;

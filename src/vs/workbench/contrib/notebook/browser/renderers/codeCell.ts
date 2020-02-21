@@ -250,6 +250,8 @@ export class CodeCell extends Disposable {
 		if (result.shadowContent) {
 			let editorHeight = this.viewCell.editorHeight;
 			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + 8 + this.viewCell.getOutputOffset(index));
+		} else {
+			DOM.addClass(outputItemDiv, 'foreground');
 		}
 
 		let hasDynamicHeight = result.hasDynamicHeight;
