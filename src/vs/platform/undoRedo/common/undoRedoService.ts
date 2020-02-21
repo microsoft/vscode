@@ -33,6 +33,30 @@ class ResourceStackElement {
 		this.strResources = [this.strResource];
 	}
 }
+
+const enum RemovedResourceReason {
+	ExternalRemoval = 0,
+	NoParallelUniverses = 1
+}
+
+class RemovedResources {
+	public readonly set: Set<string> = new Set<string>();
+	public readonly reason: [URI[], URI[]] = [[], []];
+
+	public createMessage(): string {
+		let messages: string[] = [];
+		if (this.reason[RemovedResourceReason.ExternalRemoval].length > 0) {
+			const paths = this.reason[RemovedResourceReason.ExternalRemoval].map(uri => uri.scheme === Schemas.file ? uri.fsPath : uri.path);
+			messages.push(nls.localize('externalRemoval', "The following files have been closed: {0}.", paths.join(', ')));
+		}
+		if (this.reason[RemovedResourceReason.NoParallelUniverses].length > 0) {
+			const paths = this.reason[RemovedResourceReason.NoParallelUniverses].map(uri => uri.scheme === Schemas.file ? uri.fsPath : uri.path);
+			messages.push(nls.localize('noParallelUniverses', "The following files have been modified in an incompatible way: {0}.", paths.join(', ')));
+		}
+		return messages.join('\n');
+	}
+}
+
 class WorkspaceStackElement {
 	public readonly type = UndoRedoElementType.Workspace;
 	public readonly actual: IWorkspaceUndoRedoElement;
@@ -40,12 +64,24 @@ class WorkspaceStackElement {
 
 	public readonly resources: URI[];
 	public readonly strResources: string[];
+	public removedResources: RemovedResources | null;
 
 	constructor(actual: IWorkspaceUndoRedoElement) {
 		this.actual = actual;
 		this.label = actual.label;
 		this.resources = actual.resources.slice(0);
 		this.strResources = this.resources.map(resource => uriGetComparisonKey(resource));
+		this.removedResources = null;
+	}
+
+	public removeResource(resource: URI, strResource: string, reason: RemovedResourceReason): void {
+		if (!this.removedResources) {
+			this.removedResources = new RemovedResources();
+		}
+		if (!this.removedResources.set.has(strResource)) {
+			this.removedResources.set.add(strResource);
+			this.removedResources.reason[reason].push(resource);
+		}
 	}
 }
 type StackElement = ResourceStackElement | WorkspaceStackElement;
@@ -91,7 +127,7 @@ export class UndoRedoService implements IUndoRedoService {
 			// remove the future
 			for (const futureElement of editStack.future) {
 				if (futureElement.type === UndoRedoElementType.Workspace) {
-					this._splitFutureWorkspaceElement(futureElement, strResource);
+					futureElement.removeResource(resource, strResource, RemovedResourceReason.NoParallelUniverses);
 				}
 			}
 			editStack.future = [];
@@ -114,7 +150,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return null;
 	}
 
-	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement, ignoreStrResource: string | null): void {
+	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement, ignoreResources: Set<string> | null): void {
 		const individualArr = toRemove.actual.split();
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
@@ -123,7 +159,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		for (const strResource of toRemove.strResources) {
-			if (strResource === ignoreStrResource) {
+			if (ignoreResources && ignoreResources.has(strResource)) {
 				continue;
 			}
 			const editStack = this._editStacks.get(strResource)!;
@@ -142,7 +178,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement, ignoreStrResource: string | null): void {
+	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement, ignoreResources: Set<string> | null): void {
 		const individualArr = toRemove.actual.split();
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
@@ -151,7 +187,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		for (const strResource of toRemove.strResources) {
-			if (strResource === ignoreStrResource) {
+			if (ignoreResources && ignoreResources.has(strResource)) {
 				continue;
 			}
 			const editStack = this._editStacks.get(strResource)!;
@@ -174,14 +210,14 @@ export class UndoRedoService implements IUndoRedoService {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			for (const pastElement of editStack.past) {
-				if (pastElement.type === UndoRedoElementType.Workspace) {
-					this._splitPastWorkspaceElement(pastElement, strResource);
+			for (const element of editStack.past) {
+				if (element.type === UndoRedoElementType.Workspace) {
+					element.removeResource(resource, strResource, RemovedResourceReason.ExternalRemoval);
 				}
 			}
-			for (const futureElement of editStack.future) {
-				if (futureElement.type === UndoRedoElementType.Workspace) {
-					this._splitFutureWorkspaceElement(futureElement, strResource);
+			for (const element of editStack.future) {
+				if (element.type === UndoRedoElementType.Workspace) {
+					element.removeResource(resource, strResource, RemovedResourceReason.ExternalRemoval);
 				}
 			}
 			this._editStacks.delete(strResource);
@@ -220,6 +256,13 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	private _workspaceUndo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
+		if (element.removedResources) {
+			this._splitPastWorkspaceElement(element, element.removedResources.set);
+			const message = nls.localize('cannotWorkspaceUndo', "Could not undo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
+			this._notificationService.info(message);
+			return;
+		}
+
 		// this must be the last past element in all the impacted resources!
 		let affectedEditStacks: ResourceEditStack[] = [];
 		for (const strResource of element.strResources) {
@@ -236,7 +279,7 @@ export class UndoRedoService implements IUndoRedoService {
 		if (cannotUndoDueToResources.length > 0) {
 			this._splitPastWorkspaceElement(element, null);
 			const paths = cannotUndoDueToResources.map(r => r.scheme === Schemas.file ? r.fsPath : r.path);
-			const message = nls.localize('undoFurtherChanges', "Could not undo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
+			const message = nls.localize('cannotWorkspaceUndoDueToChanges', "Could not undo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
 			this._notificationService.info(message);
 			return;
 		}
@@ -297,6 +340,13 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	private _workspaceRedo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
+		if (element.removedResources) {
+			this._splitFutureWorkspaceElement(element, element.removedResources.set);
+			const message = nls.localize('cannotWorkspaceRedo', "Could not redo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
+			this._notificationService.info(message);
+			return;
+		}
+
 		// this must be the last future element in all the impacted resources!
 		let affectedEditStacks: ResourceEditStack[] = [];
 		for (const strResource of element.strResources) {
@@ -313,7 +363,7 @@ export class UndoRedoService implements IUndoRedoService {
 		if (cannotRedoDueToResources.length > 0) {
 			this._splitFutureWorkspaceElement(element, null);
 			const paths = cannotRedoDueToResources.map(r => r.scheme === Schemas.file ? r.fsPath : r.path);
-			const message = nls.localize('redoFurtherChanges', "Could not redo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
+			const message = nls.localize('cannotWorkspaceRedoDueToChanges', "Could not redo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
 			this._notificationService.info(message);
 			return;
 		}
