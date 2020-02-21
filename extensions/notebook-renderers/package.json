@@ -22,6 +22,19 @@
     "*"
   ],
   "contributes": {
+    "notebookOutputRenderer": [
+      {
+        "viewType": "nteract",
+        "displayName": "nteract renderer for notebook",
+        "mimeTypes": [
+          "text/latex",
+          "text/markdown",
+          "application/json",
+          "application/vnd.plotly.v1+json",
+          "application/vnd.vega.v5+json"
+        ]
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p ./",

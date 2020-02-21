@@ -654,7 +654,7 @@ export type NotebookCellOutputsSplice = [
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
-	$registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
+	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;

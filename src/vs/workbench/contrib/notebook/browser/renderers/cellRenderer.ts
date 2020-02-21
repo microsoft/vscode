@@ -331,7 +331,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.showContextMenu(listIndex, element, e.posx, top + height);
 		}));
 
-		elementDisposable?.add(new CodeCell(this.notebookEditor, element, templateData));
+		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 	}
 

@@ -228,8 +228,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		});
 	}
 
-	async $registerNotebookRenderer(extension: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void> {
-		this._notebookService.registerNotebookRenderer(handle, extension, selectors, preloads.map(uri => URI.revive(uri)));
+	async $registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void> {
+		this._notebookService.registerNotebookRenderer(handle, extension, type, selectors, preloads.map(uri => URI.revive(uri)));
 	}
 
 	async $unregisterNotebookRenderer(handle: number): Promise<void> {

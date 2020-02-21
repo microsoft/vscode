@@ -239,20 +239,23 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 					outputs = outputs.map(output => {
 						let richestMimeType: string | undefined = undefined;
 
-						if (this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
+						if (this.renderingHandler.outputDisplayOrder?.defaultOrder || this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
 							richestMimeType = this.findRichestMimeType(output);
 						}
+
+						output.pickedMimeType = richestMimeType;
 
 						let transformedOutput: vscode.CellOutput | undefined = undefined;
 
 						if (richestMimeType) {
 							let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
-							if (handler) {
-								renderers.add(handler.handle);
-								transformedOutput = handler?.render(this, cell, output);
+							if (handler.length) {
+								renderers.add(handler[0].handle);
+								transformedOutput = handler[0].render(this, cell, output);
 
-								output = transformedOutput;
-								output.pickedMimeType = richestMimeType;
+								output.pickedRenderer = handler[0].handle;
+								// output.transformedOutput = transformedOutput;
+								output.transformedOutput = { richestMimeType: transformedOutput };
 							}
 						}
 
@@ -289,20 +292,23 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 			outputs = outputs.map(output => {
 				let richestMimeType: string | undefined = undefined;
 
-				if (this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
+				if (this.renderingHandler.outputDisplayOrder?.defaultOrder || this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
 					richestMimeType = this.findRichestMimeType(output);
 				}
 
+				(<IGenericOutput>output).pickedMimeType = richestMimeType;
 				let transformedOutput: vscode.CellOutput | undefined = undefined;
 
 				if (richestMimeType) {
 					let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
-					if (handler) {
-						renderers.add(handler.handle);
-						transformedOutput = handler?.render(this, cell, output);
+					if (handler.length) {
+						let pickedHandler = handler[0];
+						renderers.add(pickedHandler.handle);
 
-						output = transformedOutput;
-						(<IGenericOutput>output).pickedMimeType = richestMimeType;
+						transformedOutput = pickedHandler.render(this, cell, output);
+						(<IGenericOutput>output).pickedRenderer = pickedHandler.handle;
+						(<IGenericOutput>output).transformedOutput = { richestMimeType: transformedOutput };
+
 					}
 				}
 
@@ -378,6 +384,16 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 
 			for (let i = 0; i < documentDisplayOrder.length; i++) {
 				if (documentDisplayOrder[i](mimeType)) {
+					return order;
+				}
+
+				order++;
+			}
+
+			let defaultOrder = coreDisplayOrder.defaultOrder;
+
+			for (let i = 0; i < defaultOrder.length; i++) {
+				if (defaultOrder[i](mimeType)) {
 					return order;
 				}
 
@@ -486,8 +502,9 @@ export class ExtHostNotebookOutputRenderer {
 	readonly handle = ExtHostNotebookOutputRenderer._handlePool++;
 
 	constructor(
-		private filter: vscode.NotebookOutputSelector,
-		private renderer: vscode.NotebookOutputRenderer
+		public type: string,
+		public filter: vscode.NotebookOutputSelector,
+		public renderer: vscode.NotebookOutputRenderer
 	) {
 
 	}
@@ -517,7 +534,7 @@ export class ExtHostNotebookOutputRenderer {
 
 export interface ExtHostNotebookOutputRenderingHandler {
 	outputDisplayOrder: ExtHostOutputDisplayOrder | undefined;
-	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer | undefined;
+	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer[];
 }
 
 export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
@@ -545,27 +562,29 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	registerNotebookOutputRenderer(
+		type: string,
 		extension: IExtensionDescription,
 		filter: vscode.NotebookOutputSelector,
 		renderer: vscode.NotebookOutputRenderer
 	): vscode.Disposable {
-		let extHostRenderer = new ExtHostNotebookOutputRenderer(filter, renderer);
+		let extHostRenderer = new ExtHostNotebookOutputRenderer(type, filter, renderer);
 		this._notebookOutputRenderers.set(extHostRenderer.handle, extHostRenderer);
-		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, filter, extHostRenderer.handle, renderer.preloads || []);
+		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, type, filter, extHostRenderer.handle, renderer.preloads || []);
 		return new VSCodeDisposable(() => {
 			this._notebookOutputRenderers.delete(extHostRenderer.handle);
 			this._proxy.$unregisterNotebookRenderer(extHostRenderer.handle);
 		});
 	}
 
-	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer | undefined {
+	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer[] {
+		let matches: ExtHostNotebookOutputRenderer[] = [];
 		for (let renderer of this._notebookOutputRenderers) {
 			if (renderer[1].matches(mimeType)) {
-				return renderer[1];
+				matches.push(renderer[1]);
 			}
 		}
 
-		return;
+		return matches;
 	}
 
 	registerNotebookProvider(

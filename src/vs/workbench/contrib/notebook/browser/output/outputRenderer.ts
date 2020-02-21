@@ -45,11 +45,11 @@ export class OutputRenderer {
 		};
 	}
 
-	render(output: IOutput, container: HTMLElement): IRenderOutput {
+	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
 		let transform = this._mimeTypeMapping[output.output_type];
 
 		if (transform) {
-			return transform.render(output, container);
+			return transform.render(output, container, preferredMimeType);
 		} else {
 			return this.renderNoop(output, container);
 		}

@@ -14,6 +14,25 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyter', new NotebookProvider(context.extensionPath, true)));
 	context.subscriptions.push(vscode.window.registerNotebookProvider('jupytertest', new NotebookProvider(context.extensionPath, false)));
+	context.subscriptions.push(vscode.window.registerNotebookOutputRenderer(
+		'kerneltest',
+		{
+			type: 'display_data',
+			subTypes: [
+				'text/latex',
+				'text/markdown',
+				'application/json',
+				'application/vnd.plotly.v1+json',
+				'application/vnd.vega.v5+json'
+			]
+		},
+		{
+			render: () => {
+				return '<h1>kernel test renderer</h1>';
+			}
+		}
+	));
+
 	vscode.commands.registerCommand('notebook.saveToMarkdown', () => {
 		if (vscode.window.activeNotebookDocument) {
 			let document = vscode.window.activeNotebookDocument;

@@ -6,12 +6,13 @@
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { notebookExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -35,7 +36,7 @@ export interface INotebookService {
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
-	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
+	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
 	unregisterNotebookRenderer(handle: number): void;
 	getRendererPreloads(handle: number): URI[];
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
@@ -50,7 +51,7 @@ export interface INotebookService {
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
 }
 
-export class NotebookInfoStore {
+export class NotebookProviderInfoStore {
 	private readonly contributedEditors = new Map<string, NotebookProviderInfo>();
 
 	clear() {
@@ -75,6 +76,31 @@ export class NotebookInfoStore {
 	}
 }
 
+export class NotebookOutputRendererInfoStore {
+	private readonly contributedRenderers = new Map<string, NotebookOutputRendererInfo>();
+
+	clear() {
+		this.contributedRenderers.clear();
+	}
+
+	get(viewType: string): NotebookOutputRendererInfo | undefined {
+		return this.contributedRenderers.get(viewType);
+	}
+
+	add(info: NotebookOutputRendererInfo): void {
+		if (this.contributedRenderers.has(info.id)) {
+			console.log(`Custom notebook output renderer with id '${info.id}' already registered`);
+			return;
+		}
+		this.contributedRenderers.set(info.id, info);
+	}
+
+	getContributedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
+		return Array.from(this.contributedRenderers.values()).filter(customEditor =>
+			customEditor.matches(mimeType));
+	}
+}
+
 class ModelData implements IDisposable {
 	private readonly _modelEventListeners = new DisposableStore();
 
@@ -94,8 +120,9 @@ class ModelData implements IDisposable {
 export class NotebookService extends Disposable implements INotebookService {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
-	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
-	notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
+	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
+	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
+	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
@@ -107,7 +134,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		super();
 
 		this._models = {};
-		notebookExtensionPoint.setHandler((extensions) => {
+		notebookProviderExtensionPoint.setHandler((extensions) => {
 			this.notebookProviderInfoStore.clear();
 
 			for (const extension of extensions) {
@@ -122,6 +149,21 @@ export class NotebookService extends Disposable implements INotebookService {
 			// console.log(this._notebookProviderInfoStore);
 		});
 
+		notebookRendererExtensionPoint.setHandler((renderers) => {
+			this.notebookRenderersInfoStore.clear();
+
+			for (const extension of renderers) {
+				for (const notebookContribution of extension.value) {
+					this.notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
+						id: notebookContribution.viewType,
+						displayName: notebookContribution.displayName,
+						mimeTypes: notebookContribution.mimeTypes || []
+					}));
+				}
+			}
+
+			// console.log(this.notebookRenderersInfoStore);
+		});
 	}
 
 	async canResolve(viewType: string): Promise<void> {
@@ -151,8 +193,8 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._notebookProviders.delete(viewType);
 	}
 
-	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, selectors: INotebookMimeTypeSelector, preloads: URI[]) {
-		this._notebookRenderers.set(handle, { extensionData, selectors, preloads });
+	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]) {
+		this._notebookRenderers.set(handle, { extensionData, type, selectors, preloads });
 	}
 
 	unregisterNotebookRenderer(handle: number) {
@@ -232,6 +274,10 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[] {
 		return this.notebookProviderInfoStore.getContributedNotebook(resource);
+	}
+
+	getContributedNotebookOutputRenderers(mimeType: string): readonly NotebookOutputRendererInfo[] {
+		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {

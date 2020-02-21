@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { CELL_MARGIN, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, IOutput, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export class CodeCell extends Disposable {
-	private outputResizeListeners = new Map<IOutput, IDisposable>();
+	private outputResizeListeners = new Map<IOutput, DisposableStore>();
 	private outputElements = new Map<IOutput, HTMLElement>();
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CellViewModel,
 		private templateData: CellRenderTemplate,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -64,6 +68,10 @@ export class CodeCell extends Disposable {
 					);
 
 					viewCell.editorHeight = realContentHeight;
+				}
+
+				if (this.notebookEditor.getActiveCell() === this.viewCell) {
+					templateData.editor?.focus();
 				}
 			}
 		});
@@ -187,8 +195,44 @@ export class CodeCell extends Disposable {
 	}
 
 	renderOutput(currOutput: IOutput, index: number, beforeElement?: HTMLElement) {
+		if (!this.outputResizeListeners.has(currOutput)) {
+			this.outputResizeListeners.set(currOutput, new DisposableStore());
+		}
+
 		let outputItemDiv = document.createElement('div');
-		let result = this.notebookEditor.getOutputRenderer().render(currOutput, outputItemDiv);
+		let transformedOutput: IOutput;
+		let transformedMimeType: string;
+		if (currOutput.pickedMimeType) {
+			if (currOutput.transformedOutput && currOutput.transformedOutput![currOutput.pickedMimeType]) {
+				// currently, transformed output is always text/html
+				transformedMimeType = 'text/html';
+				transformedOutput = currOutput.transformedOutput![currOutput.pickedMimeType];
+			} else {
+				// otherwise
+				transformedMimeType = currOutput.pickedMimeType;
+				transformedOutput = currOutput;
+			}
+		} else {
+			transformedOutput = currOutput;
+		}
+
+		if (currOutput.output_type === 'display_data' || currOutput.output_type === 'execute_result') {
+			let mimeTypes = Object.keys((currOutput! as IDisplayOutput).data);
+
+			if (mimeTypes.length > 1) {
+				outputItemDiv.style.position = 'relative';
+				const mimeTypePicker = DOM.$('.multi-mimetype-output');
+				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-list-selection');
+				outputItemDiv.appendChild(mimeTypePicker);
+				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
+					e.preventDefault();
+					e.stopPropagation();
+					await this.pickActiveMimeType(currOutput, mimeTypes);
+				}));
+			}
+		}
+
+		let result = this.notebookEditor.getOutputRenderer().render(transformedOutput!, outputItemDiv, currOutput.pickedMimeType);
 
 		if (!result) {
 			this.viewCell.updateOutputHeight(index, 0);
@@ -239,7 +283,7 @@ export class CodeCell extends Disposable {
 				}
 			});
 			elementSizeObserver.startObserving();
-			this.outputResizeListeners.set(currOutput, elementSizeObserver);
+			this.outputResizeListeners.get(currOutput)!.add(elementSizeObserver);
 			this.viewCell.updateOutputHeight(index, clientHeight);
 		} else {
 			if (result.shadowContent) {
@@ -251,6 +295,64 @@ export class CodeCell extends Disposable {
 				let clientHeight = outputItemDiv.clientHeight;
 				this.viewCell.updateOutputHeight(index, clientHeight);
 			}
+		}
+	}
+
+	async pickActiveMimeType(output: IOutput, mimeTypes: string[]) {
+		const sorted = mimeTypes.sort((a, b) => {
+			if (a === output.pickedMimeType) {
+				return -1;
+			} else {
+				return 0;
+			}
+		});
+
+		const items = sorted.map((mimeType): IQuickPickItem => ({
+			label: mimeType,
+			id: mimeType,
+			description: mimeType === output.pickedMimeType
+				? nls.localize('curruentActiveMimeType', "Currently Active")
+				: undefined,
+			// buttons: resourceExt ? [{
+			// 	iconClass: 'codicon-settings-gear',
+			// 	tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
+			// }] : undefined
+		}));
+
+		const picker = this.quickInputService.createQuickPick();
+		picker.items = items;
+		picker.placeholder = nls.localize('promptChooseMimeType.placeHolder', "Select output mimetype to render for current output");
+
+		const pick = await new Promise<string | undefined>(resolve => {
+			picker.onDidAccept(() => {
+				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0].id : undefined);
+				picker.dispose();
+			});
+			picker.show();
+		});
+
+		if (!pick) {
+			return;
+		}
+
+		if (pick !== output.pickedMimeType) {
+			// user chooses another mimetype
+			let index = this.viewCell.outputs.indexOf(output);
+			let nextElement = index + 1 < this.viewCell.outputs.length ? this.outputElements.get(this.viewCell.outputs[index + 1]) : undefined;
+			this.outputResizeListeners.get(output)?.clear();
+			let element = this.outputElements.get(output);
+			if (element) {
+				this.templateData?.outputContainer?.removeChild(element);
+				this.notebookEditor.removeInset(output);
+			}
+
+			output.pickedMimeType = pick;
+
+			this.renderOutput(output, index, nextElement);
+
+			let editorHeight = this.viewCell.editorHeight;
+			let totalOutputHeight = this.viewCell.getOutputTotalHeight();
+			this.notebookEditor.layoutNotebookCell(this.viewCell, editorHeight + 32 + totalOutputHeight);
 		}
 	}
 

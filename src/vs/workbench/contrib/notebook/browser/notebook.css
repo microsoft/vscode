@@ -37,12 +37,22 @@
 	padding-right: 8px;
 	user-select: text;
 	transform: translate3d(0px, 0px, 0px);
+	cursor: auto;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output p {
 	white-space: initial;
 	overflow-x: auto;
 	margin: 0px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output .multi-mimetype-output {
+	position: absolute;
+	top: 4px;
+	left: -24px;
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output .error_message {

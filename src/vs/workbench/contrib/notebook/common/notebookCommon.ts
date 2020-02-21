@@ -69,11 +69,11 @@ export interface IErrorOutput {
  * @internal
  */
 export interface IDisplayOutput {
-	output_type: 'display_data';
+	output_type: 'display_data' | 'execute_result';
 	/**
 	 * { mime_type: value }
 	 */
-	data: { string: string };
+	data: { [key: string]: any; }
 }
 
 /**
@@ -82,7 +82,8 @@ export interface IDisplayOutput {
 export interface IGenericOutput {
 	output_type: string;
 	pickedMimeType?: string;
-	// transformedOutput?: IGenericOutput;
+	pickedRenderer?: number;
+	transformedOutput?: { [key: string]: IDisplayOutput };
 }
 
 /**
@@ -146,7 +147,7 @@ export interface IOutputTransformContribution {
 	 */
 	dispose(): void;
 
-	render(output: IOutput, container: HTMLElement): IRenderOutput;
+	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
 }
 
 

@@ -1443,7 +1443,7 @@ declare module 'vscode' {
 			provider: NotebookProvider
 		): Disposable;
 
-		export function registerNotebookOutputRenderer(outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
+		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
 	}

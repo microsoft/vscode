@@ -10,6 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log(context.extensionPath);
 
 	context.subscriptions.push(vscode.window.registerNotebookOutputRenderer(
+		'nteract',
 		{
 			type: 'display_data',
 			subTypes: [
