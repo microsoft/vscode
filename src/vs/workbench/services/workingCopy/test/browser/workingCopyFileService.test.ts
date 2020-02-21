@@ -8,31 +8,19 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { toResource } from 'vs/base/test/common/utils';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
-
-class ServiceAccessor {
-	constructor(
-		@ITextFileService public textFileService: TestTextFileService,
-		@IWorkingCopyFileService public workingCopyFileService: IWorkingCopyFileService,
-		@IWorkingCopyService public workingCopyService: IWorkingCopyService
-	) {
-	}
-}
 
 suite('WorkingCopyFileService', () => {
 
 	let instantiationService: IInstantiationService;
 	let model: TextFileEditorModel;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {

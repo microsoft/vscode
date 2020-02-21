@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
@@ -20,57 +21,23 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
-import { NativeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
 import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-
-class ServiceAccessor {
-	constructor(
-		@ITextFileService public textFileService: TestTextFileService
-	) {
-	}
-}
-
-class TestNativeTextFileService extends NativeTextFileService {
-
-	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
-		if (!this._testEncoding) {
-			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
-		}
-
-		return this._testEncoding;
-	}
-}
-
-class TestEncodingOracle extends EncodingOracle {
-
-	protected get encodingOverrides(): IEncodingOverride[] {
-		return [
-			{ extension: 'utf16le', encoding: UTF16le },
-			{ extension: 'utf16be', encoding: UTF16be },
-			{ extension: 'utf8bom', encoding: UTF8_with_bom }
-		];
-	}
-
-	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
-}
+import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 suite('Files - TextFileService i/o', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
-	let accessor: ServiceAccessor;
 	const disposables = new DisposableStore();
+
 	let service: ITextFileService;
 	let testDir: string;
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
@@ -82,7 +49,7 @@ suite('Files - TextFileService i/o', () => {
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
 
-		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileService);
+		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
 
 		const id = generateUuid();
 		testDir = join(parentDir, id);
@@ -92,7 +59,7 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	teardown(async () => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		(<TextFileEditorModelManager>service.files).dispose();
 
 		disposables.clear();
 

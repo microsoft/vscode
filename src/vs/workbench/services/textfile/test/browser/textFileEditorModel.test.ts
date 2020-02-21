@@ -7,27 +7,15 @@ import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, TextFileEditorModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { createFileInput, TestFileService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TextFileEditorModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { createFileInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, FileOperationError, IFileService } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-
-class ServiceAccessor {
-	constructor(
-		@ITextFileService public readonly textFileService: TestTextFileService,
-		@IModelService public readonly modelService: IModelService,
-		@IFileService public readonly fileService: TestFileService,
-		@IWorkingCopyService public readonly workingCopyService: IWorkingCopyService
-	) {
-	}
-}
 
 function getLastModifiedTime(model: TextFileEditorModel): number {
 	const stat = model.getStat();
@@ -35,22 +23,15 @@ function getLastModifiedTime(model: TextFileEditorModel): number {
 	return stat ? stat.mtime : -1;
 }
 
-class TestTextFileEditorModel extends TextFileEditorModel {
-
-	isReadonly(): boolean {
-		return true;
-	}
-}
-
 suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 	let content: string;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 		content = accessor.fileService.getContent();
 	});
 
@@ -107,7 +88,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		let savedEvent = false;
-		model.onDidSave(e => savedEvent = true);
+		model.onDidSave(() => savedEvent = true);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -139,7 +120,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 
 		let savedEvent = false;
-		model.onDidSave(e => savedEvent = true);
+		model.onDidSave(() => savedEvent = true);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -165,7 +146,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
 
 		let saveErrorEvent = false;
-		model.onDidSaveError(e => saveErrorEvent = true);
+		model.onDidSaveError(() => saveErrorEvent = true);
 
 		accessor.fileService.writeShouldThrowError = new Error('failed to write');
 		try {
@@ -195,7 +176,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
 
 		let saveErrorEvent = false;
-		model.onDidSaveError(e => saveErrorEvent = true);
+		model.onDidSaveError(() => saveErrorEvent = true);
 
 		accessor.fileService.writeShouldThrowError = new FileOperationError('save conflict', FileOperationResult.FILE_MODIFIED_SINCE);
 		try {
@@ -221,7 +202,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		let encodingEvent = false;
-		model.onDidChangeEncoding(e => encodingEvent = true);
+		model.onDidChangeEncoding(() => encodingEvent = true);
 
 		model.setEncoding('utf8', EncodingMode.Encode); // no-op
 		assert.equal(getLastModifiedTime(model), -1);
@@ -276,8 +257,8 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
 		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
 
-		model.onDidSave(e => assert.fail());
-		model.onDidChangeDirty(e => assert.fail());
+		model.onDidSave(() => assert.fail());
+		model.onDidChangeDirty(() => assert.fail());
 
 		await model.load();
 		assert.ok(model.isResolved());
@@ -303,7 +284,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidRevert(e => eventCounter++);
+		model.onDidRevert(() => eventCounter++);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -336,7 +317,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidRevert(e => eventCounter++);
+		model.onDidRevert(() => eventCounter++);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -402,7 +383,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 
-		model.onDidChangeDirty(e => eventCounter++);
+		model.onDidChangeDirty(() => eventCounter++);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -431,7 +412,7 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		const model = instantiationService.createInstance(TestTextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const model = instantiationService.createInstance(TestReadonlyTextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		await model.load();
 		model.updateTextEditorModel(createTextBufferFactory('foo'));
@@ -507,7 +488,7 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidSave(e => {
+		model.onDidSave(() => {
 			assert.equal(snapshotToString(model.createSnapshot()!), eventCounter === 1 ? 'bar' : 'foobar');
 			assert.ok(!model.isDirty());
 			eventCounter++;
@@ -544,7 +525,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async model => {
+			participate: async () => {
 				eventCounter++;
 			}
 		});
@@ -563,7 +544,7 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidSave(e => {
+		model.onDidSave(() => {
 			assert.ok(!model.isDirty());
 			eventCounter++;
 		});
@@ -595,7 +576,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async model => {
+			participate: async () => {
 				new Error('boom');
 			}
 		});

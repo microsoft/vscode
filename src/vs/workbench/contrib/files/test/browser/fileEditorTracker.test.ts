@@ -8,9 +8,9 @@ import { Event } from 'vs/base/common/event';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFileService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITextFileService, IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { timeout } from 'vs/base/common/async';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -25,16 +25,6 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-
-class ServiceAccessor {
-	constructor(
-		@IEditorService public editorService: IEditorService,
-		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IFileService public fileService: TestFileService
-	) {
-	}
-}
 
 suite('Files - TextFileEditorTracker', () => {
 
@@ -58,7 +48,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 	test('file change event updates model', async function () {
 		const instantiationService = workbenchInstantiationService();
-		const accessor = instantiationService.createInstance(ServiceAccessor);
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const tracker = instantiationService.createInstance(TextFileEditorTracker);
 
@@ -82,7 +72,7 @@ suite('Files - TextFileEditorTracker', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
-	async function createTracker(): Promise<[EditorPart, ServiceAccessor, TextFileEditorTracker, IInstantiationService, IEditorService]> {
+	async function createTracker(): Promise<[EditorPart, TestServiceAccessor, TextFileEditorTracker, IInstantiationService, IEditorService]> {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = instantiationService.createInstance(EditorPart);
@@ -94,7 +84,7 @@ suite('Files - TextFileEditorTracker', () => {
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
 
-		const accessor = instantiationService.createInstance(ServiceAccessor);
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		await part.whenRestored;
 
