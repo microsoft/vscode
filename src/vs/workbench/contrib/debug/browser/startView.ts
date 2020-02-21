@@ -22,8 +22,10 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh } from 'vs/base/common/platform';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
-const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>('debugStartLanguage', undefined);
+const debugStartLanguageKey = 'debugStartLanguage';
+const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
 const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>('debuggerInterestedInActiveEditor', false);
 
 export class StartView extends ViewPane {
@@ -31,7 +33,7 @@ export class StartView extends ViewPane {
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
 
-	private debugStartLanguageContext: IContextKey<string>;
+	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
 
 	constructor(
@@ -46,11 +48,15 @@ export class StartView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
+		@IStorageService storageSevice: IStorageService
 	) {
 		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
 		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
+		const lastSetLanguage = storageSevice.get(debugStartLanguageKey, StorageScope.WORKSPACE);
+		this.debugStartLanguageContext.set(lastSetLanguage);
+
 		const setContextKey = () => {
 			const editor = this.editorService.activeTextEditorWidget;
 			if (isCodeEditor(editor)) {
@@ -59,6 +65,7 @@ export class StartView extends ViewPane {
 				if (language && this.debugService.getConfigurationManager().isDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);
 					this.debuggerInterestedContext.set(true);
+					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE);
 					return;
 				}
 			}
