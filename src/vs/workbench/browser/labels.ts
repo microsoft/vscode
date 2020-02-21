@@ -353,7 +353,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.setResource({ resource, name, description }, options);
 	}
 
-	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
+	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
 		if (label.resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
@@ -369,18 +369,19 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (typeof label.description === 'string') {
-					let untitledDescription: string;
-					if (untitledModel.hasAssociatedFilePath) {
-						untitledDescription = this.labelService.getUriLabel(dirname(untitledModel.resource), { relative: true });
-					} else {
-						untitledDescription = untitledModel.resource.path;
-					}
-
+					let untitledDescription = untitledModel.resource.path;
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
 					} else if (label.description === posix.sep) {
 						label.description = undefined; // unset showing just "/" for untitled without associated resource
 					}
+				}
+
+				let untitledTitle = untitledModel.resource.path;
+				if (untitledModel.name !== untitledTitle) {
+					options.title = `${untitledModel.name} • ${untitledTitle}`;
+				} else {
+					options.title = untitledTitle;
 				}
 			}
 		}

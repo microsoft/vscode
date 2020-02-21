@@ -13,6 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 suite('Workbench editor model', () => {
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 

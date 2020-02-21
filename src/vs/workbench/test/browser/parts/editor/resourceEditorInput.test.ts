@@ -13,6 +13,7 @@ import { snapshotToString } from 'vs/workbench/services/textfile/common/textfile
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 suite('Resource text editors', () => {
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
