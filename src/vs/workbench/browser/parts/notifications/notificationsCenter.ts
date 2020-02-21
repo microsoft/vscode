@@ -11,7 +11,7 @@ import { INotificationsModel, INotificationChangeEvent, NotificationChangeType }
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { NotificationsCenterVisibleContext, INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, removeClass, isAncestor, Dimension } from 'vs/base/browser/dom';
@@ -24,7 +24,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 
-export class NotificationsCenter extends Themable {
+export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
 	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
 
@@ -284,8 +284,10 @@ export class NotificationsCenter extends Themable {
 		this.hide();
 
 		// Close all
-		while (this.model.notifications.length) {
-			this.model.notifications[0].close();
+		for (const notification of this.model.notifications) {
+			if (!notification.hasProgress) {
+				notification.close();
+			}
 		}
 	}
 }
