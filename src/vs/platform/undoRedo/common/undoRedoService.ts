@@ -12,20 +12,27 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 class StackElement {
 	public readonly actual: IUndoRedoElement;
 	public readonly label: string;
-	public readonly resources: readonly URI[];
-	public readonly strResources: string[];
+
+	public resources: URI[];
+	public strResources: string[];
 
 	constructor(actual: IUndoRedoElement) {
 		this.actual = actual;
 		this.label = actual.label;
-		this.resources = actual.resources;
+		this.resources = actual.resources.slice(0);
 		this.strResources = this.resources.map(resource => uriGetComparisonKey(resource));
 	}
 
 	public invalidate(resource: URI): void {
-		if (this.resources.length > 1) {
-			this.actual.invalidate(resource);
+		const strResource = uriGetComparisonKey(resource);
+		for (let i = 0, len = this.strResources.length; i < len; i++) {
+			if (this.strResources[i] === strResource) {
+				this.resources.splice(i, 1);
+				this.strResources.splice(i, 1);
+				break;
+			}
 		}
+		this.actual.invalidate(resource);
 	}
 }
 
@@ -146,10 +153,14 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		const replaceCurrentElementMap = new Map<string, StackElement>();
+		let foundReplacementForThisResource = false;
 		for (const _replace of replaceCurrentElement) {
 			const replace = new StackElement(_replace);
-			for (const strResource of replace.strResources) {
-				replaceCurrentElementMap.set(strResource, replace);
+			for (const strReplaceResource of replace.strResources) {
+				replaceCurrentElementMap.set(strReplaceResource, replace);
+				if (strReplaceResource === strResource) {
+					foundReplacementForThisResource = true;
+				}
 			}
 		}
 
@@ -168,6 +179,10 @@ export class UndoRedoService implements IUndoRedoService {
 					}
 				}
 			}
+		}
+
+		if (foundReplacementForThisResource) {
+			this.undo(resource);
 		}
 	}
 
@@ -214,11 +229,15 @@ export class UndoRedoService implements IUndoRedoService {
 			return;
 		}
 
+		let foundReplacementForThisResource = false;
 		const replaceCurrentElementMap = new Map<string, StackElement>();
 		for (const _replace of replaceCurrentElement) {
 			const replace = new StackElement(_replace);
-			for (const strResource of replace.strResources) {
-				replaceCurrentElementMap.set(strResource, replace);
+			for (const strReplaceResource of replace.strResources) {
+				replaceCurrentElementMap.set(strReplaceResource, replace);
+				if (strReplaceResource === strResource) {
+					foundReplacementForThisResource = true;
+				}
 			}
 		}
 
@@ -237,6 +256,10 @@ export class UndoRedoService implements IUndoRedoService {
 					}
 				}
 			}
+		}
+
+		if (foundReplacementForThisResource) {
+			this.redo(resource);
 		}
 	}
 }
