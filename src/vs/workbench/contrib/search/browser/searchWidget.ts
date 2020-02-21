@@ -154,7 +154,6 @@ export class SearchWidget extends Widget {
 	private readonly _onDidToggleContext = new Emitter<void>();
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
-	private temporarilySkipSearchOnChange = false;
 	private showContextCheckbox!: Checkbox;
 	private contextLinesInput!: InputBox;
 
@@ -488,12 +487,10 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
-			if (!this.temporarilySkipSearchOnChange) {
-				this._onSearchCancel.fire({ focus: false });
-				if (this.searchInput.getRegex()) {
-					try {
-						const regex = new RegExp(this.searchInput.getValue(), 'ug');
-						const matchienessHeuristic = `
+			if (this.searchInput.getRegex()) {
+				try {
+					const regex = new RegExp(this.searchInput.getValue(), 'ug');
+					const matchienessHeuristic = `
 								~!@#$%^&*()_+
 								\`1234567890-=
 								qwertyuiop[]\\
@@ -503,18 +500,17 @@ export class SearchWidget extends Widget {
 								zxcvbnm,./
 								ZXCVBNM<>? `.match(regex)?.length ?? 0;
 
-						const delayMultiplier =
-							matchienessHeuristic < 50 ? 1 :
-								matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
-									10; // only things matching empty string
+					const delayMultiplier =
+						matchienessHeuristic < 50 ? 1 :
+							matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
+								10; // only things matching empty string
 
-						this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
-					} catch {
-						// pass
-					}
-				} else {
-					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
+					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+				} catch {
+					// pass
 				}
+			} else {
+				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
 			}
 		}
 	}

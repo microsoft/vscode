@@ -198,6 +198,12 @@ export interface ISearchCompleteStats {
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
+	exit?: SearchCompletionExitCode
+}
+
+export const enum SearchCompletionExitCode {
+	Normal,
+	NewSearchStarted
 }
 
 export interface ITextSearchStats {

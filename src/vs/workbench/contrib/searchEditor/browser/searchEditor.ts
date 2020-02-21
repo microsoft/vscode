@@ -77,6 +77,7 @@ export class SearchEditor extends BaseTextEditor {
 	private searchHistoryDelayer: Delayer<void>;
 	private messageDisposables: IDisposable[] = [];
 	private container: HTMLElement;
+	private searchModel: SearchModel;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -107,6 +108,8 @@ export class SearchEditor extends BaseTextEditor {
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this.searchHistoryDelayer = new Delayer<void>(2000);
+
+		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -326,6 +329,8 @@ export class SearchEditor extends BaseTextEditor {
 	}
 
 	private async doRunSearch() {
+		this.searchModel.cancelSearch(true);
+
 		const startInput = this.getInput();
 
 		this.searchHistoryDelayer.trigger(() => {
@@ -372,30 +377,26 @@ export class SearchEditor extends BaseTextEditor {
 		catch (err) {
 			return;
 		}
-		const searchModel = this.instantiationService.createInstance(SearchModel);
+
 		this.searchOperation.start(500);
-		await searchModel.search(query).finally(() => this.searchOperation.stop());
+		await this.searchModel.search(query).finally(() => this.searchOperation.stop());
 		const input = this.getInput();
 		if (!input ||
 			input !== startInput ||
 			JSON.stringify(config) !== JSON.stringify(this.readConfigFromWidget())) {
-
-			searchModel.dispose();
 			return;
 		}
 
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
 		const { header, body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		header.setValue(serializeSearchConfiguration(config));
 
 		input.setDirty(input.resource.scheme !== 'search-editor');
 		input.setMatchRanges(results.matchRanges);
-
-		searchModel.dispose();
 	}
 
 	layout(dimension: DOM.Dimension) {
