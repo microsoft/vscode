@@ -1224,7 +1224,9 @@ export class ChangeEOLAction extends Action {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
 			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
+				textModel.pushStackElement();
 				textModel.pushEOL(eol.eol);
+				textModel.pushStackElement();
 			}
 		}
 	}

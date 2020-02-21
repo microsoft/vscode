@@ -1094,11 +1094,6 @@ export interface ITextModel {
 	applyEdits(operations: IIdentifiedSingleEditOperation[]): IValidEditOperation[];
 
 	/**
-	 * @internal
-	 */
-	_applyEdits(edits: IValidEditOperations[], isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): IValidEditOperations[];
-
-	/**
 	 * Change the end of line sequence without recording in the undo stack.
 	 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
 	 */
@@ -1107,7 +1102,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	_setEOL(eol: EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+	_applyUndoRedoEdits(edits: IValidEditOperations[], eol: EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): IValidEditOperations[];
 
 	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.

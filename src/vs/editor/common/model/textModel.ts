@@ -494,21 +494,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		);
 	}
 
-	_setEOL(eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			this._isUndoing = isUndoing;
-			this._isRedoing = isRedoing;
-			this.setEOL(eol);
-			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
-		} finally {
-			this._isUndoing = false;
-			this._eventEmitter.endDeferredEmit(resultingSelection);
-			this._onDidChangeDecorations.endDeferredEmit();
-		}
-	}
-
 	private _onBeforeEOLChange(): void {
 		// Ensure all decorations get their `range` set.
 		const versionId = this.getVersionId();
@@ -1298,7 +1283,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
-	_applyEdits(edits: model.IValidEditOperations[], isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): model.IValidEditOperations[] {
+	_applyUndoRedoEdits(edits: model.IValidEditOperations[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): model.IValidEditOperations[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1308,10 +1293,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = edits.length; i < len; i++) {
 				reverseEdits[i] = { operations: this.applyEdits(edits[i].operations) };
 			}
+			this.setEOL(eol);
 			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
 			return reverseEdits;
 		} finally {
 			this._isUndoing = false;
+			this._isRedoing = false;
 			this._eventEmitter.endDeferredEmit(resultingSelection);
 			this._onDidChangeDecorations.endDeferredEmit();
 		}

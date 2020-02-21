@@ -18,8 +18,10 @@ export class EditStackElement implements IUndoRedoElement {
 	private _isOpen: boolean;
 	public readonly model: ITextModel;
 	private readonly _beforeVersionId: number;
-	private readonly _beforeCursorState: Selection[];
+	private readonly _beforeEOL: EndOfLineSequence;
+	private readonly _beforeCursorState: Selection[] | null;
 	private _afterVersionId: number;
+	private _afterEOL: EndOfLineSequence;
 	private _afterCursorState: Selection[] | null;
 	private _edits: IValidEditOperations[];
 
@@ -27,13 +29,15 @@ export class EditStackElement implements IUndoRedoElement {
 		return [this.model.uri];
 	}
 
-	constructor(model: ITextModel, beforeCursorState: Selection[]) {
+	constructor(model: ITextModel, beforeCursorState: Selection[] | null) {
 		this.label = nls.localize('edit', "Typing");
 		this._isOpen = true;
 		this.model = model;
-		this._beforeVersionId = model.getAlternativeVersionId();
+		this._beforeVersionId = this.model.getAlternativeVersionId();
+		this._beforeEOL = getModelEOL(this.model);
 		this._beforeCursorState = beforeCursorState;
 		this._afterVersionId = this._beforeVersionId;
+		this._afterEOL = this._beforeEOL;
 		this._afterCursorState = this._beforeCursorState;
 		this._edits = [];
 	}
@@ -42,8 +46,11 @@ export class EditStackElement implements IUndoRedoElement {
 		return (this._isOpen && this.model === model);
 	}
 
-	public append(model: ITextModel, operations: IValidEditOperation[], afterVersionId: number, afterCursorState: Selection[] | null): void {
-		this._edits.push({ operations: operations });
+	public append(model: ITextModel, operations: IValidEditOperation[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
+		if (operations.length > 0) {
+			this._edits.push({ operations: operations });
+		}
+		this._afterEOL = afterEOL;
 		this._afterVersionId = afterVersionId;
 		this._afterCursorState = afterCursorState;
 	}
@@ -55,12 +62,12 @@ export class EditStackElement implements IUndoRedoElement {
 	undo(ctx: IUndoRedoContext): void {
 		this._isOpen = false;
 		this._edits.reverse();
-		this._edits = this.model._applyEdits(this._edits, true, false, this._beforeVersionId, this._beforeCursorState);
+		this._edits = this.model._applyUndoRedoEdits(this._edits, this._beforeEOL, true, false, this._beforeVersionId, this._beforeCursorState);
 	}
 
 	redo(ctx: IUndoRedoContext): void {
 		this._edits.reverse();
-		this._edits = this.model._applyEdits(this._edits, false, true, this._afterVersionId, this._afterCursorState);
+		this._edits = this.model._applyUndoRedoEdits(this._edits, this._afterEOL, false, true, this._afterVersionId, this._afterCursorState);
 	}
 
 	invalidate(resource: URI): void {
@@ -105,9 +112,9 @@ export class MultiEditStackElement implements IUndoRedoElement {
 		return false;
 	}
 
-	public append(model: ITextModel, operations: IValidEditOperation[], afterVersionId: number, afterCursorState: Selection[] | null): void {
+	public append(model: ITextModel, operations: IValidEditOperation[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
 		const editStackElement = this._editStackElementsMap.get(model.id)!;
-		editStackElement.append(model, operations, afterVersionId, afterCursorState);
+		editStackElement.append(model, operations, afterEOL, afterVersionId, afterCursorState);
 	}
 
 	public close(): void {
@@ -141,43 +148,6 @@ function getModelEOL(model: ITextModel): EndOfLineSequence {
 	}
 }
 
-class EOLStackElement implements IUndoRedoElement {
-
-	public readonly label: string;
-	private readonly _model: TextModel;
-	private readonly _beforeVersionId: number;
-	private readonly _afterVersionId: number;
-	private _eol: EndOfLineSequence;
-
-	public get resources(): readonly URI[] {
-		return [this._model.uri];
-	}
-
-	constructor(model: TextModel, beforeVersionId: number, afterVersionId: number, eol: EndOfLineSequence) {
-		this.label = nls.localize('eol', "Change End Of Line Sequence");
-		this._model = model;
-		this._beforeVersionId = beforeVersionId;
-		this._afterVersionId = afterVersionId;
-		this._eol = eol;
-	}
-
-	undo(ctx: IUndoRedoContext): void {
-		const redoEOL = getModelEOL(this._model);
-		this._model._setEOL(this._eol, true, false, this._beforeVersionId, null);
-		this._eol = redoEOL;
-	}
-
-	redo(ctx: IUndoRedoContext): void {
-		const undoEOL = getModelEOL(this._model);
-		this._model._setEOL(this._eol, false, true, this._afterVersionId, null);
-		this._eol = undoEOL;
-	}
-
-	invalidate(resource: URI): void {
-		// nothing to do
-	}
-}
-
 export class EditStack {
 
 	private readonly _model: TextModel;
@@ -199,20 +169,7 @@ export class EditStack {
 		this._undoRedoService.removeElements(this._model.uri);
 	}
 
-	public pushEOL(eol: EndOfLineSequence): void {
-		const beforeVersionId = this._model.getAlternativeVersionId();
-		const inverseEOL = getModelEOL(this._model);
-		this._model.setEOL(eol);
-		const afterVersionId = this._model.getAlternativeVersionId();
-
-		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
-		if (lastElement && lastElement instanceof EditStackElement) {
-			lastElement.close();
-		}
-		this._undoRedoService.pushElement(new EOLStackElement(this._model, inverseEOL, beforeVersionId, afterVersionId));
-	}
-
-	private _getOrCreateEditStackElement(beforeCursorState: Selection[]): EditStackElement {
+	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null): EditStackElement {
 		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
 		if (lastElement && lastElement instanceof EditStackElement && lastElement.canAppend(this._model)) {
 			return lastElement;
@@ -222,11 +179,17 @@ export class EditStack {
 		return newElement;
 	}
 
+	public pushEOL(eol: EndOfLineSequence): void {
+		const editStackElement = this._getOrCreateEditStackElement(null);
+		this._model.setEOL(eol);
+		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
+	}
+
 	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
 		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState);
 		const inverseEditOperations = this._model.applyEdits(editOperations);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
-		editStackElement.append(this._model, inverseEditOperations, this._model.getAlternativeVersionId(), afterCursorState);
+		editStackElement.append(this._model, inverseEditOperations, getModelEOL(this._model), this._model.getAlternativeVersionId(), afterCursorState);
 		return afterCursorState;
 	}
 
