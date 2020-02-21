@@ -254,6 +254,37 @@ suite('Workbench base editor', () => {
 		assert.ok(!memento.loadEditorState(testGroup0, URI.file('/E')));
 	});
 
+	test('EditorMemento - move', function () {
+		const testGroup0 = new TestEditorGroupView(0);
+
+		const editorGroupService = new TestEditorGroupsService([testGroup0]);
+
+		interface TestViewState { line: number; }
+
+		const rawMemento = Object.create(null);
+		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService);
+
+		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-1.txt'), { line: 1 });
+		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-2.txt'), { line: 2 });
+		memento.saveEditorState(testGroup0, URI.file('/some/other/file.txt'), { line: 3 });
+
+		memento.moveEditorState(URI.file('/some/folder/file-1.txt'), URI.file('/some/folder/file-moved.txt'));
+
+		let res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-1.txt'));
+		assert.ok(!res);
+
+		res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-moved.txt'));
+		assert.equal(res?.line, 1);
+
+		memento.moveEditorState(URI.file('/some/folder'), URI.file('/some/folder-moved'));
+
+		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-moved.txt'));
+		assert.equal(res?.line, 1);
+
+		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-2.txt'));
+		assert.equal(res?.line, 2);
+	});
+
 	test('EditoMemento - use with editor input', function () {
 		const testGroup0 = new TestEditorGroupView(0);
 

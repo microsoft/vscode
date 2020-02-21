@@ -204,9 +204,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.editorControl;
 	}
 
-	/**
-	 * Saves the text editor view state for the given resource.
-	 */
 	protected saveTextEditorViewState(resource: URI): void {
 		const editorViewState = this.retrieveTextEditorViewState(resource);
 		if (!editorViewState || !this.group) {
@@ -248,20 +245,18 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return control.saveViewState();
 	}
 
-	/**
-	 * Clears the text editor view state for the given resources.
-	 */
+	protected loadTextEditorViewState(resource: URI): IEditorViewState | undefined {
+		return this.group ? this.editorMemento.loadEditorState(this.group, resource) : undefined;
+	}
+
+	protected moveTextEditorViewState(source: URI, target: URI): void {
+		return this.editorMemento.moveEditorState(source, target);
+	}
+
 	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {
 		resources.forEach(resource => {
 			this.editorMemento.clearEditorState(resource, group);
 		});
-	}
-
-	/**
-	 * Loads the text editor view state for the given resource and returns it.
-	 */
-	protected loadTextEditorViewState(resource: URI): IEditorViewState | undefined {
-		return this.group ? this.editorMemento.loadEditorState(this.group, resource) : undefined;
 	}
 
 	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {

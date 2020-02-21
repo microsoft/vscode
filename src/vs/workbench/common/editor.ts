@@ -1374,6 +1374,8 @@ export interface IEditorMemento<T> {
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+
+	moveEditorState(source: URI, target: URI): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

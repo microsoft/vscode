@@ -14,7 +14,7 @@ import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, File
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, isEqualOrParent, isEqual, joinPath } from 'vs/base/common/resources';
+import { basename, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
@@ -33,6 +33,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { indexOfPath } from 'vs/base/common/extpath';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -206,7 +207,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region File Changes: Move editors when detecting file move operations
+	//#region File Changes: Move & Deletes to move or close opend editors
 
 	private onDidRunFileOperation(e: FileOperationEvent): void {
 
@@ -221,24 +222,30 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private handleMovedFile(oldResource: URI, newResource: URI): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
+		if (e.gotDeleted()) {
+			this.handleDeletedFile(e, true);
+		}
+	}
+
+	private handleMovedFile(source: URI, target: URI): void {
 		for (const group of this.editorGroupService.groups) {
 			let replacements: (IResourceEditorReplacement | IEditorReplacement)[] = [];
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;
-				if (!resource || !isEqualOrParent(resource, oldResource)) {
+				if (!resource || !isEqualOrParent(resource, source)) {
 					continue; // not matching our resource
 				}
 
 				// Determine new resulting target resource
 				let targetResource: URI;
-				if (oldResource.toString() === resource.toString()) {
-					targetResource = newResource; // file got moved
+				if (source.toString() === resource.toString()) {
+					targetResource = target; // file got moved
 				} else {
 					const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
-					const index = this.getIndexOfPath(resource.path, oldResource.path, ignoreCase);
-					targetResource = joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
+					const index = indexOfPath(resource.path, source.path, ignoreCase);
+					targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 				}
 
 				// Delegate move() to editor instance
@@ -247,12 +254,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					return; // not target - ignore
 				}
 
-				const extraOptions = {
+				const optionOverrides = {
 					preserveFocus: true,
 					pinned: group.isPinned(editor),
 					index: group.getIndexOfEditor(editor),
-					inactive: !group.isActive(editor),
-					viewState: this.getViewStateFor(oldResource, group)
+					inactive: !group.isActive(editor)
 				};
 
 				// Construct a replacement with our extra options mixed in
@@ -262,7 +268,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						replacement: moveResult.editor,
 						options: {
 							...moveResult.options,
-							...extraOptions
+							...optionOverrides
 						}
 					});
 				} else {
@@ -272,7 +278,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 							...moveResult.editor,
 							options: {
 								...(moveResult.editor as IResourceEditor /* TS fail */).options,
-								...extraOptions
+								...optionOverrides
 							}
 						}
 					});
@@ -286,40 +292,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private getIndexOfPath(path: string, candidate: string, ignoreCase: boolean): number {
-		if (candidate.length > path.length) {
-			return -1;
-		}
-
-		if (path === candidate) {
-			return 0;
-		}
-
-		if (ignoreCase) {
-			path = path.toLowerCase();
-			candidate = candidate.toLowerCase();
-		}
-
-		return path.indexOf(candidate);
-	}
-
-	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
-		for (const editor of this.visibleControls) {
-			if (isEqual(editor.input.resource, resource) && editor.group === group) {
-				const control = editor.getControl();
-				if (isCodeEditor(control)) {
-					return withNullAsUndefined(control.saveViewState());
-				}
-			}
-		}
-
-		return undefined;
-	}
-
-	//#endregion
-
-	//#region File Changes: Close editors of deleted files unless configured otherwise
-
 	private closeOnFileDelete: boolean = false;
 	private fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileInputFactory();
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -327,12 +299,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
 			this.closeOnFileDelete = false; // default
-		}
-	}
-
-	private onDidFilesChange(e: FileChangesEvent): void {
-		if (e.gotDeleted()) {
-			this.handleDeletedFile(e, true);
 		}
 	}
 
