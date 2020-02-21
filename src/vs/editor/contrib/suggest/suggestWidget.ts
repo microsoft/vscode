@@ -750,8 +750,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.focusedItem = null;
 			}
 
-			this.editor.setAriaOptions({ activeDescendant: undefined });
-			this.editor.setAriaOptions({ ariaLabel: undefined });
+			this.editor.setAriaOptions({ activeDescendant: undefined, ariaLabel: undefined });
 			return;
 		}
 
