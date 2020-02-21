@@ -404,18 +404,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		};
 
-		if (this.list?.isRendering) {
-			// if (this.relayoutDisposable) {
-			// 	this.relayoutDisposable.dispose();
-			// 	this.relayoutDisposable = null;
-			// }
-			DOM.scheduleAtNextAnimationFrame(() => {
-				relayout(cell, height);
-				// this.relayoutDisposable = null;
-			});
-		} else {
+		DOM.scheduleAtNextAnimationFrame(() => {
 			relayout(cell, height);
-		}
+			// this.relayoutDisposable = null;
+		});
 	}
 
 	updateViewCells(splices: NotebookCellsSplice[]) {
@@ -456,6 +448,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);
 		this.list?.splice(insertIndex, 0, [newCell]);
+		this.list?.setFocus([insertIndex]);
 
 		if (type === 'markdown') {
 			newCell.isEditing = true;
