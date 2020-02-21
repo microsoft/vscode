@@ -402,10 +402,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				return;
 			case UserDataSyncErrorCode.TooLarge:
 				if (error.source === SyncSource.Keybindings || error.source === SyncSource.Settings) {
+					this.disableSync(error.source);
 					const sourceArea = getSyncAreaLabel(error.source);
 					this.notificationService.notify({
 						severity: Severity.Error,
-						message: localize('too large', "Disabled sync {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
+						message: localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
 						actions: {
 							primary: [new Action('open sync file', localize('open file', "Open {0} file", sourceArea), undefined, true,
 								() => error.source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
