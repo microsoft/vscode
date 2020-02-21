@@ -121,12 +121,11 @@ export class SearchWidget extends Widget {
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar!: ActionBar;
 	private _replaceHistoryDelayer: Delayer<void>;
-	private _searchDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
-	private _onSearchSubmit = this._register(new Emitter<boolean>());
-	readonly onSearchSubmit: Event<boolean /* triggeredOnType */> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean, delay: number }>());
+	readonly onSearchSubmit: Event<{ triggeredOnType: boolean, delay: number }> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
 	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
@@ -177,7 +176,6 @@ export class SearchWidget extends Widget {
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
 
-		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
 
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -447,10 +445,8 @@ export class SearchWidget extends Widget {
 		this._onReplaceToggled.fire();
 	}
 
-	setValue(value: string, skipSearchOnChange: boolean) {
-		this.temporarilySkipSearchOnChange = skipSearchOnChange;
+	setValue(value: string) {
 		this.searchInput.setValue(value);
-		this.temporarilySkipSearchOnChange = false;
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
@@ -512,12 +508,12 @@ export class SearchWidget extends Widget {
 								matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
 									10; // only things matching empty string
 
-						this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+						this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
 					} catch {
 						// pass
 					}
 				} else {
-					this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
 				}
 			}
 		}
@@ -628,7 +624,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(triggeredOnType = false): void {
+	private submitSearch(triggeredOnType = false, delay: number = 0): void {
 		this.searchInput.validate();
 		if (!this.searchInput.inputBox.isInputValid()) {
 			return;
@@ -639,7 +635,7 @@ export class SearchWidget extends Widget {
 		if (value && useGlobalFindBuffer) {
 			this.clipboardServce.writeFindText(value);
 		}
-		this._onSearchSubmit.fire(triggeredOnType);
+		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}
 
 	contextLines() {

@@ -130,8 +130,11 @@ export class OutputViewPane extends ViewPane {
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
-		const channel = this.channelId ? this.outputService.getChannel(this.channelId) : undefined;
-		if (visible && channel) {
+		let channel: IOutputChannel | undefined = undefined;
+		if (visible) {
+			channel = this.channelId ? this.outputService.getChannel(this.channelId) : this.outputService.getActiveChannel();
+		}
+		if (channel) {
 			this.setInput(channel);
 		} else {
 			this.clearInput();

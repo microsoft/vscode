@@ -82,7 +82,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
-		this.updateLastSyncTime(Date.now());
+		this.updateLastSyncTime();
 	}
 
 	async push(): Promise<void> {
@@ -94,7 +94,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
-		this.updateLastSyncTime(Date.now());
+		this.updateLastSyncTime();
 	}
 
 	async sync(): Promise<void> {
@@ -140,7 +140,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
-			this.updateLastSyncTime(Date.now());
+			this.updateLastSyncTime();
 
 		} finally {
 			this.updateStatus();
@@ -166,7 +166,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async accept(source: SyncSource, content: string): Promise<void> {
 		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(source);
-		return synchroniser.accept(content);
+		await synchroniser.accept(content);
 	}
 
 	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
@@ -238,9 +238,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private setStatus(status: SyncStatus): void {
+		const oldStatus = this._status;
 		if (this._status !== status) {
 			this._status = status;
 			this._onDidChangeStatus.fire(status);
+			if (oldStatus === SyncStatus.HasConflicts) {
+				this.updateLastSyncTime();
+			}
 		}
 	}
 
@@ -267,11 +271,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return SyncStatus.Idle;
 	}
 
-	private updateLastSyncTime(lastSyncTime: number): void {
-		if (this._lastSyncTime !== lastSyncTime) {
-			this._lastSyncTime = lastSyncTime;
-			this.storageService.store(LAST_SYNC_TIME_KEY, lastSyncTime, StorageScope.GLOBAL);
-			this._onDidChangeLastSyncTime.fire(lastSyncTime);
+	private updateLastSyncTime(): void {
+		if (this.status === SyncStatus.Idle) {
+			this._lastSyncTime = new Date().getTime();
+			this.storageService.store(LAST_SYNC_TIME_KEY, this._lastSyncTime, StorageScope.GLOBAL);
+			this._onDidChangeLastSyncTime.fire(this._lastSyncTime);
 		}
 	}
 

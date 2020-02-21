@@ -15,6 +15,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 suite('FindModel', () => {
 
@@ -44,7 +45,7 @@ suite('FindModel', () => {
 			const factory = ptBuilder.finish();
 			withTestCodeEditor([],
 				{
-					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null)
+					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null, new UndoRedoService())
 				},
 				(editor, cursor) => callback(editor as unknown as IActiveCodeEditor, cursor)
 			);

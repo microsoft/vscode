@@ -1237,7 +1237,7 @@ export class SettingTreeRenderers {
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
 		const enableSync = this._userDataSyncEnablementService.isEnabled();
-		return enableSync ?
+		return enableSync && !setting.disallowSyncIgnore ?
 			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
 			[];
 	}
@@ -1624,7 +1624,7 @@ class CopySettingAsJSONAction extends Action {
 
 class StopSyncingSettingAction extends Action {
 	static readonly ID = 'settings.stopSyncingSetting';
-	static readonly LABEL = localize('stopSyncingSetting', "Don't Sync This Setting");
+	static readonly LABEL = localize('stopSyncingSetting', "Sync This Setting");
 
 	constructor(
 		private readonly setting: ISetting,
@@ -1636,15 +1636,15 @@ class StopSyncingSettingAction extends Action {
 
 	update() {
 		const ignoredSettings = getIgnoredSettings(this.configService);
-		this.checked = ignoredSettings.includes(this.setting.key);
+		this.checked = !ignoredSettings.includes(this.setting.key);
 	}
 
 	async run(): Promise<void> {
 		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
 		if (this.checked) {
-			currentValue = currentValue.filter(v => v !== this.setting.key);
-		} else {
 			currentValue.push(this.setting.key);
+		} else {
+			currentValue = currentValue.filter(v => v !== this.setting.key);
 		}
 		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 

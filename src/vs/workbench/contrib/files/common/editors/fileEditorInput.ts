@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput, GroupIdentifier, IMoveResult } from 'vs/workbench/common/editor';
+import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput, GroupIdentifier, IMoveResult, isTextEditor } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileLoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -19,6 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 const enum ForceOpenAs {
 	None,
@@ -280,9 +281,24 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		return {
 			editor: {
 				resource: target,
-				encoding: this.getEncoding()
+				encoding: this.getEncoding(),
+				options: {
+					viewState: this.getViewStateFor(group)
+				}
 			}
 		};
+	}
+
+	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
+		for (const editor of this.editorService.visibleControls) {
+			if (editor.group.id === group && isEqual(editor.input.resource, this.resource)) {
+				if (isTextEditor(editor)) {
+					return editor.getViewState();
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	matches(otherInput: unknown): boolean {

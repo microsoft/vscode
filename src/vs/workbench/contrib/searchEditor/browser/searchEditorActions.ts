@@ -147,7 +147,7 @@ const openNewSearchEditor =
 		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
-			editor.runSearch(true, true);
+			editor.triggerSearch();
 		}
 	};
 

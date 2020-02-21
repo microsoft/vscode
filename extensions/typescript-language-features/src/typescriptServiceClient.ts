@@ -529,7 +529,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			id: MessageAction;
 		}
 
-		const previousVersion = this.apiVersion;
 		const previousState = this.serverState;
 		this.serverState = ServerState.None;
 
@@ -570,7 +569,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					prompt.then(item => {
 						if (item?.id === MessageAction.reportIssue) {
 							const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-								? getReportIssueArgsForError(previousState.error, previousVersion)
+								? getReportIssueArgsForError(previousState.error)
 								: undefined;
 							return vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
 						}
@@ -875,7 +874,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 }
 
-function getReportIssueArgsForError(error: TypeScriptServerError, apiVersion: API): { issueTitle: string, issueBody: string } | undefined {
+function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle: string, issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
@@ -885,7 +884,7 @@ function getReportIssueArgsForError(error: TypeScriptServerError, apiVersion: AP
 	return {
 		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
 
-		issueBody: `**TypeScript Version:** ${apiVersion.fullVersionString}
+		issueBody: `**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}
 
 **Steps to reproduce crash**
 
@@ -893,7 +892,7 @@ function getReportIssueArgsForError(error: TypeScriptServerError, apiVersion: AP
 2.
 3.
 
-** TS Server Error Stack **
+**TS Server Error Stack**
 
 \`\`\`
 ${error.serverStack}

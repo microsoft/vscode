@@ -131,8 +131,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// provided by Electron
-		'disable-color-correct-rendering'
+		'disable-color-correct-rendering',
+
+		// override for the color profile to use
+		'force-color-profile'
 	];
+	
 	if (process.platform === 'linux') {
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
 	}
@@ -147,7 +151,16 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 
 		const argvValue = argvConfig[argvKey];
-		if (argvValue === true || argvValue === 'true') {
+
+		// Color profile
+		if (argvKey === 'force-color-profile') {
+			if (argvValue) {
+				app.commandLine.appendSwitch(argvKey, argvValue);
+			}
+		}
+
+		// Others
+		else if (argvValue === true || argvValue === 'true') {
 			if (argvKey === 'disable-hardware-acceleration') {
 				app.disableHardwareAcceleration(); // needs to be called explicitly
 			} else {
