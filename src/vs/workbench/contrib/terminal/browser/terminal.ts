@@ -107,7 +107,7 @@ export interface ITerminalService {
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance | null;
-	setActiveInstance(terminalInstance: ITerminalInstance): void;
+	setActiveInstance(terminalInstance: ITerminalInstance): Promise<void>;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;

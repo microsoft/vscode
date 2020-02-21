@@ -309,11 +309,13 @@ export class TerminalService implements ITerminalService {
 		return this.terminalInstances[terminalIndex];
 	}
 
-	public setActiveInstance(terminalInstance: ITerminalInstance): void {
+	// TODO whoever uses this might now encounter trouble
+	public async setActiveInstance(terminalInstance: ITerminalInstance): Promise<void> {
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal tab
-		if (terminalInstance.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(terminalInstance);
+		const shellLaunchConfig = await terminalInstance.shellLaunchConfig;
+		if (shellLaunchConfig.hideFromUser) {
+			await this._showBackgroundTerminal(terminalInstance);
 		}
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}
@@ -591,9 +593,11 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
+	protected async _showBackgroundTerminal(instance: ITerminalInstance): Promise<void> {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
-		instance.shellLaunchConfig.hideFromUser = false;
+		const shellLaunchConfig = await instance.shellLaunchConfig;
+		shellLaunchConfig.hideFromUser = false;
+
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this.configHelper,

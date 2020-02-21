@@ -166,14 +166,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalClosed(terminalInstance.id, terminalInstance.exitCode);
 	}
 
-	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
-		const shellLaunchConfigDto: IShellLaunchConfigDto = {
-			name: terminalInstance.shellLaunchConfig.name,
-			executable: terminalInstance.shellLaunchConfig.executable,
-			args: terminalInstance.shellLaunchConfig.args,
-			cwd: terminalInstance.shellLaunchConfig.cwd,
-			env: terminalInstance.shellLaunchConfig.env
-		};
+	// TODO whoever uses this might now encounter trouble
+	private async _onTerminalOpened(terminalInstance: ITerminalInstance): Promise<void> {
+		const shellLaunchConfig = await terminalInstance.shellLaunchConfig;
+		const shellLaunchConfigDto: IShellLaunchConfigDto = { ...shellLaunchConfig };
 		if (terminalInstance.title) {
 			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, shellLaunchConfigDto);
 		} else {
