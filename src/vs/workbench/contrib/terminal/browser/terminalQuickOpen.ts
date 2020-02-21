@@ -34,8 +34,8 @@ export class TerminalEntry extends QuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			setTimeout(() => {
-				this.terminalService.setActiveInstance(this.instance);
+			setTimeout(async () => {
+				await this.terminalService.setActiveInstance(this.instance);
 				this.terminalService.showPanel(true);
 			}, 0);
 			return true;

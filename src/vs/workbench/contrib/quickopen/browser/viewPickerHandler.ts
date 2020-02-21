@@ -174,8 +174,10 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			tab.terminalInstances.forEach((terminal, terminalIndex) => {
 				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
 				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
-					this.terminalService.showPanel(true).then(() => {
-						this.terminalService.setActiveInstance(terminal);
+					this.terminalService.showPanel(true).then(async () => {
+						// passed to the constructor is a function that completes asynchronously,
+						// this await should not affect the result
+						await this.terminalService.setActiveInstance(terminal);
 					});
 				});
 

@@ -302,13 +302,13 @@ export class CreateNewWithCwdTerminalAction extends Action2 {
 	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
 	public static readonly CWD_ARG_LABEL = nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at");
 
-	public run(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
+	public async run(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
-		terminalService.setActiveInstance(instance);
+		await terminalService.setActiveInstance(instance);
 		return terminalService.showPanel(true);
 	}
 }
@@ -355,7 +355,7 @@ export class CreateNewTerminalAction extends Action {
 			}
 			instance = this.terminalService.createTerminal({ cwd: workspace.uri });
 		}
-		this.terminalService.setActiveInstance(instance);
+		await this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -372,12 +372,12 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const instance = this.terminalService.createTerminal(undefined);
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
-		this.terminalService.setActiveInstance(instance);
+		await this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -552,12 +552,12 @@ export class FocusActiveTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
-		this.terminalService.setActiveInstance(instance);
+		await this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}
 }

@@ -29,7 +29,7 @@ export class CreateNewLocalTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const instance = this.terminalService.createTerminal({ cwd: URI.file(homedir()) });
 		if (!instance) {
 			return Promise.resolve(undefined);
@@ -43,7 +43,7 @@ export class CreateNewLocalTerminalAction extends Action {
 			}
 		});
 
-		this.terminalService.setActiveInstance(instance);
+		await this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}
 }
