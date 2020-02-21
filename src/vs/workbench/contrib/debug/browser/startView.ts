@@ -86,13 +86,14 @@ export class StartView extends ViewPane {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
 			content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
-			when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR
+			when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()
 		});
 
 		const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
 		const debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
 		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
-			content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID)
+			content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
+			preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
 		});
 
 		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
