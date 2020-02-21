@@ -242,11 +242,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	onHide() {
-		this.viewCells.forEach(cell => {
-			if (cell.getText() !== '') {
-				cell.isEditing = false;
-			}
-		});
 
 		if (this.webview) {
 			this.localStore.clear();

@@ -421,7 +421,7 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
-		const regex = new RegExp(/cell_(\d)*\./g);
+		const regex = new RegExp(/cell_(\d*)\./g);
 		this._documentsAndEditors.onDidAddDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
