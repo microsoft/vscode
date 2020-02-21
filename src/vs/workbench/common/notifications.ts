@@ -261,6 +261,7 @@ export interface INotificationViewItem {
 
 	readonly expanded: boolean;
 	readonly canCollapse: boolean;
+	readonly hasProgress: boolean;
 
 	readonly onDidChangeExpansion: Event<void>;
 	readonly onDidClose: Event<void>;
@@ -269,9 +270,6 @@ export interface INotificationViewItem {
 	expand(): void;
 	collapse(skipEvents?: boolean): void;
 	toggle(): void;
-
-	hasProgress(): boolean;
-	hasPrompt(): boolean;
 
 	updateSeverity(severity: Severity): void;
 	updateMessage(message: NotificationMessage): void;
@@ -495,7 +493,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get canCollapse(): boolean {
-		return !this.hasPrompt();
+		return !this.hasPrompt;
 	}
 
 	get expanded(): boolean {
@@ -511,7 +509,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return true; // explicitly sticky
 		}
 
-		const hasPrompt = this.hasPrompt();
+		const hasPrompt = this.hasPrompt;
 		if (
 			(hasPrompt && this._severity === Severity.Error) || // notification errors with actions are sticky
 			(!hasPrompt && this._expanded) ||					// notifications that got expanded are sticky
@@ -527,7 +525,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return !!this._silent;
 	}
 
-	hasPrompt(): boolean {
+	private get hasPrompt(): boolean {
 		if (!this._actions) {
 			return false;
 		}
@@ -539,7 +537,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return this._actions.primary.length > 0;
 	}
 
-	hasProgress(): boolean {
+	get hasProgress(): boolean {
 		return !!this._progress;
 	}
 
@@ -621,7 +619,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	equals(other: INotificationViewItem): boolean {
-		if (this.hasProgress() || other.hasProgress()) {
+		if (this.hasProgress || other.hasProgress) {
 			return false;
 		}
 

@@ -455,7 +455,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
-		if (!notification.hasProgress()) {
+		if (!notification.hasProgress) {
 			this.template.progress.stop().hide();
 
 			return;

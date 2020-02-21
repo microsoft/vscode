@@ -9,7 +9,7 @@ import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/com
 import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Themable, NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -52,6 +52,12 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		return intervals;
 	})();
+
+	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	private _isVisible = false;
+	get isVisible(): boolean { return !!this._isVisible; }
 
 	private notificationsToastsContainer: HTMLElement | undefined;
 	private workbenchDimensions: Dimension | undefined;
@@ -125,11 +131,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private addToast(item: INotificationViewItem): void {
 		if (this.isNotificationsCenterVisible) {
-			return; // do not show toasts while notification center is visibles
+			return; // do not show toasts while notification center is visible
 		}
 
 		if (item.silent) {
-			return; // do not show toats for silenced notifications
+			return; // do not show toasts for silenced notifications
 		}
 
 		// Lazily create toasts containers
@@ -174,7 +180,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		this.mapNotificationToToast.set(item, toast);
 
 		itemDisposables.add(toDisposable(() => {
-			if (this.isVisible(toast) && notificationsToastsContainer) {
+			if (this.isToastVisible(toast) && notificationsToastsContainer) {
 				notificationsToastsContainer.removeChild(toast.container);
 			}
 		}));
@@ -229,6 +235,12 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			removeClass(notificationToast, 'notification-fade-in');
 			addClass(notificationToast, 'notification-fade-in-done');
 		}));
+
+		// Events
+		if (!this._isVisible) {
+			this._isVisible = true;
+			this._onDidChangeVisibility.fire();
+		}
 	}
 
 	private purgeNotification(item: INotificationViewItem, notificationToastContainer: HTMLElement, notificationList: NotificationsList, disposables: DisposableStore): void {
@@ -325,6 +337,12 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Context Key
 		this.notificationsToastsVisibleContextKey.set(false);
+
+		// Events
+		if (this._isVisible) {
+			this._isVisible = false;
+			this._onDidChangeVisibility.fire();
+		}
 	}
 
 	hide(): void {
@@ -441,12 +459,12 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 					notificationToasts.push(toast);
 					break;
 				case ToastVisibility.HIDDEN:
-					if (!this.isVisible(toast)) {
+					if (!this.isToastVisible(toast)) {
 						notificationToasts.push(toast);
 					}
 					break;
 				case ToastVisibility.VISIBLE:
-					if (this.isVisible(toast)) {
+					if (this.isToastVisible(toast)) {
 						notificationToasts.push(toast);
 					}
 					break;
@@ -534,7 +552,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private setVisibility(toast: INotificationToast, visible: boolean): void {
-		if (this.isVisible(toast) === visible) {
+		if (this.isToastVisible(toast) === visible) {
 			return;
 		}
 
@@ -546,7 +564,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 	}
 
-	private isVisible(toast: INotificationToast): boolean {
+	private isToastVisible(toast: INotificationToast): boolean {
 		return !!toast.container.parentElement;
 	}
 }
