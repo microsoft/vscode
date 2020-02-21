@@ -57,7 +57,7 @@ export class TerminalViewPane extends ViewPane {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService);
+		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 	}
 
 	protected renderBody(container: HTMLElement): void {

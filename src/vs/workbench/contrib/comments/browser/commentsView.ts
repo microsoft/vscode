@@ -27,6 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 
 export class CommentsPanel extends ViewPane {
@@ -51,9 +52,10 @@ export class CommentsPanel extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ICommentService private readonly commentService: ICommentService
+		@ICommentService private readonly commentService: ICommentService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: COMMENTS_VIEW_ID, ariaHeaderLabel: COMMENTS_VIEW_TITLE }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: COMMENTS_VIEW_ID, ariaHeaderLabel: COMMENTS_VIEW_TITLE }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	public renderBody(container: HTMLElement): void {
