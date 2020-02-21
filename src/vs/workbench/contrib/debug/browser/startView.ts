@@ -66,29 +66,34 @@ export class StartView extends ViewPane {
 		};
 		this._register(editorService.onDidActiveEditorChange(setContextKey));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
+		this.registerViews();
 	}
 
 	shouldShowWelcome(): boolean {
 		return true;
 	}
+
+	private registerViews(): void {
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+			content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
+			when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR
+		});
+
+		const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
+		const debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
+		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+			content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID)
+		});
+
+		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+			content: localize('customizeRunAndDebug', "To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
+			when: WorkbenchStateContext.notEqualsTo('empty')
+		});
+
+		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+			content: localize('customizeRunAndDebugOpenFolder', "To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID),
+			when: WorkbenchStateContext.isEqualTo('empty')
+		});
+	}
 }
-
-const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
-	content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
-	when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR
-});
-
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
-	content: localize('runAndDebugAction', "[Run and Debug](command:{0})", StartAction.ID)
-});
-
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
-	content: localize('customizeRunAndDebug', "To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
-	when: WorkbenchStateContext.notEqualsTo('empty')
-});
-
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
-	content: localize('customizeRunAndDebugOpenFolder', "To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID),
-	when: WorkbenchStateContext.isEqualTo('empty')
-});
