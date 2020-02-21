@@ -327,8 +327,6 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		store.add(cell.onDidChangeOutputs((diffs) => {
 			this.eventuallyUpdateCellOutputs(cell, diffs);
 		}));
-
-		this.eventuallyUpdateCells([{ start: index, deleteCount: 0, toInsert: [cell] }]);
 	}
 
 	deleteCell(index: number): boolean {
