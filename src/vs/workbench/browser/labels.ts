@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
+import { posix } from 'vs/base/common/path';
+import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -323,7 +324,7 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {
-		if (resources.isEqual(resource, this.label?.resource)) {
+		if (isEqual(resource, this.label?.resource)) {
 			this.render(false);
 		}
 	}
@@ -340,13 +341,13 @@ class ResourceLabelWidget extends IconLabel {
 			}
 
 			if (!name) {
-				name = resources.basenameOrAuthority(resource);
+				name = basenameOrAuthority(resource);
 			}
 		}
 
 		let description: string | undefined;
 		if (!options?.hidePath) {
-			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
+			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 		}
 
 		this.setResource({ resource, name, description }, options);
@@ -370,13 +371,15 @@ class ResourceLabelWidget extends IconLabel {
 				if (typeof label.description === 'string') {
 					let untitledDescription: string;
 					if (untitledModel.hasAssociatedFilePath) {
-						untitledDescription = this.labelService.getUriLabel(resources.dirname(untitledModel.resource), { relative: true });
+						untitledDescription = this.labelService.getUriLabel(dirname(untitledModel.resource), { relative: true });
 					} else {
 						untitledDescription = untitledModel.resource.path;
 					}
 
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
+					} else if (label.description === posix.sep) {
+						label.description = undefined; // unset showing just "/" for untitled without associated resource
 					}
 				}
 			}
