@@ -113,7 +113,7 @@ export class CodeCell extends Disposable {
 						let outputHeight = viewCell.getOutputTotalHeight();
 						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 32 + outputHeight);
 					} else {
-						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 16);
+						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 32);
 					}
 				}
 			}
@@ -265,7 +265,7 @@ export class CodeCell extends Disposable {
 			} : undefined;
 			const elementSizeObserver = getResizesObserver(outputItemDiv, dimension, () => {
 				if (this.templateData.outputContainer && document.body.contains(this.templateData.outputContainer!)) {
-					let height = elementSizeObserver.getHeight();
+					let height = elementSizeObserver.getHeight() + 8 * 2; // include padding
 
 					if (clientHeight === height) {
 						// console.log(this.viewCell.outputs);
