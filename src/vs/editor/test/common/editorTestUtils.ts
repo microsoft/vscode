@@ -9,7 +9,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
-	let model = TextModel.createFromString(text.join('\n'));
+	let model = createTextModel(text.join('\n'));
 	callback(model);
 	model.dispose();
 }

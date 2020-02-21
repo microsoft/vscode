@@ -8,7 +8,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';
@@ -51,7 +51,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { Progress } from 'vs/platform/progress/common/progress';
 
 const defaultSelector = { scheme: 'far' };
-const model: ITextModel = TextModel.createFromString(
+const model: ITextModel = createTextModel(
 	[
 		'This is the first line',
 		'This is the second line',

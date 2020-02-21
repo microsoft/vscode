@@ -8,7 +8,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, Handler, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
@@ -21,7 +21,7 @@ export function testCommand(
 	expectedSelection: Selection,
 	forceTokenization?: boolean
 ): void {
-	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
+	let model = createTextModel(lines.join('\n'), undefined, languageIdentifier);
 	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
 		if (!cursor) {
 			return;

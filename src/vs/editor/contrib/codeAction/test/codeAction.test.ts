@@ -13,6 +13,7 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 function staticCodeActionProvider(...actions: modes.CodeAction[]): modes.CodeActionProvider {
 	return new class implements modes.CodeActionProvider {
@@ -93,7 +94,7 @@ suite('CodeAction', () => {
 
 	setup(function () {
 		disposables.clear();
-		model = TextModel.createFromString('test1\ntest2\ntest3', undefined, langId, uri);
+		model = createTextModel('test1\ntest2\ntest3', undefined, langId, uri);
 		disposables.add(model);
 	});
 

@@ -21,6 +21,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor - Range decorations', () => {
 
@@ -136,7 +137,7 @@ suite('Editor - Range decorations', () => {
 	}
 
 	function aModel(resource: URI, content: string = text): TextModel {
-		let model = TextModel.createFromString(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
+		let model = createTextModel(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
 		modelsToDispose.push(model);
 		return model;
 	}
