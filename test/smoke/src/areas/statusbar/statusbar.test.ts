@@ -64,7 +64,8 @@ export function setup(isWeb) {
 			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
-				return this.skip();
+				this.skip();
+				return;
 			}
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
