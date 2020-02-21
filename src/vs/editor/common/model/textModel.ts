@@ -37,9 +37,6 @@ import { Color } from 'vs/base/common/color';
 import { Constants } from 'vs/base/common/uint';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { NoOpNotification, INotificationService } from 'vs/platform/notification/common/notification';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -190,27 +187,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 	};
-
-	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier | null = null, uri: URI | null = null): TextModel {
-		const dialogService = new class implements IDialogService {
-			_serviceBrand: undefined;
-			confirm() { return Promise.resolve({ confirmed: false }); }
-			show() { return Promise.resolve({ choice: 0 }); }
-			about() { return Promise.resolve(); }
-		};
-		const noop = new NoOpNotification();
-		const notificationService = new class implements INotificationService {
-			_serviceBrand: undefined;
-			info() { return noop; }
-			warn() { return noop; }
-			error() { return noop; }
-			notify() { return noop; }
-			prompt() { return noop; }
-			status() { return Disposable.None; }
-			setFilter() { }
-		};
-		return new TextModel(text, options, languageIdentifier, uri, new UndoRedoService(dialogService, notificationService));
-	}
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
