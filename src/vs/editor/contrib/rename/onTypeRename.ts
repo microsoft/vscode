@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./onTypeRename';
+import 'vs/css!./media/onTypeRename';
 import * as nls from 'vs/nls';
 import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import * as arrays from 'vs/base/common/arrays';
@@ -29,7 +29,7 @@ import * as strings from 'vs/base/common/strings';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
-class OnTypeRenameContribution extends Disposable implements IEditorContribution {
+export class OnTypeRenameContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.onTypeRename';
 
@@ -66,26 +66,45 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		this._updateMirrors = this._register(new RunOnceScheduler(() => this._doUpdateMirrors(), 0));
 
 		this._register(this._editor.onDidChangeModel((e) => {
-			this._stopAll();
-			this._run();
+			this.stopAll();
+			this.run();
 		}));
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.autoRename)) {
 				this._enabled = this._editor.getOption(EditorOption.autoRename);
-				this._stopAll();
-				this._run();
+				this.stopAll();
+				this.run();
 			}
 		}));
 
 		this._register(this._editor.onDidChangeCursorPosition((e) => {
-			if (!this._visibleContextKey.get()) {
-				this._run(e.position);
+			// no regions, run
+			if (this._currentDecorations.length === 0) {
+				this.run(e.position);
 			}
+
+			// has cached regions, don't run
+			if (!this._editor.hasModel()) {
+				return;
+			}
+			if (this._currentDecorations.length === 0) {
+				return;
+			}
+			const model = this._editor.getModel();
+			const currentRanges = this._currentDecorations.map(decId => model.getDecorationRange(decId)!);
+
+			// just moving cursor around, don't run again
+			if (Range.containsPosition(currentRanges[0], e.position)) {
+				return;
+			}
+
+			// moving cursor out of primary region, run
+			this.run(e.position);
 		}));
 
 		this._register(OnTypeRenameProviderRegistry.onDidChange(() => {
-			this._run();
+			this.run();
 		}));
 
 		this._register(this._editor.onDidChangeModelContent((e) => {
@@ -121,13 +140,13 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		const referenceRange = currentRanges[0];
 		// if (referenceRange.isEmpty() || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
 		if (referenceRange.startLineNumber !== referenceRange.endLineNumber) {
-			return this._stopAll();
+			return this.stopAll();
 		}
 
 		const referenceValue = model.getValueInRange(referenceRange);
 		if (/\s/.test(referenceValue)) {
 			// TODO: we need a better stop condition here
-			return this._stopAll();
+			return this.stopAll();
 		}
 
 		let edits: IIdentifiedSingleEditOperation[] = [];
@@ -163,10 +182,6 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 			}
 		}
 
-		edits.forEach(e => {
-			console.log(`${e.range.toString()} - ${e.text}`);
-		});
-
 		if (edits.length === 0) {
 			return;
 		}
@@ -183,15 +198,15 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 	public dispose(): void {
 		super.dispose();
-		this._stopAll();
+		this.stopAll();
 	}
 
-	_stopAll(): void {
+	stopAll(): void {
 		this._visibleContextKey.set(false);
 		this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, []);
 	}
 
-	_run(position: Position | null = this._editor.getPosition(), force = false): void {
+	async run(position: Position | null = this._editor.getPosition(), force = false): Promise<void> {
 		if (!position) {
 			return;
 		}
@@ -210,8 +225,9 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 		const model = this._editor.getModel();
 
 		this._currentRequest = createCancelablePromise(token => getOnTypeRenameRanges(model, position, token));
+		try {
+			let ranges = await this._currentRequest;
 
-		this._currentRequest.then((ranges) => {
 			if (!ranges) {
 				ranges = [];
 			}
@@ -231,20 +247,19 @@ class OnTypeRenameContribution extends Disposable implements IEditorContribution
 
 			if (!foundReferenceRange) {
 				// Cannot do on type rename if the ranges are not where the cursor is...
-				this._stopAll();
+				this.stopAll();
 				return;
 			}
 
 			const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
 			this._visibleContextKey.set(true);
 			this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
-		}, err => {
+		} catch (err) {
 			onUnexpectedError(err);
-			this._stopAll();
-		});
+			this.stopAll();
+		}
 	}
 }
-
 
 export class OnTypeRenameAction extends EditorAction {
 	constructor() {
@@ -284,7 +299,7 @@ export class OnTypeRenameAction extends EditorAction {
 	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = OnTypeRenameContribution.get(editor);
 		if (controller) {
-			return Promise.resolve(controller._run(editor.getPosition(), true));
+			return Promise.resolve(controller.run(editor.getPosition(), true));
 		}
 		return Promise.resolve();
 	}
@@ -292,12 +307,12 @@ export class OnTypeRenameAction extends EditorAction {
 
 const OnTypeRenameCommand = EditorCommand.bindToContribution<OnTypeRenameContribution>(OnTypeRenameContribution.get);
 registerEditorCommand(new OnTypeRenameCommand({
-	id: 'cancelRenameInput',
+	id: 'cancelOnTypeRenameInput',
 	precondition: CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE,
-	handler: x => x._stopAll(),
+	handler: x => x.stopAll(),
 	kbOpts: {
+		kbExpr: EditorContextKeys.editorTextFocus,
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -305,7 +320,6 @@ registerEditorCommand(new OnTypeRenameCommand({
 
 
 export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<IRange[] | null | undefined> {
-
 	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
 
 	// in order of score ask the occurrences provider
