@@ -394,9 +394,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('turned off', "Turned off sync because it was turned off from other device."),
+					message: localize('turned off', "Sync was turned off from another device."),
 					actions: {
-						primary: [new Action('turn on sync', localize('Turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
+						primary: [new Action('turn on sync', localize('Turn sync back on', "Turn Sync Back On"), undefined, true, () => this.turnOn())]
 					}
 				});
 				return;
