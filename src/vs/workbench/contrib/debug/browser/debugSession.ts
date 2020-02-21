@@ -840,7 +840,10 @@ export class DebugSession implements IDebugSession {
 			}
 			if (event.body.group === 'end') {
 				this.repl.endGroup();
-				// Do not return, the end event can have additional output in it
+				if (!event.body.output) {
+					// Only return if the end event does not have additional output in it
+					return;
+				}
 			}
 
 			if (event.body.variablesReference) {
