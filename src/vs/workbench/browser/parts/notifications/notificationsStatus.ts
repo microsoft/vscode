@@ -58,14 +58,20 @@ export class NotificationsStatus extends Disposable {
 
 	private updateNotificationsCenterStatusItem(): void {
 		const statusProperties: IStatusbarEntry = {
-			text: this.currentNotifications.size === 0 ? '$(bell)' : `$(bell) ${this.currentNotifications.size}`,
+			text: this.currentNotifications.size === 0 ? '$(bell)' : '$(bell-dot)',
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
 		};
 
 		if (!this.notificationsCenterStatusItem) {
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, 'status.notifications', localize('status.notifications', "Notifications"), StatusbarAlignment.RIGHT, -Number.MAX_VALUE /* towards the far end of the right hand side */);
+			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
+				statusProperties,
+				'status.notifications',
+				localize('status.notifications', "Notifications"),
+				StatusbarAlignment.RIGHT,
+				-Number.MAX_VALUE /* towards the far end of the right hand side */
+			);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
 		}
