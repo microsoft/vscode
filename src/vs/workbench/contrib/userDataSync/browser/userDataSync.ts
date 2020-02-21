@@ -86,9 +86,12 @@ const getActivityTitle = (label: string, userDataSyncService: IUserDataSyncServi
 	}
 	return label;
 };
+const getIdentityTitle = (label: string, account?: AuthenticationSession): string => {
+	return account ? `${label} (${account.accountName})` : label;
+};
 const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Sync: Turn on Sync") };
 const signInCommand = { id: 'workbench.userData.actions.signin', title: localize('sign in', "Sync: Sign in to sync") };
-const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title: localize('stop sync', "Sync: Turn off Sync") };
+const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(account?: AuthenticationSession) { return getIdentityTitle(localize('stop sync', "Sync: Turn off Sync"), account); } };
 const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Sync: Show Keybindings Conflicts") };
 const configureSyncCommand = { id: 'workbench.userData.actions.configureSync', title: localize('configure sync', "Sync: Configure") };
@@ -110,8 +113,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
 	private _activeAccount: AuthenticationSession | undefined;
-
-	private readonly syncStatusAction = this._register(new MutableDisposable());
 
 	constructor(
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -233,6 +234,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		this.updateBadge();
+		this.registerSyncStatusAction();
 	}
 
 	private async onDidChangeSessions(providerId: string): Promise<void> {
@@ -778,17 +780,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	}
 
+	private readonly _syncStatusActionDisposable = this._register(new MutableDisposable());
 	private registerSyncStatusAction(): void {
 		const that = this;
-		const id = 'workbench.userData.actions.syncStatus';
-		const title = localize('sync is on', "Sync is on");
 		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
-		this.syncStatusAction.value = registerAction2(class SyncStatusAction extends Action2 {
+		this._syncStatusActionDisposable.value = registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
-					id,
+					id: 'workbench.userData.actions.syncStatus',
 					get title() {
-						return getActivityTitle(localize('sync is on', "Sync is on"), that.userDataSyncService);
+						return getIdentityTitle(localize('sync is on', "Sync is on"), that.activeAccount);
 					},
 					menu: [
 						{
@@ -796,6 +797,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							group: '5_sync',
 							when,
 							order: 3
+						},
+						{
+							id: MenuId.MenubarPreferencesMenu,
+							group: '5_sync',
+							when,
+							order: 3,
 						}
 					],
 				});
@@ -823,7 +830,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
 					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title(that.userDataSyncService) });
 					items.push({ type: 'separator' });
-					items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title });
+					items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.activeAccount), });
 					quickPick.items = items;
 					const disposables = new DisposableStore();
 					disposables.add(quickPick.onDidAccept(() => {
@@ -840,12 +847,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
-			command: { id, title },
-			when,
-			order: 3
-		});
 	}
 
 	private registerTurnOffSyncAction(): void {
@@ -854,7 +855,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: stopSyncCommand.id,
-					title: stopSyncCommand.title,
+					title: stopSyncCommand.title(that.activeAccount),
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
@@ -896,7 +897,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: showSyncActivityCommand.id,
-					title: showSyncActivityCommand.title(that.userDataSyncService),
+					get title() { return showSyncActivityCommand.title(that.userDataSyncService); },
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
