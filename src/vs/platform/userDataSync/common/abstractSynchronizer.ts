@@ -18,8 +18,7 @@ import { ParseError, parse } from 'vs/base/common/json';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
-
-const BACK_UP_MAX_AGE = 1000 * 60 * 60 * 24 * 30; /* 30 days */
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -65,6 +64,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
@@ -191,31 +191,38 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
 		const resource = joinPath(this.syncFolder, toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, ''));
-		await this.fileService.writeFile(resource, content);
+		try {
+			await this.fileService.writeFile(resource, content);
+		} catch (e) {
+			this.logService.error(e);
+		}
 		this.cleanUpDelayer.trigger(() => this.cleanUpBackup());
 	}
 
 	private async cleanUpBackup(): Promise<void> {
 		const stat = await this.fileService.resolve(this.syncFolder);
 		if (stat.children) {
-			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name));
-			if (all.length > 10) {
-				const toDelete = all.filter(stat => {
-					const ctime = stat.ctime || new Date(
-						parseInt(stat.name.substring(0, 4)),
-						parseInt(stat.name.substring(4, 6)) - 1,
-						parseInt(stat.name.substring(6, 8)),
-						parseInt(stat.name.substring(9, 11)),
-						parseInt(stat.name.substring(11, 13)),
-						parseInt(stat.name.substring(13, 15))
-					).getTime();
-					return Date.now() - ctime > BACK_UP_MAX_AGE;
-				});
-				await Promise.all(toDelete.map(stat => {
-					this.logService.info('Deleting from backup', stat.resource.path);
-					this.fileService.del(stat.resource);
-				}));
+			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
+			const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
+			let toDelete = all.filter(stat => {
+				const ctime = stat.ctime || new Date(
+					parseInt(stat.name.substring(0, 4)),
+					parseInt(stat.name.substring(4, 6)) - 1,
+					parseInt(stat.name.substring(6, 8)),
+					parseInt(stat.name.substring(9, 11)),
+					parseInt(stat.name.substring(11, 13)),
+					parseInt(stat.name.substring(13, 15))
+				).getTime();
+				return Date.now() - ctime > backUpMaxAge;
+			});
+			const remaining = all.length - toDelete.length;
+			if (remaining < 10) {
+				toDelete = toDelete.slice(10 - remaining);
 			}
+			await Promise.all(toDelete.map(stat => {
+				this.logService.info('Deleting from backup', stat.resource.path);
+				this.fileService.del(stat.resource);
+			}));
 		}
 	}
 
@@ -247,8 +254,9 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
+		super(source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -346,8 +354,9 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(file, source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
+		super(file, source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 	}
 
 	protected hasErrors(content: string): boolean {
