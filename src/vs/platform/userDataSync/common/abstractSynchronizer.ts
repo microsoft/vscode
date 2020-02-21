@@ -198,8 +198,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private async cleanUpBackup(): Promise<void> {
 		const stat = await this.fileService.resolve(this.syncFolder);
 		if (stat.children) {
-			const toDelete = stat.children.filter(stat => {
-				if (stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)) {
+			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name));
+			if (all.length > 10) {
+				const toDelete = all.filter(stat => {
 					const ctime = stat.ctime || new Date(
 						parseInt(stat.name.substring(0, 4)),
 						parseInt(stat.name.substring(4, 6)) - 1,
@@ -209,13 +210,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 						parseInt(stat.name.substring(13, 15))
 					).getTime();
 					return Date.now() - ctime > BACK_UP_MAX_AGE;
-				}
-				return false;
-			});
-			await Promise.all(toDelete.map(stat => {
-				this.logService.info('Deleting from backup', stat.resource.path);
-				this.fileService.del(stat.resource);
-			}));
+				});
+				await Promise.all(toDelete.map(stat => {
+					this.logService.info('Deleting from backup', stat.resource.path);
+					this.fileService.del(stat.resource);
+				}));
+			}
 		}
 	}
 
