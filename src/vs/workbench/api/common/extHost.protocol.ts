@@ -51,6 +51,8 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineCursor, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
+import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { Serialized } from 'vs/base/common/types';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1189,16 +1191,7 @@ export interface ICodeLensDto {
 	command?: ICommandDto;
 }
 
-export interface ICallHierarchyItemDto {
-	_sessionId: string;
-	_itemId: string;
-	kind: modes.SymbolKind;
-	name: string;
-	detail?: string;
-	uri: UriComponents;
-	range: IRange;
-	selectionRange: IRange;
-}
+export type ICallHierarchyItemDto = Serialized<CallHierarchyItem>;
 
 export interface IIncomingCallDto {
 	from: ICallHierarchyItemDto;
