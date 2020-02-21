@@ -121,7 +121,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private notebook: INotebook | undefined;
 	viewType: string | undefined;
 	private viewCells: CellViewModel[] = [];
-	private localStore: DisposableStore = new DisposableStore();
+	private localStore: DisposableStore = this._register(new DisposableStore());
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private fontInfo: BareFontInfo | undefined;
 	// private relayoutDisposable: IDisposable | null = null;
@@ -311,7 +311,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				this.viewType = input.viewType;
 				this.viewCells = await Promise.all(this.notebook!.cells.map(async cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					return this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, !!isEditing);
+					const viewCell = this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, !!isEditing);
+					this.localStore.add(viewCell);
+					return viewCell;
 				}));
 
 				const updateScrollPosition = () => {
