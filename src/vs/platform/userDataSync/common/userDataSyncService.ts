@@ -82,6 +82,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
+		this.updateLastSyncTime();
 	}
 
 	async push(): Promise<void> {
@@ -93,6 +94,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.handleSyncError(e, synchroniser.source);
 			}
 		}
+		this.updateLastSyncTime();
 	}
 
 	async sync(): Promise<void> {
@@ -138,6 +140,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
+			this.updateLastSyncTime();
 
 		} finally {
 			this.updateStatus();
@@ -239,8 +242,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (this._status !== status) {
 			this._status = status;
 			this._onDidChangeStatus.fire(status);
-			if (oldStatus !== SyncStatus.Uninitialized && this.status === SyncStatus.Idle) {
-				this.updateLastSyncTime(new Date().getTime());
+			if (oldStatus === SyncStatus.HasConflicts) {
+				this.updateLastSyncTime();
 			}
 		}
 	}
@@ -268,11 +271,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return SyncStatus.Idle;
 	}
 
-	private updateLastSyncTime(lastSyncTime: number): void {
-		if (this._lastSyncTime !== lastSyncTime) {
-			this._lastSyncTime = lastSyncTime;
-			this.storageService.store(LAST_SYNC_TIME_KEY, lastSyncTime, StorageScope.GLOBAL);
-			this._onDidChangeLastSyncTime.fire(lastSyncTime);
+	private updateLastSyncTime(): void {
+		if (this.status === SyncStatus.Idle) {
+			this._lastSyncTime = new Date().getTime();
+			this.storageService.store(LAST_SYNC_TIME_KEY, this._lastSyncTime, StorageScope.GLOBAL);
+			this._onDidChangeLastSyncTime.fire(this._lastSyncTime);
 		}
 	}
 
