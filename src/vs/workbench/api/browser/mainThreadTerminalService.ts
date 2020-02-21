@@ -39,8 +39,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be
 			// used to register non-extension API terminals in the extension host.
-			setTimeout(() => {
-				this._onTerminalOpened(instance);
+			setTimeout(async () => {
+				await this._onTerminalOpened(instance);
 				this._onInstanceDimensionsChanged(instance);
 			}, EXT_HOST_CREATION_DELAY);
 		}));
@@ -62,9 +62,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 
 		// Set initial ext host state
-		this._terminalService.terminalInstances.forEach(t => {
-			this._onTerminalOpened(t);
-			t.processReady.then(() => this._onTerminalProcessIdReady(t));
+		this._terminalService.terminalInstances.forEach(async t => {
+			await this._onTerminalOpened(t);
+			await t.processReady;
+			this._onTerminalProcessIdReady(t);
 		});
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance) {
@@ -166,7 +167,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalClosed(terminalInstance.id, terminalInstance.exitCode);
 	}
 
-	// TODO whoever uses this might now encounter trouble
 	private async _onTerminalOpened(terminalInstance: ITerminalInstance): Promise<void> {
 		const shellLaunchConfig = await terminalInstance.shellLaunchConfig;
 		const shellLaunchConfigDto: IShellLaunchConfigDto = { ...shellLaunchConfig };
