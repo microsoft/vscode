@@ -10,8 +10,8 @@ import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting, CONFIGURATION_SYNC_STORE_KEY } from 'vs/platform/userDataSync/common/userDataSync';
-import { firstIndex } from 'vs/base/common/arrays';
+import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { firstIndex, distinct } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
 
@@ -22,7 +22,7 @@ export interface IMergeResult {
 	conflictsSettings: IConflictSetting[];
 }
 
-export function getIgnoredSettings(configurationService: IConfigurationService, settingsContent?: string): string[] {
+export function getIgnoredSettings(defaultIgnoredSettings: string[], configurationService: IConfigurationService, settingsContent?: string): string[] {
 	let value: string[] = [];
 	if (settingsContent) {
 		const setting = parse(settingsContent);
@@ -42,7 +42,7 @@ export function getIgnoredSettings(configurationService: IConfigurationService, 
 			}
 		}
 	}
-	return [CONFIGURATION_SYNC_STORE_KEY, ...added].filter(setting => removed.indexOf(setting) === -1);
+	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
 }
 
 

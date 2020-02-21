@@ -6,7 +6,7 @@
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUserData, ResourceKey, IUserDataManifest, ALL_RESOURCE_KEYS, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, ResourceKey, IUserDataManifest, ALL_RESOURCE_KEYS, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -230,6 +230,10 @@ export class UserDataSyncTestServer implements IRequestService {
 export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
 	_serviceBrand: any;
+
+	async resolveDefaultIgnoredSettings(): Promise<string[]> {
+		return getDefaultIgnoredSettings();
+	}
 
 	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {
 		const keys: IStringDictionary<string> = {};

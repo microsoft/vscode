@@ -36,6 +36,12 @@ export interface ISyncConfiguration {
 	}
 }
 
+export function getDefaultIgnoredSettings(): string[] {
+	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
+	return [CONFIGURATION_SYNC_STORE_KEY, ...machineSettings];
+}
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const ignoredExtensionsSchemaId = 'vscode://schemas/ignoredExtensions';
@@ -105,11 +111,12 @@ export function registerConfiguration(): IDisposable {
 	});
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const registerIgnoredSettingsSchema = () => {
+		const defaultIgnoreSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
-				enum: Object.keys(allSettings.properties)
-			}
+				enum: [...Object.keys(allSettings.properties).filter(setting => defaultIgnoreSettings.indexOf(setting) === -1), ...defaultIgnoreSettings.map(setting => `-${setting}`)]
+			},
 		};
 		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
 	};
@@ -313,6 +320,7 @@ export interface IUserDataSyncUtilService {
 	_serviceBrand: undefined;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
+	resolveDefaultIgnoredSettings(): Promise<string[]>;
 }
 
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
