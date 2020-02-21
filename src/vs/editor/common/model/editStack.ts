@@ -75,7 +75,7 @@ export class EditStackElement implements IUndoRedoElement {
 	}
 }
 
-export class MultiEditStackElement implements IUndoRedoElement {
+export class MultiModelEditStackElement implements IUndoRedoElement {
 
 	public readonly label: string;
 	private _isOpen: boolean;
@@ -185,7 +185,7 @@ export class EditStack {
 		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
 		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState);
 		const inverseEditOperations = this._model.applyEdits(editOperations);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
