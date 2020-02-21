@@ -37,11 +37,11 @@ class UserDataSyncSettingsMigrationContribution implements IWorkbenchContributio
 	}
 
 	private async removeFromConfiguration(): Promise<void> {
-		await this.configurationService.updateValue('sync.enable', undefined, ConfigurationTarget.USER);
-		await this.configurationService.updateValue('sync.enableSettings', undefined, ConfigurationTarget.USER);
-		await this.configurationService.updateValue('sync.enableKeybindings', undefined, ConfigurationTarget.USER);
-		await this.configurationService.updateValue('sync.enableUIState', undefined, ConfigurationTarget.USER);
-		await this.configurationService.updateValue('sync.enableExtensions', undefined, ConfigurationTarget.USER);
+		await this.configurationService.updateValue('sync.enable', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableSettings', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableKeybindings', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableUIState', undefined, {}, ConfigurationTarget.USER, true);
+		await this.configurationService.updateValue('sync.enableExtensions', undefined, {}, ConfigurationTarget.USER, true);
 	}
 }
 
