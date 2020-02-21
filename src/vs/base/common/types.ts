@@ -266,10 +266,19 @@ export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, Firs
 };
 
 /**
- * Mapped typed that replaces all occurrences of URI with UriComponents
- * todo@joh drop functions
+ * Mapped-type that replaces all occurrences of URI with UriComponents
+ */
+export type UriDto<T> = { [K in keyof T]: T[K] extends URI
+	? UriComponents
+	: UriDto<T[K]> };
+
+/**
+ * Mapped-type that replaces all occurrences of URI with UriComponents and
+ * drops all functions.
  * todo@joh use toJSON-results
  */
-export type Serialized<T> = { [K in keyof T]: T[K] extends URI
+export type Dto<T> = { [K in keyof T]: T[K] extends URI
 	? UriComponents
-	: Serialized<T[K]> };
+	: T[K] extends Function
+	? never
+	: UriDto<T[K]> };

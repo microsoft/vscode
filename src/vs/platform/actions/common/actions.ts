@@ -13,7 +13,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Serialized } from 'vs/base/common/types';
+import { UriDto } from 'vs/base/common/types';
 
 export interface ILocalizedString {
 	value: string;
@@ -29,7 +29,7 @@ export interface ICommandAction {
 	toggled?: ContextKeyExpr;
 }
 
-export type ISerializableCommandAction = Serialized<ICommandAction>;
+export type ISerializableCommandAction = UriDto<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;
