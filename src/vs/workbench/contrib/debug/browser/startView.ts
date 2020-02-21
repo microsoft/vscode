@@ -21,14 +21,17 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh } from 'vs/base/common/platform';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
-const CONTEXT_DEBUGGER_INTERESTED = new RawContextKey<boolean>('debuggerInterested', false);
+const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>('debugStartLanguage', undefined);
+const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>('debuggerInterestedInActiveEditor', false);
 
 export class StartView extends ViewPane {
 
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
 
+	private debugStartLanguageContext: IContextKey<string>;
 	private debuggerInterestedContext: IContextKey<boolean>;
 
 	constructor(
@@ -46,11 +49,20 @@ export class StartView extends ViewPane {
 	) {
 		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
 
-		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED.bindTo(contextKeyService);
+		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
+		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
 		const setContextKey = () => {
-			const activeEditor = this.editorService.activeTextEditorWidget;
-			const debuggerLabels = this.debugService.getConfigurationManager().getDebuggerLabelsForEditor(activeEditor);
-			this.debuggerInterestedContext.set(debuggerLabels.length > 0);
+			const editor = this.editorService.activeTextEditorWidget;
+			if (isCodeEditor(editor)) {
+				const model = editor.getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				if (language && this.debugService.getConfigurationManager().isDebuggerInterestedInLanguage(language)) {
+					this.debugStartLanguageContext.set(language);
+					this.debuggerInterestedContext.set(true);
+					return;
+				}
+			}
+			this.debuggerInterestedContext.set(false);
 		};
 		this._register(editorService.onDidActiveEditorChange(setContextKey));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
@@ -64,7 +76,7 @@ export class StartView extends ViewPane {
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(StartView.ID, {
 	content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
-	when: CONTEXT_DEBUGGER_INTERESTED.toNegated()
+	when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR
 });
 
 viewsRegistry.registerViewWelcomeContent(StartView.ID, {
