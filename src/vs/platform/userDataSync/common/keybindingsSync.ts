@@ -180,10 +180,6 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.RemotePreconditionFailed:
-						// Rejected as there is a new remote version. Syncing again,
-						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new remote version available. Synchronizing again...');
-						return this.sync();
 					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new local version available. Synchronizing again...');

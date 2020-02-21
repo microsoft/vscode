@@ -91,7 +91,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected get enabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resourceKey); }
 
-	async sync(ref?: string): Promise<void> {
+	async sync(ref?: string, donotUseLastSyncUserData?: boolean): Promise<void> {
 		if (!this.enabled) {
 			this.logService.info(`${this.source}: Skipped synchronizing ${this.source.toLowerCase()} as it is disabled.`);
 			return;
@@ -108,7 +108,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.logService.trace(`${this.source}: Started synchronizing ${this.source.toLowerCase()}...`);
 		this.setStatus(SyncStatus.Syncing);
 
-		const lastSyncUserData = await this.getLastSyncUserData();
+		const lastSyncUserData = donotUseLastSyncUserData ? null : await this.getLastSyncUserData();
 		const remoteUserData = ref && lastSyncUserData && lastSyncUserData.ref === ref ? lastSyncUserData : await this.getRemoteUserData(lastSyncUserData);
 
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
@@ -117,7 +117,19 @@ export abstract class AbstractSynchroniser extends Disposable {
 			throw new UserDataSyncError(localize('incompatible', "Cannot sync {0} as its version {1} is not compatible with cloud {2}", this.source, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.source);
 		}
 
-		return this.doSync(remoteUserData, lastSyncUserData);
+		try {
+			await this.doSync(remoteUserData, lastSyncUserData);
+		} catch (e) {
+			if (e instanceof UserDataSyncError) {
+				switch (e.code) {
+					case UserDataSyncErrorCode.RemotePreconditionFailed:
+						// Rejected as there is a new remote version. Syncing again,
+						this.logService.info(`${this.source}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
+						return this.sync(undefined, true);
+				}
+			}
+			throw e;
+		}
 	}
 
 	async hasPreviouslySynced(): Promise<boolean> {

@@ -243,10 +243,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.RemotePreconditionFailed:
-						// Rejected as there is a new remote version. Syncing again,
-						this.logService.info('Settings: Failed to synchronize settings as there is a new remote version available. Synchronizing again...');
-						return this.sync();
 					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
