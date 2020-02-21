@@ -549,6 +549,31 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				}
 			},
 
+			onDragOver: e => {
+				dom.EventHelper.stop(e, true);
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedCompositeId = data[0].id;
+						if (draggedCompositeId !== this.activity.id) {
+							if (e.dataTransfer && !this.dndHandler.onDragOver(new CompositeDragAndDropData('composite', draggedCompositeId), this.activity.id, e)) {
+								e.dataTransfer.dropEffect = 'none';
+							}
+						}
+					}
+				}
+
+				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedViewId = data[0].id;
+						if (e.dataTransfer && !this.dndHandler.onDragOver(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e)) {
+							e.dataTransfer.dropEffect = 'none';
+						}
+					}
+				}
+			},
+
 			onDragLeave: e => {
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 					this.updateFromDragging(container, false);
