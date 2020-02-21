@@ -739,7 +739,14 @@ export class TestFileService implements IFileService {
 	}
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
-	watch(_resource: URI): IDisposable { return Disposable.None; }
+
+	readonly watches: URI[] = [];
+	watch(_resource: URI): IDisposable {
+		this.watches.push(_resource);
+
+		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
+	}
+
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 	dispose(): void { }
 }

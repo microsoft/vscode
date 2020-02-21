@@ -896,4 +896,26 @@ suite('EditorService', () => {
 			Event.once(editorService.onDidActiveEditorChange)(c);
 		});
 	}
+
+	test('file watcher gets installed for out of workspace files', async function () {
+		const [part, service, testInstantiationService, accessor] = createEditorService();
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('file://resource1-openside'));
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('file://resource2-openside'));
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true });
+		assert.equal(accessor.fileService.watches.length, 1);
+		assert.equal(accessor.fileService.watches[0].toString(), input1.resource.toString());
+
+		const editor = await service.openEditor(input2, { pinned: true });
+		assert.equal(accessor.fileService.watches.length, 1);
+		assert.equal(accessor.fileService.watches[0].toString(), input2.resource.toString());
+
+		await editor?.group?.closeAllEditors();
+		assert.equal(accessor.fileService.watches.length, 0);
+
+		part.dispose();
+	});
 });
