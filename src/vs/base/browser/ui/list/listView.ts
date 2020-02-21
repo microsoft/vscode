@@ -554,7 +554,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
-			const role = this.ariaProvider.getRole ? this.ariaProvider.getRole(item.element) : 'treeitem';
+			const role = this.ariaProvider.getRole ? this.ariaProvider.getRole(item.element) : 'listitem';
 			item.row!.domNode!.setAttribute('role', role);
 			const checked = this.ariaProvider.isChecked ? this.ariaProvider.isChecked(item.element) : undefined;
 			if (typeof checked !== 'undefined') {

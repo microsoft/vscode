@@ -196,7 +196,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			} : undefined,
 			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
 				return options.ariaProvider!.getRole!(node.element);
-			} : undefined
+			} : () => 'treeitem'
 		}
 	};
 }
