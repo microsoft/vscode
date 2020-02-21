@@ -631,15 +631,6 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean>;
 }
 
-// export interface INotebookDto {
-// 	handle: number;
-// 	// metadata: IMetadata;
-// 	readonly uri: UriComponents;
-// 	languages: string[];
-// 	cells: ICellDto[];
-// 	renderers: Set<number>;
-// }
-
 export interface ICellDto {
 	handle: number;
 	source: string[];
