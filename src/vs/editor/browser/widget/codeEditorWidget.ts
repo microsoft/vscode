@@ -1666,6 +1666,7 @@ class EditorContextKeysManager extends Disposable {
 	private readonly _editorTextFocus: IContextKey<boolean>;
 	private readonly _editorTabMovesFocus: IContextKey<boolean>;
 	private readonly _editorReadonly: IContextKey<boolean>;
+	private readonly _editorColumnSelection: IContextKey<boolean>;
 	private readonly _hasMultipleSelections: IContextKey<boolean>;
 	private readonly _hasNonEmptySelection: IContextKey<boolean>;
 	private readonly _canUndo: IContextKey<boolean>;
@@ -1687,6 +1688,7 @@ class EditorContextKeysManager extends Disposable {
 		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
 		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
+		this._editorColumnSelection = EditorContextKeys.columnSelection.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
@@ -1714,6 +1716,7 @@ class EditorContextKeysManager extends Disposable {
 
 		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
+		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
 	}
 
 	private _updateFromSelection(): void {

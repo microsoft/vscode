@@ -24,7 +24,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
@@ -1529,6 +1529,26 @@ export namespace CoreNavigationCommands {
 		}
 	});
 }
+
+const columnSelectionCondition = ContextKeyExpr.and(
+	EditorContextKeys.textInputFocus,
+	EditorContextKeys.columnSelection
+);
+function registerColumnSelection(id: string, keybinding: number): void {
+	KeybindingsRegistry.registerKeybindingRule({
+		id: id,
+		primary: keybinding,
+		when: columnSelectionCondition,
+		weight: CORE_WEIGHT + 1
+	});
+}
+
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectLeft.id, KeyMod.Shift | KeyCode.LeftArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectRight.id, KeyMod.Shift | KeyCode.RightArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectUp.id, KeyMod.Shift | KeyCode.UpArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageUp.id, KeyMod.Shift | KeyCode.PageUp);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectDown.id, KeyMod.Shift | KeyCode.DownArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageDown.id, KeyMod.Shift | KeyCode.PageDown);
 
 /**
  * A command that will:
