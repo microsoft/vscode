@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -242,7 +242,7 @@ class BulkEdit {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
-		this._progress = progress || emptyProgress;
+		this._progress = progress || Progress.None;
 		this._edits = edits;
 	}
 

@@ -215,7 +215,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 
 		progress.report({ message: localize('formatting', "Formatting") });
 		const editorOrModel = findEditor(model, this.codeEditorService) || model;
-		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, token);
+		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, progress, token);
 	}
 }
 
