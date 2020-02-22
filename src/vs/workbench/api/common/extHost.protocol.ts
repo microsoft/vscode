@@ -572,11 +572,6 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
-export enum WebviewEditorCapabilities {
-	Editable,
-	SupportsHotExit,
-}
-
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
@@ -592,10 +587,11 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly WebviewEditorCapabilities[]): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onEdit(resource: UriComponents, viewType: string, editId: number): void;
+	$onDidChangeCustomDocumentState(resource: UriComponents, viewType: string, state: { dirty: boolean }): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -613,12 +609,14 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$createWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<{ editable: boolean }>;
+	$disposeWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<void>;
 
-	$undoEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
-	$applyEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
-	$disposeEdits(editIds: readonly number[]): void;
-
+	$undo(resource: UriComponents, viewType: string): void;
+	$redo(resource: UriComponents, viewType: string): void;
+	$revert(resource: UriComponents, viewType: string): void;
 	$onSave(resource: UriComponents, viewType: string): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 

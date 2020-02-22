@@ -43,8 +43,6 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
-export type CustomEditorEdit = number;
-
 export interface ICustomEditorModelManager {
 	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
 
@@ -69,23 +67,22 @@ export interface CustomEditorSaveAsEvent {
 export interface ICustomEditorModel extends IWorkingCopy {
 	readonly viewType: string;
 
-	readonly onUndo: Event<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>;
-	readonly onApplyEdit: Event<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>;
-	readonly onDisposeEdits: Event<{ edits: readonly CustomEditorEdit[] }>;
+	readonly onUndo: Event<void>;
+	readonly onRedo: Event<void>;
+	readonly onRevert: Event<void>;
 
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
 	onBackup(f: () => CancelablePromise<boolean>): void;
 
+	setDirty(dirty: boolean): void;
 	undo(): void;
 	redo(): void;
 	revert(options?: IRevertOptions): Promise<boolean>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
-
-	pushEdit(edit: CustomEditorEdit, trigger: any): void;
 }
 
 export const enum CustomEditorPriority {

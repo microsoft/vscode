@@ -27,11 +27,15 @@ export class PreviewManager implements vscode.WebviewCustomEditorProvider {
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
-	public async resolveWebviewEditor(
-		resource: vscode.Uri,
+	public async provideWebviewCustomEditorDocument(resource: vscode.Uri) {
+		return vscode.window.createWebviewEditorCustomDocument(PreviewManager.viewType, resource, undefined, {});
+	}
+
+	public async resolveWebviewCustomEditor(
+		document: vscode.WebviewEditorCustomDocument,
 		webviewEditor: vscode.WebviewPanel,
 	): Promise<void> {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 

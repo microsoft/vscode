@@ -7,7 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, isEqual, extname } from 'vs/base/common/resources';
+import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
@@ -31,7 +31,7 @@ import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CustomFileEditorInput } from './customEditorInput';
+import { CustomEditorInput } from './customEditorInput';
 
 export const defaultEditorId = 'default';
 
@@ -138,7 +138,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	public get activeCustomEditor(): ICustomEditor | undefined {
 		const activeInput = this.editorService.activeControl?.input;
-		if (!(activeInput instanceof CustomFileEditorInput)) {
+		if (!(activeInput instanceof CustomEditorInput)) {
 			return undefined;
 		}
 		const resource = activeInput.resource;
@@ -175,7 +175,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		let currentlyOpenedEditorType: undefined | string;
 		for (const editor of group ? group.editors : []) {
 			if (editor.resource && isEqual(editor.resource, resource)) {
-				currentlyOpenedEditorType = editor instanceof CustomFileEditorInput ? editor.viewType : defaultEditorId;
+				currentlyOpenedEditorType = editor instanceof CustomEditorInput ? editor.viewType : defaultEditorId;
 				break;
 			}
 		}
@@ -271,7 +271,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const webview = new Lazy(() => {
 			return this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {});
 		});
-		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);
+		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview);
 		if (group) {
 			input.updateGroup(group.id);
 		}
@@ -297,7 +297,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					options: options ? EditorOptions.create(options) : undefined,
 				}], targetGroup);
 
-				if (existing instanceof CustomFileEditorInput) {
+				if (existing instanceof CustomEditorInput) {
 					existing.dispose();
 				}
 			}
@@ -321,14 +321,14 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
 		];
 		this._hasCustomEditor.set(possibleEditors.length > 0);
-		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomFileEditorInput);
+		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomEditorInput);
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
 	}
 
 	private handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): void {
 		for (const group of this.editorGroupService.groups) {
 			for (const editor of group.editors) {
-				if (!(editor instanceof CustomFileEditorInput)) {
+				if (!(editor instanceof CustomEditorInput)) {
 					continue;
 				}
 
@@ -371,7 +371,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		this._register(this.editorService.onDidCloseEditor(({ editor }) => {
-			if (!(editor instanceof CustomFileEditorInput)) {
+			if (!(editor instanceof CustomEditorInput)) {
 				return;
 			}
 
@@ -386,7 +386,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
-		if (editor instanceof CustomFileEditorInput) {
+		if (editor instanceof CustomEditorInput) {
 			if (editor.group === group.id) {
 				// No need to do anything
 				return undefined;
@@ -483,7 +483,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
 		const getCustomEditorOverrideForSubInput = (subInput: IEditorInput, customClasses: string): EditorInput | undefined => {
-			if (subInput instanceof CustomFileEditorInput) {
+			if (subInput instanceof CustomEditorInput) {
 				return undefined;
 			}
 			const resource = subInput.resource;
