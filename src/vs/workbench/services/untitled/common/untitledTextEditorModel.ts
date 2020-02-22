@@ -100,7 +100,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
-	private dirty = false;
+	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
 	private ignoreDirtyOnModelContentChange = false;
 
 	private versionId = 0;
