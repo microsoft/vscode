@@ -83,8 +83,6 @@ suite('RawSearchService', () => {
 	const rawMatch: IRawFileMatch = {
 		base: path.normalize('/some'),
 		relativePath: 'where',
-		basename: 'where',
-		size: 123
 	};
 
 	const match: ISerializedFileMatch = {
@@ -342,8 +340,6 @@ suite('RawSearchService', () => {
 			matches.push({
 				base: path.normalize('/some/where'),
 				relativePath: 'bc',
-				basename: 'bc',
-				size: 3
 			});
 			const results: any[] = [];
 			const cb: IProgressCallback = value => {

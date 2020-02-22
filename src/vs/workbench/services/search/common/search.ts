@@ -438,8 +438,6 @@ export interface IRawSearchService {
 export interface IRawFileMatch {
 	base?: string;
 	relativePath: string;
-	basename: string;
-	size?: number;
 }
 
 export interface ISearchEngine<T> {

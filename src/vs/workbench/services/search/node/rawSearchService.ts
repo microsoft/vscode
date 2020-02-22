@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'vs/base/common/path';
+import { basename, dirname, join, sep } from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -414,11 +414,11 @@ class Cache {
 const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
 
 	getItemLabel(match: IRawFileMatch): string {
-		return match.basename; // e.g. myFile.txt
+		return basename(match.relativePath); // e.g. myFile.txt
 	}
 
 	getItemDescription(match: IRawFileMatch): string {
-		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
+		return dirname(match.relativePath); // e.g. some/path/to/file
 	}
 
 	getItemPath(match: IRawFileMatch): string {
