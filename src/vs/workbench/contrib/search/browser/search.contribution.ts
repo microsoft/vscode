@@ -54,7 +54,6 @@ import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/ex
 import { assertType, assertIsDefined } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import product from 'vs/platform/product/common/product';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
@@ -775,21 +774,16 @@ configurationRegistry.registerConfiguration({
 			default: 300,
 			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When `#search.searchOnType#` is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when `search.searchOnType` is disabled.")
 		},
-		'search.enableSearchEditorPreview': {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('search.enableSearchEditorPreview', "Experimental: When enabled, allows opening workspace search results in an editor.")
-		},
-		'search.searchEditorPreview.doubleClickBehaviour': {
+		'search.searchEditor.doubleClickBehaviour': {
 			type: 'string',
 			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
 			default: 'goToLocation',
 			enumDescriptions: [
-				nls.localize('search.searchEditorPreview.doubleClickBehaviour.selectWord', "Double clicking selects the word under the cursor."),
-				nls.localize('search.searchEditorPreview.doubleClickBehaviour.goToLocation', "Double clicking opens the result in the active editor group."),
-				nls.localize('search.searchEditorPreview.doubleClickBehaviour.openLocationToSide', "Double clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double clicking selects the word under the cursor."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double clicking opens the result in the active editor group."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
 			],
-			markdownDescription: nls.localize('search.searchEditorPreview.doubleClickBehaviour', "Configure effect of double clicking a result in a Search Editor.\n\n `#search.enableSearchEditorPreview#` must be enabled for this setting to have an effect.")
+			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double clicking a result in a search editor.")
 		},
 		'search.sortOrder': {
 			'type': 'string',

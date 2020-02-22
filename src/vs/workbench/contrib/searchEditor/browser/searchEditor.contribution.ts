@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import { localize } from 'vs/nls';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +28,8 @@ import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEd
 import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 //#region Editor Descriptior
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -51,16 +51,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		const enableSearchEditorPreview = SearchEditorConstants.EnableSearchEditorPreview.bindTo(this.contextKeyService);
-
-		enableSearchEditorPreview.set(this.searchConfig.enableSearchEditorPreview);
-		configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('search.previewSearchEditor')) {
-				enableSearchEditorPreview.set(this.searchConfig.enableSearchEditorPreview);
-			}
-		});
 
 		this.editorService.overrideOpenEditor((editor, options, group) => {
 			const resource = editor.resource;
@@ -82,10 +73,6 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			const opened = editorService.openEditor(input, { ...options, pinned: resource.scheme === SearchEditorConstants.SearchEditorScheme, ignoreOverrides: true }, group);
 			return { override: Promise.resolve(opened) };
 		});
-	}
-
-	private get searchConfig(): ISearchConfigurationProperties {
-		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 }
 
@@ -167,12 +154,10 @@ const category = localize('search', "Search Editor");
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
 		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
-		ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey, SearchEditorConstants.EnableSearchEditorPreview)),
-	'Search Editor: Open Results in Editor', category,
-	ContextKeyExpr.and(SearchEditorConstants.EnableSearchEditorPreview));
+		ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey)),
+	'Search Editor: Open Results in Editor', category);
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
-	'Search Editor: Open New Search Editor', category,
-	ContextKeyExpr.and(SearchEditorConstants.EnableSearchEditorPreview));
+	'Search Editor: Open New Search Editor', category);
 //#endregion
