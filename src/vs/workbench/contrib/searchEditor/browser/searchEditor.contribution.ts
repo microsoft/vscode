@@ -145,6 +145,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.KEY_L,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
 });
+
+CommandsRegistry.registerCommand(
+	SearchEditorConstants.RerunSearchEditorSearchCommandId,
+	(accessor: ServicesAccessor) => {
+		const activeControl = accessor.get(IEditorService).activeControl;
+		if (activeControl instanceof SearchEditor) {
+			activeControl.triggerSearch({ resetCursor: false });
+		}
+	});
 //#endregion
 
 //#region Actions
