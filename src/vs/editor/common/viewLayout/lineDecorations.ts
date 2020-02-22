@@ -28,8 +28,8 @@ export class LineDecoration {
 	}
 
 	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
-		let aLen = a.length;
-		let bLen = b.length;
+		const aLen = a.length;
+		const bLen = b.length;
 		if (aLen !== bLen) {
 			return false;
 		}
@@ -49,8 +49,8 @@ export class LineDecoration {
 		let result: LineDecoration[] = [], resultLen = 0;
 
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			let d = lineDecorations[i];
-			let range = d.range;
+			const d = lineDecorations[i];
+			const range = d.range;
 
 			if (range.endLineNumber < lineNumber || range.startLineNumber > lineNumber) {
 				// Ignore decorations that sit outside this line
@@ -62,8 +62,8 @@ export class LineDecoration {
 				continue;
 			}
 
-			let startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
-			let endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
+			const startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
+			const endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
 
 			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
 		}
@@ -170,14 +170,14 @@ export class LineDecorationsNormalizer {
 
 		let result: DecorationSegment[] = [];
 
-		let stack = new Stack();
+		const stack = new Stack();
 		let nextStartOffset = 0;
 
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			let d = lineDecorations[i];
+			const d = lineDecorations[i];
 			let startColumn = d.startColumn;
 			let endColumn = d.endColumn;
-			let className = d.className;
+			const className = d.className;
 
 			// If the position would end up in the middle of a high-low surrogate pair, we move it to before the pair
 			if (startColumn > 1) {
@@ -194,8 +194,8 @@ export class LineDecorationsNormalizer {
 				}
 			}
 
-			let currentStartOffset = startColumn - 1;
-			let currentEndOffset = endColumn - 2;
+			const currentStartOffset = startColumn - 1;
+			const currentEndOffset = endColumn - 2;
 
 			nextStartOffset = stack.consumeLowerThan(currentStartOffset, nextStartOffset, result);
 
