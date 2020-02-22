@@ -59,8 +59,16 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				} else {
 					this.moveComposite(dragData.id, targetCompositeId);
 				}
+			} else {
+				const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors;
+				if (draggedViews.length === 1 && draggedViews[0].canMoveView) {
+					dragData.type = 'view';
+					dragData.id = draggedViews[0].id;
+				}
 			}
-		} else {
+		}
+
+		if (dragData.type === 'view') {
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dragData.id);
 			if (viewDescriptor && viewDescriptor.canMoveView) {
 				if (targetCompositeId) {
@@ -105,7 +113,21 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 			// ... across view containers but without a destination composite
 			if (!targetCompositeId) {
-				return false;
+				const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors;
+				if (draggedViews.some(vd => !vd.canMoveView)) {
+					return false;
+				}
+
+				if (draggedViews.length !== 1) {
+					return false;
+				}
+
+				const defaultLocation = viewContainerRegistry.getViewContainerLocation(this.viewDescriptorService.getDefaultContainer(draggedViews[0].id)!);
+				if (this.targetContainerLocation === ViewContainerLocation.Sidebar && this.targetContainerLocation !== defaultLocation) {
+					return false;
+				}
+
+				return true;
 			}
 
 			// ... from panel to the sidebar
@@ -241,10 +263,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					const draggedCompositeId = data[0].id;
 					this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-					const targetItem = this.model.visibleItems[this.model.visibleItems.length - 1];
-					if (targetItem && targetItem.id !== draggedCompositeId) {
-						this.move(draggedCompositeId, targetItem.id);
-					}
+					this.options.dndHandler.drop(new CompositeDragAndDropData('composite', draggedCompositeId), undefined, e);
 				}
 			}
 
