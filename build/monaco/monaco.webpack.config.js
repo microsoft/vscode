@@ -8,8 +8,8 @@ const path = require('path');
 module.exports = {
 	mode: 'production',
 	entry: {
-		"core": './build/monaco/esm.core.js',
-		"editor.worker": './out-monaco-editor-core/esm/vs/editor/editor.worker.js'
+		'core': './build/monaco/esm.core.js',
+		'editor.worker': './out-monaco-editor-core/esm/vs/editor/editor.worker.js'
 	},
 	output: {
 		globalObject: 'self',
@@ -17,24 +17,13 @@ module.exports = {
 		path: path.resolve(__dirname, 'dist')
 	},
 	module: {
-		rules: [
-			{
-				test: /\.css$/,
-				use: ['style-loader', 'css-loader'],
-			},
-			{
-				test: /\.(woff(2)?|ttf|eot|svg)(\?v=\d+\.\d+\.\d+)?$/,
-				use: [
-					{
-						loader: 'file-loader',
-						options: {
-							name: '[name].[ext]',
-							outputPath: 'fonts/'
-						}
-					}
-				]
-			}
-		]
+		rules: [{
+			test: /\.css$/,
+			use: ['style-loader', 'css-loader']
+		}, {
+			test: /\.ttf$/,
+			use: ['file-loader']
+		}]
 	},
 	resolve: {
 		alias: {

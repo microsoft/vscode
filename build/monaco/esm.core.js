@@ -11,7 +11,7 @@ self.MonacoEnvironment = {
 	getWorkerUrl: function (moduleId, label) {
 		return './editor.worker.bundle.js';
 	}
-}
+};
 
 monaco.editor.create(document.getElementById('container'), {
 	value: [
