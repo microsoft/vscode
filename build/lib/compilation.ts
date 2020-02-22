@@ -88,8 +88,6 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			generator.execute();
 		}
 
-		generateGitHubAuthConfig();
-
 		return srcPipe
 			.pipe(generator.stream)
 			.pipe(compile())
@@ -116,19 +114,6 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 }
 
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
-
-function generateGitHubAuthConfig() {
-	const schemes = ['OSS', 'INSIDERS'];
-	let content: { [key: string]: { id?: string, secret?: string }} = {};
-	schemes.forEach(scheme => {
-		content[scheme] = {
-				id: process.env[`${scheme}_GITHUB_ID`],
-				secret: process.env[`${scheme}_GITHUB_SECRET`]
-			};
-	});
-
-	fs.writeFileSync(path.join(__dirname, '../../extensions/github-authentication/src/common/config.json'), JSON.stringify(content));
-}
 
 class MonacoGenerator {
 	private readonly _isWatch: boolean;
