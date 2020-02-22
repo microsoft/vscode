@@ -49,8 +49,23 @@ export class ContextMenuController implements IEditorContribution {
 
 		this._toDispose.add(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.add(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
+			let shouldHide = true;
 			if (this._contextMenuIsBeingShownCount > 0) {
-				this._contextViewService.hideContextView();
+				const view = this._contextViewService.getView();
+				const editor = this._editor.getDomNode();
+				let target = e.srcElement as HTMLElement;
+				while (target.parentElement && shouldHide !== false) {
+					if (target.parentElement === view) {
+						shouldHide = false;
+					} else if (target.parentElement === editor) {
+						shouldHide = true;
+					}
+					target = target.parentElement;
+				}
+				if (shouldHide) {
+					this._contextViewService.hideContextView();
+				}
+
 			}
 		}));
 		this._toDispose.add(this._editor.onKeyDown((e: IKeyboardEvent) => {

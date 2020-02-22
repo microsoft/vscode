@@ -278,6 +278,10 @@ export class ContextView extends Disposable {
 		return !!this.delegate;
 	}
 
+	getView(): HTMLElement {
+		return this.view;
+	}
+
 	private onDOMEvent(e: Event, onCapture: boolean): void {
 		if (this.delegate) {
 			if (this.delegate.onDOMEvent) {

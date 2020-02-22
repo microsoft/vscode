@@ -41,4 +41,8 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	hideContextView(data?: any): void {
 		this.contextView.hide(data);
 	}
+
+	getView(): HTMLElement {
+		return this.contextView.getView();
+	}
 }
