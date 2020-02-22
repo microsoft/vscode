@@ -965,7 +965,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): any {
-				accessor.get(IPreferencesService).openGlobalSettings(false, { query: 'sync:' });
+				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
 			}
 		});
 	}
