@@ -516,7 +516,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				quickPick.customLabel = localize('turn on', "Turn on");
 			} else {
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
-				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", displayName);
+				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
 			}
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
