@@ -19,7 +19,7 @@ import { FoldingDecorationProvider } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -62,6 +62,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _useFoldingProviders: boolean;
+	private _unfoldOnClickInEmptyContent: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -91,6 +92,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
 		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
+		this._unfoldOnClickInEmptyContent = options.get(EditorOption.unfoldOnClickInEmptyContent);
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -127,6 +129,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 				const options = this.editor.getOptions();
 				this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 				this.onFoldingStrategyChanged();
+			}
+			if (e.hasChanged(EditorOption.unfoldOnClickInEmptyContent)) {
+				this._unfoldOnClickInEmptyContent = options.get(EditorOption.unfoldOnClickInEmptyContent);
 			}
 		}));
 		this.onModelChanged();
@@ -364,6 +369,15 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 				iconClicked = true;
 				break;
+			case MouseTargetType.CONTENT_EMPTY: {
+				if (this._unfoldOnClickInEmptyContent && this.hiddenRangeModel.hasRanges()) {
+					const data = e.target.detail as IEmptyContentData;
+					if (!data.isAfterLines) {
+						break;
+					}
+				}
+				return;
+			}
 			case MouseTargetType.CONTENT_TEXT: {
 				if (this.hiddenRangeModel.hasRanges()) {
 					let model = this.editor.getModel();
