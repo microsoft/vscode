@@ -23,6 +23,16 @@ function uriFromRawUrl(url: string): URI | null {
 	}
 }
 
+/**
+ * A listener for URLs that are opened from the OS and handled by VSCode.
+ * Depending on the platform, this works differently:
+ * - Windows: we use `app.setAsDefaultProtocolClient()` to register VSCode with the OS
+ *            and additionally add the `open-url` command line argument to identify.
+ * - macOS:   we rely on `app.on('open-url')` to be called by the OS
+ * - Linux:   we have a special shortcut installed (`resources/linux/code-url-handler.desktop`)
+ *            that calls VSCode with the `open-url` command line argument
+ *            (https://github.com/microsoft/vscode/pull/56727)
+ */
 export class ElectronURLListener {
 
 	private uris: URI[] = [];
@@ -31,36 +41,40 @@ export class ElectronURLListener {
 	private disposables = new DisposableStore();
 
 	constructor(
-		initial: string | string[],
-		@IURLService private readonly urlService: IURLService,
-		@IWindowsMainService windowsMainService: IWindowsMainService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		private readonly urlService: IURLService,
+		windowsMainService: IWindowsMainService,
+		environmentService: IEnvironmentService
 	) {
-		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
-		const rawBuffer = [
-			...(typeof initial === 'string' ? [initial] : initial),
-			...globalBuffer
-		];
 
-		this.uris = coalesce(rawBuffer.map(uriFromRawUrl));
+		// create the initial set of links we got on startup
+		this.uris = coalesce([
 
+			// Windows/Linux: protocol handler invokes CLI with --open-url
+			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
+
+			// macOS: open-url events
+			...((<any>global).getOpenUrls() || []) as string[]
+		].map(uriFromRawUrl));
+
+		// Windows: install as protocol handler
 		if (isWindows) {
 			const windowsParameters = environmentService.isBuilt ? [] : [`"${environmentService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');
 			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, windowsParameters);
 		}
 
+		// macOS: listen to `open-url` events from here on to handle
 		const onOpenElectronUrl = Event.map(
 			Event.fromNodeEventEmitter(app, 'open-url', (event: ElectronEvent, url: string) => ({ event, url })),
 			({ event, url }) => {
-				// always prevent default and return the url as string
-				event.preventDefault();
+				event.preventDefault(); // always prevent default and return the url as string
 				return url;
 			});
 
 		const onOpenUrl = Event.filter<URI | null, URI>(Event.map(onOpenElectronUrl, uriFromRawUrl), (uri): uri is URI => !!uri);
 		onOpenUrl(this.urlService.open, this.urlService, this.disposables);
 
+		// Send initial links to the window once it has loaded
 		const isWindowReady = windowsMainService.getWindows()
 			.filter(w => w.isReady)
 			.length > 0;

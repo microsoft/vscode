@@ -629,6 +629,17 @@ export class CodeApplication extends Disposable {
 					}
 				}
 
+				// On Mac, Code can be running without any open windows, so we must create a
+				// window to handle urls, if there is none
+				if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+					const cli = { ...environmentService.args };
+					const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });
+
+					await window.ready();
+
+					return urlService.open(uri);
+				}
+
 				return false;
 			}
 		});
@@ -638,37 +649,13 @@ export class CodeApplication extends Disposable {
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
-		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
-
-		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
-		// if there is none
-		if (isMacintosh) {
-			urlService.registerHandler({
-				async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-					if (windowsMainService.getWindowCount() === 0) {
-						const cli = { ...environmentService.args };
-						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });
-
-						await window.ready();
-
-						return urlService.open(uri);
-					}
-
-					return false;
-				}
-			});
-		}
-
-		// Register the multiple URL handler
-		urlService.registerHandler(multiplexURLHandler);
+		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		const args = this.environmentService.args;
-		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService, this.environmentService);
-		this._register(urlListener);
+		this._register(new ElectronURLListener(urlService, windowsMainService, this.environmentService));
 
 		// Open our first window
+		const args = this.environmentService.args;
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = args._.length;
