@@ -12,7 +12,6 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isWindows } from 'vs/base/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
 
 function uriFromRawUrl(url: string): URI | null {
@@ -41,20 +40,14 @@ export class ElectronURLListener {
 	private disposables = new DisposableStore();
 
 	constructor(
+		initialUrisToHandle: URI[],
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
 		environmentService: IEnvironmentService
 	) {
 
-		// create the initial set of links we got on startup
-		this.uris = coalesce([
-
-			// Windows/Linux: protocol handler invokes CLI with --open-url
-			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
-
-			// macOS: open-url events
-			...((<any>global).getOpenUrls() || []) as string[]
-		].map(uriFromRawUrl));
+		// the initial set of URIs we need to handle once the window is ready
+		this.uris = initialUrisToHandle;
 
 		// Windows: install as protocol handler
 		if (isWindows) {

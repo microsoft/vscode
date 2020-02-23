@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
+import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -73,10 +73,10 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsSer
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
-import { assign } from 'vs/base/common/objects';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class CodeApplication extends Disposable {
 
@@ -395,7 +395,7 @@ export class CodeApplication extends Disposable {
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
 
 		// Post Open Windows Tasks
-		appInstantiationService.invokeFunction(this.afterWindowOpen.bind(this));
+		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentService.args.trace) {
@@ -586,54 +586,67 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		this.dialogMainService = accessor.get(IDialogMainService);
 
-		// Create a URL handler to open file URIs in the active window
+		// Check for initial URLs to handle
 		const environmentService = accessor.get(IEnvironmentService);
+		let pendingWindowOpenableFromUri: IWindowOpenable | undefined = undefined;
+		const pendingUrisToHandle = coalesce([
+
+			// Windows/Linux: protocol handler invokes CLI with --open-url
+			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
+
+			// macOS: open-url events
+			...((<any>global).getOpenUrls() || []) as string[]
+		].map(pendingUrlToHandle => {
+			try {
+				return URI.parse(pendingUrlToHandle);
+			} catch (error) {
+				return undefined;
+			}
+		})).filter(pendingUriToHandle => {
+			if (pendingUriToHandle.authority === Schemas.vscodeRemote && !!pendingUriToHandle.path) {
+				// vscode-remote URIs are treated separately from the other URIs
+				// because we want to open a window for these and not handle
+				// them from the initial window that opens.
+				// this prevents a window to open first and then reload to the
+				// actual remote workspace we want to open.
+				const windowOpenable = this.getWindowOpenableFromUriToOpen(pendingUriToHandle);
+				if (windowOpenable) {
+					pendingWindowOpenableFromUri = windowOpenable;
+
+					return false;
+				}
+			}
+
+			return true;
+		});
+
+		// Create a URL handler to open file URIs in the active window
+		const app = this;
 		urlService.registerHandler({
-			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+			async handleURL(uri: URI): Promise<boolean> {
 
-				// Catch file/remote URLs
-				if ((uri.authority === Schemas.file || uri.authority === Schemas.vscodeRemote) && !!uri.path) {
-					const cli = assign(Object.create(null), environmentService.args);
-					const urisToOpen: IWindowOpenable[] = [];
+				// Check for URIs to open in window
+				const windowOpenable = app.getWindowOpenableFromUriToOpen(uri);
+				if (windowOpenable) {
+					windowsMainService.open({
+						context: OpenContext.API,
+						cli: { ...environmentService.args },
+						urisToOpen: [windowOpenable],
+						gotoLineMode: true
+					});
 
-					// File path
-					if (uri.authority === Schemas.file) {
-						// we configure as fileUri, but later validation will
-						// make sure to open as folder or workspace if possible
-						urisToOpen.push({ fileUri: URI.file(uri.fsPath) });
-					}
-
-					// Remote path
-					else {
-						// Example conversion:
-						// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
-						//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
-						const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
-						if (secondSlash !== -1) {
-							const authority = uri.path.substring(1, secondSlash);
-							const path = uri.path.substring(secondSlash);
-							const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
-
-							if (hasWorkspaceFileExtension(path)) {
-								urisToOpen.push({ workspaceUri: remoteUri });
-							} else {
-								urisToOpen.push({ folderUri: remoteUri });
-							}
-						}
-					}
-
-					if (urisToOpen.length > 0) {
-						windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
-
-						return true;
-					}
+					return true;
 				}
 
-				// On Mac, Code can be running without any open windows, so we must create a
-				// window to handle urls, if there is none
+				// If we have not yet handled the URI and we have no window opened (macOS only)
+				// we first open a window and then try to open that URI within that window
 				if (isMacintosh && windowsMainService.getWindowCount() === 0) {
-					const cli = { ...environmentService.args };
-					const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });
+					const [window] = windowsMainService.open({
+						context: OpenContext.API,
+						cli: { ...environmentService.args },
+						forceEmpty: true,
+						gotoLineMode: true
+					});
 
 					await window.ready();
 
@@ -652,7 +665,7 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(urlService, windowsMainService, this.environmentService));
+		this._register(new ElectronURLListener(pendingUrisToHandle, urlService, windowsMainService, this.environmentService));
 
 		// Open our first window
 		const args = this.environmentService.args;
@@ -663,6 +676,22 @@ export class CodeApplication extends Disposable {
 		const hasFileURIs = !!args['file-uri'];
 		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+
+		// check for a pending window to open from URI
+		// e.g. when running code with --open-uri from
+		// a protocol handler
+		if (pendingWindowOpenableFromUri) {
+			return windowsMainService.open({
+				context,
+				cli: args,
+				urisToOpen: [pendingWindowOpenableFromUri],
+				diffMode: args.diff,
+				noRecentEntry,
+				waitMarkerFileURI,
+				gotoLineMode: args.goto,
+				initialStartup: true
+			});
+		}
 
 		// new window if "-n" or "--remote" was used without paths
 		if ((args['new-window'] || args.remote) && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
@@ -685,7 +714,6 @@ export class CodeApplication extends Disposable {
 				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
-				gotoLineMode: false,
 				initialStartup: true
 			});
 		}
@@ -701,6 +729,40 @@ export class CodeApplication extends Disposable {
 			gotoLineMode: args.goto,
 			initialStartup: true
 		});
+	}
+
+	private getWindowOpenableFromUriToOpen(uri: URI): IWindowOpenable | undefined {
+		if (!uri.path) {
+			return undefined;
+		}
+
+		// File path
+		if (uri.authority === Schemas.file) {
+			// we configure as fileUri, but later validation will
+			// make sure to open as folder or workspace if possible
+			return { fileUri: URI.file(uri.fsPath) };
+		}
+
+		// Remote path
+		else if (uri.authority === Schemas.vscodeRemote) {
+			// Example conversion:
+			// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
+			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
+			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+			if (secondSlash !== -1) {
+				const authority = uri.path.substring(1, secondSlash);
+				const path = uri.path.substring(secondSlash);
+				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+				if (hasWorkspaceFileExtension(path)) {
+					return { workspaceUri: remoteUri };
+				} else {
+					return { folderUri: remoteUri };
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private getWindowOpenableFromPathSync(path: string): IWindowOpenable {
@@ -721,6 +783,7 @@ export class CodeApplication extends Disposable {
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
+
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
@@ -750,7 +813,7 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 		super();
 	}
 
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	async call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
 			const env = arg[1];
 			const pargs = parseArgs(arg[0], OPTIONS);
@@ -762,7 +825,6 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 					userEnv: Object.keys(env).length > 0 ? env : undefined
 				});
 			}
-			return Promise.resolve();
 		} else {
 			return super.call(ctx, command, arg);
 		}
