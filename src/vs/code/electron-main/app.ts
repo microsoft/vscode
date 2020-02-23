@@ -575,9 +575,8 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
-
 		// ExtensionHost Debug broadcast service
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
@@ -586,10 +585,10 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		this.dialogMainService = accessor.get(IDialogMainService);
 
-		// Check for initial URLs to handle
+		// Check for initial URLs to handle from protocol link invocations
 		const environmentService = accessor.get(IEnvironmentService);
-		let pendingWindowOpenableFromUri: IWindowOpenable | undefined = undefined;
-		const pendingUrisToHandle = coalesce([
+		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
+		const pendingProtocolLinksToHandle = coalesce([
 
 			// Windows/Linux: protocol handler invokes CLI with --open-url
 			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
@@ -603,18 +602,14 @@ export class CodeApplication extends Disposable {
 				return undefined;
 			}
 		})).filter(pendingUriToHandle => {
-			if (pendingUriToHandle.authority === Schemas.vscodeRemote && !!pendingUriToHandle.path) {
-				// vscode-remote URIs are treated separately from the other URIs
-				// because we want to open a window for these and not handle
-				// them from the initial window that opens.
-				// this prevents a window to open first and then reload to the
-				// actual remote workspace we want to open.
-				const windowOpenable = this.getWindowOpenableFromUriToOpen(pendingUriToHandle);
-				if (windowOpenable) {
-					pendingWindowOpenableFromUri = windowOpenable;
+			// filter out any protocol link that wants to open as window so that
+			// we open the right set of windows on startup and not restore the
+			// previous workspace too.
+			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
+			if (windowOpenable) {
+				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
 
-					return false;
-				}
+				return false;
 			}
 
 			return true;
@@ -626,12 +621,12 @@ export class CodeApplication extends Disposable {
 			async handleURL(uri: URI): Promise<boolean> {
 
 				// Check for URIs to open in window
-				const windowOpenable = app.getWindowOpenableFromUriToOpen(uri);
-				if (windowOpenable) {
+				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
+				if (windowOpenableFromProtocolLink) {
 					windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
-						urisToOpen: [windowOpenable],
+						urisToOpen: [windowOpenableFromProtocolLink],
 						gotoLineMode: true
 					});
 
@@ -665,7 +660,7 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingUrisToHandle, urlService, windowsMainService, this.environmentService));
+		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentService));
 
 		// Open our first window
 		const args = this.environmentService.args;
@@ -680,15 +675,12 @@ export class CodeApplication extends Disposable {
 		// check for a pending window to open from URI
 		// e.g. when running code with --open-uri from
 		// a protocol handler
-		if (pendingWindowOpenableFromUri) {
+		if (pendingWindowOpenablesFromProtocolLinks.length > 0) {
 			return windowsMainService.open({
 				context,
 				cli: args,
-				urisToOpen: [pendingWindowOpenableFromUri],
-				diffMode: args.diff,
-				noRecentEntry,
-				waitMarkerFileURI,
-				gotoLineMode: args.goto,
+				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
+				gotoLineMode: true,
 				initialStartup: true
 			});
 		}
@@ -731,7 +723,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private getWindowOpenableFromUriToOpen(uri: URI): IWindowOpenable | undefined {
+	private getWindowOpenableFromProtocolLink(uri: URI): IWindowOpenable | undefined {
 		if (!uri.path) {
 			return undefined;
 		}
